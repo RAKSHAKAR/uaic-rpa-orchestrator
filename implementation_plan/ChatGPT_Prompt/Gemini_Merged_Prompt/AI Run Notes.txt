@@ -1,0 +1,40 @@
+Master 01: 01_Foundation_and_Environment.md
+    PYTHON 3.14.7 — RUNTIME, LIBRARY, PERFORMANCE & MODERNIZATION UPDATE.md  
+    Mandatory Task Completion, Error Resolution, Skills & Technology Documentation Requirements.md  
+Master 02: 02_Enterprise_Setup_Console_and_Cleanup.md
+    UAIC_Enterprise_Setup_Console_Master_Prompt.md  
+    Complete Validation of Setup Console Actions 1–9 + Enterprise Time-Based Data Cleanup.md  
+    Enterprise Setup Console — Complete Options 1–9 + MailDev Validation, Repair & Productionization Prompt.md  
+Master 03: 03_Core_Architecture_and_UI_UX.md
+    MANDATORY RESPONSIVE UI-UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION.md  
+    Scraped Public Court Cases — Data Format Validation, Guidewire Compatibility & UI-UX Redesign.md  
+    MASTER IMPLEMENTATION PROMPT_1.md  
+    MASTER IMPLEMENTATION, CORRECTION, VALIDATION & PRODUCTIONIZATION PROMPT.md  
+    UAIC Claim & RPA Orchestrator — Final Comprehensive Implementation, Validation & Productionization Prompt.md  
+Master 04: 04_Scraping_Engine_and_QA_Refinements.md
+    Security_CAPTCHA_Compliance_and_Error_Handling_Guidelines.md
+    MASTER PROMPT — COUNTY PORTAL DISCOVERY, HUMAN-LIKE NAVIGATION, CAPTCHA-SAFE AUTOMATION & VERIFIED IMPLEMENTATION.md  
+    MISSING_REQUIREMENT_CAPTCHA_COMPLIANCE_AND_RETRY_LOGIC.md  
+    UAIC Claim & RPA Orchestrator — Corrected and Ordered Requirements.md  
+
+(Note: You do not need to attach ManualPrompt.txt or the Consolidated Issues file, as the Corrected and Ordered Requirements.md 
+file completely contains and supersedes their instructions).  
+
+Master 05: 05_Email_Notifications_and_Acceptance.md
+    Complete Power Platform Email & Notification Implementation Prompt.md  
+    Exact Acceptance Evidence — Email & Notification Implementation.md  
+Master 06: 06_E2E_Validation_and_Documentation.md
+    Attended & Unattended End-to-End Validation — V4 Parity and Improvement.md  
+    Antigravity — Full Documentation Reconciliation, .gitignore & Current-State Consolidation Prompt.md  
+    
+(The file Enterprise Pros, Cons, Cost, Maintenance & Final Recommendation — Power Platform vs Current UAIC Solution.md remains excluded 
+entirely, as it is a strategic business report rather than a coding instruction).  
+
+
+
+Suporting Docs you can ref:
+1) Attended & Unattended End-to-End Validation — V4 Parity and Improvement.md  
+2) Antigravity — Full Documentation Reconciliation, .gitignore & Current-State Consolidation Prompt.md 
+
+Note: Most of them are already implemented, test before making any changes.
+

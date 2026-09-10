@@ -1,0 +1,79 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_commondataserviceforapps_1": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "uaic_sharedcommondataserviceforapps_6e43b"
+        },
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "When_a_row_is_added,_modified_or_deleted": {
+          "metadata": {
+            "operationMetadataId": "575e86ac-9838-415f-a571-27a26fe41de8"
+          },
+          "type": "OpenApiConnectionWebhook",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_commondataserviceforapps_1",
+              "operationId": "SubscribeWebhookTrigger",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+            },
+            "parameters": {
+              "subscriptionRequest/message": 7,
+              "subscriptionRequest/entityname": "uaic_uaic_bot_creation_database",
+              "subscriptionRequest/scope": 4,
+              "subscriptionRequest/filteringattributes": "uaic_record_status",
+              "subscriptionRequest/filterexpression": "uaic_record_status eq 870300000",
+              "subscriptionRequest/runas": 2
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        }
+      },
+      "actions": {
+        "Add_a_new_row": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "5f3e0e99-11bd-435b-a7f4-8a3e5773d24c"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_commondataserviceforapps_1",
+              "operationId": "CreateRecord",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+            },
+            "parameters": {
+              "entityName": "workqueueitems",
+              "item/name": "@triggerOutputs()?['body/uaic_uaic_bot_creation_databaseid']",
+              "item/workqueueid@odata.bind": "/workqueues(13e37098-7135-f011-8c4d-6045bdf0a0d7)",
+              "item/input": "@{triggerOutputs()?['body/uaic_uaic_bot_creation_databaseid']}, @{triggerOutputs()?['body/uaic_insuredfirstname']} @{triggerOutputs()?['body/uaic_insuredlastname']} @{triggerOutputs()?['body/uaic_claimnumber']}",
+              "item/statecode": 0
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        }
+      }
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}

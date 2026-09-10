@@ -1,0 +1,53 @@
+# ==============================================================================
+# UAIC Claim & RPA Orchestrator — Docker Compose Override Example (GAP-CURRENT-01)
+# ==============================================================================
+# This template demonstrates how to configure an XVFB (X Virtual FrameBuffer)
+# display server for containerized Linux worker nodes when running Playwright
+# court scrapers in attended or virtual-GUI modes.
+#
+# To activate:
+#   1. Copy this file to docker-compose.override.yml:
+#        cp docker-compose.override.yml.example docker-compose.override.yml
+#   2. Launch stack:
+#        docker compose up -d
+# ==============================================================================
+
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Optional Virtual Display Server (XVFB) for Linux Headless GUI Automation
+  # ---------------------------------------------------------------------------
+  xvfb:
+    image: selenium/standalone-chrome:latest
+    container_name: uaic_xvfb_display
+    environment:
+      - START_XVFB=true
+      - SCREEN_WIDTH=1920
+      - SCREEN_HEIGHT=1080
+      - SCREEN_DEPTH=24
+      - DISPLAY=:99
+    ports:
+      - "4444:4444"
+      - "7900:7900" # VNC web viewer: http://localhost:7900 (password: secret)
+    shm_size: 2gb
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker Configured with Virtual Display
+  # ---------------------------------------------------------------------------
+  celery_worker:
+    environment:
+      - DISPLAY=:99
+      - PLAYWRIGHT_HEADLESS=false # Enables full GUI rendering into the virtual framebuffer
+      - BROWSER_ENGINE=chromium
+    depends_on:
+      - xvfb
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend with Standardized Logs Mount
+  # ---------------------------------------------------------------------------
+  backend:
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads

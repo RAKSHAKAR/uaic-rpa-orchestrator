@@ -1,0 +1,4 @@
+Claim#,Exp#,Insured First,Insured Last,Claimant First,Claimant Last,Driver First,Driver Last,Accident Date,Policy St,Loss St
+TEST-5DE6C6,001,Robert,Langdon,Sophie,Neveu,Robert,Langdon,01/15/2023,FL,FL
+TEST-9E7837,002,Arthur,Dent,Ford,Prefect,Arthur,Dent,05/25/2023,TX,TX
+TEST-316087,001,Eleanor,Shellstrop,Chidi,Anagonye,Eleanor,Shellstrop,11/04/2022,FL,TX

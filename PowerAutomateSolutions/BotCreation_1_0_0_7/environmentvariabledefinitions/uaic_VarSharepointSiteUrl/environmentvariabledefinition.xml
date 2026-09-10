@@ -1,0 +1,11 @@
+<environmentvariabledefinition schemaname="uaic_VarSharepointSiteUrl">
+  <defaultvalue>https://uaignet.sharepoint.com/sites/UAICBotCreation</defaultvalue>
+  <displayname default="VarSharepointSiteUrl">
+    <label description="VarSharepointSiteUrl" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.1</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

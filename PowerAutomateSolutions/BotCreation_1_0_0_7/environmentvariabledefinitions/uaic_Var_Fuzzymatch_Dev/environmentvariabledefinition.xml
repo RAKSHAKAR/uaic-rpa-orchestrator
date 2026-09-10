@@ -1,0 +1,11 @@
+<environmentvariabledefinition schemaname="uaic_Var_Fuzzymatch_Dev">
+  <defaultvalue>https://county-fuzzymatch-api-dev-bce8gmhybjeccqh3.eastus-01.azurewebsites.net/fuzzymatchapi</defaultvalue>
+  <displayname default="Var_Fuzzymatch">
+    <label description="Var_Fuzzymatch" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

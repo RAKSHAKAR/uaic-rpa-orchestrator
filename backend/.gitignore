@@ -1,0 +1,41 @@
+# ==============================================================================
+# UAIC Backend — GitIgnore (FastAPI, Celery, Playwright, SQLAlchemy)
+# ==============================================================================
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local Environment Variables
+.env
+.env.*
+!.env.example
+
+# Local SQLite & Runtime Databases
+*.sqlite
+*.sqlite3
+*.db
+app.db
+
+# Celery Beat Schedule
+celerybeat-schedule*
+
+# Runtime Outputs
+*.log
+screenshots/*
+!screenshots/.gitkeep
+uploads/*
+!uploads/.gitkeep
+app/uploads/*
+!app/uploads/.gitkeep

@@ -1,0 +1,34 @@
+# ==============================================================================
+# UAIC Frontend — GitIgnore (Next.js 14 App Router)
+# ==============================================================================
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Next.js Build Output
+.next/
+out/
+build/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local Environment Variables
+.env*.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Uploaded preview assets
+public/uploads/*
+!public/uploads/.gitkeep

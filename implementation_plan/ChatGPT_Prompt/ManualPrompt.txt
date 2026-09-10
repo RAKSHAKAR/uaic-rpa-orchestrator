@@ -1,0 +1,324 @@
+How you have tested as i can still found many things is missing and not completed or not funcational as expected, pls work on these and make everything properly aligned with it:
+
+[UAIC Claim & RPA Orchestrator](http://localhost:3000/audit):
+1) Soring is not showing at above page.
+2) On click of cards where statics are showing filter is not working in data table on above page.
+3) Export excel and pdf functionality is not showing at above page.
+4) Check the UI in dark and light mode.
+5) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+6) Pls test all clickable and actionable objects like other buttons, links, etc. which i have not yet tested and missed to inform you.
+7) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+8) pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+[UAIC Claim & RPA Orchestrator](http://localhost:3000/):
+1) Need to improve dashboard and connect with real data.
+2) Check the UI in dark and light mode.
+3) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+4) Pls test all clickable and actionable objects like other buttons, links, etc which i have not yet tested and missed to inform you.
+5) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+6) Pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+http://localhost:3000/monitor:
+1) Cards where statics are showing is not same in design as we have in dashboard screen.
+2) Export JSON is not showing, and background export popup is awesome and you have given separate button for excel and csv for quick download looks awesome, pls make this component and use in all the page(s) where we can show this functionality.
+3) Auto Queue must be enabled in by default.
+4) Check the UI in dark and light mode.
+5) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+6) Pls test all clickable and actionable objects like other buttons, links, etc. which i have not yet tested and missed to inform you.
+7) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+8) pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+http://localhost:3000/claims/e835ebcc-569d-46ce-9871-0f1a2dd195ad:
+1) In Popup of Telemetry Audit for all the Stages must be show and then download the respective screenshot. Storage delete/cleanup definition/settings must be in automation setting page inside storage & error screenshots tab with change/update policy and based on this settings delete/cleanup the connected storage and it must be work with all local or service providers.
+2) Nothing is happening when we clicking on View Stages.
+3) Top Export Options:
+    a) PDF : it is working awesome.
+    b) Excel: it is not showing all the data as JSON showing.
+    c) CSV: it is not showing all the data as JSON showing.
+    d) JSON: it is also giving all information and working awesome.
+4) UI is little overlapping in Concurrent Multi-Portal Scraping Timeline. pls check it must be fully responsive defined in skills.
+5) Just below the County Court Portal Scraper Execution Status (8 Bots) section cards where statics are showing is not same in design as we have in dashboard screen.
+6) In the table of Scraped Public Court Cases (12 of 12) section, why filling date is not capturing, pls fix this and make sure that all the data must captured.
+7) sort:descending button is not correctly working, remove this and add sorting to the column of table as we have done in another places.
+8) All filters must have multi select option.
+9) Check the UI in dark and light mode.
+10) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+11) No audit events recorded yet for this claim.--> why it is not showing even it received 12 cases and performed many activity.
+12) Bottom Export Cases under Scraped Public Court Cases (12 of 12):
+    a) PDF : it is working awesome. Remove this from this section.
+    b) Excel: it is working awesome, pls implement the same thing in excel export available in top export option.
+    c) CSV: it is not showing all the data as JSON showing in same sheet you have to think that how we can show all the data in same csv.
+    d) JSON: it is also giving all information and working awesome.
+13) implement background export popup (component taken from http://localhost:3000/monitor) and you have given separate button for excel and csv and JSON for quick download looks awesome.
+14) Pls test all clickable and actionable objects like other buttons, links, etc. which i have not yet tested and missed to inform you.
+15) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+16) pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+http://localhost:3000/health:
+1) Auto Refresh must be on.
+2) Check the UI in dark and light mode.
+3) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+4) Pls test all clickable and actionable objects like other buttons, links, etc. which i have not yet tested and missed to inform you.
+5) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+6) pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+
+http://localhost:3000/audit:
+1) Export Excel button is not in top.
+2) Filters must be work when clicking on cards.
+3) Sorting the table columns is not applied.
+4) Multi select filter dropdown must be there
+5) Check the UI in dark and light mode.
+6) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+7) Pls test all clickable and actionable objects like other buttons, links, etc. which i have not yet tested and missed to inform you.
+8) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+9) pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+
+http://localhost:3000/exceptions:
+1) Export option must be there.
+2) Multi select filter dropdown must be there
+3) Check the UI in dark and light mode.
+4) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+5) Pls test all clickable and actionable objects like other buttons, links, etc.. which i have not yet tested and missed to inform you.
+6) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+7) Pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+
+http://localhost:3000/settings:
+1) Default settings:
+    i) Browser & Captcha Tab: 
+        a) CAPTCHA Resolution Wait (Seconds) must be 120, 
+        b) Max Retry & Refresh Attempts must be 2, 
+        c) Portal Navigation Timeout (Seconds) must be 60
+        d) Page Reload Backoff Delay (Seconds) -- i am not clear what is this, pls explain and make the adjustment as above i have given.
+        e) Parallel RPA Concurrency must be 10x (Max) selected.
+    ii) Email & Notification Tab:
+        a) No CC recipients configured and No BCC recipients configured --> i don't know why these are showing, pls check and fix this.
+        b) What is the use of Render Preview button what it is doing as i can see the preview by clicking on Live Preview button which is awesome. pls remove this if its not valuable.
+        c) Live Synchronized Render Preview section only visible when we click on Live Preview button.
+        d) make sure that Outbound Notification Delivery History section must work properly as i can see "No notification records found in history yet. Use the "Send Test Email" console above or trigger a claim automation run to record deliveries." now.
+    iii) Celery Worker Queues & Failure Alerts: i am not sure about this tab as i don't know this tech. pls handle yourself.
+2) pls make sure all the tabs and their functionality must be fully tested and worked.
+3) Check the UI in dark and light mode.
+4) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+5) Pls test all clickable and actionable objects like other buttons, links, etc. which i have not yet tested and missed to inform you.
+6) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+7) Pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+http://localhost:3000/branding:
+1) pls make sure all the tabs and their functionality must be fully tested and worked.
+2) Check the UI in dark and light mode.
+3) Check the responsiveness for all the devices like mobile, tablet, desktop, big screen along with Landscape and portrait mode.
+4) Pls test all clickable and actionable objects like other buttons, links, etc which i have not yet tested and missed to inform you.
+5) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+6) pls check and test the performance of the page, if you found anything issue or delay fix them and make the faster.
+
+
+Note: 
+1) In all dropdown we can have multiple select options.
+2) Not all controls like cards, button, etc. must have same design and must component and used in all the page(s) instead of creating a separate controls for each screens.
+3) What is the condition to send record(s) to Guidewire and why it is not sending automatically?
+4) Update this changes in the required documents in the solution and do the complete end to end testing with proper steps and make sure test cases must be registered for future testing.
+5) While executing pls make sure that you have started navigating form home page of each County Court Portal where you are executing and navigate to respective things to search and find the cases, you have to run all the County Court Portal one time and record that. and when it is successfully done then update the County Court Portals url and do the connection test as well. It is very important because many of the County Court Portals are using diff. type of captcha and when we act like human by navigating from home page it will be very less chance to catch by those captchas.
+6) In pagination, max 500 records we can show to the UI currently its 100.
+
+
+
+_____
+1) Pls remove "Loss Location City", "Loss Location County", "Garaging City". and "Garaging State" from New Form, Edit Form, Column Mapping of Data Ingestion & Excel Import.
+2) Pls update the defualt urls:
+ from https://www.browardclerk.org/Web2/ to https://www.browardclerk.org/,
+ from https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab to https://hover.hillsclerk.com/,
+ from https://www2.miamidadeclerk.gov/ocs to https://www2.miamidadeclerk.gov/ocs,
+ from https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29 to https://odysseyweb.traviscountytx.gov/Portal/,
+ from https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29 to https://courtsportal.dallascounty.org/DALLASPROD/Home/,
+ from https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29 to https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/,
+ from https://www.cclerk.hctx.net/Applications/WebSearch/ to https://www.cclerk.hctx.net/Applications/WebSearch/,
+ from https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx to https://www.hcdistrictclerk.com/
+3) Workflows:
+    i) Pls create seperate workflow to install and test the following things in to the automation settings page:
+        a) Anti Captcha extesnion with all required settings for all kind of browsers which currently supported in our solution (Pls don't add any additional browser, and All settings of the extension must be configuratble, you can put current configuration as defualt configuration ), 
+        b) As We having insrted (Created manually/Uploaded via excel/csv) the following information/data in starting: 
+            Primary Key, 
+            Claim Number (Required)
+            Exposure Number
+            Insured First & Last Name
+            Claimant First & Last Name
+            Driver First & Last Name (Insured Vehicle)
+            DOL (Excel serial date or MM/DD/YYYY)
+            Policy State & Loss Location State
+            
+            Please Create these 2 fuzzy match APIs:
+            1) To get the list of all unique names from these above columns of uploaded/created record(s):
+                "Insured First Name"
+                "Insured Last Name"	
+                "Driver First Name (Insured Vehicle)"	
+                "Driver Last Name (Insured Vehicle)" 
+                "Claimant First Name"	
+                "Claimant Last Name"
+            2) The same API which was using in earlier solution and is available here (.\PowerAutomateSolutions\fuzzy-match-api\) you can take refrense and make the exact same api and implement in current solution
+            3) You have already Implemented below APIs in the current solution, pls explain these both in very small details that answer my all my possible (How, why and what) releated questions:
+                GET Method for api/v1/matches/pending?limit=50 and POST Method for /api/v1/matches/{match_pair_id}/review 
+
+            Important Note(s) for above all APIs: 
+                i) All settings must be configurable and testable like API docs to get the real response from Automation Setting page.
+                ii) Put/set the current exact configuration (from the path) as defualt configuration there in Automation Setting page.
+                iii) Paramenter to test must be real type senerios with all kind of positive/negetive matches (Give some sample parameter to test). 
+            Important Note: Rest of the below Workflows only starts when all of the above things setisfied, activated, and working fine else we must have to show the popup to the user when he started workflow by uploading the document or creating record from Queue Monitor page with correct instuctions as it is the entry gate to start the application or use the services. 
+    ii) For Florida (Broward, Hillsborough, Miami-Dade):
+        i) Lauch the default set broser (Which already set in Automation Settings Page)
+        ii) Navigate/Open to all Florida site(s) in Browser tabs parallely in one go as you must have to just navigate from one tab to another defined as follows:
+            For Broward (https://www.browardclerk.org/): 
+                a) Go to the Broward tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "Case Search"
+                c) Verify that page loads and "Party Name" tab is selected, if not then select this.
+                d) Fill the data in to these columns (Last Name, First Name, Date From)
+                e) Click on the check of captcha, if captcha solving is not started automatically.
+                e) Wait for solve the captcha and right tick (Tick design or color may be change frequently based on the solving nature of Anti-Captcha and captcha's security)
+                    Exception: 
+                        1) Sometime captcha fails to Verify, if it fails then refresh the browser page and do all the same things from point c. 
+                        2) Also sometime you will get message/popup saying "Session timeout warning" then pls click on "Continiue session". if you will not do this then it will auto navigate to home page and you have to start form point b else starts from point c with existing or new data depend on Failure or new search.
+                        3) We have already set default "CAPTCHA Resolution Wait (Seconds)" = 120. This is actually max wait time to solve the captch, it does not mean our workflow process will stop, if captcha is not solved in this given time then you have to hard refresh the page and this hard refresh also do till "Max Retry & Refresh Attempts":2 and this also we have already set by default.  
+                e) Once Captcha is solved then imediately click on Search.
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filling Date", "Case Status", "Access Level", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api).
+                h) Click on "Case Search" again and keep the browser tab as it is, then move to another tab where Hillsborough was open and follow the next process for that. 
+
+            For Hillsborough (https://hover.hillsclerk.com/):
+                a) Go to the Hillsborough tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "Party or Business Name"
+                c) Verify that page loads and "Search by Party or Business Name" tab is selected, if not then select this.
+                d) Fill the data in to these columns (First Name, Last Name, On or After)
+                e) Click on "Search"
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filled", "Case Status", "Citation", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api). It might be possible that during this period or on this page you will get "YOUR SEARCH CRITERIA" Popup pls do the Close or Cross this popup.
+                h) Now navigate to the point a and keep the browser tab as it is. 
+                i) Move to another tab where Miami-Dade was open and follow the next process for that. 
+ 
+            For Miami-Dade (https://www2.miamidadeclerk.gov/ocs):
+                a) Go to the Miami-Dade tab and wait for the page fully loads, if not loading then refresh again.
+                b) Following steps you will do only if account is not login:
+                    i) Click on "Register/Login" and wait for page load.
+                    ii) Verify that page loads then Fill the data in to these columns:                    
+                        User ID / Email, and Password - you can take these details from automation settings page.        
+                    iii) Click on "LOGIN" and wait for page loads.
+                c) Close "Save your password" popup given by browser when you login at anytime and it will defentely show or not, that is not sure/necessary but you have to keep trained yourself to handle such situations and act like humans.
+                d) Make sure tab/page must redirect to https://www2.miamidadeclerk.gov/ocs if not then do this.
+                e) Click on "Party Name" then click on "Refresh".
+                f) Fill the data in to these columns (First Name, Last Name, Filing Date Range From) 
+                g) Click on "Search"
+                h) Wait for the result page loads
+                i) Pls verify that "Table View" must be enable if its not then enable it.
+                j) Once it loads check the data there, if data is available then extract the "Local Case Number", "State Case Number","Section","Case Type","Filing Date","Case Status", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api). It might be possible that during this period or on this page you will get "YOUR SEARCH CRITERIA" Popup pls do the Close or Cross this popup.
+                h) Now navigate to the point d and keep the browser tab as it is. 
+                i) Close All the tabs encloding Browser
+    Note: 
+    1) This must be repeated until all the unique names one by one received from 3>i>a>1 api so pls do this activity before launching the brower tabs.
+    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>a>1.
+    3) Close the broser completly and start the work on next queue that we don't know the next item is realted to Florida or something else. Depend on this you can proceed.   
+  
+
+    iii) For Texas (Travis, Dallas, Harris JP, CClerk, HCDistrict):    
+        i) Lauch the default set broser (Which already set in Automation Settings Page)
+        ii) Navigate/Open to all Travis site(s) in Browser tabs parallely in one go as you must have to just navigate from one tab to another defined as follows:
+            For Travis (https://odysseyweb.traviscountytx.gov/Portal/): 
+                a) Go to the Travis tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "Smart Search"
+                c) Verify that page loads.
+                d) Enter the data in to Search Input Text box.
+                e) Click on the check of captcha, if captcha solving is not started automatically.
+                e) Wait for solve the captcha and right tick (Tick design or color may be change frequently based on the solving nature of Anti-Captcha and captcha's security)
+                    Exception: 
+                        1) Sometime captcha fails to Verify, if it fails then refresh the browser page and do all the same things from point c. 
+                        2) Also sometime you will get message/popup saying "Session timeout warning" then pls click on "Continiue session". if you will not do this then it will auto navigate to home page and you have to start form point b else starts from point c with existing or new data depend on Failure or new search.
+                        3) We have already set default "CAPTCHA Resolution Wait (Seconds)" = 120. This is actually max wait time to solve the captch, it does not mean our workflow process will stop, if captcha is not solved in this given time then you have to hard refresh the page and this hard refresh also do till "Max Retry & Refresh Attempts":2 and this also we have already set by default.  
+                e) Once Captcha is solved then imediately click on Submit.
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filling Date", "Case Status", "Access Level", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api).
+                h) Navigate to Travis (https://odysseyweb.traviscountytx.gov/Portal/) again or starts from step a and keep the browser tab as it is, then move to another tab where Dallas was open and follow the next process for that. 
+
+            For Dallas (https://courtsportal.dallascounty.org/DALLASPROD/Home/):
+                a) Go to the Dallas tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "Smart Search"
+                c) Verify that page loads.
+                d) Enter the data in to Search Input Text box.
+                e) Click on the check of captcha, if captcha solving is not started automatically.
+                e) Wait for solve the captcha and right tick (Tick design or color may be change frequently based on the solving nature of Anti-Captcha and captcha's security)
+                    Exception: 
+                        1) Sometime captcha fails to Verify, if it fails then refresh the browser page and do all the same things from point c. 
+                        2) Also sometime you will get message/popup saying "Session timeout warning" then pls click on "Continiue session". if you will not do this then it will auto navigate to home page and you have to start form point b else starts from point c with existing or new data depend on Failure or new search.
+                        3) We have already set default "CAPTCHA Resolution Wait (Seconds)" = 120. This is actually max wait time to solve the captch, it does not mean our workflow process will stop, if captcha is not solved in this given time then you have to hard refresh the page and this hard refresh also do till "Max Retry & Refresh Attempts":2 and this also we have already set by default.  
+                e) Once Captcha is solved then imediately click on Submit.
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filling Date", "Case Status", "Access Level", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api).
+                h) Navigate to Dallas (https://courtsportal.dallascounty.org/DALLASPROD/Home/) again or starts from step a and keep the browser tab as it is, then move to another tab where Harris JP was open and follow the next process for that. 
+
+
+            For Harris JP (https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/):
+                a) Go to the Harris JP tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "Smart Search"
+                c) Verify that page loads.
+                d) Enter the data in to Search Input Text box.
+                e) Click on the check of captcha, if captcha solving is not started automatically.
+                e) Wait for solve the captcha and right tick (Tick design or color may be change frequently based on the solving nature of Anti-Captcha and captcha's security)
+                    Exception: 
+                        1) Sometime captcha fails to Verify, if it fails then refresh the browser page and do all the same things from point c. 
+                        2) Also sometime you will get message/popup saying "Session timeout warning" then pls click on "Continiue session". if you will not do this then it will auto navigate to home page and you have to start form point b else starts from point c with existing or new data depend on Failure or new search.
+                        3) We have already set default "CAPTCHA Resolution Wait (Seconds)" = 120. This is actually max wait time to solve the captch, it does not mean our workflow process will stop, if captcha is not solved in this given time then you have to hard refresh the page and this hard refresh also do till "Max Retry & Refresh Attempts":2 and this also we have already set by default.  
+                e) Once Captcha is solved then imediately click on Submit.
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filling Date", "Case Status", "Access Level", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api).
+                h) Navigate to Dallas (https://courtsportal.dallascounty.org/DALLASPROD/Home/) again or starts from step a and keep the browser tab as it is, then move to another tab where Harris JP was open and follow the next process for that. 
+            
+            For CClerk (https://www.cclerk.hctx.net/Applications/WebSearch/): 
+                a) Go to the CClerk tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "County Civil" inside bubmenu's of "COURTS"
+                c) Verify that page loads.
+                d) Fill the data in to these columns (Last Name, First Name, File Date (From))
+                e) Click on "Search"
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filled", "Case Status", "Citation", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api). It might be possible that during this period or on this page you will get "YOUR SEARCH CRITERIA" Popup pls do the Close or Cross this popup.
+                h) Now navigate to the point a and keep the browser tab as it is. 
+                i) Move to another tab where HCDistrict was open and follow the next process for that. 
+        
+
+            For HCDistrict (https://www.hcdistrictclerk.com/): 
+                a) Go to the HCDistrict tab and wait for the page fully loads, if not loading then refresh again.
+                b) Click on "Search Our Records"
+                c) Verify that page loads.
+                d) Fill the data in to these columns (Last Name, First Name, File Date (From))
+                e) Click on "Search"
+                f) Wait for the result page loads
+                g) Once it loads check the data there, if data is available then extract the "Case Number", "Case Style", "Case Type", "Filled", "Case Status", "Citation", etc... (Extract all the data (paginated data also, all means all items) and save in our database as currently its happening but make sure you will get the value of all coulmn even the columns which i might forgot to write here and if you notice that and save in our database in exact same format which currently we have becasue these data we may use/already using in api and also send to guideware api). It might be possible that during this period or on this page you will get "YOUR SEARCH CRITERIA" Popup pls do the Close or Cross this popup.
+                h) Now navigate to the point a and keep the browser tab as it is. 
+                i) Move to another tab where HCDistrict was open and follow the next process for that. 
+                j) Close All the tabs encloding Browser
+
+    Note: 
+    1) This must be repeated until all the unique names one by one received from 3>i>a>1 api so pls do this activity before launching the brower tabs.
+    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>a>1.
+    3) Close the broser completly and start the work on next queue that we don't know the next item is realted to Florida or something else. Depend on this you can proceed.   
+    
+_________
+
+    iv) For Cross-State (All 8 portals dispatched concurrently):
+        a) Lauch the default set broser (Set in Automation Settings Page).
+        b) Perform all the actitity of Florida and Texas both.
+        c) Navigate/Open to all Florida and Travis site(s) in Browser tabs parallely in one go as you must have to just navigate from one tab to another defined as follows:
+        d) Once All site(s) are loading pls follow the steps from Florida to Tavis
+        f) Close All the tabs encloding Browser
+
+    Note: 
+    1) This must be repeated until all the unique names one by one received from 3>i>a>1 api so pls do this activity before launching the brower tabs.
+    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>a>1.
+    3) Close the broser completly and start the work on next queue that we don't know the next item is realted to Florida or something else. Depend on this you can proceed.   
+    
+
+
+    Important Note(s):
+        1) At any point, if you get error or any kind of stopper to performed all the above activity step by step then:
+            a) Take the screenshot of the page and save that in .\backend\screenshots with some unique identity and maintain folder hierarcy so that later on dev team can easliy find those screenshot(s) or we can use anywhere in app to show the error like i have already given many places in record page (http://localhost:3000/claims/e835ebcc-569d-46ce-9871-0f1a2dd195ad).
+            b) Always save the detail logs in .\backend\logs with some unique identity and maintain folder hierarcy so that later on dev team can easliy find those log(s) and match with the screenshote to analyse the real issue or we can use anywhere in app to show the error like i have already given many places in record page (http://localhost:3000/claims/e835ebcc-569d-46ce-9871-0f1a2dd195ad).
+            b) Above point a and b must be happen when "Error Screenshot Capture on Portal Scraper Failure" is Enabled and must"Local Server Storage" is must selected (means both condition is true) else store in selected storage provider path but make sure to maintain folder hierarcy so that later on dev team can easliy find those log(s) and match with the screenshote to analyse the real issue or we can use anywhere in app to show the error like i have already given many places in record page (http://localhost:3000/claims/e835ebcc-569d-46ce-9871-0f1a2dd195ad). 
+        2) Always update your skills and update flows and  updated readme file, and other documentations,created correct test cases, properly tested, and testing outpur saved in correct location which i believe implementation_plan there we have Images folder for image and Recording folder for recording, pls keep noted that always maintain the folder hyrarchy for correct dev indentification.

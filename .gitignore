@@ -1,0 +1,34 @@
+﻿# Environments & Dependencies
+.venv/
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# Local Storage, Browser Caches, and Databases
+backend/data/
+backend/logs/
+backend/screenshots/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Heavy Media, Recordings, VSIX Packages, and Archives (>100MB Limit Protection)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.zip
+*.rar
+*.7z
+*.VSIXPackage
+implementation_plan/Video/
+PowerAutomateSolutions/*.zip
+PowerAutomateSolutions/*.mp4
+
+# Environment Variables & OS Files
+.env
+.DS_Store
+Thumbs.db

@@ -1,0 +1,164 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  :root,
+  [data-theme="light"] {
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+
+    /* Semantic Theme Design Tokens - Light Mode */
+    --color-primary: #4f46e5;
+    --color-secondary: #0ea5e9;
+    --color-accent: #6366f1;
+    --color-background: #f8fafc;
+    --color-surface: #ffffff;
+    --color-card: #ffffff;
+    --color-header: #ffffff;
+    --color-sidebar: #ffffff;
+    --color-text: #0f172a;
+    --color-text-muted: #64748b;
+    --color-border: #e2e8f0;
+    --color-divider: #e2e8f0;
+    --color-input-background: #f8fafc;
+    --color-input-text: #0f172a;
+    --color-button: #4f46e5;
+    --color-button-text: #ffffff;
+    --color-link: #4f46e5;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-info: #3b82f6;
+    --color-focus: #6366f1;
+    --color-hover: #f1f5f9;
+    --color-active: #e2e8f0;
+    --color-selected: #e0e7ff;
+    --color-disabled: #94a3b8;
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    /* Semantic Theme Design Tokens - Dark Mode */
+    --color-primary: #6366f1;
+    --color-secondary: #38bdf8;
+    --color-accent: #818cf8;
+    --color-background: #020617;
+    --color-surface: #0f172a;
+    --color-card: #0f172a;
+    --color-header: #020617;
+    --color-sidebar: #020617;
+    --color-text: #f8fafc;
+    --color-text-muted: #94a3b8;
+    --color-border: #1e293b;
+    --color-divider: #1e293b;
+    --color-input-background: #020617;
+    --color-input-text: #f8fafc;
+    --color-button: #4f46e5;
+    --color-button-text: #ffffff;
+    --color-link: #818cf8;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-info: #38bdf8;
+    --color-focus: #818cf8;
+    --color-hover: #1e293b;
+    --color-active: #334155;
+    --color-selected: #312e81;
+    --color-disabled: #64748b;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Safe area padding utilities for mobile viewports */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px));
+}
+
+.pt-safe {
+  padding-top: calc(env(safe-area-inset-top, 0px));
+}
+
+/* Hide scrollbar for touch-friendly horizontal scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Print styles for PDF export and high-fidelity reports */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  html, body {
+    background-color: #020617 !important;
+    color: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print,
+  .no-print *,
+  header,
+  nav,
+  aside,
+  button,
+  .no-print-area {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Prevent awkward page break cuts inside cards and tables */
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+

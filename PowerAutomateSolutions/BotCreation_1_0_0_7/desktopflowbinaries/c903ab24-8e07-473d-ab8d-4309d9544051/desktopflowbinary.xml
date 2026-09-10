@@ -1,0 +1,14 @@
+<desktopflowbinary desktopflowbinaryid="c903ab24-8e07-473d-ab8d-4309d9544051">
+  <data mimetype="image/png">DesktopFlowModuleImageFile_c903ab24-8e07-473d-ab8d-4309d9544051.png</data>
+  <desktopflowmodule>
+    <desktopflowmoduleid>5fa7054f-2475-45d7-b3cd-d86a8461964f</desktopflowmoduleid>
+  </desktopflowmodule>
+  <iscustomizable>1</iscustomizable>
+  <metadata>{}</metadata>
+  <mimetype>image/png</mimetype>
+  <name>Desktop flow module screenshot</name>
+  <reference>controlRepo-screenshots\57cc231b-0bb4-4a82-b4a9-822054f6725d.png</reference>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+  <type>DesktopFlowModuleImageFile</type>
+</desktopflowbinary>
