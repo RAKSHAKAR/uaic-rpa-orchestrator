@@ -3,7 +3,7 @@
     Enterprise GitHub Deployment & Multi-Account Management Console
 .DESCRIPTION
     An interactive enterprise deployment console that stays open in a continuous menu loop,
-    handling multi-account authentication, history sanitization, repository creation, and syncing.
+    supports multi-account selection before execution, history sanitization, and repository creation.
 #>
 
 [CmdletBinding()]
@@ -29,6 +29,48 @@ git config --global http.postBuffer 524288000
 git config --global http.lowSpeedLimit 0
 git config --global http.lowSpeedTime 999999
 
+function Select-GitHubAccount {
+    Write-Host "`n[INFO] Detecting authenticated GitHub accounts..." -ForegroundColor Cyan
+    
+    # Get raw status text to extract logged-in accounts
+    $statusOutput = gh auth status 2>&1
+    
+    # Extract accounts marked with 'Logged in to github.com account <name>'
+    $accounts = @()
+    foreach ($line in $statusOutput) {
+        if ($line -match "Logged in to github.com account\s+([^\s]+)") {
+            $accounts += $Matches[1]
+        }
+    }
+
+    if ($accounts.Count -eq 0) {
+        Write-Host "[WARNING] No active GitHub logins found. Please authenticate first." -ForegroundColor Yellow
+        gh auth login
+        return
+    }
+
+    if ($accounts.Count -eq 1) {
+        Write-Host "[INFO] Single account detected: $($accounts[0]). Setting as active." -ForegroundColor Green
+        gh auth switch -u $accounts[0] 2>$null
+        return
+    }
+
+    Write-Host "`nMultiple GitHub accounts detected on this machine:" -ForegroundColor Yellow
+    for ($i = 0; $i -lt $accounts.Count; $i++) {
+        Write-Host "  [$($i + 1)] $($accounts[$i])" -ForegroundColor White
+    }
+    
+    $selection = Read-Host "`nSelect the account you want to use for this operation [1-$($accounts.Count)]"
+    $index = 0
+    if ([int32]::TryParse($selection, [ref]$index) -and $index -ge 1 -and $index -le $accounts.Count) {
+        $targetAccount = $accounts[$index - 1]
+        Write-Host "[INFO] Switching active GitHub CLI session to: $targetAccount" -ForegroundColor Green
+        gh auth switch -u $targetAccount 2>$null
+    } else {
+        Write-Host "[WARNING] Invalid selection. Proceeding with default active account." -ForegroundColor Yellow
+    }
+}
+
 # --- Persistent Interactive Menu Loop ---
 $running = $true
 while ($running) {
@@ -37,7 +79,7 @@ while ($running) {
     Write-Host "           Enterprise GitHub Deployment Tool          " -ForegroundColor Cyan
     Write-Host "======================================================" -ForegroundColor Cyan
     Write-Host " [1] Check GitHub Authentication Status" -ForegroundColor White
-    Write-Host " [2] Switch GitHub Account" -ForegroundColor White
+    Write-Host " [2] Switch / Select Active GitHub Account" -ForegroundColor White
     Write-Host " [3] Enforce .gitignore & Scrub Heavy History (Clean Artifacts)" -ForegroundColor White
     Write-Host " [4] Deploy / Push Code to GitHub (Create New or Merge Existing)" -ForegroundColor White
     Write-Host " [0] Exit Console" -ForegroundColor Yellow
@@ -53,10 +95,7 @@ while ($running) {
             [void](Read-Host)
         }
         "2" {
-            Write-Host "`n[INFO] Logging out of current session..." -ForegroundColor Yellow
-            gh auth logout -h github.com -y 2>$null
-            Write-Host "[INFO] Please authenticate with your target account:" -ForegroundColor Green
-            gh auth login
+            Select-GitHubAccount
             Write-Host "`nPress Enter to return to menu..." -ForegroundColor Cyan
             [void](Read-Host)
         }
@@ -134,6 +173,9 @@ Thumbs.db
         }
         "4" {
             try {
+                # Prompt user to choose target account before running deployment operations
+                Select-GitHubAccount
+
                 Write-Host "`n[INFO] Preparing local staging and commit..." -ForegroundColor Cyan
                 if (!(Test-Path ".git")) {
                     git init
