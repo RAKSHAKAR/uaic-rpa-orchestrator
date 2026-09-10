@@ -2,7 +2,7 @@
 .SYNOPSIS
     Root Operations & Setup Entrypoint for UAIC Orchestrator
 .DESCRIPTION
-    Launches the enterprise operations console or delegates commands and switches to setup_local.ps1.
+    Launches the enterprise operations console or delegates commands to setup_local.ps1.
 #>
 
 param(

@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Enterprise Operations & Orchestrator Console for UAIC Orchestrator
+    Enterprise Operations & Orchestration Console for UAIC Orchestrator
 .DESCRIPTION
     Flexible, enterprise-grade PowerShell orchestration script.
     - Manages local development and production-grade background services.
     - Features an interactive menu loop that never auto-closes until explicitly requested.
     - Supports Attended (Visible GUI Chrome/Edge) vs Unattended (Headless Background) execution.
-    - Includes automatic Docker daemon self-healing and deep container/volume/image teardown.
+    - Features automated Docker daemon self-healing, WSL rescue, deep volume/image teardown, and live status monitoring (R/K/M/Q).
 #>
 
 param (
@@ -84,9 +84,7 @@ function Test-Command {
 function Test-DockerDaemonHealth {
     try {
         $null = docker version --format '{{.Server.Version}}' 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            return $true
-        }
+        if ($LASTEXITCODE -eq 0) { return $true }
     } catch {}
     return $false
 }
@@ -94,22 +92,15 @@ function Test-DockerDaemonHealth {
 function Invoke-DockerSelfHealing {
     Write-LogMessage "Docker daemon check failed or unresponsive. Initiating enterprise auto-recovery..." "WARNING" "Yellow"
     try {
-        Write-LogMessage "Shutting down WSL 2 engine..." "INFO"
         wsl --shutdown 2>$null | Out-Null
-        
-        Write-LogMessage "Clearing lingering Docker and WSL background host processes..." "INFO"
         taskkill /F /IM "Docker Desktop.exe" 2>$null | Out-Null
         taskkill /F /IM "com.docker.backend.exe" 2>$null | Out-Null
         taskkill /F /IM "com.docker.proxy.exe" 2>$null | Out-Null
         taskkill /F /IM "wslservice.exe" 2>$null | Out-Null
 
-        Write-LogMessage "Relaunching Docker Desktop service..." "INFO"
         $dockerPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-        if (Test-Path $dockerPath) {
-            Start-Process $dockerPath
-        }
+        if (Test-Path $dockerPath) { Start-Process $dockerPath }
 
-        Write-LogMessage "Waiting for Docker daemon to become responsive (up to 90 seconds)..." "INFO"
         $elapsed = 0
         while ($elapsed -lt 90) {
             Start-Sleep -Seconds 5
@@ -118,13 +109,9 @@ function Invoke-DockerSelfHealing {
                 Write-LogMessage "Docker daemon successfully recovered and online." "SUCCESS"
                 return $true
             }
-            Write-Host "." -NoNewline -ForegroundColor DarkGray
         }
-        Write-Host ""
-        Write-LogMessage "Docker daemon failed to respond within timeout window." "ERROR"
         return $false
     } catch {
-        Write-LogMessage "Docker auto-recovery exception: $_" "ERROR"
         return $false
     }
 }
@@ -151,14 +138,11 @@ function Invoke-KillPort {
                     if ($proc.Name -match "^(wsl|wslhost|docker|com\.docker)" -or $proc.ProcessName -match "^(wsl|wslhost|docker|com\.docker)") {
                         continue
                     }
-                    Write-LogMessage "Terminating process $($proc.Name) (PID: $($proc.Id)) bound to port $Port" "INFO" "DarkYellow"
                     Stop-Process -Id $proc.Id -Force -ErrorAction Ignore
                 }
             }
         }
-    } catch {
-        Write-LogMessage "Port $Port check note: $_" "WARNING" "DarkGray"
-    }
+    } catch {}
 }
 
 function Start-EncodedWindow {
@@ -172,47 +156,26 @@ function Start-EncodedWindow {
 
 function Get-DockerComposeCommand {
     if (-not (Test-DockerDaemonHealth)) {
-        $recovered = Invoke-DockerSelfHealing
-        if (-not $recovered) { return $null }
+        $null = Invoke-DockerSelfHealing
     }
-
     if (Test-Command "docker-compose") {
         return "docker-compose"
     } elseif (Test-Command "docker") {
         try {
             docker compose version | Out-Null
             return "docker compose"
-        } catch {
-            return $null
-        }
+        } catch { return $null }
     }
     return $null
 }
 
-# --- Core Operation Implementations ---
-
 function Invoke-PreflightChecks {
     Write-LogMessage "Running pre-flight checks..." "INFO" "Cyan"
     $missing = $false
-
-    if (-not (Test-Command "python") -and -not (Test-Command "py")) {
-        Write-LogMessage "Missing prerequisite: Python 3 (python is not in PATH)." "ERROR"
-        $missing = $true
-    }
-    if (-not (Test-Command "npm")) {
-        Write-LogMessage "Missing prerequisite: Node.js (npm is not in PATH)." "ERROR"
-        $missing = $true
-    }
-
-    $compose = Get-DockerComposeCommand
-    if ($compose) {
-        Write-LogMessage "Docker Compose detected: '$compose'." "SUCCESS"
-    } else {
-        Write-LogMessage "Docker Compose not found or Docker daemon is offline." "WARNING"
-    }
-
+    if (-not (Test-Command "python") -and -not (Test-Command "py")) { $missing = $true }
+    if (-not (Test-Command "npm")) { $missing = $true }
     if ($missing) {
-        Write-LogMessage "Pre-flight checks failed. Please install missing prerequisites." "ERROR"
+        Write-LogMessage "Pre-flight checks failed. Missing prerequisites." "ERROR"
         return $false
     }
     Write-LogMessage "All fundamental prerequisites are satisfied." "SUCCESS"
@@ -247,75 +210,44 @@ function Set-PlaywrightChannel {
 
 function Invoke-InstallDependencies {
     Write-LogMessage "Installing and verifying all application dependencies..." "INFO" "Cyan"
-
     Push-Location $backendDir
     try {
         $venvDir = Join-Path $backendDir ".venv"
         if (-not (Test-Path "$venvDir\Scripts\python.exe")) {
-            Write-LogMessage "Creating Python virtual environment ($venvDir)..." "INFO"
             if (Test-Path $venvDir) { Remove-Item -Recurse -Force $venvDir -ErrorAction Ignore }
             if (Test-Command "py") { py -3.14 -m venv $venvDir } else { python -m venv $venvDir }
         }
-
         $pyExe  = Join-Path $venvDir "Scripts\python.exe"
         $pipExe = Join-Path $venvDir "Scripts\pip.exe"
-
-        Write-LogMessage "Installing Python dependencies (requirements.txt)..." "INFO"
         & $pyExe -m pip install --upgrade pip --quiet
         & $pipExe install -r requirements.txt --quiet
-
-        Write-LogMessage "Installing Playwright Bundled Chromium browser..." "INFO"
         & $pyExe -m playwright install chromium
         Set-PlaywrightChannel "chromium"
-
-        Write-LogMessage "Backend dependencies successfully installed and verified." "SUCCESS"
+        Write-LogMessage "Backend dependencies installed successfully." "SUCCESS"
     } catch {
         Write-LogMessage "Backend dependency setup failed: $_" "ERROR"
-    } finally {
-        Pop-Location
-    }
+    } finally { Pop-Location }
 
     Push-Location $frontendDir
     try {
-        Write-LogMessage "Installing Frontend NPM dependencies..." "INFO"
         npm install --no-audit --no-fund --loglevel=error
-        Write-LogMessage "Frontend dependencies successfully installed." "SUCCESS"
+        Write-LogMessage "Frontend dependencies installed successfully." "SUCCESS"
     } catch {
         Write-LogMessage "Frontend dependency setup failed: $_" "ERROR"
-    } finally {
-        Pop-Location
-    }
+    } finally { Pop-Location }
 }
 
 function Invoke-PurgeDependencyFolders {
     param([bool]$Force = $false)
     if (-not $Force) {
         $confirm = Read-Host "WARNING: This will delete backend\.venv, frontend\node_modules, and frontend\.next. Continue? [y/N]"
-        if ($confirm -notmatch '^[yY]') {
-            Write-LogMessage "Purge cancelled by user." "INFO"
-            return
-        }
+        if ($confirm -notmatch '^[yY]') { return }
     }
-
-    Write-LogMessage "Purging all dependency folders for a completely clean slate..." "WARNING" "DarkYellow"
     Invoke-KillAllServices -Quiet
-
-    $protectedNames = @("implementation_plan", "PowerAutomateSolutions", "Testing files", "Test files", "anticaptcha-plugin_v0.83", ".agents")
-    $pathsToPurge = @(
-        (Join-Path $backendDir ".venv"),
-        (Join-Path $backendDir "venv"),
-        (Join-Path $frontendDir "node_modules"),
-        (Join-Path $frontendDir ".next")
-    )
-
-    foreach ($p in $pathsToPurge) {
-        $base = Split-Path $p -Leaf
-        if ($protectedNames -contains $base) { continue }
-        if (Test-Path $p) {
-            Remove-Item -Recurse -Force $p -ErrorAction Ignore
-        }
+    foreach ($p in @((Join-Path $backendDir ".venv"), (Join-Path $frontendDir "node_modules"), (Join-Path $frontendDir ".next"))) {
+        if (Test-Path $p) { Remove-Item -Recurse -Force $p -ErrorAction Ignore }
     }
-    Write-LogMessage "All dependency folders successfully purged." "SUCCESS"
+    Write-LogMessage "Dependency folders purged." "SUCCESS"
 }
 
 function Invoke-CleanRunHistory {
@@ -326,19 +258,16 @@ function Invoke-CleanRunHistory {
         try { & $pyExe -m app.scripts.clean_history } catch {} finally { Pop-Location }
         return
     }
-    Write-LogMessage "Cleaning run history and logs..." "INFO" "Cyan"
     $logDir = Join-Path $rootDir "logs"
     if (Test-Path $logDir) {
         Get-ChildItem -Path $logDir -Filter "*.log" -File -ErrorAction Ignore | Remove-Item -Force -ErrorAction Ignore
     }
-    Write-LogMessage "Run history cleaned successfully." "SUCCESS"
+    Write-LogMessage "Run history cleaned." "SUCCESS"
 }
 
 function Invoke-KillAllServices {
     param([switch]$Quiet, [switch]$KeepInfrastructure)
-    if (-not $Quiet) {
-        Write-LogMessage "Stopping and terminating all application and infrastructure processes..." "INFO" "Cyan"
-    }
+    if (-not $Quiet) { Write-LogMessage "Stopping all services and clearing Docker stack..." "INFO" "Cyan" }
 
     Invoke-KillPort 3000
     Invoke-KillPort 8000
@@ -360,31 +289,19 @@ function Invoke-KillAllServices {
         $compose = Get-DockerComposeCommand
         if ($compose) {
             try {
-                if (-not $Quiet) {
-                    Write-LogMessage "Tearing down docker compose stack (removing containers, volumes, and local images)..." "INFO"
-                }
-                if ($compose -eq "docker-compose") {
-                    docker-compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null
-                } else {
-                    docker compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null
-                }
-            } catch {}
+                Push-Location $backendDir
+                if ($compose -eq "docker-compose") { docker-compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null }
+                else { docker compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null }
+            } catch {} finally { Pop-Location }
         }
-
         if (Test-DockerDaemonHealth) {
             try {
-                if (-not $Quiet) {
-                    Write-LogMessage "Force removing project containers and pruning project volumes..." "INFO"
-                }
                 docker rm -f uaic_postgres uaic_redis uaic_maildev uaic_fastapi uaic_celery_worker uaic_celery_beat uaic_frontend 2>$null | Out-Null
                 docker volume prune -f 2>$null | Out-Null
             } catch {}
         }
     }
-
-    if (-not $Quiet) {
-        Write-LogMessage "All active service ports, infrastructure containers, volumes, and images have been completely purged." "SUCCESS"
-    }
+    if (-not $Quiet) { Write-LogMessage "All services stopped and infrastructure purged." "SUCCESS" }
 }
 
 function Invoke-SetRpaMode {
@@ -416,9 +333,7 @@ function Invoke-SetRpaMode {
 
 function Invoke-StartAllServices {
     param([string]$TargetMode)
-    Write-LogMessage "=======================================================" "INFO" "Cyan"
-    Write-LogMessage " Starting UAIC Orchestrator Application Stack" "INFO" "Cyan"
-    Write-LogMessage "=======================================================" "INFO" "Cyan"
+    Write-LogMessage "Starting UAIC Orchestrator Application Stack..." "INFO" "Cyan"
 
     if (-not (Invoke-PreflightChecks)) { return }
     $activeMode = Invoke-SetRpaMode -ChosenMode $TargetMode
@@ -431,17 +346,18 @@ function Invoke-StartAllServices {
         $pyExe = Join-Path $venvDir "Scripts\python.exe"
     }
 
+    # Start Docker Infrastructure Stack (PostgreSQL, Redis, MailDev)
     $compose = Get-DockerComposeCommand
     if ($compose) {
-        Write-LogMessage "Starting infrastructure containers (PostgreSQL, Redis, MailDev)..." "INFO"
+        Write-LogMessage "Starting Docker infrastructure containers (PostgreSQL, Redis, MailDev)..." "INFO"
         try {
-            if ($compose -eq "docker-compose") {
-                docker-compose up -d postgres redis maildev
-            } else {
-                docker compose up -d postgres redis maildev
-            }
+            Push-Location $backendDir
+            if ($compose -eq "docker-compose") { docker-compose up -d postgres redis maildev }
+            else { docker compose up -d postgres redis maildev }
         } catch {
-            Write-LogMessage "Docker start note: $_" "WARNING"
+            Write-LogMessage "Docker start warning: $_" "WARNING"
+        } finally {
+            Pop-Location
         }
     }
 
@@ -458,7 +374,7 @@ function Invoke-StartAllServices {
     Start-EncodedWindow "Celery Flower Monitor (port 5555)" "Set-Location '$backendDir'; & '$pyExe' -m celery -A app.core.celery_app.celery_app flower --port=5555"
     Start-EncodedWindow "Next.js Frontend (port 3000)" "Set-Location '$frontendDir'; npm.cmd run dev"
 
-    Write-LogMessage "All UAIC Orchestrator Services Successfully Launched!" "SUCCESS" "Green"
+    Write-LogMessage "All services successfully initiated." "SUCCESS" "Green"
 }
 
 function Invoke-CheckServiceHealth {
@@ -495,6 +411,7 @@ function Show-LiveStatusMonitor {
     Clear-Host
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host "          UAIC Orchestrator - Live Service Health Monitor              " -ForegroundColor Cyan
+    Write-Host "  [HEALTHY]=HTTP 200  [RUNNING]=Port open  [STOPPED]=Offline          " -ForegroundColor DarkGray
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Invoke-CheckServiceHealth "Frontend Web Application" 3000 "http://localhost:3000"
     Invoke-CheckServiceHealth "FastAPI Backend & API   " 8000 "http://localhost:8000/api/v1/health"
@@ -503,6 +420,9 @@ function Show-LiveStatusMonitor {
     Invoke-CheckServiceHealth "MailDev SMTP Server     " 1025
     Invoke-CheckServiceHealth "Redis Queue Broker      " 6379
     Invoke-CheckServiceHealth "PostgreSQL Database     " 5432
+    Write-Host ""
+    Write-Host "Quick Controls:" -ForegroundColor DarkCyan
+    Write-Host " [R] Refresh Status  |  [K] Stop Services  |  [M] Main Menu  |  [Q] Exit" -ForegroundColor Yellow
     Write-Host "-----------------------------------------------------------------------" -ForegroundColor DarkGray
 }
 
@@ -511,8 +431,8 @@ function Show-EnterpriseMenu {
         Clear-Host
         Write-Host "                  Enterprise Operations & Orchestration Console" -ForegroundColor Cyan
         Write-Host "=======================================================================" -ForegroundColor Cyan
-        Write-Host " [1] Start All Application Services"
-        Write-Host " [2] Stop / Kill All Running Services (Clean ports, containers, volumes & images)"
+        Write-Host " [1] Start All Application Services (Interactive Launch with Mode Select)"
+        Write-Host " [2] Stop / Kill All Running Services (Clean ports, containers & volumes)"
         Write-Host " [3] Enterprise Data Cleanup & Retention"
         Write-Host " [4] Install / Update Dependencies"
         Write-Host " [5] Purge / Delete All Dependency Folders"
@@ -520,20 +440,28 @@ function Show-EnterpriseMenu {
         Write-Host " [7] Run Full Diagnostics & Test Suite"
         Write-Host " [8] Docker Stack Management"
         Write-Host " [9] Live Service Status Monitor"
+        Write-Host " [M] Open MailDev Web Inspector (http://localhost:1080)"
         Write-Host " [0] Exit Console"
         Write-Host "=======================================================================" -ForegroundColor Cyan
 
-        $choice = Read-Host "Select an option [0-9]"
+        $choice = Read-Host "Select an option [0-9/M]"
         switch ($choice) {
+            "m" { Start-Process "http://localhost:1080"; Start-Sleep -Seconds 1 }
+            "M" { Start-Process "http://localhost:1080"; Start-Sleep -Seconds 1 }
             "1" {
                 Invoke-StartAllServices
                 $monitoring = $true
                 while ($monitoring) {
                     Show-LiveStatusMonitor
                     $key = Read-Host "Enter key action [R/K/M/Q]"
-                    if ($key -match '^[kK]') { Invoke-KillAllServices; Start-Sleep -Seconds 1 }
-                    elseif ($key -match '^[mM]') { $monitoring = $false }
-                    elseif ($key -match '^[qQ]') { exit 0 }
+                    if ($key -match '^[kK]') { 
+                        Invoke-KillAllServices
+                        Start-Sleep -Seconds 1 
+                    } elseif ($key -match '^[mM]') { 
+                        $monitoring = $false 
+                    } elseif ($key -match '^[qQ]') { 
+                        exit 0 
+                    }
                 }
             }
             "2" { Invoke-KillAllServices; Read-Host "Press Enter to return..." }
@@ -544,10 +472,10 @@ function Show-EnterpriseMenu {
             "7" { Invoke-RunTestSuite; Read-Host "Press Enter to return..." }
             "8" {
                 if (Get-DockerComposeCommand) {
-                    $dChoice = Read-Host "Choose Docker action: [U]p / [D]own (with volumes) / [R]estart"
-                    if ($dChoice -match '^[uU]') { docker compose up -d }
-                    elseif ($dChoice -match '^[dD]') { docker compose down --volumes --rmi local }
-                    elseif ($dChoice -match '^[rR]') { docker compose restart }
+                    $dChoice = Read-Host "Choose Docker action: [U]p / [D]own / [R]estart"
+                    if ($dChoice -match '^[uU]') { Push-Location $backendDir; docker compose up -d; Pop-Location }
+                    elseif ($dChoice -match '^[dD]') { Push-Location $backendDir; docker compose down; Pop-Location }
+                    elseif ($dChoice -match '^[rR]') { Push-Location $backendDir; docker compose restart; Pop-Location }
                 }
                 Read-Host "Press Enter to return..."
             }
@@ -556,16 +484,29 @@ function Show-EnterpriseMenu {
                 while ($mon) {
                     Show-LiveStatusMonitor
                     $k = Read-Host "Enter key action [R/K/M/Q]"
-                    if ($k -match '^[kK]') { Invoke-KillAllServices }
+                    if ($k -match '^[kK]') { Invoke-KillAllServices; Start-Sleep -Seconds 1 }
                     elseif ($k -match '^[mM]') { $mon = $false }
                     elseif ($k -match '^[qQ]') { exit 0 }
                 }
             }
             "0" { exit 0 }
+            default { Start-Sleep -Seconds 1 }
         }
     }
 }
 
 if ($StopAll) { Invoke-KillAllServices; exit 0 }
-if ($StartAll) { Invoke-StartAllServices -TargetMode $Mode; exit 0 }
+if ($StartAll) { 
+    Invoke-StartAllServices -TargetMode $Mode
+    if ($NoPrompt) { exit 0 }
+    $monitoring = $true
+    while ($monitoring) {
+        Show-LiveStatusMonitor
+        $key = Read-Host "Enter key action [R/K/M/Q]"
+        if ($key -match '^[kK]') { Invoke-KillAllServices; Start-Sleep -Seconds 1 }
+        elseif ($key -match '^[mM]') { $monitoring = $false }
+        elseif ($key -match '^[qQ]') { exit 0 }
+    }
+    exit 0
+}
 Show-EnterpriseMenu

@@ -12,7 +12,7 @@ param()
 # Ensure prompt styling
 $Host.UI.RawUI.ForegroundColor = 'Cyan'
 Write-Host "======================================================"
-Write-Host "     UAIC RPA Orchestrator - Enterprise GitHub Tool   "
+Write-Host "           Enterprise GitHub Deployment Tool          "
 Write-Host "======================================================"
 $Host.UI.RawUI.ForegroundColor = 'White'
 
@@ -34,7 +34,7 @@ $running = $true
 while ($running) {
     Clear-Host
     Write-Host "======================================================" -ForegroundColor Cyan
-    Write-Host "     UAIC RPA Orchestrator - Enterprise GitHub Tool   " -ForegroundColor Cyan
+    Write-Host "           Enterprise GitHub Deployment Tool          " -ForegroundColor Cyan
     Write-Host "======================================================" -ForegroundColor Cyan
     Write-Host " [1] Check GitHub Authentication Status" -ForegroundColor White
     Write-Host " [2] Switch GitHub Account" -ForegroundColor White
@@ -161,8 +161,8 @@ Thumbs.db
                 git remote remove origin 2>$null
 
                 if ($repoChoice -eq "1") {
-                    $repoName = Read-Host "Enter name for the new repository (e.g., uaic-rpa-orchestrator)"
-                    if ([string]::IsNullOrWhiteSpace($repoName)) { $repoName = "uaic-rpa-orchestrator" }
+                    $repoName = Read-Host "Enter name for the new repository"
+                    if ([string]::IsNullOrWhiteSpace($repoName)) { $repoName = "enterprise-repo" }
 
                     $visibilityChoice = Read-Host "Set repository visibility to Private? (Y/n) [Default: Private]"
                     $visibilityFlag = "--private"
