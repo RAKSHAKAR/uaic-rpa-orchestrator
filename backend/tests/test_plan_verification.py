@@ -639,8 +639,9 @@ async def test_async_parse_and_ingest_all_12_columns(tmp_path):
         assert claim_db.policy_state == "Florida"
         assert "12COL-" in claim_db.claim_number
         assert claim_db.loss_location_state == "Florida"
-        assert claim_db.loss_location_city == "Miami"
-        assert claim_db.loss_location_county == "Miami-Dade"
+        # Deprecated fields (loss_location_city, loss_location_county) removed per Prompt 03
+        assert claim_db.loss_location_city is None
+        assert claim_db.loss_location_county is None
         assert claim_db.exposure_number == "3"
         assert claim_db.claimant_first_name == "Arthur"
         assert claim_db.claimant_last_name == "Dent"

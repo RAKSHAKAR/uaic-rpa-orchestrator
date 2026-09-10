@@ -49,6 +49,7 @@ import {
 import { Navbar } from "../../../components/Navbar";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatCard } from "../../../components/StatCard";
+import { MultiSelectDropdown } from "../../../components/MultiSelectDropdown";
 import { api } from "../../../lib/api";
 import { Claim, ErrorScreenshot, ScrapedCourtCase, AuditLogEntry } from "../../../types";
 
@@ -140,6 +141,7 @@ export default function ClaimDetailPage() {
   // Telemetry interactive controls
   const [selectedPortalTelemetry, setSelectedPortalTelemetry] = useState<string>("all");
   const [inspectedStage, setInspectedStage] = useState<{ key: string; data: any } | null>(null);
+  const [inspectedStageTab, setInspectedStageTab] = useState<"stages" | "json">("stages");
 
   // 8 Bots controls
   const [botJurisdictionFilter, setBotJurisdictionFilter] = useState<"all" | "FL" | "TX">("all");
@@ -149,8 +151,9 @@ export default function ClaimDetailPage() {
 
   // Scraped cases table controls
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
-  const [caseCountyFilter, setCaseCountyFilter] = useState("all");
-  const [caseStatusFilter, setCaseStatusFilter] = useState("all");
+  const [caseCountyFilters, setCaseCountyFilters] = useState<string[]>([]);
+  const [caseStatusFilters, setCaseStatusFilters] = useState<string[]>([]);
+  const [caseTypeFilters, setCaseTypeFilters] = useState<string[]>([]);
   const [caseSortField, setCaseSortField] = useState<"filing_date" | "case_number" | "case_style" | "county_name" | "case_status" | "case_type">("filing_date");
   const [caseSortAsc, setCaseSortAsc] = useState(false);
   const [casePage, setCasePage] = useState(1);
@@ -479,6 +482,46 @@ export default function ClaimDetailPage() {
     }));
   }, [activeStages]);
 
+  // Options for multi-select dropdown filters
+  const countyOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (claim?.court_cases || []).forEach((c) => {
+      const name = c.county_name || "Unknown County";
+      counts[name] = (counts[name] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, count]) => ({
+      value: name,
+      label: `${name} (${count})`,
+      count,
+    }));
+  }, [claim?.court_cases]);
+
+  const statusOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (claim?.court_cases || []).forEach((c) => {
+      const st = (c.case_status || "OPEN").toUpperCase();
+      counts[st] = (counts[st] || 0) + 1;
+    });
+    return Object.entries(counts).map(([st, count]) => ({
+      value: st,
+      label: `${st} (${count})`,
+      count,
+    }));
+  }, [claim?.court_cases]);
+
+  const typeOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (claim?.court_cases || []).forEach((c) => {
+      const tp = (c.case_type || "CIVIL").toUpperCase();
+      counts[tp] = (counts[tp] || 0) + 1;
+    });
+    return Object.entries(counts).map(([tp, count]) => ({
+      value: tp,
+      label: `${tp} (${count})`,
+      count,
+    }));
+  }, [claim?.court_cases]);
+
   // Filtered & Grouped Scraped Court Cases
   const filteredCases = useMemo(() => {
     if (!claim?.court_cases) return [];
@@ -497,17 +540,28 @@ export default function ClaimDetailPage() {
       );
     }
 
-    if (caseCountyFilter !== "all") {
-      list = list.filter((c) => (c.county_name || "").toLowerCase().includes(caseCountyFilter.toLowerCase()));
+    if (caseCountyFilters.length > 0) {
+      list = list.filter((c) => caseCountyFilters.includes(c.county_name || "Unknown County"));
     }
 
-    if (caseStatusFilter !== "all") {
-      list = list.filter((c) => (c.case_status || "").toUpperCase() === caseStatusFilter.toUpperCase());
+    if (caseStatusFilters.length > 0) {
+      list = list.filter((c) => caseStatusFilters.includes((c.case_status || "OPEN").toUpperCase()));
+    }
+
+    if (caseTypeFilters.length > 0) {
+      list = list.filter((c) => caseTypeFilters.includes((c.case_type || "CIVIL").toUpperCase()));
     }
 
     list.sort((a, b) => {
-      let valA = a[caseSortField] || "";
-      let valB = b[caseSortField] || "";
+      let valA: any = "";
+      let valB: any = "";
+      if (caseSortField === "filing_date") {
+        valA = a.filing_date || a.raw_payload?.FilingDate || a.raw_payload?.filing_date || a.raw_payload?.SuitFiledDate || "";
+        valB = b.filing_date || b.raw_payload?.FilingDate || b.raw_payload?.filing_date || b.raw_payload?.SuitFiledDate || "";
+      } else {
+        valA = a[caseSortField] || "";
+        valB = b[caseSortField] || "";
+      }
       if (caseSortAsc) {
         return valA > valB ? 1 : -1;
       }
@@ -515,7 +569,7 @@ export default function ClaimDetailPage() {
     });
 
     return list;
-  }, [claim?.court_cases, caseSearchQuery, caseCountyFilter, caseStatusFilter, caseSortField, caseSortAsc, isPdfExport]);
+  }, [claim?.court_cases, caseSearchQuery, caseCountyFilters, caseStatusFilters, caseTypeFilters, caseSortField, caseSortAsc, isPdfExport]);
 
   // Paginated Court Cases
   const totalCasePages = Math.max(1, Math.ceil(filteredCases.length / casePageSize));
@@ -529,15 +583,61 @@ export default function ClaimDetailPage() {
     if (casePage > totalCasePages) setCasePage(1);
   }, [totalCasePages, casePage]);
 
-  // Group filtered cases by county / website
+  // Helper to determine portal state and badge
+  const getPortalInfo = (countyName?: string, websiteUrl?: string) => {
+    const c = (countyName || "").toLowerCase();
+    const u = (websiteUrl || "").toLowerCase();
+    let state: "FL" | "TX" | "OTHER" = "OTHER";
+    if (
+      c.includes("broward") ||
+      c.includes("hillsborough") ||
+      c.includes("miami") ||
+      u.includes("browardclerk") ||
+      u.includes("hillsclerk") ||
+      u.includes("miamidade")
+    ) {
+      state = "FL";
+    } else if (
+      c.includes("dallas") ||
+      c.includes("travis") ||
+      c.includes("harris") ||
+      u.includes("dallascounty") ||
+      u.includes("traviscountytx") ||
+      u.includes("harriscountytx") ||
+      u.includes("cclerk.hctx") ||
+      u.includes("hcdistrictclerk")
+    ) {
+      state = "TX";
+    }
+    const stateBadge = state === "FL" ? "FL - Florida" : state === "TX" ? "TX - Texas" : "Other Jurisdiction";
+    const portalName = countyName || "County Portal";
+    return { state, stateBadge, portalName };
+  };
+
+  // Group filtered cases by portal URL and name (FL-Florida / TX-Texas)
   const groupedCases = useMemo(() => {
-    const groups: Record<string, { countyName: string; websiteUrl?: string; cases: ScrapedCourtCase[] }> = {};
+    const groups: Record<
+      string,
+      {
+        groupKey: string;
+        portalName: string;
+        state: "FL" | "TX" | "OTHER";
+        stateBadge: string;
+        websiteUrl?: string;
+        cases: ScrapedCourtCase[];
+      }
+    > = {};
     filteredCases.forEach((c) => {
-      const key = c.county_name || "Unknown County";
+      const url = c.county_website || c.source_url || "";
+      const info = getPortalInfo(c.county_name, url);
+      const key = `${info.portalName} (${info.stateBadge})`;
       if (!groups[key]) {
         groups[key] = {
-          countyName: key,
-          websiteUrl: c.county_website || c.source_url,
+          groupKey: key,
+          portalName: info.portalName,
+          state: info.state,
+          stateBadge: info.stateBadge,
+          websiteUrl: url,
           cases: [],
         };
       }
@@ -1414,6 +1514,9 @@ export default function ClaimDetailPage() {
                       <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-900">
                         ⏱️ {p.duration_seconds}s
                       </span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-900">
+                        📁 {p.cases_found ?? 0} Cases Found
+                      </span>
                       <button
                         onClick={() => {
                           setSelectedPortalTelemetry(key);
@@ -1584,7 +1687,7 @@ export default function ClaimDetailPage() {
               gradient="amber"
             />
             <StatCard
-              label="Cases Harvested"
+              label="Total Cases Found"
               value={botKpis.totalCases}
               subtext="Extracted records"
               icon={Layers}
@@ -1827,7 +1930,8 @@ export default function ClaimDetailPage() {
                         {bot.cases_found > 0 && (
                           <button
                             onClick={() => {
-                              setCaseCountyFilter(bot.name.split(" ")[0]);
+                              const matchCounty = countyOptions.find((o) => o.value.toLowerCase().includes(bot.name.split(" ")[0].toLowerCase()))?.value || bot.name.split(" ")[0];
+                              setCaseCountyFilters([matchCounty]);
                               const el = document.getElementById("scraped-cases-section");
                               el?.scrollIntoView({ behavior: "smooth" });
                             }}
@@ -2148,35 +2252,44 @@ export default function ClaimDetailPage() {
                   </button>
                 </div>
 
-                <select
-                  value={caseCountyFilter}
-                  onChange={(e) => {
-                    setCaseCountyFilter(e.target.value);
-                    setCasePage(1);
-                  }}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-300 focus:outline-hidden cursor-pointer"
-                >
-                  <option value="all">All Counties</option>
-                  {Object.keys(groupedCases).map((c) => (
-                    <option key={c} value={c}>
-                      {c} ({groupedCases[c].cases.length})
-                    </option>
-                  ))}
-                </select>
+                <div className="w-48">
+                  <MultiSelectDropdown
+                    label="Counties"
+                    placeholder="All Counties"
+                    options={countyOptions}
+                    selectedValues={caseCountyFilters}
+                    onChange={(vals) => {
+                      setCaseCountyFilters(vals);
+                      setCasePage(1);
+                    }}
+                  />
+                </div>
 
-                <select
-                  value={caseStatusFilter}
-                  onChange={(e) => {
-                    setCaseStatusFilter(e.target.value);
-                    setCasePage(1);
-                  }}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-300 focus:outline-hidden cursor-pointer"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="OPEN">Open</option>
-                  <option value="CLOSED">Closed</option>
-                  <option value="PENDING">Pending</option>
-                </select>
+                <div className="w-40">
+                  <MultiSelectDropdown
+                    label="Status"
+                    placeholder="All Statuses"
+                    options={statusOptions}
+                    selectedValues={caseStatusFilters}
+                    onChange={(vals) => {
+                      setCaseStatusFilters(vals);
+                      setCasePage(1);
+                    }}
+                  />
+                </div>
+
+                <div className="w-40">
+                  <MultiSelectDropdown
+                    label="Type"
+                    placeholder="All Types"
+                    options={typeOptions}
+                    selectedValues={caseTypeFilters}
+                    onChange={(vals) => {
+                      setCaseTypeFilters(vals);
+                      setCasePage(1);
+                    }}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -2289,7 +2402,10 @@ export default function ClaimDetailPage() {
                           </p>
                         </td>
                         <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {courtCase.filing_date ? formatDate(courtCase.filing_date) : "-"}
+                          {(() => {
+                            const rawDate = courtCase.filing_date || courtCase.raw_payload?.FilingDate || courtCase.raw_payload?.filing_date || courtCase.raw_payload?.SuitFiledDate;
+                            return rawDate ? formatDate(rawDate) : "-";
+                          })()}
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">
                           <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
@@ -2337,21 +2453,32 @@ export default function ClaimDetailPage() {
               </div>
             </div>
           ) : (
-            /* Grouped by County View */
+            /* Grouped by Portal View */
             <div className="space-y-6">
-              {Object.entries(groupedCases).map(([countyName, group]) => {
-                const isCollapsed = isPdfExport ? false : (collapsedPortals[countyName] ?? false);
+              {Object.entries(groupedCases).map(([groupKey, group]) => {
+                const isCollapsed = isPdfExport ? false : (collapsedPortals[groupKey] ?? false);
                 return (
                   <div
-                    key={countyName}
+                    key={groupKey}
                     className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950/40 shadow-xs break-inside-avoid"
                   >
                     {/* Portal Group Header */}
                     <div className="p-3.5 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                        <h4 className="font-bold text-slate-900 dark:text-slate-200 text-sm">{countyName}</h4>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 font-mono">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className={`w-2.5 h-2.5 rounded-full ${group.state === "FL" ? "bg-emerald-500" : group.state === "TX" ? "bg-blue-500" : "bg-purple-500"}`} />
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{group.portalName}</h4>
+                        <span
+                          className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                            group.state === "FL"
+                              ? "bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                              : group.state === "TX"
+                              ? "bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800"
+                              : "bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800"
+                          }`}
+                        >
+                          {group.stateBadge}
+                        </span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 font-mono font-semibold">
                           {group.cases.length} {group.cases.length === 1 ? "case" : "cases"}
                         </span>
                         {group.websiteUrl && (
@@ -2359,7 +2486,8 @@ export default function ClaimDetailPage() {
                             href={group.websiteUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 ml-2"
+                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 hover:underline flex items-center gap-1 ml-1"
+                            title="Open portal URL"
                           >
                             <ExternalLink className="w-3 h-3" /> Portal Link
                           </a>
@@ -2368,8 +2496,8 @@ export default function ClaimDetailPage() {
 
                       {!isPdfExport && (
                         <button
-                          onClick={() => togglePortalCollapse(countyName)}
-                          className="no-print text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                          onClick={() => togglePortalCollapse(groupKey)}
+                          className="no-print text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
                           <span>{isCollapsed ? "Expand" : "Collapse"}</span>
                           {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
@@ -2381,13 +2509,53 @@ export default function ClaimDetailPage() {
                     {!isCollapsed && (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                          <thead className="bg-slate-100/90 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                          <thead className="bg-slate-100/90 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
                             <tr>
-                              <th className="py-3 px-4">Case Number</th>
-                              <th className="py-3 px-4">Case Style</th>
-                              <th className="py-3 px-4">Filing Date</th>
-                              <th className="py-3 px-4">Status</th>
-                              <th className="py-3 px-4">Type</th>
+                              <th
+                                onClick={() => {
+                                  if (caseSortField === "case_number") setCaseSortAsc(!caseSortAsc);
+                                  else { setCaseSortField("case_number"); setCaseSortAsc(true); }
+                                }}
+                                className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200"
+                              >
+                                Case Number {caseSortField === "case_number" && (caseSortAsc ? "↑" : "↓")}
+                              </th>
+                              <th
+                                onClick={() => {
+                                  if (caseSortField === "case_style") setCaseSortAsc(!caseSortAsc);
+                                  else { setCaseSortField("case_style"); setCaseSortAsc(true); }
+                                }}
+                                className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200"
+                              >
+                                Case Style {caseSortField === "case_style" && (caseSortAsc ? "↑" : "↓")}
+                              </th>
+                              <th
+                                onClick={() => {
+                                  if (caseSortField === "filing_date") setCaseSortAsc(!caseSortAsc);
+                                  else { setCaseSortField("filing_date"); setCaseSortAsc(false); }
+                                }}
+                                className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200"
+                              >
+                                Filing Date {caseSortField === "filing_date" && (caseSortAsc ? "↑" : "↓")}
+                              </th>
+                              <th
+                                onClick={() => {
+                                  if (caseSortField === "case_status") setCaseSortAsc(!caseSortAsc);
+                                  else { setCaseSortField("case_status"); setCaseSortAsc(true); }
+                                }}
+                                className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200"
+                              >
+                                Status {caseSortField === "case_status" && (caseSortAsc ? "↑" : "↓")}
+                              </th>
+                              <th
+                                onClick={() => {
+                                  if (caseSortField === "case_type") setCaseSortAsc(!caseSortAsc);
+                                  else { setCaseSortField("case_type"); setCaseSortAsc(true); }
+                                }}
+                                className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200"
+                              >
+                                Type {caseSortField === "case_type" && (caseSortAsc ? "↑" : "↓")}
+                              </th>
                               {!isPdfExport && <th className="py-3 px-4 text-right no-print">Actions</th>}
                             </tr>
                           </thead>
@@ -2421,7 +2589,10 @@ export default function ClaimDetailPage() {
                                   </p>
                                 </td>
                                 <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                  {courtCase.filing_date ? formatDate(courtCase.filing_date) : "-"}
+                                  {(() => {
+                                    const rawDate = courtCase.filing_date || courtCase.raw_payload?.FilingDate || courtCase.raw_payload?.filing_date || courtCase.raw_payload?.SuitFiledDate;
+                                    return rawDate ? formatDate(rawDate) : "-";
+                                  })()}
                                 </td>
                                 <td className="py-3 px-4 whitespace-nowrap">
                                   <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
@@ -2489,10 +2660,12 @@ export default function ClaimDetailPage() {
                   }}
                   className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1 text-slate-700 dark:text-slate-300 focus:outline-hidden cursor-pointer"
                 >
-                  <option value={5}>5</option>
                   <option value={10}>10</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                  <option value={500}>500</option>
                 </select>
                 <span>
                   Showing {(casePage - 1) * casePageSize + 1} to{" "}
@@ -2655,16 +2828,28 @@ export default function ClaimDetailPage() {
       {/* MODALS */}
       {/* ========================================================================= */}
 
-      {/* 1. STAGE DIAGNOSTICS MODAL */}
+      {/* 1. STAGE DIAGNOSTICS & TELEMETRY AUDIT MODAL */}
       {inspectedStage && (
         <div className="no-print fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col p-6 shadow-2xl space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  Telemetry Audit: {inspectedStage.data?.name || inspectedStage.key}
-                </h3>
+                <Clock className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Telemetry Audit: {inspectedStage.data?.portal_name || inspectedStage.data?.name || inspectedStage.key}
+                  </h3>
+                  {inspectedStage.data?.url && (
+                    <a
+                      href={inspectedStage.data.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 mt-0.5"
+                    >
+                      <ExternalLink className="w-3 h-3" /> {inspectedStage.data.url}
+                    </a>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => setInspectedStage(null)}
@@ -2674,32 +2859,145 @@ export default function ClaimDetailPage() {
               </button>
             </div>
 
-            <div className="space-y-3 text-xs overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-2 font-mono">
+            {/* View Mode Tabs */}
+            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+              <button
+                onClick={() => setInspectedStageTab("stages")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  inspectedStageTab === "stages"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                Structured Stage Progression
+              </button>
+              <button
+                onClick={() => setInspectedStageTab("json")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  inspectedStageTab === "json"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                Full Diagnostic JSON
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs overflow-y-auto pr-1 flex-1">
+              {/* Metric summary strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[10px]">Start Time</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-semibold">{inspectedStage.data?.start_time || "-"}</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-semibold truncate block">
+                    {inspectedStage.data?.start_time || "-"}
+                  </span>
                 </div>
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[10px]">End Time</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-semibold">{inspectedStage.data?.end_time || "-"}</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-semibold truncate block">
+                    {inspectedStage.data?.end_time || "-"}
+                  </span>
                 </div>
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[10px]">Duration</span>
-                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">{inspectedStage.data?.duration_seconds}s</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                    {inspectedStage.data?.duration_seconds !== undefined ? `${inspectedStage.data.duration_seconds}s` : "-"}
+                  </span>
                 </div>
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[10px]">Status</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">{inspectedStage.data?.status || "SUCCESS"}</span>
+                  <span
+                    className={`font-bold ${
+                      (inspectedStage.data?.status || "SUCCESS").toUpperCase() === "SUCCESS"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : (inspectedStage.data?.status || "").toUpperCase() === "FAILED"
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-amber-600 dark:text-amber-400"
+                    }`}
+                  >
+                    {inspectedStage.data?.status || "SUCCESS"}
+                  </span>
                 </div>
               </div>
 
-              <div>
-                <span className="text-slate-700 dark:text-slate-400 block text-[11px] font-semibold mb-1">Full Diagnostic JSON</span>
-                <pre className="p-3 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 overflow-x-auto max-h-60">
-                  {JSON.stringify(inspectedStage.data, null, 2)}
-                </pre>
-              </div>
+              {inspectedStageTab === "stages" ? (
+                <div className="space-y-2 pt-1">
+                  {inspectedStage.data?.stages && Object.keys(inspectedStage.data.stages).length > 0 ? (
+                    <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                      {Object.entries(inspectedStage.data.stages).map(([sKey, sVal]: [string, any], idx) => (
+                        <div key={sKey} className="p-3 bg-slate-50/50 dark:bg-slate-950/40 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                          <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold flex items-center justify-center font-mono">
+                                {idx + 1}
+                              </span>
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                {sVal?.name || sKey.replace(/_/g, " ").toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 font-mono text-[11px]">
+                              <span
+                                className={`px-2 py-0.5 rounded font-bold border ${
+                                  (sVal?.status || "SUCCESS").toUpperCase() === "SUCCESS"
+                                    ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                    : (sVal?.status || "").toUpperCase() === "FAILED"
+                                    ? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+                                    : "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+                                }`}
+                              >
+                                {sVal?.status || "SUCCESS"}
+                              </span>
+                              {sVal?.duration_seconds !== undefined && (
+                                <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border border-slate-300 dark:border-slate-700">
+                                  ⏱️ {sVal.duration_seconds}s
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {(sVal?.start_time || sVal?.end_time) && (
+                            <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-3 ml-7 mb-1">
+                              {sVal?.start_time && <span>Start: {sVal.start_time}</span>}
+                              {sVal?.end_time && <span>End: {sVal.end_time}</span>}
+                            </div>
+                          )}
+                          {sVal?.detail && (
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400 ml-7 bg-white dark:bg-slate-900 p-2 rounded border border-slate-200 dark:border-slate-800/80">
+                              {sVal.detail}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          {inspectedStage.data?.name || inspectedStage.key.replace(/_/g, " ").toUpperCase()}
+                        </span>
+                        {inspectedStage.data?.duration_seconds !== undefined && (
+                          <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                            {inspectedStage.data.duration_seconds}s
+                          </span>
+                        )}
+                      </div>
+                      {inspectedStage.data?.detail && (
+                        <p className="text-slate-600 dark:text-slate-400 text-xs">
+                          {inspectedStage.data.detail}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <span className="text-slate-700 dark:text-slate-400 block text-[11px] font-semibold mb-1">
+                    Full Diagnostic JSON
+                  </span>
+                  <pre className="p-3 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 overflow-x-auto max-h-80">
+                    {JSON.stringify(inspectedStage.data, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
 
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">

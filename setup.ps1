@@ -1,8 +1,6 @@
 <#
 .SYNOPSIS
     Root Operations & Setup Entrypoint for UAIC Orchestrator
-.DESCRIPTION
-    Launches the enterprise operations console or delegates commands to setup_local.ps1.
 #>
 
 param(
@@ -13,6 +11,7 @@ param(
     [switch]$PurgeDeps,
     [switch]$InstallDeps,
     [switch]$RunTests,
+    [switch]$CheckPorts,
     [ValidateSet("Attended", "Unattended")]
     [string]$Mode,
     [switch]$NoPrompt,

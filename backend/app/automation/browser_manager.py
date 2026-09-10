@@ -562,6 +562,15 @@ class ChromeSession:
         except Exception as e:
             logger.debug(f"Pre-flight driver verification skipped: {e}")
 
+        if engine == "chrome":
+            chrome_exe = self.find_chrome_executable(self.chrome_binary_path)
+            if not chrome_exe:
+                raise RuntimeError(
+                    f"Google Chrome executable (chrome.exe) was not found on this system "
+                    f"(searched: {self.chrome_binary_path or 'standard Program Files and LocalAppData locations'}). "
+                    f"Please verify Google Chrome is installed or specify the path in Settings."
+                )
+
         try:
             self.playwright = await async_playwright().start()
         except FileNotFoundError as e:
@@ -570,208 +579,224 @@ class ChromeSession:
                 f"Please ensure Playwright dependencies are installed via 'python -m playwright install chromium' or setup.ps1."
             ) from e
 
-        launch_kwargs: dict[str, Any] = {
-            "user_data_dir": str(self.profile_to_use),
-            "headless": context_headless,
-            "args": launch_args,
-            "ignore_default_args": ["--disable-extensions"] if has_ext else None,
-            "no_viewport": True if not is_headless else False,
-            "viewport": {"width": settings.PLAYWRIGHT_VIEWPORT_WIDTH, "height": settings.PLAYWRIGHT_VIEWPORT_HEIGHT} if is_headless else None,
-        }
-
-        # Resolve authentic User-Agent for engine if default or unset
-        from app.schemas.settings import CHROME_USER_AGENT, MSEDGE_USER_AGENT, get_engine_user_agent
-        effective_user_agent = self.user_agent
-        if not effective_user_agent or effective_user_agent in (CHROME_USER_AGENT, MSEDGE_USER_AGENT):
-            effective_user_agent = get_engine_user_agent(engine)
-
-        launch_kwargs["user_agent"] = effective_user_agent
-
-        if engine == "chrome":
-            chrome_exe = self.find_chrome_executable(self.chrome_binary_path)
-            if chrome_exe:
-                launch_kwargs["executable_path"] = str(chrome_exe)
-            else:
-                raise RuntimeError(
-                    f"Google Chrome executable (chrome.exe) was not found on this system "
-                    f"(searched: {self.chrome_binary_path or 'standard Program Files and LocalAppData locations'}). "
-                    f"Please verify Google Chrome is installed or specify the path in Settings."
-                )
-        elif engine == "msedge":
-            launch_kwargs["channel"] = "msedge"
-        else:
-            # "chromium": Playwright bundled browser engine with full extension support
-            pass
-
         try:
-            self.context = await self.playwright.chromium.launch_persistent_context(**launch_kwargs)
-        except Exception as e:
-            err_str = str(e)
-            if "Executable doesn't exist" in err_str or "not found" in err_str.lower():
-                raise RuntimeError(
-                    f"Browser executable could not be launched for engine '{engine}': {err_str}. "
-                    f"Please verify the browser binary path in Settings."
-                ) from e
-            raise
+            launch_kwargs: dict[str, Any] = {
+                "user_data_dir": str(self.profile_to_use),
+                "headless": context_headless,
+                "args": launch_args,
+                "ignore_default_args": ["--disable-extensions"] if has_ext else None,
+                "no_viewport": True if not is_headless else False,
+                "viewport": {"width": settings.PLAYWRIGHT_VIEWPORT_WIDTH, "height": settings.PLAYWRIGHT_VIEWPORT_HEIGHT} if is_headless else None,
+            }
 
-        # Verify extension loading and extract metadata
-        if has_ext:
-            # Poll up to 1.5s for service worker or background page registration
-            for _ in range(15):
-                if self.context.service_workers or self.context.background_pages:
-                    break
-                await asyncio.sleep(0.1)
+            # Resolve authentic User-Agent for engine if default or unset
+            from app.schemas.settings import (
+                CHROME_USER_AGENT,
+                MSEDGE_USER_AGENT,
+                get_engine_user_agent,
+            )
+            effective_user_agent = self.user_agent
+            if not effective_user_agent or effective_user_agent in (CHROME_USER_AGENT, MSEDGE_USER_AGENT):
+                effective_user_agent = get_engine_user_agent(engine)
 
-            # Auto-fallback to Chromium if enterprise policy blocked extension in Google Chrome
-            if not (self.context.service_workers or self.context.background_pages) and engine == "chrome":
-                logger.warning(
-                    "[BrowserLaunch] Google Chrome enterprise policy blocked unpacked extension sideloading. "
-                    "Automatically falling back to Chromium engine where AntiCaptcha extension is verified and active..."
-                )
-                try:
-                    await self.context.close()
-                except Exception:
-                    pass
-                launch_kwargs["executable_path"] = None
-                launch_kwargs["channel"] = None
-                self.engine = "chromium"
+            launch_kwargs["user_agent"] = effective_user_agent
+
+            if engine == "chrome":
+                launch_kwargs["executable_path"] = str(chrome_exe)
+            elif engine == "msedge":
+                launch_kwargs["channel"] = "msedge"
+            else:
+                # "chromium": Playwright bundled browser engine with full extension support
+                pass
+
+            try:
                 self.context = await self.playwright.chromium.launch_persistent_context(**launch_kwargs)
+            except Exception as e:
+                err_str = str(e)
+                if "Executable doesn't exist" in err_str or "not found" in err_str.lower():
+                    raise RuntimeError(
+                        f"Browser executable could not be launched for engine '{engine}': {err_str}. "
+                        f"Please verify the browser binary path in Settings."
+                    ) from e
+                raise
+
+            # Verify extension loading and extract metadata
+            if has_ext:
+                # Poll up to 1.5s for service worker or background page registration
                 for _ in range(15):
                     if self.context.service_workers or self.context.background_pages:
                         break
                     await asyncio.sleep(0.1)
 
-            if self.context.service_workers or self.context.background_pages:
-                self.extension_loaded = True
-                self.service_worker_active = bool(self.context.service_workers)
-                ext_id = "gcpdbjbmekkdlkpldjgffhmapgpdlcpj"
-                if self.context.service_workers:
-                    worker = self.context.service_workers[0]
-                    m = re.search(r"chrome-extension://([a-z0-9]+)/", worker.url)
-                    if m:
-                        ext_id = m.group(1)
-                elif self.context.background_pages:
-                    bg = self.context.background_pages[0]
-                    m = re.search(r"chrome-extension://([a-z0-9]+)/", bg.url)
-                    if m:
-                        ext_id = m.group(1)
-                self.extension_id = ext_id
-
-                # Check if AntiCaptcha extension runtime is ALREADY properly configured with active API key in local storage
-                api_key_to_use = self.anticaptcha_api_key or "28b486b8f31f74c6bf4453735815aa53"
-                already_configured = False
-
-                if self.context.service_workers:
+                # Auto-fallback to Chromium if enterprise policy blocked extension in Google Chrome
+                if not (self.context.service_workers or self.context.background_pages) and engine == "chrome":
+                    logger.warning(
+                        "[BrowserLaunch] Google Chrome enterprise policy blocked unpacked extension sideloading. "
+                        "Automatically falling back to Chromium engine where AntiCaptcha extension is verified and active..."
+                    )
                     try:
-                        stored = await self.context.service_workers[0].evaluate("""() => {
-                            return new Promise(resolve => {
-                                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                                    chrome.storage.local.get(['account_key', 'enable', 'account_key_checked'], res => resolve(res));
-                                } else {
-                                    resolve(null);
-                                }
-                            });
-                        }""")
-                        if stored and stored.get("account_key") == api_key_to_use and stored.get("enable") is True:
-                            already_configured = True
+                        await self.context.close()
                     except Exception:
-                        already_configured = False
+                        pass
+                    launch_kwargs.pop("executable_path", None)
+                    self.browser_engine = "chromium"
+                    self.context = await self.playwright.chromium.launch_persistent_context(**launch_kwargs)
 
-                if already_configured:
-                    logger.info(f"AntiCaptcha extension already verified and configured with active API key in local runtime storage (ID: {ext_id}). Skipping redundant popup setup.")
-                else:
-                    # Extension not yet configured in runtime: configure both local and sync storages
+                    for _ in range(15):
+                        if self.context.service_workers or self.context.background_pages:
+                            break
+                        await asyncio.sleep(0.1)
+
+                if self.context.service_workers or self.context.background_pages:
+                    self.extension_loaded = True
+                    self.service_worker_active = bool(self.context.service_workers)
+                    ext_id = "gcpdbjbmekkdlkpldjgffhmapgpdlcpj"
+                    if self.context.service_workers:
+                        worker = self.context.service_workers[0]
+                        m = re.search(r"chrome-extension://([a-z0-9]+)/", worker.url)
+                        if m:
+                            ext_id = m.group(1)
+                    elif self.context.background_pages:
+                        bg = self.context.background_pages[0]
+                        m = re.search(r"chrome-extension://([a-z0-9]+)/", bg.url)
+                        if m:
+                            ext_id = m.group(1)
+                    self.extension_id = ext_id
+
+                    # Check if AntiCaptcha extension runtime is ALREADY properly configured with active API key in local storage
+                    api_key_to_use = self.anticaptcha_api_key or "28b486b8f31f74c6bf4453735815aa53"
+                    already_configured = False
+
                     if self.context.service_workers:
                         try:
-                            await self.context.service_workers[0].evaluate("""(apiKey) => {
+                            stored = await self.context.service_workers[0].evaluate("""() => {
                                 return new Promise(resolve => {
-                                    const fullConfig = {
-                                        account_key: apiKey,
-                                        account_key_checked: true,
-                                        enable: true,
-                                        auto_submit_form: false,
-                                        play_sounds: false,
-                                        solve_recaptcha2: true,
-                                        solve_invisible_recaptcha: true,
-                                        solve_recaptcha3: true,
-                                        recaptcha3_score: 0.3,
-                                        solve_hcaptcha: true,
-                                        solve_turnstile: true,
-                                        solve_funcaptcha: true,
-                                        solve_geetest: true,
-                                        use_predefined_image_captcha_marks: true,
-                                        start_recaptcha2_solving_when_challenge_shown: true,
-                                        use_recaptcha_precaching: false,
-                                        k_precached_solution_count_min: 2,
-                                        k_precached_solution_count_max: 4,
-                                        dont_reuse_recaptcha_solution: false,
-                                        solve_only_presented_recaptcha2: false,
-                                        solve_proxy_on_tasks: false,
-                                        set_incoming_workers_user_agent: false,
-                                        run_explicit_invisible_hcaptcha_callback_when_challenge_shown: false,
-                                        delay_onready_callback: false,
-                                        reenable_contextmenu: false,
-                                        where_solve_list: [],
-                                        where_solve_white_list_type: false
-                                    };
-                                    const setLocal = new Promise(r => {
-                                        if (chrome.storage && chrome.storage.local && chrome.storage.local.set) {
-                                            chrome.storage.local.set(fullConfig, () => r(true));
-                                        } else {
-                                            r(false);
-                                        }
+                                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                        chrome.storage.local.get(['account_key', 'enable', 'account_key_checked'], res => resolve(res));
+                                    } else {
+                                        resolve(null);
+                                    }
+                                });
+                            }""")
+                            if stored and stored.get("account_key") == api_key_to_use and stored.get("enable") is True:
+                                already_configured = True
+                        except Exception:
+                            already_configured = False
+
+                    if already_configured:
+                        logger.info(f"AntiCaptcha extension already verified and configured with active API key in local runtime storage (ID: {ext_id}). Skipping redundant popup setup.")
+                    else:
+                        # Extension not yet configured in runtime: configure both local and sync storages
+                        if self.context.service_workers:
+                            try:
+                                await self.context.service_workers[0].evaluate("""(apiKey) => {
+                                    return new Promise(resolve => {
+                                        const fullConfig = {
+                                            account_key: apiKey,
+                                            account_key_checked: true,
+                                            enable: true,
+                                            auto_submit_form: false,
+                                            play_sounds: false,
+                                            solve_recaptcha2: true,
+                                            solve_invisible_recaptcha: true,
+                                            solve_recaptcha3: true,
+                                            recaptcha3_score: 0.3,
+                                            solve_hcaptcha: true,
+                                            solve_turnstile: true,
+                                            solve_funcaptcha: true,
+                                            solve_geetest: true,
+                                            use_predefined_image_captcha_marks: true,
+                                            start_recaptcha2_solving_when_challenge_shown: true,
+                                            use_recaptcha_precaching: false,
+                                            k_precached_solution_count_min: 2,
+                                            k_precached_solution_count_max: 4,
+                                            dont_reuse_recaptcha_solution: false,
+                                            solve_only_presented_recaptcha2: false,
+                                            solve_proxy_on_tasks: false,
+                                            set_incoming_workers_user_agent: false,
+                                            run_explicit_invisible_hcaptcha_callback_when_challenge_shown: false,
+                                            delay_onready_callback: false,
+                                            reenable_contextmenu: false,
+                                            where_solve_list: [],
+                                            where_solve_white_list_type: false
+                                        };
+                                        const setLocal = new Promise(r => {
+                                            if (chrome.storage && chrome.storage.local && chrome.storage.local.set) {
+                                                chrome.storage.local.set(fullConfig, () => r(true));
+                                            } else {
+                                                r(false);
+                                            }
+                                        });
+                                        const setSync = new Promise(r => {
+                                            if (chrome.storage && chrome.storage.sync && chrome.storage.sync.set) {
+                                                chrome.storage.sync.set(fullConfig, () => r(true));
+                                            } else {
+                                                r(false);
+                                            }
+                                        });
+                                        Promise.all([setLocal, setSync]).then(() => resolve(true));
                                     });
-                                    const setSync = new Promise(r => {
-                                        if (chrome.storage && chrome.storage.sync && chrome.storage.sync.set) {
-                                            chrome.storage.sync.set(fullConfig, () => r(true));
-                                        } else {
-                                            r(false);
-                                        }
-                                    });
-                                    Promise.all([setLocal, setSync]).then(() => resolve(true));
+                                }""", api_key_to_use)
+                            except Exception as e:
+                                logger.debug(f"Service worker storage evaluation note: {e}")
+
+                        # To ensure Vue options store initializes, binds credentials, and verifies live balance, activate popup briefly
+                        try:
+                            setup_page = await self.context.new_page()
+                            popup_url = f"chrome-extension://{ext_id}/popup_v3.html"
+                            await setup_page.goto(popup_url, wait_until="load", timeout=8000)
+                            await setup_page.evaluate("""(apiKey) => {
+                                return new Promise(resolve => {
+                                    const inp = document.getElementById("account_key");
+                                    const chk = document.getElementById("enable_checkbox");
+                                    if (chk && !chk.checked) {
+                                        chk.click();
+                                    }
+                                    if (inp && (!inp.value || inp.value !== apiKey)) {
+                                        inp.value = apiKey;
+                                        inp.dispatchEvent(new Event('input', { bubbles: true }));
+                                        const submitBtn = document.querySelector('input[type="submit"], button.btn-primary');
+                                        if (submitBtn) submitBtn.click();
+                                    }
+                                    resolve(true);
                                 });
                             }""", api_key_to_use)
+                            await asyncio.sleep(0.3)
+                            await setup_page.close()
+                            logger.info(f"AntiCaptcha runtime activated and verified with API key in browser profile (ID: {ext_id}).")
                         except Exception as e:
-                            logger.debug(f"Service worker storage evaluation note: {e}")
+                            logger.warning(f"Note during AntiCaptcha runtime setup page activation: {e}")
+                else:
+                    self.extension_loaded = False
+                    self.service_worker_active = False
+                    if engine == "chrome":
+                        self.warning_message = (
+                            "AntiCaptcha extension was not loaded by Google Chrome. "
+                            "Please ensure Developer Mode is enabled in Chrome and 'Load unpacked' is pointed to the extension directory, "
+                            "or switch Browser Engine to 'Chromium' or 'Microsoft Edge' in Settings."
+                        )
+                        logger.warning(self.warning_message)
 
-                    # To ensure Vue options store initializes, binds credentials, and verifies live balance, activate popup briefly
-                    try:
-                        setup_page = await self.context.new_page()
-                        popup_url = f"chrome-extension://{ext_id}/popup_v3.html"
-                        await setup_page.goto(popup_url, wait_until="load", timeout=8000)
-                        await setup_page.evaluate("""(apiKey) => {
-                            return new Promise(resolve => {
-                                const inp = document.getElementById("account_key");
-                                const chk = document.getElementById("enable_checkbox");
-                                if (chk && !chk.checked) {
-                                    chk.click();
-                                }
-                                if (inp && (!inp.value || inp.value !== apiKey)) {
-                                    inp.value = apiKey;
-                                    inp.dispatchEvent(new Event('input', { bubbles: true }));
-                                    const submitBtn = document.querySelector('input[type="submit"], button.btn-primary');
-                                    if (submitBtn) submitBtn.click();
-                                }
-                                resolve(true);
-                            });
-                        }""", api_key_to_use)
-                        await asyncio.sleep(0.3)
-                        await setup_page.close()
-                        logger.info(f"AntiCaptcha runtime activated and verified with API key in browser profile (ID: {ext_id}).")
-                    except Exception as e:
-                        logger.warning(f"Note during AntiCaptcha runtime setup page activation: {e}")
-            else:
-                self.extension_loaded = False
-                self.service_worker_active = False
-                if engine == "chrome":
-                    self.warning_message = (
-                        "AntiCaptcha extension was not loaded by Google Chrome. "
-                        "Please ensure Developer Mode is enabled in Chrome and 'Load unpacked' is pointed to the extension directory, "
-                        "or switch Browser Engine to 'Chromium' or 'Microsoft Edge' in Settings."
-                    )
-                    logger.warning(self.warning_message)
-
-        return self.context
+            return self.context
+        except Exception:
+            if self.context:
+                try:
+                    await self.context.close()
+                except Exception:
+                    pass
+                self.context = None
+            if self.playwright:
+                try:
+                    await self.playwright.stop()
+                except Exception:
+                    pass
+                self.playwright = None
+            if self.is_temp_profile and self.profile_to_use and self.profile_to_use.exists():
+                try:
+                    shutil.rmtree(self.profile_to_use, ignore_errors=True)
+                except Exception:
+                    pass
+            raise
 
     async def close(self) -> None:
         """Safely closes Chrome context, playwright session, and temporary profile."""

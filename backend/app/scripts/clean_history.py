@@ -34,10 +34,18 @@ from app.services.settings_service import (
 def purge_redis_queues() -> int:
     """Flush all Celery and task queues in Redis (backwards-compatibility helper)."""
     try:
-        r = redis.Redis.from_url(settings.CELERY_BROKER_URL)
+        r = redis.Redis.from_url(
+            settings.CELERY_BROKER_URL,
+            socket_connect_timeout=1.0,
+            socket_timeout=1.0,
+        )
         r.flushdb()
         if settings.CELERY_RESULT_BACKEND:
-            r_backend = redis.Redis.from_url(settings.CELERY_RESULT_BACKEND)
+            r_backend = redis.Redis.from_url(
+                settings.CELERY_RESULT_BACKEND,
+                socket_connect_timeout=1.0,
+                socket_timeout=1.0,
+            )
             r_backend.flushdb()
         print("[OK] Purged all Redis broker queues and result backend states.")
         return 1

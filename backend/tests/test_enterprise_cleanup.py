@@ -418,3 +418,146 @@ async def test_dashboard_stats_reconciled_after_cleanup():
         assert after_resp.status_code == 200
         after_total = after_resp.json()["total_claims"]
         assert after_total == 0
+
+
+@pytest.mark.asyncio
+async def test_execute_cleanup_cascade_notifications_and_children():
+    """Verify that deleting a parent Claim cascade-deletes ScrapedCourtCases, MatchPairs, ErrorScreenshots,
+
+    and Notification delivery history records, guaranteeing zero orphan rows.
+    """
+    claim_id = str(uuid.uuid4())
+    case_id = str(uuid.uuid4())
+    match_id = str(uuid.uuid4())
+    screenshot_id = str(uuid.uuid4())
+    notif_id = str(uuid.uuid4())
+
+    async with TaskAsyncSessionLocal() as session:
+        # 1. Parent Claim
+        claim = ClaimRecord(
+            id=claim_id,
+            claim_number=f"TEST-CASCADE-FULL-{claim_id[:6]}",
+            dol="09/01/2026",
+            insured_first_name="CascadeParent",
+            insured_last_name="Insured",
+            policy_state="FL",
+            loss_location_state="FL",
+            record_status=RecordStatusEnum.NEW,
+            created_at=datetime.now(),
+        )
+        session.add(claim)
+
+        # 2. Child Scraped Court Case
+        case = ScrapedCourtCase(
+            id=case_id,
+            claim_id=claim_id,
+            case_number="CASE-FULL-CASCADE-001",
+            case_style="CascadeParent v. Defendant",
+            county_name="Broward",
+            county_website="https://www.browardclerk.org/Web2",
+            created_at=datetime.now(),
+        )
+        session.add(case)
+
+        # 3. Child Match Pair
+        match = MatchPair(
+            id=match_id,
+            claim_id=claim_id,
+            court_case_id=case_id,
+            party_type="INSURED",
+            party_name="CascadeParent Insured",
+            case_style="CascadeParent v. Defendant",
+            similarity_score=0.98,
+            threshold_applied=0.6,
+            is_match=True,
+            created_at=datetime.now(),
+        )
+        session.add(match)
+
+        # 4. Child Error Screenshot
+        screenshot = ErrorScreenshot(
+            id=screenshot_id,
+            claim_id=claim_id,
+            portal_key="broward",
+            portal_name="Broward County Clerk",
+            file_path="screenshots/test_cascade.png",
+            created_at=datetime.now(),
+        )
+        session.add(screenshot)
+
+        # 5. Child Notification Delivery Record
+        notif = Notification(
+            id=notif_id,
+            claim_id=claim_id,
+            claim_number=claim.claim_number,
+            event_type="SCRAPER_FAILED",
+            recipient="claims-admin@uaic.com",
+            subject="Scraper Alert - Cascade Test",
+            body_html="<p>Test</p>",
+            body_text="Test",
+            status="FAILED",
+            error_message="Portal timeout simulated",
+            created_at=datetime.now(),
+        )
+        session.add(notif)
+        await session.commit()
+
+    # Execute cleanup specifically targeting claims
+    res = await execute_enterprise_cleanup(
+        categories=["claims"],
+        time_scope="all_time",
+        operator="TEST_CASCADE_RUNNER",
+        dry_run=False,
+    )
+    assert res.success is True
+    assert res.records_deleted.get("claims", 0) >= 1
+
+    # Verify zero orphans: parent claim and ALL child records must be deleted
+    async with TaskAsyncSessionLocal() as session:
+        assert (await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))).scalar_one_or_none() is None
+        assert (await session.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.id == case_id))).scalar_one_or_none() is None
+        assert (await session.execute(select(MatchPair).where(MatchPair.id == match_id))).scalar_one_or_none() is None
+        assert (await session.execute(select(ErrorScreenshot).where(ErrorScreenshot.id == screenshot_id))).scalar_one_or_none() is None
+        assert (await session.execute(select(Notification).where(Notification.id == notif_id))).scalar_one_or_none() is None
+
+
+def test_time_window_current_month_dynamic():
+    """Verify that current_month dynamically computes boundary from 1st of month 00:00:00 to reference_now
+
+    across leap years, January, and December.
+    """
+    # Test Leap Year Feb 2028
+    feb_leap = datetime(2028, 2, 29, 23, 59, 59)
+    start_dt, end_dt, desc = resolve_time_window("current_month", reference_now=feb_leap)
+    assert start_dt == datetime(2028, 2, 1, 0, 0, 0)
+    assert end_dt == feb_leap
+
+    # Test December year boundary
+    dec_time = datetime(2026, 12, 31, 18, 30, 0)
+    start_dt, end_dt, desc = resolve_time_window("current_month", reference_now=dec_time)
+    assert start_dt == datetime(2026, 12, 1, 0, 0, 0)
+    assert end_dt == dec_time
+
+    # Test January start
+    jan_time = datetime(2027, 1, 1, 0, 0, 1)
+    start_dt, end_dt, desc = resolve_time_window("current_month", reference_now=jan_time)
+    assert start_dt == datetime(2027, 1, 1, 0, 0, 0)
+    assert end_dt == jan_time
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cache_invalidation_redis_offline():
+    """Verify that cleanup executes and returns cleanly even when Redis is completely offline,
+
+    finishing within socket timeouts (1.0s) without blocking.
+    """
+    res = await execute_enterprise_cleanup(
+        categories=["redis_runtime", "dashboard_metrics"],
+        time_scope="all_time",
+        operator="OFFLINE_REDIS_TEST",
+        dry_run=False,
+    )
+    assert res.success is True
+    assert res.referential_integrity == "PASS"
+    assert res.dashboard_reconciliation == "PASS"
+

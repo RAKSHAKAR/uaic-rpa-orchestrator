@@ -2027,6 +2027,13 @@ MailDev
 Monitoring
 ```
 
+### CRITICAL DOCKER EXECUTION GUARDRAILS
+The Setup Console MUST enforce these rules to prevent Windows Docker Daemon crashes:
+1. **YAML Context:** The script MUST ONLY execute `docker compose` targeting the `$rootDir/docker-compose.yml` file.
+2. **Env Variable Sync:** Before executing ANY compose command, the script MUST physically copy `backend/.env` to the root folder as `.env`. Do NOT rely on `--env-file` flags or process-level memory.
+3. **Daemon Retry Loop:** Because Windows WSL pipes can drop during image pulls, `docker compose up` commands MUST be wrapped in a `try/catch` retry loop that waits 10 seconds and retries if a named pipe error (`npipe:////./pipe/dockerDesktopLinuxEngine`) occurs.
+4. **Scorched Earth Stop:** The `Invoke-KillAllServices` function MUST execute `docker system prune --volumes -f` to aggressively wipe out dangling containers and volumes.
+
 ---
 
 # 63. DOCKER VS LOCAL MODE
@@ -2869,27 +2876,26 @@ Create/repair automated tests for:
 
 # 90. REAL-WORLD VALIDATION
 
-Unit tests are NOT enough.
+# 90. 100% AUTOMATED END-TO-END VALIDATION (NO MANUAL TESTING)
 
-Actually execute the Setup Console.
+Unit tests are NOT enough, and MANUAL VERIFICATION IS STRICTLY FORBIDDEN. 
 
-Run:
+You must write automated End-to-End (E2E) integration scripts (e.g., using Pester for PowerShell or Pytest subprocesses) that programmatically execute the Setup Console and verify the real-world outcome.
 
-```text
-[1]
-[2]
-[3]
-[4]
-[5]
-[6]
-[7]
-[8]
-[9]
-[M]
-[0]
-```
+The automated test suite must run:
+[1] Start
+[2] Stop
+[3] Cleanup
+[4] Install
+[5] Purge
+[6] Config
+[7] Diagnostics
+[8] Docker
+[9] Status
+[M] MailDev
+[0] Exit
 
-Verify the real-world outcome.
+For every option, the test script must assert the resulting state programmatically (e.g., asserting `docker ps` contains the containers, asserting `Get-Process` shows the workers, asserting `Invoke-WebRequest` returns 200). Human verification is not accepted as a valid definition of done.
 
 ---
 

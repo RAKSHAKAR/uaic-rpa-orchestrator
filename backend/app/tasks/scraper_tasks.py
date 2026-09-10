@@ -286,15 +286,22 @@ async def _async_orchestrate_scrapers(
                         if getattr(claim, status_attr) != BotStatusEnum.FAILED:
                             setattr(claim, status_attr, BotStatusEnum.COMPLETED)
                         for c in cases:
+                            f_date = (
+                                c.get("FilingDate")
+                                or c.get("filing_date")
+                                or c.get("Filing Date")
+                                or c.get("SuitFiledDate")
+                                or c.get("suit_filed_date")
+                            )
                             scraped_case = ScrapedCourtCase(
                                 claim_id=claim.id,
                                 county_name=scraper.county_name,
                                 county_website=scraper.base_url,
-                                case_number=c.get("CaseNumber") or "",
-                                case_style=c.get("CaseStyle") or "",
-                                filing_date=c.get("FilingDate"),
-                                case_status=c.get("CaseStatus"),
-                                case_type=c.get("CaseType"),
+                                case_number=c.get("CaseNumber") or c.get("case_number") or "",
+                                case_style=c.get("CaseStyle") or c.get("case_style") or "",
+                                filing_date=f_date,
+                                case_status=c.get("CaseStatus") or c.get("case_status"),
+                                case_type=c.get("CaseType") or c.get("case_type"),
                                 raw_payload=c,
                             )
                             session.add(scraped_case)
@@ -371,6 +378,21 @@ async def _async_orchestrate_scrapers(
             for name, scraper, status_attr, json_attr in scrapers_to_run:
                 if getattr(claim, status_attr) == BotStatusEnum.IN_PROGRESS:
                     setattr(claim, status_attr, BotStatusEnum.FAILED)
+            try:
+                await log_audit_event_async(
+                    session=session,
+                    action="SCRAPING_SESSION_FAILED",
+                    entity_type="CLAIM",
+                    description=f"Browser automation session failure for Claim {claim.claim_number}: {session_exc}",
+                    entity_id=claim.id,
+                    claim_number=claim.claim_number,
+                    user_id="celery_worker",
+                    user_email="orchestrator@system.local",
+                    status="FAILED",
+                    details={"error": str(session_exc)},
+                )
+            except Exception as e_aud:
+                logger.warning(f"Could not log audit event for scraper session failure: {e_aud}")
             await session.commit()
 
             # If auto-queue is active, release lock for this specific claim and advance queue

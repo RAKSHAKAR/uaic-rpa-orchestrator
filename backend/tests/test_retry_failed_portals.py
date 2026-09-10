@@ -165,7 +165,6 @@ async def test_bulk_retry_failed_portals_only(sample_claim_with_failures):
 @pytest.mark.asyncio
 async def test_async_orchestrate_scrapers_retry_failed_only(sample_claim_with_failures):
     """Test _async_orchestrate_scrapers runs ONLY failed portals and preserves completed cases."""
-    from unittest.mock import MagicMock
     from app.automation.florida.hillsborough import HillsboroughScraper
     from app.automation.florida.miami import MiamiDadeScraper
 

@@ -47,8 +47,8 @@ Read it fully before writing or modifying code.
 
 ## Before Any Change
 
-1. Run `cd backend && .venv\Scripts\pytest -q` — must pass 157 tests
-2. Run `cd backend && .venv\Scripts\ruff check app tests` — must be clean
+1. Run `cd backend && .venv\Scripts\pytest -q` — must pass all 182 tests (172 passed, 10 skipped when Redis/MailDev offline)
+2. Run `cd backend && .venv\Scripts\ruff check app tests` — must be clean (0 errors)
 3. Run `cd frontend && npx tsc --noEmit` — must be 0 TypeScript errors
 4. Check `AGENTS.md` section 8 (AI Agent Rules)
 
@@ -102,14 +102,25 @@ All runtime configuration flows through `SystemSettings`:
 - Never close browser between tabs in same claim session.
 - CAPTCHA: click → wait for extension → verify token/DOM change → continue.
 
+## Mandatory Task Completion & Error Resolution Rules
+
+1. **Complete Every Task Fully**: Never consider a task complete just because code was written. Verify end-to-end functionality.
+2. **No Error Left Behind**: Before declaring completion, you MUST inspect:
+   - **Browser Developer Console**: Check for unhandled promise rejections, React errors, broken asset links, and failed API calls.
+   - **Terminal Logs & Runtime**: Check for compilation warnings, build failures, lint violations, and CORS errors. Fix the root cause of every error.
+3. **Interruption Recovery**: If execution is interrupted by timeouts, context limits, terminal errors, or crashes, perform a gap analysis against requirements and resume from the last successful checkpoint. Never silently skip tasks.
+4. **Definition of Done**:
+   `Implemented → Tested → Verified → Errors Fixed → Documentation Updated → Requirements Rechecked`
+
 ## Mandatory Final Verification Steps (Always Run Last)
 
 Before declaring any engineering task complete, ALWAYS execute and verify:
 1. **Zero IDE / Pyrefly Problems**: Check `@[current_problems]`; verify zero syntax/indentation/import errors. Clean up any temporary scratch/test scripts that trigger virtual diagnostics.
 2. **Full-Width Enterprise UI Standard**: Verify all UI routes (`/`, `/settings`, `/branding`, `/monitor`, `/health`, `/exceptions`, `/upload`) render at 100% viewport width (`w-full max-w-none flex-1`) with the unified `<Navbar />`.
-3. **Persistent PowerShell Orchestrator (`setup.ps1` / `setup_local.ps1`)**: Verify setup scripts never auto-close and offer interactive options (start services in attended GUI vs unattended headless, stop services, clean run history, install deps, purge deps, diagnostics). Run syntax verification with `powershell -NoProfile -Command "Get-Content setup.ps1 | Out-Null; Get-Content setup_local.ps1 | Out-Null; Write-Output 'PowerShell scripts parse OK'"`.
+3. **Persistent PowerShell Orchestrator (`setup.ps1` / `setup_local.ps1`)**: Verify setup scripts never auto-close and offer interactive options. Run syntax verification with `powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps1"`.
 4. **Docker Compose Validation**: Run `docker compose config` to guarantee that all YAML services, volume mounts (`./anticaptcha-plugin_v0.83:/app/anticaptcha-plugin_v0.83`), and environment configurations remain valid.
-5. **Backend Test Suite**: `cd backend && .venv\Scripts\pytest -q` (all 157 tests passing).
+5. **Backend Test Suite**: `cd backend && .venv\Scripts\pytest -q` (all 182 tests: 172 passed, 10 skipped when Redis/MailDev offline).
 6. **Backend Linter**: `cd backend && .venv\Scripts\ruff check app tests` (clean, 0 errors).
 7. **Frontend Type Check & Build**: `cd frontend && npx tsc --noEmit && npm run build` (zero errors).
+
 

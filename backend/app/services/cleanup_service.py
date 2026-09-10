@@ -819,15 +819,29 @@ async def execute_enterprise_cleanup(
         logger.warning(f"File cleanup warning: {fe}")
 
     # 5. Redis Queue Purge & Cache Invalidation
-    if "redis_runtime" in cats or "queue" in cats:
+    if "redis_runtime" in cats or "queue" in cats or "dashboard_metrics" in cats or "claims" in cats or "all_operational" in cats:
         try:
-            r = redis.Redis.from_url(settings.CELERY_BROKER_URL)
-            r.flushdb()
-            if settings.CELERY_RESULT_BACKEND:
-                r_back = redis.Redis.from_url(settings.CELERY_RESULT_BACKEND)
+            r = redis.Redis.from_url(
+                settings.CELERY_BROKER_URL,
+                socket_connect_timeout=1.0,
+                socket_timeout=1.0,
+            )
+            if "redis_runtime" in cats or "queue" in cats or "all_operational" in cats:
+                r.flushdb()
+                redis_purged = True
+            # Invalidate any cached dashboard metrics keys
+            for key_pattern in ("cache:*", "metrics:*", "stats:*", "dashboard:*"):
+                for k in r.keys(key_pattern):
+                    r.delete(k)
+
+            if settings.CELERY_RESULT_BACKEND and ("redis_runtime" in cats or "queue" in cats or "all_operational" in cats):
+                r_back = redis.Redis.from_url(
+                    settings.CELERY_RESULT_BACKEND,
+                    socket_connect_timeout=1.0,
+                    socket_timeout=1.0,
+                )
                 r_back.flushdb()
-            redis_purged = True
-            logger.info("Redis queues and result backend flushed successfully.")
+            logger.info("Redis queues and dashboard caches purged/invalidated successfully.")
         except Exception as re:
             logger.warning(f"Redis cleanup note: {re}")
 

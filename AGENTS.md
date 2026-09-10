@@ -208,7 +208,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 ## 7. Test Commands
 
 ```bash
-# Backend tests (172 tests, all pass)
+# Backend tests (182 tests: 172 passed, 10 skipped when Redis/MailDev offline)
 cd backend
 .venv\Scripts\pytest --tb=short -q
 
@@ -235,6 +235,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 
 ### MUST DO
 - ✅ Follow the `diagnose-plan-confirm-execute` lifecycle: Understand → Inspect → Review README → Review History → Diagnose → Gap Analysis → Plan → Save to implementation_plan → Show User → Wait Approval → Implement → Test → Validate → Document → Human Verify
+- ✅ **Definition of Done**: Implemented → Tested → Verified → Errors Fixed → Documentation Updated → Requirements Rechecked
+- ✅ **No Error Left Behind**: Check browser Developer Console (unhandled promises, React errors, failed API calls, CORS) and Terminal runtime logs (warnings, compilation, lint). Fix root causes before declaring completion
+- ✅ **Interruption Recovery**: In the event of crashes, timeouts, context limits, or interruptions, perform gap analysis and resume from the last successful checkpoint without skipping
+- ✅ Target **Python 3.14.7** across backend runtime and dependencies; preserve synchronous Playwright browser automation for Anti-Captcha extension stability
 - ✅ Strictly preserve the repository directory layout documented in `README.md` and keep all 5 protected user folders intact (`implementation_plan`, `PowerAutomateSolutions`, `Testing files`, `anticaptcha-plugin_v0.83`, `.agents`)
 - ✅ Maintain `README.md` as the authoritative single-source booklet of the entire project (updating layout, routes, endpoints, storage keys, config — **never replace a comprehensive README with a simplified one**)
 - ✅ Place all utility, scratch, diagnostic, and verification scripts into `scripts/` or `backend/app/scripts/` (never loose in root)
@@ -243,7 +247,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 - ✅ Keep AI-generated documentation in `implementation_plan/` with status headers until the user explicitly verifies it
 - ✅ Create a final implementation record (plan + change log + test report + validation) in `implementation_plan/` after every substantial task
 - ✅ Save all browser subagent recordings (.webp) into `implementation_plan/Recording/` and all visual verification screenshots (.png) into `implementation_plan/Images/` (strictly separated, never leave them exclusively in the transient IDE brain directory)
-- ✅ Run `pytest` after any backend change (182 tests, 100% pass)
+- ✅ Run `pytest` after any backend change (182 tests: 172 passed, 10 skipped when Redis/MailDev offline)
 - ✅ Run `ruff check` after any Python change (0 errors)
 - ✅ Run `tsc --noEmit` after any TypeScript change (0 errors)
 - ✅ Run `scripts\check_ps1_syntax.ps1` after any `.ps1` change (0 errors)

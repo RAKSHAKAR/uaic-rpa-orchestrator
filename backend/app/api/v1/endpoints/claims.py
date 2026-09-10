@@ -148,7 +148,15 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                     county_name=sc.county_name,
                     case_number=sc.case_number,
                     case_style=sc.case_style,
-                    filing_date=sc.filing_date,
+                    filing_date=sc.filing_date or (
+                        sc.raw_payload.get("FilingDate")
+                        or sc.raw_payload.get("filing_date")
+                        or sc.raw_payload.get("Filing Date")
+                        or sc.raw_payload.get("SuitFiledDate")
+                        or sc.raw_payload.get("suit_filed_date")
+                        if isinstance(sc.raw_payload, dict)
+                        else None
+                    ),
                     case_status=sc.case_status,
                     case_type=sc.case_type,
                     raw_payload=sc.raw_payload,

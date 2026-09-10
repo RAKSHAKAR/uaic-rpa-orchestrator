@@ -201,44 +201,6 @@ TARGET_CLAIM_FIELDS = [
         ],
     },
     {
-        "key": "loss_location_city",
-        "label": "Loss Location City",
-        "required": False,
-        "description": "City where incident/loss occurred",
-        "aliases": [
-            "loss location city", "loss_location_city", "loss city",
-            "loss_city", "accident city"
-        ],
-    },
-    {
-        "key": "loss_location_county",
-        "label": "Loss Location County",
-        "required": False,
-        "description": "County where incident/loss occurred",
-        "aliases": [
-            "loss location county", "loss_location_county", "loss county",
-            "loss_county"
-        ],
-    },
-    {
-        "key": "garaging_city",
-        "label": "Garaging City",
-        "required": False,
-        "description": "City where insured vehicle is garaged",
-        "aliases": [
-            "garaging city", "garaging_city", "garage city"
-        ],
-    },
-    {
-        "key": "garaging_state",
-        "label": "Garaging State",
-        "required": False,
-        "description": "State where insured vehicle is garaged",
-        "aliases": [
-            "garaging state", "garaging_state", "garage state"
-        ],
-    },
-    {
         "key": "exposure_number",
         "label": "Exposure Number",
         "required": False,

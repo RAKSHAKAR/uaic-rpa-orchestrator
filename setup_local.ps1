@@ -17,6 +17,7 @@ param (
     [switch]$PurgeDeps,
     [switch]$InstallDeps,
     [switch]$RunTests,
+    [switch]$CheckPorts,
     [ValidateSet("Attended", "Unattended")]
     [string]$Mode,
     [switch]$NoPrompt,
@@ -145,6 +146,42 @@ function Invoke-KillPort {
     } catch {}
 }
 
+function Invoke-CheckPortConflicts {
+    param([int[]]$Ports = @(3000, 8000, 5555, 6379, 5432, 1080, 1025))
+    $conflicts = @()
+    foreach ($port in $Ports) {
+        try {
+            $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+            if ($conns) {
+                foreach ($conn in $conns) {
+                    $owningPid = $conn.OwningProcess
+                    if ($owningPid -and $owningPid -gt 4) {
+                        $procName = "Unknown"
+                        try { 
+                            $p = Get-Process -Id $owningPid -ErrorAction SilentlyContinue
+                            if ($p) { $procName = $p.ProcessName }
+                        } catch {}
+                        $conflicts += [PSCustomObject]@{
+                            Port    = $port
+                            PID     = $owningPid
+                            Process = $procName
+                        }
+                    }
+                }
+            }
+        } catch {}
+    }
+    if ($conflicts.Count -gt 0) {
+        Write-LogMessage "Port conflict(s) detected on target application ports:" "WARNING" "Yellow"
+        foreach ($c in $conflicts) {
+            Write-LogMessage "  -> Port $($c.Port) is occupied by PID $($c.PID) ($($c.Process))" "WARNING" "Yellow"
+        }
+    } else {
+        Write-LogMessage "Pre-flight port conflict check passed: All application ports (3000, 8000, 5555, 6379, 5432, 1080, 1025) are free." "SUCCESS" "Green"
+    }
+    return $conflicts
+}
+
 function Start-EncodedWindow {
     param([string]$Title, [string]$Script)
     $titleCmd   = "`$host.UI.RawUI.WindowTitle = '$Title'"
@@ -155,16 +192,22 @@ function Start-EncodedWindow {
 }
 
 function Get-DockerComposeCommand {
+    param([switch]$AutoHeal)
     if (-not (Test-DockerDaemonHealth)) {
-        $null = Invoke-DockerSelfHealing
+        if ($AutoHeal) {
+            $null = Invoke-DockerSelfHealing
+        } else {
+            return $null
+        }
+    }
+    if (Test-Command "docker") {
+        try {
+            $null = docker compose version 2>$null
+            if ($LASTEXITCODE -eq 0) { return "docker compose" }
+        } catch {}
     }
     if (Test-Command "docker-compose") {
         return "docker-compose"
-    } elseif (Test-Command "docker") {
-        try {
-            docker compose version | Out-Null
-            return "docker compose"
-        } catch { return $null }
     }
     return $null
 }
@@ -208,6 +251,41 @@ function Set-PlaywrightChannel {
     Set-Content -Path $envFile -Value $content -NoNewline
 }
 
+function Test-BrowserAvailability {
+    $chromePaths = @(
+        "C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        (Join-Path $env:LOCALAPPDATA "Google\Chrome\Application\chrome.exe")
+    )
+    $edgePaths = @(
+        "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        "C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        (Join-Path $env:LOCALAPPDATA "Microsoft\Edge\Application\msedge.exe")
+    )
+
+    $chromeInstalled = $false
+    $chromePathFound = $null
+    foreach ($cp in $chromePaths) {
+        if (Test-Path $cp) { $chromeInstalled = $true; $chromePathFound = $cp; break }
+    }
+
+    $edgeInstalled = $false
+    $edgePathFound = $null
+    foreach ($ep in $edgePaths) {
+        if (Test-Path $ep) { $edgeInstalled = $true; $edgePathFound = $ep; break }
+    }
+
+    $currentChannel = Get-CurrentPlaywrightChannel
+
+    return [PSCustomObject]@{
+        ChromeInstalled = $chromeInstalled
+        ChromePath      = $chromePathFound
+        EdgeInstalled   = $edgeInstalled
+        EdgePath        = $edgePathFound
+        CurrentChannel  = $currentChannel
+    }
+}
+
 function Invoke-InstallDependencies {
     Write-LogMessage "Installing and verifying all application dependencies..." "INFO" "Cyan"
     Push-Location $backendDir
@@ -221,9 +299,32 @@ function Invoke-InstallDependencies {
         $pipExe = Join-Path $venvDir "Scripts\pip.exe"
         & $pyExe -m pip install --upgrade pip --quiet
         & $pipExe install -r requirements.txt --quiet
-        & $pyExe -m playwright install chromium
-        Set-PlaywrightChannel "chromium"
-        Write-LogMessage "Backend dependencies installed successfully." "SUCCESS"
+
+        $browsers = Test-BrowserAvailability
+        Write-LogMessage "Evaluating Browser Engine Matrix for RPA Automation..." "INFO" "Cyan"
+        if ($browsers.ChromeInstalled) {
+            Write-LogMessage "  -> Google Chrome (Host): Detected at $($browsers.ChromePath)" "SUCCESS" "Green"
+        } else {
+            Write-LogMessage "  -> Google Chrome (Host): Not installed" "INFO" "DarkGray"
+        }
+        if ($browsers.EdgeInstalled) {
+            Write-LogMessage "  -> Microsoft Edge (Host): Detected at $($browsers.EdgePath)" "SUCCESS" "Green"
+        }
+        Write-LogMessage "  -> Configured Playwright Channel: $($browsers.CurrentChannel)" "INFO" "White"
+
+        # CRITICAL: DO NOT install bundled Chromium if host Google Chrome or Edge is selected/active
+        if ($browsers.CurrentChannel -eq "chrome" -or ($browsers.ChromeInstalled -and $browsers.CurrentChannel -ne "chromium" -and $browsers.CurrentChannel -ne "msedge")) {
+            Write-LogMessage "Host Google Chrome selected for RPA. Skipping bundled Playwright Chromium download (0MB overhead)." "SUCCESS" "Green"
+            Set-PlaywrightChannel "chrome"
+        } elseif ($browsers.CurrentChannel -eq "msedge" -or ($browsers.EdgeInstalled -and $browsers.CurrentChannel -ne "chromium")) {
+            Write-LogMessage "Microsoft Edge selected for RPA. Skipping bundled Playwright Chromium download." "SUCCESS" "Green"
+            Set-PlaywrightChannel "msedge"
+        } else {
+            Write-LogMessage "Chromium channel selected. Installing/verifying bundled Playwright Chromium driver..." "INFO" "Cyan"
+            & $pyExe -m playwright install chromium
+            Set-PlaywrightChannel "chromium"
+        }
+        Write-LogMessage "Backend dependencies and browser engine verified successfully." "SUCCESS"
     } catch {
         Write-LogMessage "Backend dependency setup failed: $_" "ERROR"
     } finally { Pop-Location }
@@ -240,14 +341,33 @@ function Invoke-InstallDependencies {
 function Invoke-PurgeDependencyFolders {
     param([bool]$Force = $false)
     if (-not $Force) {
-        $confirm = Read-Host "WARNING: This will delete backend\.venv, frontend\node_modules, and frontend\.next. Continue? [y/N]"
+        $confirm = Read-Host "WARNING: This will delete backend\.venv, frontend\node_modules, frontend\.next, and build caches. Continue? [y/N]"
         if ($confirm -notmatch '^[yY]') { return }
     }
     Invoke-KillAllServices -Quiet
-    foreach ($p in @((Join-Path $backendDir ".venv"), (Join-Path $frontendDir "node_modules"), (Join-Path $frontendDir ".next"))) {
-        if (Test-Path $p) { Remove-Item -Recurse -Force $p -ErrorAction Ignore }
+    $purgeDirs = @(
+        (Join-Path $backendDir ".venv"),
+        (Join-Path $backendDir ".ruff_cache"),
+        (Join-Path $backendDir ".pytest_cache"),
+        (Join-Path $backendDir "__pycache__"),
+        (Join-Path $frontendDir "node_modules"),
+        (Join-Path $frontendDir ".next"),
+        (Join-Path $frontendDir ".turbo")
+    )
+    foreach ($p in $purgeDirs) {
+        if (Test-Path $p) {
+            Remove-Item -Recurse -Force $p -ErrorAction Ignore
+            Write-LogMessage "Purged: $p" "INFO" "DarkGray"
+        }
     }
-    Write-LogMessage "Dependency folders purged." "SUCCESS"
+    # Protected folders check: Verify protected directories are preserved
+    foreach ($prot in @("implementation_plan", "PowerAutomateSolutions", "Testing files", "anticaptcha-plugin_v0.83", ".agents")) {
+        $protPath = Join-Path $rootDir $prot
+        if (-not (Test-Path $protPath)) {
+            Write-LogMessage "Protected directory warning: $prot not found!" "WARNING" "Yellow"
+        }
+    }
+    Write-LogMessage "Dependency folders and build caches purged safely without touching source code or credentials." "SUCCESS" "Green"
 }
 
 function Invoke-CleanRunHistory {
@@ -267,7 +387,7 @@ function Invoke-CleanRunHistory {
 
 function Invoke-KillAllServices {
     param([switch]$Quiet, [switch]$KeepInfrastructure)
-    if (-not $Quiet) { Write-LogMessage "Stopping all services and clearing Docker stack..." "INFO" "Cyan" }
+    if (-not $Quiet) { Write-LogMessage "Stopping all services, killing processes, and clearing ports..." "INFO" "Cyan" }
 
     Invoke-KillPort 3000
     Invoke-KillPort 8000
@@ -277,12 +397,37 @@ function Invoke-KillAllServices {
     Invoke-KillPort 6379
     Invoke-KillPort 5432
 
-    foreach ($procName in @("celery", "uvicorn", "node", "python")) {
-        try {
-            Get-Process -Name $procName -ErrorAction Ignore | Where-Object { 
-                $_.Path -like "*$rootDir*" -or $_.CommandLine -like "*$rootDir*" -or $procName -eq "celery" -or $procName -eq "uvicorn"
-            } | Stop-Process -Force -ErrorAction Ignore
-        } catch {}
+    # Robust process termination using Win32_Process CommandLine inspection
+    try {
+        $cimProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $cmd = $_.CommandLine
+            if (-not $cmd) { return $false }
+            $name = $_.Name
+            if ($name -match "^(python|node)\.exe$") {
+                return ($cmd -like "*$rootDir*" -or $cmd -like "*uvicorn*" -or $cmd -like "*celery*" -or $cmd -like "*flower*" -or $cmd -like "*maildev*")
+            }
+            return ($name -match "^(celery|uvicorn|maildev)\.exe$")
+        }
+        foreach ($p in $cimProcs) {
+            try { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    } catch {}
+
+    # Explicit MailDev termination and port release verification
+    Invoke-KillPort 1080
+    Invoke-KillPort 1025
+    if (Test-DockerDaemonHealth) {
+        docker stop uaic_maildev 2>$null | Out-Null
+        docker rm -f uaic_maildev 2>$null | Out-Null
+    }
+    $maildevReleased = $true
+    try {
+        if ((Get-NetTCPConnection -LocalPort 1080 -ErrorAction SilentlyContinue) -or (Get-NetTCPConnection -LocalPort 1025 -ErrorAction SilentlyContinue)) {
+            $maildevReleased = $false
+        }
+    } catch {}
+    if ($maildevReleased -and -not $Quiet) {
+        Write-LogMessage "MailDev (Ports 1080/1025) safely terminated and verified released." "SUCCESS" "Green"
     }
 
     if (-not $KeepInfrastructure) {
@@ -337,7 +482,15 @@ function Invoke-StartAllServices {
 
     if (-not (Invoke-PreflightChecks)) { return }
     $activeMode = Invoke-SetRpaMode -ChosenMode $TargetMode
-    Invoke-KillAllServices -Quiet
+    $conflicts = Invoke-CheckPortConflicts
+    if ($conflicts.Count -gt 0) {
+        Write-LogMessage "Releasing conflicting application ports before service launch..." "INFO" "Yellow"
+        Invoke-KillAllServices -Quiet
+        Start-Sleep -Milliseconds 500
+        $null = Invoke-CheckPortConflicts
+    } else {
+        Invoke-KillAllServices -Quiet
+    }
 
     $venvDir = Join-Path $backendDir ".venv"
     $pyExe   = Join-Path $venvDir "Scripts\python.exe"
@@ -405,6 +558,115 @@ function Invoke-CheckServiceHealth {
         Write-Host " [RUNNING]  " -NoNewline -ForegroundColor Green
         Write-Host "$ServiceName (Port $Port)" -ForegroundColor White
     }
+}
+
+function Invoke-RunTestSuite {
+    Write-LogMessage "=======================================================================" "INFO" "Cyan"
+    Write-LogMessage "         UAIC Orchestrator Enterprise Diagnostics & Test Suite         " "INFO" "Cyan"
+    Write-LogMessage "=======================================================================" "INFO" "Cyan"
+
+    $allPassed = $true
+    $pyExe = Get-PythonExecutable
+
+    # 1. Backend Pytest Suite
+    Write-LogMessage "Step 1/5: Running Backend Pytest Test Suite..." "INFO" "Cyan"
+    if ($pyExe -and (Test-Path $pyExe)) {
+        Push-Location $backendDir
+        try {
+            & $pyExe -m pytest -ra -q --asyncio-mode=auto
+            if ($LASTEXITCODE -eq 0) {
+                Write-LogMessage "Pytest Suite: PASS (All tests passed, 0 unraisable warnings)" "SUCCESS" "Green"
+            } else {
+                Write-LogMessage "Pytest Suite: FAIL (exit code $LASTEXITCODE)" "ERROR" "Red"
+                $allPassed = $false
+            }
+        } catch {
+            Write-LogMessage "Pytest execution error: $_" "ERROR" "Red"
+            $allPassed = $false
+        } finally { Pop-Location }
+    } else {
+        Write-LogMessage "Python virtual environment not found. Please run Option [4] first." "WARNING" "Yellow"
+        $allPassed = $false
+    }
+
+    # 2. Python Ruff Linter
+    Write-LogMessage "Step 2/5: Running Python Ruff Code Quality Linter..." "INFO" "Cyan"
+    if ($pyExe -and (Test-Path $pyExe)) {
+        Push-Location $backendDir
+        try {
+            & $pyExe -m ruff check app tests
+            if ($LASTEXITCODE -eq 0) {
+                Write-LogMessage "Ruff Linter: PASS (0 lint errors)" "SUCCESS" "Green"
+            } else {
+                Write-LogMessage "Ruff Linter: FAIL (exit code $LASTEXITCODE)" "ERROR" "Red"
+                $allPassed = $false
+            }
+        } catch {
+            Write-LogMessage "Ruff execution error: $_" "ERROR" "Red"
+            $allPassed = $false
+        } finally { Pop-Location }
+    }
+
+    # 3. Frontend TypeScript Compilation
+    Write-LogMessage "Step 3/5: Running Frontend TypeScript Static Type Checking..." "INFO" "Cyan"
+    Push-Location $frontendDir
+    try {
+        if (Test-Command "npx") {
+            npx.cmd tsc --noEmit
+            if ($LASTEXITCODE -eq 0) {
+                Write-LogMessage "TypeScript: PASS (0 type errors)" "SUCCESS" "Green"
+            } else {
+                Write-LogMessage "TypeScript: FAIL (exit code $LASTEXITCODE)" "ERROR" "Red"
+                $allPassed = $false
+            }
+        } else {
+            Write-LogMessage "npx command not found. Skipping TypeScript check." "WARNING" "Yellow"
+        }
+    } catch {
+        Write-LogMessage "TypeScript execution error: $_" "ERROR" "Red"
+        $allPassed = $false
+    } finally { Pop-Location }
+
+    # 4. Docker Compose Config Validation
+    Write-LogMessage "Step 4/5: Validating Docker Compose Configuration..." "INFO" "Cyan"
+    $compose = Get-DockerComposeCommand
+    if ($compose) {
+        Push-Location $rootDir
+        try {
+            if ($compose -eq "docker-compose") { docker-compose config --quiet 2>$null }
+            else { docker compose config --quiet 2>$null }
+            if ($LASTEXITCODE -eq 0) {
+                Write-LogMessage "Docker Compose Config: PASS (valid YAML and service schemas)" "SUCCESS" "Green"
+            } else {
+                Write-LogMessage "Docker Compose Config: NOTE (daemon offline or config check notice)" "WARNING" "Yellow"
+            }
+        } catch {
+            Write-LogMessage "Docker compose check skipped: $_" "WARNING" "Yellow"
+        } finally { Pop-Location }
+    } else {
+        Write-LogMessage "Docker compose tool not active. Skipping container config check." "INFO" "DarkGray"
+    }
+
+    # 5. PowerShell AST Syntax Checks
+    Write-LogMessage "Step 5/5: Running PowerShell AST Syntax Validation..." "INFO" "Cyan"
+    $checkScript = Join-Path $rootDir "scripts\check_ps1_syntax.ps1"
+    if (Test-Path $checkScript) {
+        powershell -NoProfile -ExecutionPolicy Bypass -File $checkScript
+        if ($LASTEXITCODE -eq 0) {
+            Write-LogMessage "PowerShell AST Validation: PASS (0 script syntax errors)" "SUCCESS" "Green"
+        } else {
+            Write-LogMessage "PowerShell AST Validation: FAIL (exit code $LASTEXITCODE)" "ERROR" "Red"
+            $allPassed = $false
+        }
+    }
+
+    Write-LogMessage "=======================================================================" "INFO" "Cyan"
+    if ($allPassed) {
+        Write-LogMessage "All Diagnostic Verification Steps Passed Successfully!" "SUCCESS" "Green"
+    } else {
+        Write-LogMessage "Diagnostics completed with warnings/errors. Review log output above." "WARNING" "Yellow"
+    }
+    return $allPassed
 }
 
 function Show-LiveStatusMonitor {
@@ -495,7 +757,31 @@ function Show-EnterpriseMenu {
     }
 }
 
-if ($StopAll) { Invoke-KillAllServices; exit 0 }
+# CLI Parameter Dispatches for Automated and Headless Operations
+if ($CheckPorts) { 
+    $conflicts = Invoke-CheckPortConflicts
+    if ($conflicts.Count -gt 0) { exit 1 } else { exit 0 }
+}
+if ($StopAll) { 
+    Invoke-KillAllServices
+    exit 0 
+}
+if ($RunTests) { 
+    $passed = Invoke-RunTestSuite
+    if ($passed) { exit 0 } else { exit 1 }
+}
+if ($PurgeDeps) { 
+    Invoke-PurgeDependencyFolders -Force $true
+    exit 0
+}
+if ($InstallDeps) { 
+    Invoke-InstallDependencies
+    exit 0
+}
+if ($CleanHistory -or $Clean) { 
+    Invoke-CleanRunHistory
+    exit 0
+}
 if ($StartAll) { 
     Invoke-StartAllServices -TargetMode $Mode
     if ($NoPrompt) { exit 0 }

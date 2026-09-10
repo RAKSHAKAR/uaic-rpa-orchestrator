@@ -10,6 +10,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -17,8 +19,20 @@ services:
   redis:
     image: redis:7-alpine
     container_name: uaic_redis
+    ports:
+      - "6379:6379"
     restart: always
 
+  maildev:
+    image: maildev/maildev:2.1.0
+    container_name: uaic_maildev
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+    restart: always
+
+  # Application containers are defined below but are NOT started by the 
+  # setup_local.ps1 script during local dev (PS1 starts them natively).
   backend:
     build:
       context: ./backend

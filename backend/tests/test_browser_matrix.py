@@ -41,7 +41,7 @@ async def test_preflight_missing_playwright_driver_raises_runtime_error(mocker):
 async def test_preflight_missing_chrome_executable_raises_runtime_error(mocker):
     """Verify that a missing Chrome executable raises a descriptive RuntimeError."""
     mocker.patch.object(ChromeSession, "find_chrome_executable", return_value=None)
-    mocker.patch("playwright.async_api.async_playwright")
+    mocker.patch("app.automation.browser_manager.async_playwright")
     session = ChromeSession(browser_engine="chrome", chrome_binary_path="C:/non_existent_chrome.exe")
     with pytest.raises(RuntimeError, match="Google Chrome executable.*was not found"):
         await session.start()

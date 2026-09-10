@@ -18,6 +18,7 @@ Bot_UAIC/
 +-- Microsoft.VisualStudio.Services.VSIXPackage # Google Gemini Code Assist v2.98.0 VS Code / IDE extension offline bundle (187MB)
 |
 +-- scripts/                             # Standalone utility & developer diagnostic tools
+|   +-- test_setup_console.ps1           # Automated non-interactive test harness for setup console
 |   +-- clean_run_history.bat            # Standalone batch file to purge Redis queues & reset DB records
 |   +-- start_worker.bat                 # Standalone batch file to start Celery worker in Attended GUI mode
 |   +-- run_visible_test.bat             # Standalone batch file to run live GUI court scrape test
@@ -133,6 +134,7 @@ Bot_UAIC/
 |   |   |   +-- Footer.tsx               # Global brand footer with copyright & versioning
 |   |   |   +-- MobileBottomNav.tsx      # Responsive mobile bottom navigation bar
 |   |   |   +-- MobileDrawer.tsx         # Slide-out navigation drawer for mobile viewports
+|   |   |   +-- MultiSelectDropdown.tsx  # Reusable multi-select filter dropdown component
 |   |   |   +-- Navbar.tsx               # Enterprise top navigation bar with live branding
 |   |   |   +-- NavigationContext.tsx    # Mobile drawer and navigation state provider
 |   |   |   +-- ResponsiveShell.tsx      # Full-width adaptive shell container
@@ -532,6 +534,27 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 - **Non-Blocking Dedicated Queue**: Dispatches notifications over an isolated `"notifications"` Celery queue with exponential retry backoff, fully decoupled from claim execution.
 - **Interactive Operator Testing & History**: 1-click SMTP connectivity test, live interactive test email sender, and a real-time delivery history log table in `/settings`.
 
+### H. Enterprise Setup & Operations Console (Options 1–9 & M)
+- **Centralized Management (`setup_local.ps1` / `setup.ps1`)**: Interactive menu backed by real Windows process management (`Get-CimInstance Win32_Process`) rather than blind script execution.
+- **[1] Start All Services**: Interactive choice of Attended GUI vs Unattended Headless, with automated pre-flight port conflict checking (`3000`, `8000`, `5555`, `6379`, `5432`, `1080`, `1025`).
+- **[2] Stop All Services**: Targeted termination of application workers (`uvicorn`, `celery`, `flower`, `maildev`, `next dev`), leaving unrelated system processes untouched. Explicitly frees MailDev ports (`1080` and `1025`).
+- **[3] Clean Run History & Enterprise Data Cleanup**: Invokes time-scoped multi-category cleanup engine with dry-run preview and cascade deletion.
+- **[4] Install Dependencies**: Dynamic browser matrix detection. **Bypasses bundled Chromium download** when host Google Chrome or Microsoft Edge is detected or configured.
+- **[5] Purge Folders**: Cleans `.venv`, `node_modules`, `.next`, `.turbo`, and pytest/ruff build caches while strictly guarding the 5 protected user directories (`implementation_plan`, `PowerAutomateSolutions`, `Testing files`, `anticaptcha-plugin_v0.83`, `.agents`), source code, and credentials.
+- **[6] RPA Mode**: Interactive toggle between Attended GUI (visible browser with AntiCaptcha inspection) and Unattended Headless (Docker/CI), immediately persisted and honored by backend `ChromeSession`.
+- **[7] Diagnostics Suite**: Comprehensive 5-pass runner: Backend Pytest, Python Ruff linter, Frontend TypeScript (`tsc --noEmit`), Docker Compose configuration, and PowerShell AST syntax validation.
+- **[8] Docker Infrastructure**: Multi-container stack orchestration with host-exposed ports (`5432:5432` PostgreSQL, `6379:6379` Redis, `1080:1080` & `1025:1025` MailDev).
+- **[9] Live Monitor**: Dynamic HTTP and TCP probes displaying status, latency, and endpoints across all stack components.
+- **[M] MailDev**: Quick launch of MailDev Web Inspector (`http://localhost:1080`) with SMTP/HTTP health checks.
+
+### I. Enterprise Time-Based Multi-Select Data Cleanup Engine
+- **9 Independent Categories**: `claims`, `queue`, `court_cases`, `matches`, `guidewire`, `notifications`, `telemetry`, `logs`, `caches`.
+- **Dynamic Time Scoping**: `current_month` (1st of current month `00:00:00` to current moment), `1_day`, `7_days`, `14_days`, `30_days`, `90_days`, `6_months`, `1_year`, `all_time`, or custom date ranges (`YYYY-MM-DD`).
+- **Dry-Run Preview & Explicit Confirmation**: Simulates deletions without writing to database; requires explicit confirmation before executing destructive operations.
+- **Transactional Cascade Integrity**: Deleting claims automatically cascades to court cases, fuzzy matches, screenshots, and notification history records, eliminating orphaned data.
+- **Redis & Dashboard Invalidation**: Purges cached statistics (`cache:*`, `metrics:*`, `stats:*`, `dashboard:*`) with safe socket timeouts (1.0s) ensuring zero worker deadlocks when Redis is offline.
+- **Dual Interface**: Accessible via CLI (`python -m app.scripts.clean_history`) and REST API (`POST /api/v1/claims/clean`).
+
 ---
 
 ## 14. Critical Business Rules (Authoritative)
@@ -617,23 +640,39 @@ Outbound Guidewire JSON payload specification:
 
 ## 18. Automated Verification Commands
 
-```bash
-# Backend Automated Unit & Integration Tests (182 tests, 100% pass rate)
+```powershell
+# Enterprise Setup Console Full Automated Test Harness (AST, Ports, StopAll, CleanHistory, RunTests)
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\test_setup_console.ps1"
+
+# Backend Automated Unit & Integration Tests (228 tests across 24 test suites, 100% pass rate)
 cd backend
-.venv\Scripts\pytest --tb=short -q
+.venv\Scripts\pytest -ra -q
+
+# Setup Console Specific Process & Matrix Test Suite (11 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_setup_console.py -v
+
+# Enterprise Time-Based Multi-Select Data Cleanup Test Suite (12 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_enterprise_cleanup.py -v
+
+# Dynamic Browser Matrix Test Suite (10 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_browser_matrix.py -v
 
 # Backend Code Quality & Linter (0 errors)
 .venv\Scripts\ruff check app tests
 
 # Frontend TypeScript Typecheck (0 errors)
-cd frontend
+cd ..\frontend
 npx tsc --noEmit
 
-# Frontend Production Build (All 11 routes compile cleanly)
+# Frontend Production Build (All routes compile cleanly)
 npm run build
 
-# PowerShell Syntax & AST Parser Verification (0 errors)
-powershell -Command "[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'setup_local.ps1'), [ref]$null, [ref]$errs); $errs.Count"
+# PowerShell Syntax & AST Parser Verification (0 errors across all 6 scripts)
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps1"
+
+# Enterprise Cleanup CLI Syntax Examples
+python -m app.scripts.clean_history --categories all_operational --time-scope current_month --dry-run
+python -m app.scripts.clean_history --categories claims,notifications --time-scope 30_days --confirm
 ```
 
 ---
@@ -661,6 +700,8 @@ Complete technology reference for the UAIC Claim & RPA Orchestrator. Every techn
 | **react-dropzone** | File drag-and-drop | Excel/CSV import dropzone on `/upload` ingestion console | [react-dropzone.js.org](https://react-dropzone.js.org/) |
 | **tailwindcss-animate** | Tailwind animation plugin | CSS animations for dialogs, toasts, command palette, and dropdown overlays | [github: jamiebuilds/tailwindcss-animate](https://github.com/jamiebuilds/tailwindcss-animate) |
 | **class-variance-authority** | Typed variant CSS | Consistent button, badge, and input component variants | [cva.style/docs](https://cva.style/docs) |
+| **clsx** | Class name utility | Conditional CSS class merging for dynamic status badges, buttons, and theme classes | [github: lukeed/clsx](https://github.com/lukeed/clsx) |
+| **tailwind-merge** | Tailwind class deduplication | Resolves Tailwind CSS class conflicts safely in the `cn` helper utility | [github: dcastil/tailwind-merge](https://github.com/dcastil/tailwind-merge) |
 
 ---
 

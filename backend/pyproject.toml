@@ -61,15 +61,6 @@ pythonpath = [
     "app"
 ]
 filterwarnings = [
-    # DOCUMENTED SUPPRESSION (not blind): Python 3.14 + Windows ProactorEventLoop known bug.
-    # Root cause: asyncio/windows_utils.py:109 raises ValueError("I/O operation on closed pipe")
-    # inside a pipe-transport __del__ finalizer that fires AFTER the event loop closes.
-    # Python's sys.unraisablehook captures this and pytest converts it to
-    # PytestUnraisableExceptionWarning. Cannot be fixed at application level — the __del__
-    # is called by the CPython interpreter during GC, outside any fixture or warnings context.
-    # Investigation date: 2026-09-09 (IMP-2026-0909-001). Tests pass (exit code 0).
-    # Re-suppress when Python bug is fixed upstream: https://bugs.python.org/issue39010
-    "ignore::pytest.PytestUnraisableExceptionWarning",
     "ignore::pytest.PytestUnhandledThreadExceptionWarning",
     "ignore::ResourceWarning",
 ]
