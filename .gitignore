@@ -46,3 +46,38 @@ implementation_plan/Video/Recording 2026-09-07 161459.mp4
 implementation_plan/Video/Recording 2026-09-07 163544.mp4
 PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
 PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
+
+# --- Enterprise Standard Rules (Appended by Deploy Tool) ---
+venv/
+env/
+vendor/
+packages/
+out/
+target/
+bin/
+obj/
+.next/
+.nuxt/
+.turbo/
+.parcel-cache/
+coverage/
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+*.class
+*.swp
+.env.local
+.env.*.local
+*.pem
+*.key
+*.pfx
+*.cert
+*.tar.gz
+*.iso
+desktop.ini
+.idea/
+*.suo
+*.user
+
