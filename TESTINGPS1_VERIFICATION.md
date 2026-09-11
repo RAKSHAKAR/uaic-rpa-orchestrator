@@ -12,3 +12,5 @@
    - Branch Management (`feat/test-branch-deploy`)
    - Pull Requests (`gh pr create`, `gh pr list`, `gh pr status`)
    - Tagging and Releases (`v0.1.0-test`)
+
+- Feature Branch Commit: verified PR readiness
