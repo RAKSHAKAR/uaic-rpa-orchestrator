@@ -425,15 +425,40 @@ export default function ClaimDetailPage() {
   };
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "-";
+    if (!dateStr || dateStr.trim() === "" || dateStr === "-" || dateStr.toLowerCase() === "n/a") return "-";
+    const clean = dateStr.trim();
     try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+        return clean;
+      }
+      const isoMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (isoMatch) {
+        const [, y, m, d] = isoMatch;
+        const dateObj = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+        if (!isNaN(dateObj.getTime())) {
+          return dateObj.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          });
+        }
+      }
+      const parsed = new Date(clean);
+      if (!isNaN(parsed.getTime())) {
+        const res = parsed.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          timeZone: "UTC",
+        });
+        if (res && !res.toLowerCase().includes("invalid")) {
+          return res;
+        }
+      }
+      return clean;
     } catch {
-      return dateStr;
+      return clean;
     }
   };
 
@@ -3069,7 +3094,14 @@ export default function ClaimDetailPage() {
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[11px]">Filing Date</span>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">{formatDate(selectedCaseForModal.filing_date)}</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">
+                    {formatDate(
+                      selectedCaseForModal.filing_date ||
+                      selectedCaseForModal.raw_payload?.FilingDate ||
+                      selectedCaseForModal.raw_payload?.filing_date ||
+                      selectedCaseForModal.raw_payload?.SuitFiledDate
+                    )}
+                  </span>
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[11px]">Case Status</span>

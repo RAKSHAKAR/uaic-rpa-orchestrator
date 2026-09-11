@@ -292,7 +292,14 @@ async def _async_orchestrate_scrapers(
                                 or c.get("Filing Date")
                                 or c.get("SuitFiledDate")
                                 or c.get("suit_filed_date")
+                                or c.get("filed_date")
+                                or c.get("DateFiled")
+                                or c.get("date_filed")
+                                or c.get("Filed")
+                                or c.get("filed")
                             )
+                            if f_date and not c.get("FilingDate"):
+                                c["FilingDate"] = f_date
                             scraped_case = ScrapedCourtCase(
                                 claim_id=claim.id,
                                 county_name=scraper.county_name,

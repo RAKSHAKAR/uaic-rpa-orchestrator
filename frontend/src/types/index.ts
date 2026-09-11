@@ -146,8 +146,6 @@ export interface LiveQueueItem {
   dol?: string;
   policy_state?: string;
   loss_location_state?: string;
-  loss_location_city?: string;
-  loss_location_county?: string;
   record_status: string;
   fuzzy_match_status?: string;
   queue_position?: number;

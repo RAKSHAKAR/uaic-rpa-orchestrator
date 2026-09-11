@@ -71,10 +71,10 @@ class AutomationSettings(BaseModel):
 class PortalsSettings(BaseModel):
     """Court scraper portal endpoints and activation toggles."""
     # Florida
-    broward_url: str = Field(default="https://www.browardclerk.org/Web2/", description="Broward County Clerk Portal URL")
+    broward_url: str = Field(default="https://www.browardclerk.org/", description="Broward County Clerk Portal URL")
     broward_enabled: bool = Field(default=True, description="Enable Broward County Scraper")
     
-    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab", description="Hillsborough County Clerk Portal URL")
+    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/", description="Hillsborough County Clerk Portal URL")
     hillsborough_enabled: bool = Field(default=True, description="Enable Hillsborough County Scraper")
     
     miami_url: str = Field(default="https://www2.miamidadeclerk.gov/ocs", description="Miami-Dade County Clerk Portal URL")
@@ -84,19 +84,19 @@ class PortalsSettings(BaseModel):
     miami_requires_login: bool = Field(default=True, description="Requires authentication to scrape Miami-Dade OCS portal")
     
     # Texas
-    travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29", description="Travis County Odyssey Portal URL")
+    travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/", description="Travis County Odyssey Portal URL")
     travis_enabled: bool = Field(default=True, description="Enable Travis County Scraper")
     
-    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29", description="Dallas County Courts Portal URL")
+    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/", description="Dallas County Courts Portal URL")
     dallas_enabled: bool = Field(default=True, description="Enable Dallas County Scraper")
     
-    harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29", description="Harris County JP Courts Portal URL")
+    harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/", description="Harris County JP Courts Portal URL")
     harris_jp_enabled: bool = Field(default=True, description="Enable Harris County JP Scraper")
     
     harris_cclerk_url: str = Field(default="https://www.cclerk.hctx.net/Applications/WebSearch/", description="Harris County Clerk Portal URL")
     harris_cclerk_enabled: bool = Field(default=True, description="Enable Harris County Clerk Scraper")
     
-    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx", description="Harris District Clerk Portal URL")
+    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/", description="Harris District Clerk Portal URL")
     harris_district_enabled: bool = Field(default=True, description="Enable Harris District Clerk Scraper")
 
 

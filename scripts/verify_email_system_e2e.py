@@ -22,7 +22,7 @@ from app.services.email_service import (
     MailDevEmailProvider,
     TemplateRenderer,
 )
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, init_db
 from app.services.notification_service import NotificationService
 from app.services.settings_service import get_system_settings_async
 
@@ -43,6 +43,9 @@ def log_fail(msg: str):
 async def run_e2e_verification():
     print("=== UAIC EMAIL & NOTIFICATION ENGINE — AUTOMATED E2E TEST ===")
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
+
+    # Ensure all tables exist in target database
+    await init_db()
 
     # STEP 1: Connection Tests
     log_step("1. Provider Connection Tests (Mock, MailDev, Direct MX)")
@@ -112,7 +115,7 @@ async def run_e2e_verification():
 
     # STEP 3: Live Direct MX Email Send & Receipt Generation
     log_step("3. Live Direct MX Email Send & Delivery Receipt (RFC 3798 / 822)")
-    target_email = "priyer@test.com"
+    target_email = "priyer@damcogroup.com"
     subject = f"UAIC E2E Automated Verification — {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
     body_html = f"""<!DOCTYPE html>
 <html>
@@ -123,7 +126,7 @@ async def run_e2e_verification():
       <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Automated Live Delivery Verification & Gateway Receipt</p>
     </div>
     <div style="padding: 24px;">
-      <p>Hello <strong>priyer@test.com</strong>,</p>
+      <p>Hello <strong>{target_email}</strong>,</p>
       <p>This email confirms that the UAIC Email & Notification Engine has successfully performed direct MX transmission with cryptographic delivery proof.</p>
       <div style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 12px; margin: 16px 0;">
         <strong>Recipient:</strong> {target_email}<br>
@@ -153,16 +156,17 @@ async def run_e2e_verification():
         log_pass(f"Message-ID: {receipt.get('message_id')}")
         log_pass(f"Latency: {receipt.get('duration_ms')}ms")
     else:
-        log_fail(f"Direct MX Send Failed: {mx_send_res.error_message}")
+        log_fail(f"Direct MX Send Failed: {mx_send_res.error}")
 
     # STEP 3B: Live Local MailDev Email Send & Receipt
     log_step("3B. Live Local MailDev Email Send & Delivery Receipt (Port 1025 / 1080)")
+    maildev_target = "priyer@test.com"
     maildev_subject = f"UAIC MailDev Verification — {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
     maildev_send_res = maildev_provider.send_email(
-        to_addresses=[target_email],
+        to_addresses=[maildev_target],
         subject=maildev_subject,
         body_html=f"<h3>UAIC Local MailDev Test</h3><p>Dispatched to MailDev at {maildev_provider.host}:{maildev_provider.port}. Inspect at <a href='{maildev_provider.web_url}'>{maildev_provider.web_url}</a>.</p>",
-        body_text=f"UAIC Local MailDev Test. Recipient: {target_email}. Inspect at {maildev_provider.web_url}",
+        body_text=f"UAIC Local MailDev Test. Recipient: {maildev_target}. Inspect at {maildev_provider.web_url}",
     )
     if maildev_send_res.success:
         m_receipt = maildev_send_res.delivery_receipt or {}

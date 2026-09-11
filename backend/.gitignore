@@ -39,3 +39,6 @@ uploads/*
 !uploads/.gitkeep
 app/uploads/*
 !app/uploads/.gitkeep
+exports/*
+!exports/.gitkeep
+*.bak

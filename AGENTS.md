@@ -208,7 +208,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 ## 7. Test Commands
 
 ```bash
-# Backend tests (182 tests: 172 passed, 10 skipped when Redis/MailDev offline)
+# Backend tests (270 tests across 27 test suites)
 cd backend
 .venv\Scripts\pytest --tb=short -q
 
@@ -247,7 +247,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 - ✅ Keep AI-generated documentation in `implementation_plan/` with status headers until the user explicitly verifies it
 - ✅ Create a final implementation record (plan + change log + test report + validation) in `implementation_plan/` after every substantial task
 - ✅ Save all browser subagent recordings (.webp) into `implementation_plan/Recording/` and all visual verification screenshots (.png) into `implementation_plan/Images/` (strictly separated, never leave them exclusively in the transient IDE brain directory)
-- ✅ Run `pytest` after any backend change (182 tests: 172 passed, 10 skipped when Redis/MailDev offline)
+- ✅ Run `pytest` after any backend change (270 tests across 27 test suites)
 - ✅ Run `ruff check` after any Python change (0 errors)
 - ✅ Run `tsc --noEmit` after any TypeScript change (0 errors)
 - ✅ Run `scripts\check_ps1_syntax.ps1` after any `.ps1` change (0 errors)

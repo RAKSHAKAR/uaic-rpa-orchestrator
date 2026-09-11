@@ -11,7 +11,8 @@ Before deploying your application to Vercel, Render, or a VPS, you must initiali
 2. Run the deployment script:
    ```powershell
    .\Deploy-To-GitHub.ps1
-   
+   ```
+
 ## Target 1: Frontend on Vercel (Recommended for UI)
 1. Push your repository to GitHub using `Deploy-To-GitHub.ps1`.
 2. Log into [Vercel](https://vercel.com) and import your repository.
