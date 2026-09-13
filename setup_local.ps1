@@ -670,7 +670,8 @@ function Invoke-RunTestSuite {
 }
 
 function Show-LiveStatusMonitor {
-    Clear-Host
+    # Move cursor to top-left instead of clearing to eliminate screen flicker
+    [Console]::SetCursorPosition(0,0)
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host "          UAIC Orchestrator - Live Service Health Monitor              " -ForegroundColor Cyan
     Write-Host "  [HEALTHY]=HTTP 200  [RUNNING]=Port open  [STOPPED]=Offline          " -ForegroundColor DarkGray
