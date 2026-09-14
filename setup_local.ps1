@@ -24,7 +24,7 @@ param (
     [string]$LogFile = ""
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 # Establish standardized logs directory
 $logDir = Join-Path $PSScriptRoot "logs"
@@ -434,7 +434,7 @@ function Invoke-KillAllServices {
         $compose = Get-DockerComposeCommand
         if ($compose) {
             try {
-                Push-Location $backendDir
+                Push-Location $rootDir
                 if ($compose -eq "docker-compose") { docker-compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null }
                 else { docker compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null }
             } catch {} finally { Pop-Location }
@@ -504,7 +504,7 @@ function Invoke-StartAllServices {
     if ($compose) {
         Write-LogMessage "Starting Docker infrastructure containers (PostgreSQL, Redis, MailDev)..." "INFO"
         try {
-            Push-Location $backendDir
+            Push-Location $rootDir
             if ($compose -eq "docker-compose") { docker-compose up -d db redis maildev }
             else { docker compose up -d db redis maildev }
         } catch {
@@ -736,9 +736,9 @@ function Show-EnterpriseMenu {
             "8" {
                 if (Get-DockerComposeCommand) {
                     $dChoice = Read-Host "Choose Docker action: [U]p / [D]own / [R]estart"
-                    if ($dChoice -match '^[uU]') { Push-Location $backendDir; docker compose up -d; Pop-Location }
-                    elseif ($dChoice -match '^[dD]') { Push-Location $backendDir; docker compose down; Pop-Location }
-                    elseif ($dChoice -match '^[rR]') { Push-Location $backendDir; docker compose restart; Pop-Location }
+                    if ($dChoice -match '^[uU]') { Push-Location $rootDir; docker compose up -d; Pop-Location }
+                    elseif ($dChoice -match '^[dD]') { Push-Location $rootDir; docker compose down; Pop-Location }
+                    elseif ($dChoice -match '^[rR]') { Push-Location $rootDir; docker compose restart; Pop-Location }
                 }
                 Read-Host "Press Enter to return..."
             }
