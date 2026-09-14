@@ -245,6 +245,12 @@ async def test_hillsborough_scraper_table_extraction():
             return mock_btn
         elif "dataTables_empty" in selector:
             return mock_empty
+        elif "next" in selector.lower():
+            mock_next = MagicMock()
+            mock_next.count = AsyncMock(return_value=0)
+            mock_next.first = mock_next
+            mock_next.is_visible = AsyncMock(return_value=False)
+            return mock_next
         elif "partyResultsTable" in selector or "dataTable" in selector:
             return mock_rows
         mock_generic = MagicMock()

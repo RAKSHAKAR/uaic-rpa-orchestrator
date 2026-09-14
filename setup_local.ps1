@@ -505,8 +505,8 @@ function Invoke-StartAllServices {
         Write-LogMessage "Starting Docker infrastructure containers (PostgreSQL, Redis, MailDev)..." "INFO"
         try {
             Push-Location $backendDir
-            if ($compose -eq "docker-compose") { docker-compose up -d postgres redis maildev }
-            else { docker compose up -d postgres redis maildev }
+            if ($compose -eq "docker-compose") { docker-compose up -d db redis maildev }
+            else { docker compose up -d db redis maildev }
         } catch {
             Write-LogMessage "Docker start warning: $_" "WARNING"
         } finally {

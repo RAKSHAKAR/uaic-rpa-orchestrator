@@ -104,6 +104,34 @@ PARAMETER_CATALOG: list[dict[str, str]] = [
         "sample": "Broward County",
     },
     {
+        "token": "county",
+        "label": "County (Alias)",
+        "category": "Court & Match Info",
+        "description": "County jurisdiction alias",
+        "sample": "Broward County",
+    },
+    {
+        "token": "case_number",
+        "label": "Case Number",
+        "category": "Court & Match Info",
+        "description": "Court docket case number",
+        "sample": "CACE-24-001234",
+    },
+    {
+        "token": "case_style",
+        "label": "Case Style",
+        "category": "Court & Match Info",
+        "description": "Court case caption / party style",
+        "sample": "DOE vs AUTO INS CO",
+    },
+    {
+        "token": "suit_filed_date",
+        "label": "Suit Filed Date",
+        "category": "Court & Match Info",
+        "description": "Date case was filed in court",
+        "sample": "03/15/2024",
+    },
+    {
         "token": "matched_count",
         "label": "Match Count",
         "category": "Court & Match Info",
@@ -317,6 +345,19 @@ async def update_notification_template(
 ) -> dict[str, Any]:
     """Save or update custom email template override for an event."""
     norm_key = event_type.upper().strip()
+
+    # Token validation (AE-014)
+    invalid_tokens = TemplateRenderer.validate_template_tokens(payload.subject_template)
+    invalid_tokens += TemplateRenderer.validate_template_tokens(payload.body_template_html)
+    if payload.body_template_text:
+        invalid_tokens += TemplateRenderer.validate_template_tokens(payload.body_template_text)
+    invalid_tokens = list(dict.fromkeys(invalid_tokens))
+    if invalid_tokens:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid template variable placeholder(s) detected: {', '.join(['{{' + t + '}}' for t in invalid_tokens])}. Please use variables from the supported parameter catalog.",
+        )
+
     stmt = select(NotificationTemplate).where(NotificationTemplate.event_type == norm_key)
     res = await db.execute(stmt)
     tpl = res.scalar_one_or_none()
@@ -417,6 +458,10 @@ async def preview_template(
         "claimant_name": "JANE SMITH",
         "matched_count": "2",
         "county_name": "Broward County",
+        "county": "Broward County",
+        "case_number": "CACE-24-001234",
+        "case_style": "JOHNATHAN DOE vs AUTO INS CO",
+        "suit_filed_date": "03/15/2024",
         "portal_name": "Broward County Clerk",
         "matched_cases_table": sample_table,
         "error_message": "Connection refused by destination endpoint",

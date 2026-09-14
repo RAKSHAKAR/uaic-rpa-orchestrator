@@ -19,9 +19,8 @@ Perform a full forensic reconciliation of all project documentation.
 Supporting Docs you can ref:
     1) Attended & Unattended End-to-End Validation — V4 Parity and Improvement.md
     2) Antigravity — Full Documentation Reconciliation, .gitignore & Current-State Consolidation Prompt.md
-Note: Most of them are already implemented, test before making any changes.
 
+**Note:**
 
-
-
-
+1. Most of the requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+2. Always focus on **upgrading, enhancing, and fixing** the existing implementation. **Do not delete or remove any existing functionality** if it is already working. If any existing functionality is not working correctly, **fix it and make it fully functional** rather than removing or replacing it unnecessarily.

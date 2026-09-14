@@ -36,10 +36,14 @@ Suporting Docs you can ref:
 1) Security_CAPTCHA_Compliance_and_Error_Handling_Guidelines.md
 2) MASTER PROMPT — COUNTY PORTAL DISCOVERY, HUMAN-LIKE NAVIGATION, CAPTCHA-SAFE AUTOMATION & VERIFIED IMPLEMENTATION.md  
 3) MISSING_REQUIREMENT_CAPTCHA_COMPLIANCE_AND_RETRY_LOGIC.md  
-4) UAIC Claim & RPA Orchestrator — Corrected and Ordered Requirements.md
-5) County_Court_Portals_V4_Standard_Operating_Procedures.md
-
-Note: Most of them are already implemented, test before making any changes.
-
+4) County_Court_Portals_V4_Standard_Operating_Procedures.md
+5) UAIC Claim & RPA Orchestrator — Corrected and Ordered Requirements.md
+5) Security_Compliance_Resilience_and_FAQ.md
 
 
+
+
+**Note:**
+
+1. Most of the requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+2. Always focus on **upgrading, enhancing, and fixing** the existing implementation. **Do not delete or remove any existing functionality** if it is already working. If any existing functionality is not working correctly, **fix it and make it fully functional** rather than removing or replacing it unnecessarily.

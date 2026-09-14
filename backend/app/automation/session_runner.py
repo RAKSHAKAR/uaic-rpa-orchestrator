@@ -105,6 +105,9 @@ class SingleSessionBrowserRunner:
         anticaptcha_api_key: str | None = None,
         user_data_dir: str | None = None,
         user_agent: str | None = None,
+        proxy_server: str | None = None,
+        proxy_username: str | None = None,
+        proxy_password: str | None = None,
     ):
         self.headless = headless
         self.timeout_ms = timeout_ms
@@ -113,6 +116,9 @@ class SingleSessionBrowserRunner:
         self.anticaptcha_api_key = anticaptcha_api_key
         self.user_data_dir = user_data_dir
         self.user_agent = user_agent
+        self.proxy_server = proxy_server
+        self.proxy_username = proxy_username
+        self.proxy_password = proxy_password
         self.playwright = None
         self.context: BrowserContext | None = None
         self.tabs: dict[str, Page] = {}
@@ -136,7 +142,10 @@ class SingleSessionBrowserRunner:
         ext_norm = os.path.normpath(str(ext_dir)) if has_extension else None
 
         if self.anticaptcha_api_key and has_extension:
-            sync_anticaptcha_api_key(ext_norm, self.anticaptcha_api_key)
+            if getattr(SingleSessionBrowserRunner, "_last_synced_api_key", None) != self.anticaptcha_api_key:
+                sync_anticaptcha_api_key(ext_norm, self.anticaptcha_api_key)
+                SingleSessionBrowserRunner._last_synced_api_key = self.anticaptcha_api_key
+
 
         if has_extension and ext_norm:
             launch_args.append(f"--disable-extensions-except={ext_norm}")
@@ -158,13 +167,18 @@ class SingleSessionBrowserRunner:
         is_headless = self.headless
         if is_headless and has_extension:
             launch_args.append("--headless=new")
+            # In Playwright, to load extensions in headless mode, persistent context must receive headless=False
+            # while Chromium executes silently via --headless=new.
+            context_headless = False
+        else:
+            context_headless = is_headless
 
         t_start = datetime.now()
         self.playwright = await async_playwright().start()
 
         launch_kwargs = {
             "user_data_dir": self.profile_to_use,
-            "headless": is_headless,
+            "headless": context_headless,
             "args": launch_args,
             "ignore_default_args": ["--disable-extensions"] if has_extension else None,
             "no_viewport": True if not is_headless else False,
@@ -177,12 +191,19 @@ class SingleSessionBrowserRunner:
         elif channel:
             launch_kwargs["channel"] = channel
 
+        if self.proxy_server:
+            proxy_dict = {"server": self.proxy_server}
+            if self.proxy_username and self.proxy_password:
+                proxy_dict["username"] = self.proxy_username
+                proxy_dict["password"] = self.proxy_password
+            launch_kwargs["proxy"] = proxy_dict
+
         self.context = await self.playwright.chromium.launch_persistent_context(**launch_kwargs)
 
         # Pre-flight verify that AntiCaptcha extension loaded
         actual_engine = "Google Chrome" if (executable_path or channel) else "Chromium"
         if has_extension:
-            for _ in range(15):
+            for _ in range(50):  # Wait up to 5 seconds for Manifest V3 Service Worker
                 if self.context.service_workers or self.context.background_pages:
                     break
                 await asyncio.sleep(0.1)
@@ -190,8 +211,8 @@ class SingleSessionBrowserRunner:
             # Auto-fallback to Chromium if enterprise group policy blocked extension in Google Chrome
             if not (self.context.service_workers or self.context.background_pages) and (executable_path or channel):
                 logger.warning(
-                    "[SingleSessionRunner] Google Chrome enterprise policy blocked unpacked extension sideloading. "
-                    "Automatically falling back to Chromium engine where AntiCaptcha extension is verified and active..."
+                    "[SingleSessionRunner] Google Chrome enterprise policy blocked unpacked extension sideloading "
+                    "(or took too long to load). Automatically falling back to Chromium engine..."
                 )
                 try:
                     await self.context.close()

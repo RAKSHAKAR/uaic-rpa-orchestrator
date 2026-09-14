@@ -42,16 +42,35 @@ import {
   ExtractNamesResponse,
   FuzzySearchRequest,
   FuzzySearchResponse,
+  UniqueNamesRequest,
+  UniqueNamesResponse,
+  DirectFuzzyMatchRequest,
+  DirectFuzzyMatchResponse,
   AntiCaptchaTestResponse,
+  CleanupCategory,
+  CleanupPreviewRequest,
+  CleanupPreviewResponse,
+  CleanupExecuteRequest,
+  CleanupExecuteResponse,
 } from "../types";
 
 
 const getApiBaseUrl = () => {
+  // Dynamic environment variables take highest priority (Vercel, Netlify, Cloud Run, custom proxy)
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, "");
+  }
+
+  // Client-side fallback to current host:8000 for local dev (use 127.0.0.1 to avoid Windows IPv6 SYN timeout)
   if (typeof window !== "undefined") {
-    const host = window.location.hostname || "localhost";
+    const rawHost = window.location.hostname || "127.0.0.1";
+    const host = rawHost === "localhost" ? "127.0.0.1" : rawHost;
     return `http://${host}:8000/api/v1`;
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
+  // Server-side fallback default
+  return "http://127.0.0.1:8000/api/v1";
 };
 
 const apiClient = axios.create({
@@ -62,9 +81,8 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname || "localhost";
-    config.baseURL = `http://${host}:8000/api/v1`;
+  if (!config.baseURL) {
+    config.baseURL = getApiBaseUrl();
   }
   return config;
 });
@@ -206,6 +224,11 @@ export const api = {
     return res.data;
   },
 
+  getClaimScreenshots: async (claimId: string): Promise<{ total: number; screenshots: ErrorScreenshot[] }> => {
+    const res = await apiClient.get<{ total: number; screenshots: ErrorScreenshot[] }>(`/claims/${claimId}/screenshots`);
+    return res.data;
+  },
+
   bulkDeleteClaims: async (claimIds: string[]): Promise<{ success: boolean; affected_count: number; message: string }> => {
     const res = await apiClient.post("/claims/bulk-delete", { claim_ids: claimIds });
     return res.data;
@@ -310,11 +333,6 @@ export const api = {
   getSingleClaimExportUrl: (claimId: string, format: "xlsx" | "csv" | "json" | "pdf") => {
     const base = getApiBaseUrl();
     return `${base}/claims/${claimId}/export?format=${format}`;
-  },
-
-  getClaimScreenshots: async (claimId: string): Promise<ErrorScreenshot[]> => {
-    const res = await apiClient.get(`/claims/${claimId}/screenshots`);
-    return res.data;
   },
 
   getClaimScreenshotImageUrl: (claimId: string, screenshotId: string): string => {
@@ -599,5 +617,56 @@ export const api = {
     const res = await apiClient.post("/settings/test-anticaptcha", { api_key: apiKey });
     return res.data;
   },
+
+  // --- Enterprise Data Cleanup & Retention ---
+  getCleanupCategories: async (): Promise<CleanupCategory[]> => {
+    const res = await apiClient.get("/cleanup/categories");
+    return res.data;
+  },
+
+  previewCleanup: async (payload: CleanupPreviewRequest): Promise<CleanupPreviewResponse> => {
+    const res = await apiClient.post("/cleanup/preview", payload);
+    return res.data;
+  },
+
+  executeCleanup: async (payload: CleanupExecuteRequest): Promise<CleanupExecuteResponse> => {
+    const res = await apiClient.post("/cleanup/execute", payload);
+    return res.data;
+  },
+
+  // --- Exceptions / Matches Export ---
+  exportMatches: async (params?: { format?: "xlsx" | "csv" | "json"; status?: string; limit?: number }): Promise<Blob> => {
+    const res = await apiClient.get("/matches/export", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
+  getMatchesExportUrl: (params?: { format?: string; status?: string }): string => {
+    const searchParams = new URLSearchParams();
+    if (params?.format) searchParams.set("format", params.format);
+    if (params?.status) searchParams.set("status", params.status);
+    const base = getApiBaseUrl();
+    return `${base}/matches/export?${searchParams.toString()}`;
+  },
+
+  // --- Automation UI Testers ---
+  generateUniqueNames: async (payload: UniqueNamesRequest): Promise<UniqueNamesResponse> => {
+    const res = await apiClient.post("/matches/unique-names", payload);
+    return res.data;
+  },
+
+  testFuzzyMatch: async (payload: DirectFuzzyMatchRequest): Promise<DirectFuzzyMatchResponse> => {
+    const res = await apiClient.post("/matches/fuzzymatchapi", payload);
+    return res.data;
+  },
 };
+
+export const cleanupApi = {
+  getCategories: api.getCleanupCategories,
+  preview: api.previewCleanup,
+  execute: api.executeCleanup,
+};
+
 

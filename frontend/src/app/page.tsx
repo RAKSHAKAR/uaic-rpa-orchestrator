@@ -431,20 +431,49 @@ export default function DashboardPage() {
     },
   ];
 
-  // County Portal Coverage
-  const portalBreakdown = [
-    { name: "Miami-Dade (FL)", active: true, cases: 14, state: "FL" },
-    { name: "Broward (FL)", active: true, cases: 12, state: "FL" },
-    { name: "Hillsborough (FL)", active: true, cases: 9, state: "FL" },
-    { name: "Orange (FL)", active: true, cases: 7, state: "FL" },
-    { name: "Harris (TX)", active: true, cases: 11, state: "TX" },
-    { name: "Dallas (TX)", active: true, cases: 8, state: "TX" },
-    { name: "Travis (TX)", active: true, cases: 6, state: "TX" },
-    { name: "Tarrant (TX)", active: true, cases: 5, state: "TX" },
-  ];
+  // 8 County Court Scraper Bots Coverage & Live Throughput
+  const portalBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {
+      miami: 0,
+      broward: 0,
+      hillsborough: 0,
+      harris_cclerk: 0,
+      dallas: 0,
+      harris_jp: 0,
+      harris_district: 0,
+      travis: 0,
+    };
+
+    claims.forEach((c) => {
+      if (c.court_cases && Array.isArray(c.court_cases)) {
+        c.court_cases.forEach((cc) => {
+          const portalLower = (cc.county_name || cc.county_website || cc.source_url || "").toLowerCase();
+          if (portalLower.includes("broward")) counts.broward++;
+          else if (portalLower.includes("hillsborough") || portalLower.includes("hover")) counts.hillsborough++;
+          else if (portalLower.includes("miami") || portalLower.includes("dade") || portalLower.includes("ocs")) counts.miami++;
+          else if (portalLower.includes("cclerk") || (portalLower.includes("harris") && portalLower.includes("clerk"))) counts.harris_cclerk++;
+          else if (portalLower.includes("dallas")) counts.dallas++;
+          else if (portalLower.includes("jp") || portalLower.includes("justice")) counts.harris_jp++;
+          else if (portalLower.includes("district") || portalLower.includes("hcdistrict")) counts.harris_district++;
+          else if (portalLower.includes("travis")) counts.travis++;
+        });
+      }
+    });
+
+    return [
+      { key: "miami", name: "Miami-Dade (FL)", state: "FL", cases: counts.miami, active: true },
+      { key: "broward", name: "Broward (FL)", state: "FL", cases: counts.broward, active: true },
+      { key: "hillsborough", name: "Hillsborough (FL)", state: "FL", cases: counts.hillsborough, active: true },
+      { key: "harris_cclerk", name: "Harris County Clerk (TX)", state: "TX", cases: counts.harris_cclerk, active: true },
+      { key: "dallas", name: "Dallas County (TX)", state: "TX", cases: counts.dallas, active: true },
+      { key: "harris_jp", name: "Harris JP (TX)", state: "TX", cases: counts.harris_jp, active: true },
+      { key: "harris_district", name: "Harris District Clerk (TX)", state: "TX", cases: counts.harris_district, active: true },
+      { key: "travis", name: "Travis County (TX)", state: "TX", cases: counts.travis, active: true },
+    ];
+  }, [claims]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen w-full">
+    <div className="flex-1 flex flex-col w-full">
       <Navbar onRefresh={loadData} isRefreshing={isLoading} />
 
       <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
@@ -580,7 +609,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Toolbar Actions & Concurrency Selector */}
-                <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap">
+                <div className="flex flex-wrap items-center gap-2 max-w-full justify-start xl:justify-end">
                   {/* Concurrency Selector */}
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
                     <span className="text-[10px] font-bold text-slate-500 uppercase px-1.5 flex items-center gap-1">
@@ -1212,7 +1241,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      style={{ width: `${(p.cases / 16) * 100}%` }}
+                      style={{ width: `${Math.min(100, Math.max(p.cases > 0 ? 10 : 0, (p.cases / Math.max(1, ...portalBreakdown.map((x) => x.cases))) * 100))}%` }}
                       className={`h-full rounded-full ${
                         p.state === "FL" ? "bg-sky-500" : "bg-indigo-500"
                       }`}

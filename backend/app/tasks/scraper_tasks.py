@@ -3,21 +3,18 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm.exc import StaleDataError
 
+from app.automation.base import SecurityBlockException
 from app.automation.florida import (
     BrowardScraper,
     HillsboroughScraper,
     MiamiDadeScraper,
 )
-from app.automation.session_runner import (
-    SingleSessionBrowserRunner,
-    derive_search_counts,
-    get_search_party_pairs,
-)
+from app.automation.session_runner import SingleSessionBrowserRunner
 from app.automation.texas import (
     DallasScraper,
     HarrisCountyClerkScraper,
@@ -31,9 +28,22 @@ from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
 from app.models.court_case import ScrapedCourtCase
 from app.models.error_screenshot import ErrorScreenshot
 from app.services.audit_service import log_audit_event_async
+from app.services.cooldown_service import (
+    set_portal_cooldown,
+)
+from app.services.fuzzy_engine import (
+    derive_search_counts_fuzzy,
+    generate_unique_names_for_claim,
+)
 from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.tasks.scrapers")
+
+
+@celery_app.task(name="app.tasks.scraper_tasks.health_ping_task")
+def health_ping_task(message: str = "PING") -> str:
+    """Dummy task used to verify worker connectivity during E2E diagnostic tests."""
+    return f"PONG: {message}"
 
 
 async def _async_orchestrate_scrapers(
@@ -121,31 +131,84 @@ async def _async_orchestrate_scrapers(
             candidate_list = scrapers_to_run if scrapers_to_run else all_bot_list
             failed_scrapers = [
                 s for s in candidate_list
-                if getattr(claim, s[2]) in (BotStatusEnum.FAILED, BotStatusEnum.IN_PROGRESS)
+                if getattr(claim, s[2]) in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED, BotStatusEnum.IN_PROGRESS)
             ]
             scrapers_to_run = failed_scrapers
             logger.info(
-                f"Claim {claim.claim_number}: Retrying failed portals only. "
+                f"Claim {claim.claim_number}: Retrying failed/blocked portals only. "
                 f"Portals to run: {[s[0] for s in scrapers_to_run]}"
             )
             if not scrapers_to_run:
-                logger.info(f"Claim {claim.claim_number}: No failed portals found to retry.")
+                logger.info(f"Claim {claim.claim_number}: No failed/blocked portals found to retry.")
                 has_any_failed = any(
-                    getattr(claim, s[2]) == BotStatusEnum.FAILED for s in all_bot_list
+                    getattr(claim, s[2]) in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED) for s in all_bot_list
                 )
                 claim.record_status = RecordStatusEnum.FAILED if has_any_failed else RecordStatusEnum.SCRAPING_COMPLETED
                 await session.commit()
                 return
 
-        # Derive search count optimization: DualSearch and TripleSearch
-        dual_search, triple_search = derive_search_counts(claim)
-        party_pairs = get_search_party_pairs(claim, dual_search, triple_search)
-        logger.info(f"Claim {claim.claim_number}: DualSearch={dual_search}, TripleSearch={triple_search}, Parties to search: {party_pairs}")
+        # Check if ALL scrapers_to_run are currently in cooldown
+        all_in_cooldown = True
+        min_remaining = 0
+        for name, *_ in scrapers_to_run:
+            from app.services.cooldown_service import is_portal_in_cooldown
+            in_cooldown, remaining, _ = is_portal_in_cooldown(name)
+            if not in_cooldown:
+                all_in_cooldown = False
+                break
+            if min_remaining == 0 or remaining < min_remaining:
+                min_remaining = remaining
+                
+        if scrapers_to_run and all_in_cooldown:
+            logger.warning(f"Claim {claim.claim_number}: All required portals are in cooldown (min {min_remaining}s). Backing off.")
+            claim.record_status = RecordStatusEnum.FAILED
+            claim.last_error = f"All required portals are in cooldown. Next retry in ~{min_remaining}s."
+            
+            # Decrement retry_count so this doesn't burn a true failure retry
+            if claim.retry_count > 0:
+                claim.retry_count -= 1
+                
+            await session.commit()
+            
+            try:
+                from app.tasks.queue_runner import (
+                    is_auto_queue_enabled,
+                    remove_active_queue_item_id,
+                )
+                remove_active_queue_item_id(claim.id)
+                if is_auto_queue_enabled():
+                    celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+            except Exception:
+                pass
+            return
+
+        # Derive deduplicated unique names and search counts via Fuzzy Engine (DualSearch / TripleSearch)
+        unique_name_items = generate_unique_names_for_claim(claim)
+        dual_search, triple_search = derive_search_counts_fuzzy(claim)
+        party_pairs = [
+            (p["party_type"], p.get("first_name"), p.get("last_name"))
+            for p in unique_name_items
+        ]
+        logger.info(
+            f"Claim {claim.claim_number}: Unique Names generated={len(party_pairs)}, "
+            f"DualSearch={dual_search}, TripleSearch={triple_search}, "
+            f"Parties to search: {party_pairs}"
+        )
 
         total_scraped_cases = []
         timings = dict(claim.action_timings or {})
         portal_timings = timings.setdefault("portals", {})
         stages = timings.setdefault("stages", {})
+
+        # Extract Proxy Configuration
+        proxy_cfg = runtime_settings.proxy
+        proxy_server = None
+        proxy_username = None
+        proxy_password = None
+        if proxy_cfg.enabled and proxy_cfg.host:
+            proxy_server = f"http://{proxy_cfg.host}:{proxy_cfg.port}"
+            proxy_username = proxy_cfg.username or None
+            proxy_password = proxy_cfg.password or None
 
         # Launch single Chrome browser session across all enabled portals for this claim
         try:
@@ -157,14 +220,34 @@ async def _async_orchestrate_scrapers(
                 anticaptcha_api_key=auto_cfg.anticaptcha_api_key,
                 user_data_dir=auto_cfg.chrome_user_data_dir,
                 user_agent=auto_cfg.user_agent,
+                proxy_server=proxy_server,
+                proxy_username=proxy_username,
+                proxy_password=proxy_password,
             )
 
             async with browser_session_runner as browser_session:
                 stages.update(browser_session.stage_timings)
 
                 # ── Name-First Orchestration (per spec §3) ──────────────────────────
-                # Step 1: Pre-open all portal tabs and mark IN_PROGRESS
+                # Step 1: Pre-open all portal tabs and mark IN_PROGRESS (checking cooldowns)
                 for name, scraper, status_attr, json_attr in scrapers_to_run:
+                    in_cooldown, remaining_seconds, *_ = is_portal_in_cooldown(name)
+                    if in_cooldown:
+                        logger.warning(
+                            f"Claim {claim.claim_number}: Portal '{name}' is in security cooldown "
+                            f"({remaining_seconds:.1f}s remaining). Setting status BLOCKED."
+                        )
+                        setattr(claim, status_attr, BotStatusEnum.BLOCKED)
+                        portal_timings.setdefault(name, {
+                            "portal_name": scraper.county_name,
+                            "url": scraper.base_url,
+                            "start_time": datetime.now().isoformat(),
+                            "cases_found": 0,
+                            "status": "BLOCKED",
+                            "error": f"Portal in security cooldown ({int(remaining_seconds)}s remaining)",
+                        })
+                        continue
+
                     await browser_session.get_or_create_tab(portal_key=name, url=scraper.base_url)
                     setattr(claim, status_attr, BotStatusEnum.IN_PROGRESS)
                     portal_timings.setdefault(name, {
@@ -185,7 +268,17 @@ async def _async_orchestrate_scrapers(
                     portal_start_t[name] = time.perf_counter()
                     portal_start_iso[name] = datetime.now().isoformat()
 
-                # Step 2: For each unique name → search all portals sequentially
+                # Pre-purge previous cases for target counties in this run to ensure clean incremental accumulation
+                for name, scraper, *_ in scrapers_to_run:
+                    await session.execute(
+                        delete(ScrapedCourtCase).where(
+                            ScrapedCourtCase.claim_id == claim.id,
+                            ScrapedCourtCase.county_name == scraper.county_name,
+                        )
+                    )
+                await session.commit()
+
+                # Step 2: For each unique name → search all portals sequentially (Name A across Tab 1, Tab 2, ... -> Store)
                 for party_label, f_name, l_name in party_pairs:
                     if not l_name or not str(l_name).strip():
                         continue
@@ -194,24 +287,84 @@ async def _async_orchestrate_scrapers(
                         f"across {len(scrapers_to_run)} portal(s) ──"
                     )
                     for name, scraper, status_attr, json_attr in scrapers_to_run:
+                        if getattr(claim, status_attr) == BotStatusEnum.BLOCKED:
+                            logger.info(
+                                f"Claim {claim.claim_number}: Skipping portal '{name}' "
+                                f"(currently BLOCKED / in cooldown)"
+                            )
+                            continue
+
+                        in_cooldown, remaining_seconds, *_ = is_portal_in_cooldown(name)
+                        if in_cooldown:
+                            logger.warning(
+                                f"Claim {claim.claim_number}: Portal '{name}' entered cooldown "
+                                f"({remaining_seconds:.1f}s remaining). Marking BLOCKED."
+                            )
+                            setattr(claim, status_attr, BotStatusEnum.BLOCKED)
+                            portal_timings[name]["status"] = "BLOCKED"
+                            portal_timings[name]["error"] = f"Cooldown active ({int(remaining_seconds)}s)"
+                            continue
+
                         logger.info(
                             f"Claim {claim.claim_number}: [{party_label}: {f_name} {l_name}] → {scraper.county_name}"
                         )
                         try:
                             tab = await browser_session.get_or_create_tab(portal_key=name, url=scraper.base_url)
+                            
+                            # Enforce 10-year lookback
+                            search_dol = claim.dol
+                            if search_dol:
+                                try:
+                                    dt = datetime.strptime(search_dol, "%m/%d/%Y")
+                                    ten_years_ago = datetime.now() - timedelta(days=365*10)
+                                    if dt < ten_years_ago:
+                                        search_dol = ten_years_ago.strftime("%m/%d/%Y")
+                                        logger.info(f"Claim {claim.claim_number}: Capped DOL {claim.dol} to {search_dol} (10-year lookback)")
+                                except Exception:
+                                    pass
+
                             cases = await scraper.search_on_page(
                                 page=tab,
                                 first_name=f_name,
                                 last_name=l_name,
-                                date_of_loss=claim.dol,
+                                date_of_loss=search_dol,
                             )
+                            # Incremental store: save freshly extracted cases for this party/tab immediately
                             for c in cases:
                                 c_num = c.get("CaseNumber") or c.get("case_number") or ""
                                 if c_num and c_num not in portal_seen[name]:
                                     portal_seen[name].add(c_num)
                                     portal_results[name].append(c)
+                                    f_date = (
+                                        c.get("FilingDate")
+                                        or c.get("filing_date")
+                                        or c.get("Filing Date")
+                                        or c.get("SuitFiledDate")
+                                        or c.get("suit_filed_date")
+                                        or c.get("filed_date")
+                                        or c.get("DateFiled")
+                                        or c.get("date_filed")
+                                        or c.get("Filed")
+                                        or c.get("filed")
+                                    )
+                                    if f_date and not c.get("FilingDate"):
+                                        c["FilingDate"] = f_date
+                                    scraped_case = ScrapedCourtCase(
+                                        claim_id=claim.id,
+                                        county_name=scraper.county_name,
+                                        county_website=scraper.base_url,
+                                        case_number=c_num,
+                                        case_style=c.get("CaseStyle") or c.get("case_style") or "",
+                                        filing_date=f_date,
+                                        case_status=c.get("CaseStatus") or c.get("case_status"),
+                                        case_type=c.get("CaseType") or c.get("case_type"),
+                                        raw_payload=c,
+                                    )
+                                    session.add(scraped_case)
+                                    total_scraped_cases.append(scraped_case)
                                 elif not c_num:
                                     portal_results[name].append(c)
+                            await session.commit()
 
                             # Merge per-name stage timings into aggregate
                             if hasattr(scraper, "stage_timings") and scraper.stage_timings:
@@ -219,6 +372,44 @@ async def _async_orchestrate_scrapers(
                                 stages.update(scraper.stage_timings)
                                 # Reset scraper timings so next name gets fresh telemetry
                                 scraper.stage_timings = {}
+
+                        except SecurityBlockException as sbe:
+                            logger.warning(
+                                f"Claim {claim.claim_number}: Security block detected on {name} "
+                                f"during '{party_label}: {f_name} {l_name}': {sbe.message}"
+                            )
+                            setattr(claim, status_attr, BotStatusEnum.BLOCKED)
+                            claim.last_error = f"{name} blocked by security check: {sbe.message}"
+                            portal_timings[name]["status"] = "BLOCKED"
+                            portal_timings[name]["error"] = sbe.message
+                            set_portal_cooldown(name, sbe.cooldown_seconds, sbe.message)
+
+                            # Auto-capture error screenshot for security block
+                            tab = browser_session.tabs.get(name)
+                            if tab and not tab.is_closed():
+                                try:
+                                    ss_meta = await scraper.capture_screenshot_on_error(
+                                        page=tab,
+                                        claim_id=claim.id,
+                                        portal_key=name,
+                                        attempt=1,
+                                        error=sbe,
+                                    )
+                                    if ss_meta:
+                                        screenshot_record = ErrorScreenshot(
+                                            claim_id=claim.id,
+                                            portal_key=ss_meta["portal_key"],
+                                            portal_name=ss_meta["portal_name"],
+                                            page_url=ss_meta.get("page_url"),
+                                            page_title=ss_meta.get("page_title"),
+                                            exception_message=f"SECURITY_BLOCK: {sbe.message}",
+                                            attempt_number=1,
+                                            storage_provider=ss_meta.get("storage_provider", "local"),
+                                            file_path=ss_meta["file_path"],
+                                        )
+                                        session.add(screenshot_record)
+                                except Exception as ss_ex:
+                                    logger.warning(f"Could not capture security block screenshot for {name}: {ss_ex}")
 
                         except Exception as e:
                             logger.error(
@@ -264,57 +455,27 @@ async def _async_orchestrate_scrapers(
                     cases = portal_results[name]
                     duration = round(time.perf_counter() - portal_start_t[name], 2)
 
+                    current_portal_status = getattr(claim, status_attr)
+                    if current_portal_status in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
+                        final_status_str = current_portal_status.value if hasattr(current_portal_status, "value") else str(current_portal_status)
+                    else:
+                        final_status_str = "COMPLETED" if cases else "NO_MATCH_FOUND"
+
                     portal_timings[name].update({
                         "end_time": datetime.now().isoformat(),
                         "duration_seconds": duration,
                         "cases_found": len(cases),
-                        "status": "COMPLETED" if cases else "NO_MATCH_FOUND",
+                        "status": final_status_str,
                     })
 
                     setattr(claim, json_attr, cases)
                     t_db_start = datetime.now()
 
-                    # Purge previous cases for this county only to avoid duplicates on re-run
-                    await session.execute(
-                        delete(ScrapedCourtCase).where(
-                            ScrapedCourtCase.claim_id == claim.id,
-                            ScrapedCourtCase.county_name == scraper.county_name,
-                        )
-                    )
-
                     if cases:
-                        if getattr(claim, status_attr) != BotStatusEnum.FAILED:
+                        if getattr(claim, status_attr) not in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
                             setattr(claim, status_attr, BotStatusEnum.COMPLETED)
-                        for c in cases:
-                            f_date = (
-                                c.get("FilingDate")
-                                or c.get("filing_date")
-                                or c.get("Filing Date")
-                                or c.get("SuitFiledDate")
-                                or c.get("suit_filed_date")
-                                or c.get("filed_date")
-                                or c.get("DateFiled")
-                                or c.get("date_filed")
-                                or c.get("Filed")
-                                or c.get("filed")
-                            )
-                            if f_date and not c.get("FilingDate"):
-                                c["FilingDate"] = f_date
-                            scraped_case = ScrapedCourtCase(
-                                claim_id=claim.id,
-                                county_name=scraper.county_name,
-                                county_website=scraper.base_url,
-                                case_number=c.get("CaseNumber") or c.get("case_number") or "",
-                                case_style=c.get("CaseStyle") or c.get("case_style") or "",
-                                filing_date=f_date,
-                                case_status=c.get("CaseStatus") or c.get("case_status"),
-                                case_type=c.get("CaseType") or c.get("case_type"),
-                                raw_payload=c,
-                            )
-                            session.add(scraped_case)
-                            total_scraped_cases.append(scraped_case)
                     else:
-                        if getattr(claim, status_attr) != BotStatusEnum.FAILED:
+                        if getattr(claim, status_attr) not in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
                             setattr(claim, status_attr, BotStatusEnum.NO_MATCH_FOUND)
 
                     await session.commit()
@@ -344,7 +505,7 @@ async def _async_orchestrate_scrapers(
 
             # Determine overall claim status across all configured scrapers
             has_failed_portals = any(
-                getattr(claim, s[2]) == BotStatusEnum.FAILED for s in all_bot_list
+                getattr(claim, s[2]) in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED) for s in all_bot_list
             )
             claim.record_status = RecordStatusEnum.FAILED if has_failed_portals else RecordStatusEnum.SCRAPING_COMPLETED
             try:
@@ -372,12 +533,25 @@ async def _async_orchestrate_scrapers(
                 f"Total cases scraped this session: {len(total_scraped_cases)}"
             )
 
-            # Dispatch RapidFuzz evaluation task
-            celery_app.send_task(
-                "app.tasks.fuzzy_tasks.evaluate_fuzzy_matches_task",
-                args=[claim.id],
-                queue="matcher",
-            )
+            if has_failed_portals:
+                # Do not proceed to fuzzy match if we failed. Just release lock and let queue_runner retry it later.
+                try:
+                    from app.tasks.queue_runner import (
+                        is_auto_queue_enabled,
+                        remove_active_queue_item_id,
+                    )
+                    remove_active_queue_item_id(claim.id)
+                    if is_auto_queue_enabled():
+                        celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+                except Exception as auto_q_exc:
+                    logger.warning(f"Could not advance auto-queue after browser failure: {auto_q_exc}")
+            else:
+                # Dispatch RapidFuzz evaluation task
+                celery_app.send_task(
+                    "app.tasks.fuzzy_tasks.evaluate_fuzzy_matches_task",
+                    args=[claim.id],
+                    queue="matcher",
+                )
         except Exception as session_exc:
             logger.error(f"Browser automation session failure for Claim {claim.claim_number}: {session_exc}", exc_info=True)
             claim.record_status = RecordStatusEnum.FAILED

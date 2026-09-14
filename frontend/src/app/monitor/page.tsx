@@ -386,7 +386,7 @@ export default function QueueMonitorPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen w-full">
+    <div className="flex-1 flex flex-col w-full">
       <Navbar onRefresh={fetchData} isRefreshing={isLoading} />
 
       <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
@@ -402,107 +402,121 @@ export default function QueueMonitorPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Live Stream Polling Toggle (§61) */}
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1 text-xs min-h-[40px]">
-              <span className="flex items-center gap-1.5 px-2 text-slate-500 dark:text-slate-400 font-medium">
-                <Radio className={`w-3.5 h-3.5 ${livePollInterval !== -1 ? "text-emerald-500 animate-pulse" : "text-slate-400"}`} />
-                <span className="hidden sm:inline">Live Stream:</span>
-              </span>
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 justify-start lg:justify-end w-full lg:w-auto">
+            {/* Group 1: Live Stream & Auto Queue Stream Controls */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Live Stream Polling Toggle (§61) */}
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1 text-xs min-h-[40px]">
+                <span className="flex items-center gap-1.5 px-2 text-slate-500 dark:text-slate-400 font-medium">
+                  <Radio className={`w-3.5 h-3.5 ${livePollInterval !== -1 ? "text-emerald-500 animate-pulse" : "text-slate-400"}`} />
+                  <span className="hidden sm:inline">Live Stream:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLivePollInterval(3)}
+                  className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                    livePollInterval === 3 ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  3s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLivePollInterval(5)}
+                  className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                    livePollInterval === 5 ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  5s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLivePollInterval(-1)}
+                  className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                    livePollInterval === -1 ? "bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  Pause
+                </button>
+              </div>
+
+              {/* Auto Queue Mode Toggle */}
               <button
                 type="button"
-                onClick={() => setLivePollInterval(3)}
-                className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                  livePollInterval === 3 ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                onClick={handleToggleAutoQueue}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[40px] whitespace-nowrap ${
+                  autoQueueEnabled
+                    ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
+                    : "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400"
                 }`}
               >
-                3s
-              </button>
-              <button
-                type="button"
-                onClick={() => setLivePollInterval(5)}
-                className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                  livePollInterval === 5 ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                }`}
-              >
-                5s
-              </button>
-              <button
-                type="button"
-                onClick={() => setLivePollInterval(-1)}
-                className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                  livePollInterval === -1 ? "bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                Pause
+                {autoQueueEnabled ? <Play className="w-3.5 h-3.5 fill-emerald-600" /> : <Pause className="w-3.5 h-3.5" />}
+                <span>Auto Queue: <strong>{autoQueueEnabled ? "ENABLED" : "PAUSED"}</strong></span>
               </button>
             </div>
 
-            {/* Auto Queue Mode Toggle */}
-            <button
-              onClick={handleToggleAutoQueue}
-              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[40px] ${
-                autoQueueEnabled
-                  ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
-                  : "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400"
-              }`}
-            >
-              {autoQueueEnabled ? <Play className="w-3.5 h-3.5 fill-emerald-600" /> : <Pause className="w-3.5 h-3.5" />}
-              <span>Auto Queue: <strong>{autoQueueEnabled ? "ENABLED" : "PAUSED"}</strong></span>
-            </button>
+            {/* Group 2: Queue Execution Controls */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Start All NEW Queue */}
+              <button
+                type="button"
+                onClick={handleStartAllQueue}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px] whitespace-nowrap"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Start All Queue</span>
+              </button>
 
-            {/* Start All NEW Queue */}
-            <button
-              onClick={handleStartAllQueue}
-              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px]"
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span>Start All Queue</span>
-            </button>
+              {/* Create Single Claim */}
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    primary_key: "",
+                    claim_number: "",
+                    exposure_number: "1",
+                    insured_first_name: "",
+                    insured_last_name: "",
+                    claimant_first_name: "",
+                    claimant_last_name: "",
+                    driver_first_name: "",
+                    driver_last_name: "",
+                    dol: "",
+                    policy_state: "Florida",
+                    loss_location_state: "Florida",
+                  });
+                  setIsCreateOpen(true);
+                }}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px] whitespace-nowrap"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create Claim</span>
+              </button>
+            </div>
 
-            {/* Create Single Claim */}
-            <button
-              onClick={() => {
-                setFormData({
-                  primary_key: "",
-                  claim_number: "",
-                  exposure_number: "1",
-                  insured_first_name: "",
-                  insured_last_name: "",
-                  claimant_first_name: "",
-                  claimant_last_name: "",
-                  driver_first_name: "",
-                  driver_last_name: "",
-                  dol: "",
-                  policy_state: "Florida",
-                  loss_location_state: "Florida",
-                });
-                setIsCreateOpen(true);
-              }}
-              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px]"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Claim</span>
-            </button>
+            {/* Group 3: Maintenance & Health Operations */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Retrigger Failed Cases */}
+              <button
+                type="button"
+                onClick={handleRetrigger}
+                disabled={isRetriggering}
+                className="px-3 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px] whitespace-nowrap"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isRetriggering ? "animate-spin" : ""}`} />
+                <span>Retrigger Failed</span>
+              </button>
 
-            {/* Retrigger Failed Cases */}
-            <button
-              onClick={handleRetrigger}
-              disabled={isRetriggering}
-              className="px-3 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px]"
-            >
-              <RotateCcw className={`w-3.5 h-3.5 ${isRetriggering ? "animate-spin" : ""}`} />
-              <span>Retrigger Failed</span>
-            </button>
-
-            {/* Purge / Clean Database */}
-            <button
-              onClick={() => setIsCleanOpen(true)}
-              className="px-3 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px]"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Purge DB</span>
-            </button>
+              {/* Purge / Clean Database */}
+              <button
+                type="button"
+                onClick={() => setIsCleanOpen(true)}
+                className="px-3 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px] whitespace-nowrap"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Purge DB</span>
+              </button>
+            </div>
           </div>
         </div>
 

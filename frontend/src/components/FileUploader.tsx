@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import {
   UploadCloud,
+  Upload,
   FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
@@ -934,8 +935,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onSuccess }) => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-800/80">
             <button
               onClick={handleResetAll}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+              className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
             >
+              <Upload className="w-3.5 h-3.5" />
               Import Another Spreadsheet
             </button>
 

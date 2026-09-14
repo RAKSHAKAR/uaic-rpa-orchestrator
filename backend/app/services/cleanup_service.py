@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import redis
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 
 from app.core.config import settings
 from app.core.database import TaskAsyncSessionLocal
@@ -17,6 +17,7 @@ from app.models.audit_log import AuditLog
 from app.models.claim import ClaimRecord, IngestionBatch, RecordStatusEnum
 from app.models.court_case import ScrapedCourtCase
 from app.models.error_screenshot import ErrorScreenshot
+from app.models.guidewire import FilteredOutCase, GuidewireActivity
 from app.models.match_result import MatchPair
 from app.models.notification import Notification
 from app.schemas.cleanup import (
@@ -201,6 +202,36 @@ def resolve_time_window(
         start_dt = datetime(p_year, p_month, 1, 0, 0, 0)
         end_dt = datetime(p_year, p_month, last_day, 23, 59, 59, 999999)
         desc = f"Previous Month ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+        return start_dt, end_dt, desc
+
+    if scope == "current_quarter":
+        q_month = 3 * ((now.month - 1) // 3) + 1
+        start_dt = datetime(now.year, q_month, 1, 0, 0, 0)
+        end_dt = now
+        desc = f"Current Quarter ({start_dt.strftime('%m/%d/%Y %H:%M:%S')} -> {end_dt.strftime('%m/%d/%Y %H:%M:%S')})"
+        return start_dt, end_dt, desc
+
+    if scope == "previous_quarter":
+        curr_q = (now.month - 1) // 3  # 0: Q1, 1: Q2, 2: Q3, 3: Q4
+        if curr_q == 0:
+            pq_year = now.year - 1
+            pq_start_month = 10
+            pq_end_month = 12
+            pq_last_day = 31
+        else:
+            pq_year = now.year
+            pq_start_month = 3 * (curr_q - 1) + 1
+            pq_end_month = pq_start_month + 2
+            _, pq_last_day = calendar.monthrange(pq_year, pq_end_month)
+        start_dt = datetime(pq_year, pq_start_month, 1, 0, 0, 0)
+        end_dt = datetime(pq_year, pq_end_month, pq_last_day, 23, 59, 59, 999999)
+        desc = f"Previous Quarter ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+        return start_dt, end_dt, desc
+
+    if scope == "current_year":
+        start_dt = datetime(now.year, 1, 1, 0, 0, 0)
+        end_dt = now
+        desc = f"Current Year ({start_dt.strftime('%m/%d/%Y %H:%M:%S')} -> {end_dt.strftime('%m/%d/%Y %H:%M:%S')})"
         return start_dt, end_dt, desc
 
     if scope == "last_n_days":
@@ -452,84 +483,126 @@ async def calculate_cleanup_preview(
         return query
 
     async with TaskAsyncSessionLocal() as session:
-        # 1. Claims
+        # Pre-resolve target claims if claims, queue, or guidewire_activities are affected
+        target_claim_ids = []
+        if "claims" in cats or "queue" in cats or "guidewire_activities" in cats:
+            claim_sel = select(ClaimRecord.id)
+            if "queue" in cats and "claims" not in cats:
+                claim_sel = claim_sel.where(
+                    ClaimRecord.record_status.in_([
+                        RecordStatusEnum.NEW,
+                        RecordStatusEnum.SCRAPING_IN_PROGRESS,
+                    ])
+                )
+            elif "guidewire_activities" in cats and "claims" not in cats:
+                claim_sel = claim_sel.where(ClaimRecord.activity_id.is_not(None))
+
+            if start_dt:
+                claim_sel = claim_sel.where(ClaimRecord.created_at >= start_dt)
+            if end_dt:
+                claim_sel = claim_sel.where(ClaimRecord.created_at <= end_dt)
+
+            c_res = await session.execute(claim_sel)
+            target_claim_ids = [r[0] for r in c_res.fetchall()]
+
+        # 1. Claims / Queue
         if "claims" in cats:
-            cq = select(func.count(ClaimRecord.id))
-            cq = apply_time_filter(cq, ClaimRecord.created_at)
-            res = (await session.execute(cq)).scalar_one() or 0
-            record_counts["claims"] = res
-            total_db += res
+            record_counts["claims"] = len(target_claim_ids)
+            total_db += len(target_claim_ids)
+        elif "queue" in cats:
+            record_counts["queue"] = len(target_claim_ids)
+            total_db += len(target_claim_ids)
 
-        # 2. Queue items
-        if "queue" in cats and "claims" not in cats:
-            qq = select(func.count(ClaimRecord.id)).where(
-                ClaimRecord.record_status.in_([
-                    RecordStatusEnum.NEW,
-                    RecordStatusEnum.SCRAPING_IN_PROGRESS,
-                ])
-            )
-            qq = apply_time_filter(qq, ClaimRecord.created_at)
-            res = (await session.execute(qq)).scalar_one() or 0
-            record_counts["queue"] = res
-            total_db += res
+        # Helper to count records matching category time filter OR cascade claim_ids
+        async def count_category_or_cascade(model, cat_selected: bool, extra_cond=None) -> int:
+            conds = []
+            if cat_selected:
+                time_conds = []
+                if start_dt:
+                    time_conds.append(model.created_at >= start_dt)
+                if end_dt:
+                    time_conds.append(model.created_at <= end_dt)
+                if extra_cond is not None:
+                    time_conds.append(extra_cond)
+                if time_conds:
+                    conds.append(and_(*time_conds))
+                else:
+                    conds.append(True)
+            if target_claim_ids and hasattr(model, "claim_id"):
+                conds.append(model.claim_id.in_(target_claim_ids))
 
-        # 3. Court Cases
-        if "court_cases" in cats:
-            ccq = select(func.count(ScrapedCourtCase.id))
-            ccq = apply_time_filter(ccq, ScrapedCourtCase.created_at)
-            res = (await session.execute(ccq)).scalar_one() or 0
-            record_counts["court_cases"] = res
-            total_db += res
+            if not conds:
+                return 0
+            if True in conds:
+                q = select(func.count(model.id))
+            elif len(conds) == 1:
+                q = select(func.count(model.id)).where(conds[0])
+            else:
+                q = select(func.count(model.id)).where(or_(*conds))
+            return (await session.execute(q)).scalar_one() or 0
 
-        # 4. Fuzzy Matches
-        if "fuzzy_matches" in cats:
-            fmq = select(func.count(MatchPair.id))
-            fmq = apply_time_filter(fmq, MatchPair.created_at)
-            res = (await session.execute(fmq)).scalar_one() or 0
-            record_counts["fuzzy_matches"] = res
-            total_db += res
+        # 2. Fuzzy Matches
+        if "fuzzy_matches" in cats or target_claim_ids:
+            cnt_fm = await count_category_or_cascade(MatchPair, "fuzzy_matches" in cats)
+            if "fuzzy_matches" in cats or cnt_fm > 0:
+                record_counts["fuzzy_matches"] = cnt_fm
+                total_db += cnt_fm
 
-        # 5. Guidewire activities
-        if "guidewire_activities" in cats and "claims" not in cats:
-            gwq = select(func.count(ClaimRecord.id)).where(ClaimRecord.activity_id.is_not(None))
-            gwq = apply_time_filter(gwq, ClaimRecord.created_at)
-            res = (await session.execute(gwq)).scalar_one() or 0
-            record_counts["guidewire_activities"] = res
-            total_db += res
+        # 3. Court Cases & Filtered Out Cases
+        if "court_cases" in cats or target_claim_ids:
+            cnt_cc = await count_category_or_cascade(ScrapedCourtCase, "court_cases" in cats)
+            cnt_fc = await count_category_or_cascade(FilteredOutCase, "court_cases" in cats)
+            total_cc = cnt_cc + cnt_fc
+            if "court_cases" in cats or total_cc > 0:
+                record_counts["court_cases"] = total_cc
+                total_db += total_cc
 
-        # 6. Notifications
-        if "notifications" in cats:
-            nq = select(func.count(Notification.id))
-            nq = apply_time_filter(nq, Notification.created_at)
-            res = (await session.execute(nq)).scalar_one() or 0
-            record_counts["notifications"] = res
-            total_db += res
+        # 4. Error Screenshots (Bot History)
+        if "bot_history" in cats or "error_screenshots" in cats or target_claim_ids:
+            cat_selected = "bot_history" in cats or "error_screenshots" in cats
+            cnt_es = await count_category_or_cascade(ErrorScreenshot, cat_selected)
+            cat_key = "bot_history" if "bot_history" in cats else "error_screenshots"
+            if cat_selected or cnt_es > 0:
+                record_counts[cat_key] = cnt_es
+                total_db += cnt_es
 
-        # 7. Notification Deliveries
-        if "notification_deliveries" in cats and "notifications" not in cats:
-            ndq = select(func.count(Notification.id)).where(
-                Notification.status.in_(["SENT", "FAILED"])
-            )
-            ndq = apply_time_filter(ndq, Notification.created_at)
-            res = (await session.execute(ndq)).scalar_one() or 0
-            record_counts["notification_deliveries"] = res
-            total_db += res
+        # 5. Notifications & Delivery History
+        if "notifications" in cats or "notification_deliveries" in cats or target_claim_ids:
+            if "notifications" in cats:
+                cnt_notif = await count_category_or_cascade(Notification, True)
+                record_counts["notifications"] = cnt_notif
+                total_db += cnt_notif
+            elif "notification_deliveries" in cats:
+                cnt_nd = await count_category_or_cascade(
+                    Notification, True, extra_cond=Notification.status.in_(["SENT", "FAILED"])
+                )
+                record_counts["notification_deliveries"] = cnt_nd
+                total_db += cnt_nd
+            elif target_claim_ids:
+                cnt_notif = await count_category_or_cascade(Notification, False)
+                if cnt_notif > 0:
+                    record_counts["notifications"] = cnt_notif
+                    total_db += cnt_notif
 
-        # 8. Telemetry & Audit Logs
+        # 6. Guidewire Activities
+        if ("guidewire_activities" in cats and "claims" not in cats) or (target_claim_ids and "claims" not in cats):
+            cnt_ga = await count_category_or_cascade(GuidewireActivity, "guidewire_activities" in cats)
+            if "guidewire_activities" in cats:
+                record_counts["guidewire_activities"] = len(target_claim_ids) + cnt_ga
+                total_db += (len(target_claim_ids) + cnt_ga)
+
+        # 7. Telemetry & Audit Logs
         if "telemetry" in cats:
             tq = select(func.count(AuditLog.id)).where(AuditLog.action != "ENTERPRISE_CLEANUP")
-            tq = apply_time_filter(tq, AuditLog.timestamp)
+            t_time_conds = []
+            if start_dt:
+                t_time_conds.append(AuditLog.timestamp >= start_dt)
+            if end_dt:
+                t_time_conds.append(AuditLog.timestamp <= end_dt)
+            if t_time_conds:
+                tq = tq.where(and_(*t_time_conds))
             res = (await session.execute(tq)).scalar_one() or 0
             record_counts["telemetry"] = res
-            total_db += res
-
-        # 9. Bot History & Error Screenshots
-        if "bot_history" in cats or "error_screenshots" in cats:
-            esq = select(func.count(ErrorScreenshot.id))
-            esq = apply_time_filter(esq, ErrorScreenshot.created_at)
-            res = (await session.execute(esq)).scalar_one() or 0
-            cat_key = "bot_history" if "bot_history" in cats else "error_screenshots"
-            record_counts[cat_key] = res
             total_db += res
 
         # File-based categories
@@ -645,72 +718,87 @@ async def execute_enterprise_cleanup(
                 c_res = await session.execute(claim_sel)
                 target_claim_ids = [r[0] for r in c_res.fetchall()]
 
+            # Helper to delete records matching category time filter OR cascade claim_ids
+            async def delete_category_or_cascade(model, cat_selected: bool, extra_cond=None) -> int:
+                conds = []
+                if cat_selected:
+                    time_conds = []
+                    if start_dt:
+                        time_conds.append(model.created_at >= start_dt)
+                    if end_dt:
+                        time_conds.append(model.created_at <= end_dt)
+                    if extra_cond is not None:
+                        time_conds.append(extra_cond)
+                    if time_conds:
+                        conds.append(and_(*time_conds))
+                    else:
+                        conds.append(True)
+                if target_claim_ids and hasattr(model, "claim_id"):
+                    conds.append(model.claim_id.in_(target_claim_ids))
+
+                if not conds:
+                    return 0
+                stmt = delete(model)
+                if True in conds:
+                    pass  # delete all
+                elif len(conds) == 1:
+                    stmt = stmt.where(conds[0])
+                else:
+                    stmt = stmt.where(or_(*conds))
+                res = await session.execute(stmt)
+                return res.rowcount or 0
+
             # A. Match Pairs
             if "fuzzy_matches" in cats or target_claim_ids:
-                if target_claim_ids:
-                    del_mp = delete(MatchPair).where(MatchPair.claim_id.in_(target_claim_ids))
-                else:
-                    del_mp = delete(MatchPair)
-                    if start_dt:
-                        del_mp = del_mp.where(MatchPair.created_at >= start_dt)
-                    if end_dt:
-                        del_mp = del_mp.where(MatchPair.created_at <= end_dt)
-                res_mp = await session.execute(del_mp)
-                records_deleted["fuzzy_matches"] = res_mp.rowcount or 0
+                cnt_mp = await delete_category_or_cascade(MatchPair, "fuzzy_matches" in cats)
+                records_deleted["fuzzy_matches"] = cnt_mp
 
-            # B. Scraped Court Cases
+            # B. Scraped Court Cases & Filtered Out Cases
             if "court_cases" in cats or target_claim_ids:
-                if target_claim_ids:
-                    del_cc = delete(ScrapedCourtCase).where(ScrapedCourtCase.claim_id.in_(target_claim_ids))
-                else:
-                    del_cc = delete(ScrapedCourtCase)
-                    if start_dt:
-                        del_cc = del_cc.where(ScrapedCourtCase.created_at >= start_dt)
-                    if end_dt:
-                        del_cc = del_cc.where(ScrapedCourtCase.created_at <= end_dt)
-                res_cc = await session.execute(del_cc)
-                records_deleted["court_cases"] = res_cc.rowcount or 0
+                cnt_cc = await delete_category_or_cascade(ScrapedCourtCase, "court_cases" in cats)
+                cnt_fc = await delete_category_or_cascade(FilteredOutCase, "court_cases" in cats)
+                records_deleted["court_cases"] = cnt_cc + cnt_fc
 
             # C. Error Screenshots
-            if "error_screenshots" in cats or target_claim_ids:
-                if target_claim_ids:
-                    del_es = delete(ErrorScreenshot).where(ErrorScreenshot.claim_id.in_(target_claim_ids))
-                else:
-                    del_es = delete(ErrorScreenshot)
-                    if start_dt:
-                        del_es = del_es.where(ErrorScreenshot.created_at >= start_dt)
-                    if end_dt:
-                        del_es = del_es.where(ErrorScreenshot.created_at <= end_dt)
-                res_es = await session.execute(del_es)
-                records_deleted["error_screenshots"] = res_es.rowcount or 0
+            if "bot_history" in cats or "error_screenshots" in cats or target_claim_ids:
+                cat_selected = "bot_history" in cats or "error_screenshots" in cats
+                cnt_es = await delete_category_or_cascade(ErrorScreenshot, cat_selected)
+                cat_key = "bot_history" if "bot_history" in cats else "error_screenshots"
+                records_deleted[cat_key] = cnt_es
 
             # D. Notifications & Delivery History
-            if "notifications" in cats or target_claim_ids:
-                if target_claim_ids:
-                    del_notif = delete(Notification).where(Notification.claim_id.in_(target_claim_ids))
-                else:
-                    del_notif = delete(Notification)
-                    if start_dt:
-                        del_notif = del_notif.where(Notification.created_at >= start_dt)
-                    if end_dt:
-                        del_notif = del_notif.where(Notification.created_at <= end_dt)
-                res_notif = await session.execute(del_notif)
-                records_deleted["notifications"] = res_notif.rowcount or 0
-            elif "notification_deliveries" in cats:
-                del_nd = delete(Notification).where(Notification.status.in_(["SENT", "FAILED"]))
-                if start_dt:
-                    del_nd = del_nd.where(Notification.created_at >= start_dt)
-                if end_dt:
-                    del_nd = del_nd.where(Notification.created_at <= end_dt)
-                res_nd = await session.execute(del_nd)
-                records_deleted["notification_deliveries"] = res_nd.rowcount or 0
+            if "notifications" in cats or "notification_deliveries" in cats or target_claim_ids:
+                if "notifications" in cats:
+                    cnt_notif = await delete_category_or_cascade(Notification, True)
+                    records_deleted["notifications"] = cnt_notif
+                elif "notification_deliveries" in cats:
+                    cnt_nd = await delete_category_or_cascade(
+                        Notification, True, extra_cond=Notification.status.in_(["SENT", "FAILED"])
+                    )
+                    records_deleted["notification_deliveries"] = cnt_nd
+                elif target_claim_ids:
+                    cnt_notif = await delete_category_or_cascade(Notification, False)
+                    if cnt_notif > 0:
+                        records_deleted["notifications"] = cnt_notif
 
-            # E. Claims
-            if target_claim_ids:
+            # E. Guidewire Activity Records
+            if "guidewire_activities" in cats or target_claim_ids:
+                cnt_ga = await delete_category_or_cascade(GuidewireActivity, "guidewire_activities" in cats)
+                if "guidewire_activities" in cats and "claims" not in cats:
+                    records_deleted["guidewire_activities"] = cnt_ga
+
+            # F. Claims
+            if "claims" in cats and not start_dt and not end_dt:
+                del_cl = delete(ClaimRecord)
+                res_cl = await session.execute(del_cl)
+                records_deleted["claims"] = res_cl.rowcount or 0
+            elif target_claim_ids:
                 del_cl = delete(ClaimRecord).where(ClaimRecord.id.in_(target_claim_ids))
                 res_cl = await session.execute(del_cl)
                 cat_key = "claims" if "claims" in cats else ("queue" if "queue" in cats else "guidewire_activities")
                 records_deleted[cat_key] = res_cl.rowcount or 0
+            elif "claims" in cats:
+                records_deleted["claims"] = 0
 
                 # Clean orphaned IngestionBatches
                 try:
@@ -721,13 +809,16 @@ async def execute_enterprise_cleanup(
                 except Exception:
                     pass
 
-            # F. Telemetry & Audit Logs (Never delete the cleanup's own audit record)
+            # G. Telemetry & Audit Logs (Never delete the cleanup's own audit record)
             if "telemetry" in cats:
                 del_aud = delete(AuditLog).where(AuditLog.action != "ENTERPRISE_CLEANUP")
+                t_conds = []
                 if start_dt:
-                    del_aud = del_aud.where(AuditLog.timestamp >= start_dt)
+                    t_conds.append(AuditLog.timestamp >= start_dt)
                 if end_dt:
-                    del_aud = del_aud.where(AuditLog.timestamp <= end_dt)
+                    t_conds.append(AuditLog.timestamp <= end_dt)
+                if t_conds:
+                    del_aud = del_aud.where(and_(*t_conds))
                 res_aud = await session.execute(del_aud)
                 records_deleted["telemetry"] = res_aud.rowcount or 0
 

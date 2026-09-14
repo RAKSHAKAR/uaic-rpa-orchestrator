@@ -87,10 +87,6 @@ class ClaimResponse(BaseModel):
     driver_first_name: str | None = None
     driver_last_name: str | None = None
     
-    garaging_city: str | None = None
-    garaging_state: str | None = None
-    loss_location_city: str | None = None
-    loss_location_county: str | None = None
     loss_location_state: str | None = None
     policy_state: str | None = None
     
@@ -131,10 +127,6 @@ class ClaimCreate(BaseModel):
     driver_first_name: str | None = None
     driver_last_name: str | None = None
     dol: str | None = None
-    garaging_city: str | None = None
-    garaging_state: str | None = None
-    loss_location_city: str | None = None
-    loss_location_county: str | None = None
     loss_location_state: str | None = None
     policy_state: str | None = None
     fl_website_broward: str | None = None
@@ -158,10 +150,6 @@ class ClaimUpdate(BaseModel):
     driver_first_name: str | None = None
     driver_last_name: str | None = None
     dol: str | None = None
-    garaging_city: str | None = None
-    garaging_state: str | None = None
-    loss_location_city: str | None = None
-    loss_location_county: str | None = None
     loss_location_state: str | None = None
     policy_state: str | None = None
     record_status: RecordStatusEnum | None = None

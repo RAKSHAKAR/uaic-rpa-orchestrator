@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Navbar } from "../../components/Navbar";
 import { StatCard } from "../../components/StatCard";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
+import { AsyncExportModal } from "../../components/AsyncExportModal";
 import { api } from "../../lib/api";
 import { MatchPair } from "../../types";
 import { formatPercent, formatDate } from "../../lib/utils";
@@ -32,6 +33,7 @@ import {
   FileJson,
   Activity,
   Layers,
+  Download,
 } from "lucide-react";
 
 type SortField =
@@ -47,6 +49,8 @@ export default function ExceptionReviewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // View Mode: Table or Cards
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
@@ -68,7 +72,7 @@ export default function ExceptionReviewPage() {
   const loadPending = async () => {
     setIsLoading(true);
     try {
-      const data = await api.getPendingMatches(500);
+      const data = await api.getPendingMatches(200);
       setPendingMatches(data || []);
     } catch (e) {
       console.error("Failed to load pending match reviews:", e);
@@ -268,53 +272,57 @@ export default function ExceptionReviewPage() {
     selectedScoreTiers.length > 0;
 
   // Export handlers
-  const handleExport = (format: "csv" | "json" | "xlsx") => {
+  const handleExport = async (format: "csv" | "json" | "xlsx") => {
+    setIsExporting(format);
     const timestamp = new Date().toISOString().slice(0, 10);
-    if (format === "json") {
-      const blob = new Blob([JSON.stringify(filteredAndSortedMatches, null, 2)], {
-        type: "application/json",
+    try {
+      const blob = await api.exportMatches({ format });
+      downloadBlob(blob, `fuzzy_exceptions_${timestamp}.${format}`);
+      setFeedback({
+        type: "success",
+        msg: `Successfully exported fuzzy match exceptions as ${format.toUpperCase()}.`,
       });
-      downloadBlob(blob, `fuzzy_exceptions_${timestamp}.json`);
-    } else {
-      const headers = [
-        "ID",
-        "County",
-        "Case Number",
-        "Case Style",
-        "Party Type",
-        "Party Name",
-        "Similarity Score",
-        "Threshold Applied",
-        "Filing Date",
-        "Review Status",
-      ];
-      const rows = filteredAndSortedMatches.map((m) => [
-        m.id,
-        m.county_name || "",
-        m.case_number || "",
-        `"${(m.case_style || "").replace(/"/g, '""')}"`,
-        m.party_type || "",
-        `"${(m.party_name || "").replace(/"/g, '""')}"`,
-        ((m.similarity_score || 0) * 100).toFixed(1) + "%",
-        ((m.threshold_applied || 0) * 100).toFixed(1) + "%",
-        m.filing_date || "",
-        m.review_status || "PENDING",
-      ]);
-
-      const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-      if (format === "xlsx") {
-        // Tab-delimited spreadsheet XML compatible format
-        const blob = new Blob([csvContent], {
-          type: "application/vnd.ms-excel;charset=utf-8;",
+    } catch (err) {
+      console.warn("Backend export failed, falling back to client-side generation:", err);
+      if (format === "json") {
+        const blob = new Blob([JSON.stringify(filteredAndSortedMatches, null, 2)], {
+          type: "application/json",
         });
-        downloadBlob(blob, `fuzzy_exceptions_${timestamp}.xlsx`);
+        downloadBlob(blob, `fuzzy_exceptions_${timestamp}.json`);
       } else {
+        const headers = [
+          "ID",
+          "County",
+          "Case Number",
+          "Case Style",
+          "Party Type",
+          "Party Name",
+          "Similarity Score",
+          "Threshold Applied",
+          "Filing Date",
+          "Review Status",
+        ];
+        const rows = filteredAndSortedMatches.map((m) => [
+          m.id,
+          m.county_name || "",
+          m.case_number || "",
+          `"${(m.case_style || "").replace(/"/g, '""')}"`,
+          m.party_type || "",
+          `"${(m.party_name || "").replace(/"/g, '""')}"`,
+          ((m.similarity_score || 0) * 100).toFixed(1) + "%",
+          ((m.threshold_applied || 0) * 100).toFixed(1) + "%",
+          m.filing_date || "",
+          m.review_status || "PENDING",
+        ]);
+
+        const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
         const blob = new Blob([csvContent], {
-          type: "text/csv;charset=utf-8;",
+          type: format === "xlsx" ? "application/vnd.ms-excel;charset=utf-8;" : "text/csv;charset=utf-8;",
         });
-        downloadBlob(blob, `fuzzy_exceptions_${timestamp}.csv`);
+        downloadBlob(blob, `fuzzy_exceptions_${timestamp}.${format}`);
       }
+    } finally {
+      setIsExporting(null);
     }
   };
 
@@ -330,7 +338,7 @@ export default function ExceptionReviewPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen w-full">
+    <div className="flex-1 flex flex-col w-full">
       <Navbar onRefresh={loadPending} isRefreshing={isLoading} />
 
       <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
@@ -381,26 +389,38 @@ export default function ExceptionReviewPage() {
             {/* Export Buttons */}
             <button
               onClick={() => handleExport("xlsx")}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
+              disabled={isExporting !== null}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Excel</span>
+              <span>{isExporting === "xlsx" ? "Exporting..." : "Excel"}</span>
             </button>
 
             <button
               onClick={() => handleExport("csv")}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
+              disabled={isExporting !== null}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-              <span>CSV</span>
+              <span>{isExporting === "csv" ? "Exporting..." : "CSV"}</span>
             </button>
 
             <button
               onClick={() => handleExport("json")}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+              disabled={isExporting !== null}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
             >
               <FileJson className="w-3.5 h-3.5" />
-              <span>JSON</span>
+              <span>{isExporting === "json" ? "Exporting..." : "JSON"}</span>
+            </button>
+
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
+              title="Export complete high-volume dataset via background streaming worker"
+            >
+              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Async Export</span>
             </button>
 
             <div className="text-xs text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-3 py-1.5 rounded-lg font-medium shadow-xs w-fit">
@@ -875,6 +895,14 @@ export default function ExceptionReviewPage() {
             </div>
           )}
         </div>
+
+        {/* Reusable High-Volume Background Dataset Export Modal */}
+        <AsyncExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          searchTerm={searchTerm}
+          totalRecordsCount={totalFilteredCount}
+        />
       </main>
     </div>
   );

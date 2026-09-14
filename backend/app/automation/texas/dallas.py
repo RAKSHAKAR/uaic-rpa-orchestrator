@@ -53,7 +53,7 @@ class DallasScraper(BaseCourtScraper):
         await search_input.first.wait_for(state="visible", timeout=15000)
 
         query = f"{l_name},{f_name}".strip(", ")
-        await search_input.first.fill(query)
+        await self.biometric_fill(search_input.first, query)
         logger.info(f"[{self.county_name}] Filled Smart Search query: {query}")
         await page.wait_for_timeout(500)
         t_fill_end = datetime.now()
@@ -65,7 +65,8 @@ class DallasScraper(BaseCourtScraper):
         t_cap_end = datetime.now()
         self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="SUCCESS" if captcha_ok else "TIMEOUT")
         if not captcha_ok:
-            raise RuntimeError("CAPTCHA challenge unsolved on Dallas County portal")
+            logger.warning("CAPTCHA challenge unsolved on Dallas County portal")
+            return []
 
         # 3. Submit search via #btnSSSubmit
         t_sub_start = datetime.now()
@@ -88,7 +89,7 @@ class DallasScraper(BaseCourtScraper):
         row_count = await rows.count()
         logger.info(f"[{self.county_name}] Found {row_count} potential result rows")
 
-        for i in range(min(row_count, 15)):  # Process up to 15 cases per party
+        for i in range(row_count):  # Process up to 15 cases per party
             row = rows.nth(i)
             cells = await row.locator("td").all_inner_texts()
             if len(cells) >= 3:

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.core.celery_app import celery_app
 from app.core.database import TaskAsyncSessionLocal
 from app.models.claim import ClaimRecord, FuzzyMatchStatusEnum, RecordStatusEnum
+from app.models.guidewire import FilteredOutCase, GuidewireActivity
 from app.models.match_result import MatchPair, MatchReviewStatusEnum, PartyTypeEnum
 from app.services.audit_service import log_audit_event_async
 from app.services.fuzzy_engine import (
@@ -78,6 +80,23 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 allowed_types=matcher_cfg.whitelisted_case_types,
             ):
                 logger.info(f"Skipping ineligible case {court_case.case_number} (status: {court_case.case_status}, type: {court_case.case_type})")
+                filtered_case = FilteredOutCase(
+                    id=uuid.uuid4(),
+                    claim_id=claim.id,
+                    case_number=court_case.case_number,
+                    case_style=court_case.case_style or "UNKNOWN",
+                    case_type=court_case.case_type,
+                    case_status=court_case.case_status,
+                    fuzzy_score=0.0,
+                    exclusion_reasons={
+                        "eligible": False,
+                        "status": court_case.case_status,
+                        "type": court_case.case_type,
+                        "filing_date": court_case.filing_date,
+                        "reason": "Excluded by eligibility whitelist or date policy",
+                    },
+                )
+                session.add(filtered_case)
                 continue
 
             case_dict = {
@@ -130,7 +149,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                     case_matched = True
                     break  # Stop checking other parties for this case!
 
-            # If not a positive match, check for borderline review
+            # If not a positive match, check for borderline review and persist FilteredOutCase audit
             if not case_matched:
                 for p_type in [PartyTypeEnum.CLAIMANT, PartyTypeEnum.INSURED, PartyTypeEnum.DRIVER]:
                     ev = eval_map.get(p_type)
@@ -140,6 +159,27 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                             seen_borderline_case_numbers.add(case_num)
                             borderline_matches.append(case_dict)
                         break
+
+                max_score = max((ev["similarity_score"] for ev in evaluations), default=0.0)
+                filtered_case = FilteredOutCase(
+                    id=uuid.uuid4(),
+                    claim_id=claim.id,
+                    case_number=court_case.case_number,
+                    case_style=court_case.case_style or "UNKNOWN",
+                    case_type=court_case.case_type,
+                    case_status=court_case.case_status,
+                    fuzzy_score=round(float(max_score), 3),
+                    exclusion_reasons={
+                        "eligible": True,
+                        "is_positive_match": False,
+                        "reason": "Case did not meet positive match criteria across claimant, insured, or driver cascade",
+                        "evaluations": [
+                            {"party": str(ev["party_type"].value), "score": ev["similarity_score"]}
+                            for ev in evaluations
+                        ],
+                    },
+                )
+                session.add(filtered_case)
 
         fuzzy_duration = round(time.perf_counter() - start_fuzzy_t, 2)
         timings = dict(claim.action_timings or {})
@@ -251,8 +291,11 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                     logger.info(
                         f"Claim {claim.claim_number}: auto_push_on_match disabled or guidewire push bypassed. Advancing queue."
                     )
-                from app.tasks.queue_runner import is_auto_queue_enabled, set_active_queue_item_id
-                set_active_queue_item_id("")
+                from app.tasks.queue_runner import (
+                    is_auto_queue_enabled,
+                    remove_active_queue_item_id,
+                )
+                remove_active_queue_item_id(claim.id)
                 if is_auto_queue_enabled():
                     celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
         elif borderline_matches:
@@ -298,8 +341,8 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
 
         # Advance automatic queue if no positive matches are awaiting Guidewire dispatch
         if not positive_matches:
-            from app.tasks.queue_runner import is_auto_queue_enabled, set_active_queue_item_id
-            set_active_queue_item_id("")
+            from app.tasks.queue_runner import is_auto_queue_enabled, remove_active_queue_item_id
+            remove_active_queue_item_id(claim.id)
             if is_auto_queue_enabled():
                 celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
 
@@ -434,6 +477,27 @@ async def _async_notify_guidewire(claim_id: str):
         except Exception as e_audit:
             logger.warning(f"Could not log audit event for Guidewire push: {e_audit}")
 
+        # Persist GuidewireActivity entity for downstream compliance & payload audit
+        try:
+            gw_ok = bool(gw_res.get("success"))
+            activity_record = GuidewireActivity(
+                id=uuid.uuid4(),
+                claim_id=claim.id,
+                transaction_id=uuid.uuid4(),
+                claim_number=claim.claim_number,
+                exposure_number=claim.exposure_number or "001",
+                request_payload=gw_res.get("payload_sent") or {},
+                response_payload=gw_res.get("response") or {"error": str(gw_res.get("error"))},
+                http_status=gw_res.get("status_code", 200 if gw_ok else 500),
+                status="SUCCESS" if gw_ok else "FAILED",
+                guidewire_claim_id=claim.claim_number,
+                guidewire_activity_id=claim.activity_id if gw_ok else None,
+                error_details=str(gw_res.get("error")) if not gw_ok else None,
+            )
+            session.add(activity_record)
+        except Exception as gw_act_err:
+            logger.warning(f"Could not persist GuidewireActivity audit entity: {gw_act_err}")
+
         total_sec = (
             timings.get("total_scraping_seconds", 0.0) +
             timings.get("fuzzy_matching", {}).get("duration_seconds", 0.0) +
@@ -445,8 +509,8 @@ async def _async_notify_guidewire(claim_id: str):
         await session.commit()
 
         # Advance automatic sequential queue runner
-        from app.tasks.queue_runner import is_auto_queue_enabled, set_active_queue_item_id
-        set_active_queue_item_id("")
+        from app.tasks.queue_runner import is_auto_queue_enabled, remove_active_queue_item_id
+        remove_active_queue_item_id(claim.id)
         if is_auto_queue_enabled():
             celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
 

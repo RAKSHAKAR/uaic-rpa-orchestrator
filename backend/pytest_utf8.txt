@@ -1,0 +1,22 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.7, pytest-8.4.2, pluggy-1.6.0
+rootdir: C:\Users\priyer\.gemini\antigravity-ide\scratch\Bot_UAIC\backend
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1, asyncio-1.4.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 375 items
+
+tests\e2e\test_e2e_attended_scraping.py ........                         [  2%]
+tests\e2e\test_e2e_unattended_scraping.py ..                             [  2%]
+tests\test_api.py .........                                              [  5%]
+tests\test_async_export.py ..                                            [  5%]
+tests\test_attended_unattended_parity.py ......                          [  7%]
+tests\test_audit_logs.py ......                                          [  8%]
+tests\test_browser_manager.py ...............                            [ 12%]
+tests\test_browser_matrix.py ..........                                  [ 15%]
+tests\test_column_mapping_ingest.py .....                                [ 16%]
+tests\test_credentials_security.py ....                                  [ 17%]
+tests\test_database_models.py .                                          [ 18%]
+tests\test_email_acceptance_e2e.py .............                         [ 21%]
+tests\test_email_notifications.py ..ss.

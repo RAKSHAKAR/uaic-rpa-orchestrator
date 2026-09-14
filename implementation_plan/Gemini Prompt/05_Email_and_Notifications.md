@@ -24,4 +24,8 @@ Before declaring completion, verify and generate evidence for:
 Supporting Docs you can ref:
     1) Complete Power Platform Email & Notification Implementation Prompt.md
     2) Exact Acceptance Evidence — Email & Notification Implementation.md
-Note: Most of them are already implemented, test before making any changes.
+
+**Note:**
+
+1. Most of the requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+2. Always focus on **upgrading, enhancing, and fixing** the existing implementation. **Do not delete or remove any existing functionality** if it is already working. If any existing functionality is not working correctly, **fix it and make it fully functional** rather than removing or replacing it unnecessarily.

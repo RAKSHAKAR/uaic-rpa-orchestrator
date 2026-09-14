@@ -134,9 +134,15 @@ import uuid
 
 
 @pytest.mark.asyncio
-@pytest.mark.requires_redis
-async def test_upload_with_custom_mapping_and_failed_rows_csv_export():
+async def test_upload_with_custom_mapping_and_failed_rows_csv_export(monkeypatch):
     """Verify POST /api/v1/ingest/upload with custom mapping, batch status polling, and failed rows CSV export."""
+    from unittest.mock import MagicMock
+
+    from app.core.celery_app import celery_app
+
+    mock_send = MagicMock()
+    monkeypatch.setattr(celery_app, "send_task", mock_send)
+
     u_id = uuid.uuid4().hex[:6]
     claim_num = f"MAP-{u_id}"
     csv_content = (
@@ -158,15 +164,12 @@ async def test_upload_with_custom_mapping_and_failed_rows_csv_export():
         })
         data = {"mapping": mapping, "duplicate_strategy": "SKIP"}
 
-
         upload_res = await client.post("/api/v1/ingest/upload", files=files, data=data)
         assert upload_res.status_code == 200
         batch_info = upload_res.json()
         batch_id = batch_info["id"]
 
         # Directly run parser async logic for testing without waiting on Celery worker.
-        # Note: both this call and the upload endpoint above require Redis (celery_app.send_task).
-        # This test is guarded by @pytest.mark.requires_redis.
         file_path = os.path.join(UPLOAD_DIR, f"{batch_id}_custom_mapped.csv")
 
         await _async_parse_and_ingest(

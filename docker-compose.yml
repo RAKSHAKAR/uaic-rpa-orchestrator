@@ -1,15 +1,13 @@
-### 3. Root `docker-compose.yml` (Unified Local/VPS Orchestrator)
-
-version: '3.8'
+# Root docker-compose.yml (Unified Local/VPS Orchestrator)
 
 services:
   db:
     image: postgres:15-alpine
     container_name: uaic_postgres
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-uaic_db}
     ports:
       - "5432:5432"
     volumes:
@@ -38,14 +36,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_fastapi
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     volumes:
-      - ./backend/screenshots:/app/backend/screenshots
-      - ./backend/logs:/app/backend/logs
+      - ./backend/screenshots:/app/screenshots
+      - ./backend/logs:/app/logs
     environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
     ports:
       - "8000:8000"
     depends_on:
@@ -58,14 +56,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_celery_worker
-    command: celery -A worker.celery_app worker --concurrency=10 --loglevel=info
+    command: celery -A app.core.celery_app worker --concurrency=10 --loglevel=info
     volumes:
-      - ./backend/screenshots:/app/backend/screenshots
-      - ./backend/logs:/app/backend/logs
+      - ./backend/screenshots:/app/screenshots
+      - ./backend/logs:/app/logs
     environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
     depends_on:
       - db
       - redis
@@ -76,11 +74,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_celery_beat
-    command: celery -A worker.celery_app beat --loglevel=info
+    command: celery -A app.core.celery_app beat --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
     depends_on:
       - db
       - redis
@@ -90,11 +88,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
     container_name: uaic_frontend
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     restart: always
 
 volumes:

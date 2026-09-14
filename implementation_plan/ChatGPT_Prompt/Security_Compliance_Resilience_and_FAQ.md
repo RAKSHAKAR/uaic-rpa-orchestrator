@@ -40,6 +40,100 @@ This document serves as the authoritative operational and compliance reference f
 
 ---
 
+## 3.1 Guidewire Integration Contracts, Database Auditing & Resilience
+
+### Q5a: What does Guidewire ClaimCenter return in response to a claim transmission?
+Guidewire provides a synchronous JSON response indicating acceptance or business validation failure:
+
+* **Success Response (HTTP 200 / 201 Created):**
+```json
+{
+  "TransactionId": "f7b1e842-83b4-4e2a-bb39-16e792c349a1",
+  "Status": "ACKNOWLEDGED",
+  "GuidewireClaimId": "cc:109482",
+  "GuidewireActivityId": "act:8472910",
+  "Message": "Litigation case items successfully attached to exposure 001",
+  "ProcessedAt": "2026-09-10T20:17:02.145Z",
+  "Errors": []
+}
+```
+
+* **Validation / Exposure Closed Response (HTTP 400 / 422 Unprocessable Entity):**
+```json
+{
+  "TransactionId": "f7b1e842-83b4-4e2a-bb39-16e792c349a1",
+  "Status": "REJECTED",
+  "GuidewireClaimId": null,
+  "GuidewireActivityId": null,
+  "Message": "Validation failure: Exposure 001 is closed or does not exist on Claim 0123456789.",
+  "ProcessedAt": "2026-09-10T20:17:02.890Z",
+  "Errors": [
+    {
+      "ErrorCode": "GW-EXP-404",
+      "Field": "ExposureNumber",
+      "Description": "Exposure status is CLOSED"
+    }
+  ]
+}
+```
+
+### Q5b: How and where is the Guidewire transmission and response persisted in the database?
+Every outbound payload and inbound response is audited in PostgreSQL inside the `guidewire_activities` table linked to the parent `claims` record:
+
+```mermaid
+erDiagram
+    CLAIMS ||--o{ GUIDEWIRE_ACTIVITIES : logs
+    CLAIMS ||--o{ FILTERED_OUT_CASES : audits
+
+    GUIDEWIRE_ACTIVITIES {
+        uuid id PK
+        uuid claim_id FK
+        uuid transaction_id UK
+        varchar claim_number
+        varchar exposure_number
+        jsonb request_payload
+        jsonb response_payload
+        int http_status
+        varchar status
+        varchar guidewire_activity_id
+        text error_details
+        timestamp created_at
+    }
+
+    FILTERED_OUT_CASES {
+        uuid id PK
+        uuid claim_id FK
+        varchar case_number
+        varchar case_style
+        varchar case_type
+        varchar case_status
+        timestamp filing_date
+        jsonb exclusion_reasons
+        timestamp created_at
+    }
+```
+
+* **HTTP 200/201 Success Lifecycle:**
+  1. Record is inserted with `status = 'SUCCESS'` and the parsed `guidewire_activity_id`.
+  2. The parent claim status is updated: `claims.status = 'GUIDEWIRE_NOTIFIED'`.
+* **HTTP 400/422 Validation Failure Lifecycle:**
+  1. Record is inserted with `status = 'REJECTED'` and the error array stored in `error_details`.
+  2. The parent claim status is updated: `claims.status = 'GUIDEWIRE_REJECTED'`.
+* **HTTP 5xx / Network Timeout Lifecycle:**
+  1. Record is inserted with `status = 'FAILED_RETRYABLE'`.
+  2. Celery initiates an exponential backoff retry: `self.retry(countdown=60 * (2 ** retry_count), max_retries=3)`.
+  3. If retries are exhausted: `claims.status = 'GUIDEWIRE_FAILED'`.
+
+### Q5c: How are cases excluded by pre-Guidewire filtering tracked?
+Cases that produced a valid fuzzy match but were excluded by Case Status, Case Type, or Filing Date criteria are saved into the `filtered_out_cases` table with an `exclusion_reasons` array (e.g., `["INVALID_STATUS", "FILED_BEFORE_2011"]`). This ensures a full audit trail without sending unapproved data to Guidewire.
+
+### Q5d: How are dynamic case filter rules and Guidewire credentials secured and validated?
+* **Encrypted Storage:** Guidewire credentials, tokens, and endpoint secrets are encrypted at rest using AES-256 (Fernet) in PostgreSQL and masked (`********`) on the frontend Settings UI.
+* **Audit Logging on Configuration Change:** Any modification to the approved Case Statuses, Case Types, or Filing Cutoff Year creates an audit log entry in `settings_audit_log` recording the user ID, timestamp, old value, and new value.
+* **Fail-Safe Fallback:** If the database cache for approved types or statuses is unreachable, the system defaults to the safe strict baseline defined in SOP Section 5.4 to prevent unapproved records from leaking into Guidewire.
+* **Automated Integration Simulation:** The Settings UI provides a "Test Guidewire Connection" button that runs an automated diagnostic ping validating token authenticity, payload serialization, and endpoint latency without mutating real claims data.
+---
+
 ## 4. Business Rules vs. Technical Failures
 
 ### Q6: How does the system handle "No Results Found" or pop-ups blocking the screen?

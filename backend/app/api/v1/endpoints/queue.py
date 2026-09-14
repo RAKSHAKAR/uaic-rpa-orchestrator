@@ -1,7 +1,7 @@
 import logging
 
 import redis
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,9 +19,18 @@ from app.schemas.queue import (
     SeedDemoClaimsRequest,
 )
 from app.services.audit_service import extract_client_context, record_audit_event_background
+from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.queue")
 router = APIRouter()
+
+async def _validate_anticaptcha():
+    settings_obj = await get_system_settings_async()
+    if not settings_obj.automation.anticaptcha_api_key or not settings_obj.automation.anticaptcha_api_key.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers."
+        )
 
 
 def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> LiveQueueItemResponse:
@@ -67,8 +76,6 @@ def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> 
         dol=claim.dol,
         policy_state=claim.policy_state,
         loss_location_state=claim.loss_location_state,
-        loss_location_city=claim.loss_location_city,
-        loss_location_county=claim.loss_location_county,
         record_status=str(claim.record_status.value if hasattr(claim.record_status, "value") else claim.record_status),
         fuzzy_match_status=str(claim.fuzzy_match_status.value if hasattr(claim.fuzzy_match_status, "value") else claim.fuzzy_match_status),
         queue_position=position,
@@ -127,6 +134,8 @@ async def retrigger_failed_claims(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually retrigger failed or stuck claims for RPA scraping and fuzzy matching."""
+    await _validate_anticaptcha()
+    
     query = select(ClaimRecord)
     
     if payload and payload.claim_ids:
@@ -197,8 +206,11 @@ async def get_auto_queue_mode():
 @router.post("/auto-mode")
 async def toggle_auto_queue_mode(payload: dict, request: Request = None):
     """Enable or disable sequential automatic queue runner."""
-    from app.tasks.queue_runner import is_auto_queue_enabled, set_auto_queue_enabled
     enabled = bool(payload.get("enabled", False))
+    if enabled:
+        await _validate_anticaptcha()
+
+    from app.tasks.queue_runner import is_auto_queue_enabled, set_auto_queue_enabled
     set_auto_queue_enabled(enabled)
     if enabled:
         celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
@@ -246,6 +258,8 @@ async def pause_queue(request: Request = None):
 @router.post("/start-all")
 async def start_all_queue(request: Request = None, db: AsyncSession = Depends(get_db)):
     """Start automatic sequential execution of all NEW queue items and recover any stuck claims."""
+    await _validate_anticaptcha()
+    
     from app.tasks.queue_runner import set_active_queue_item_id, set_auto_queue_enabled
 
     # Reset any orphaned SCRAPING_IN_PROGRESS claims to NEW
@@ -391,6 +405,8 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
 @router.post("/run-next")
 async def run_next_queue_item(request: Request = None):
     """Trigger the queue runner to pick and process the next pending claim immediately."""
+    await _validate_anticaptcha()
+    
     from app.tasks.queue_runner import set_auto_queue_enabled
     set_auto_queue_enabled(True)
     celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
@@ -490,8 +506,6 @@ async def seed_demo_claims(
             dol=dol_str,
             policy_state=tmpl["state"],
             loss_location_state=tmpl["state"],
-            loss_location_city=tmpl["city"],
-            loss_location_county=tmpl["county"],
             record_status=RecordStatusEnum.NEW,
             retry_count=0,
         )
@@ -532,6 +546,8 @@ async def run_selected_claims(
     db: AsyncSession = Depends(get_db),
 ):
     """Run a specific batch of selected claims in parallel."""
+    await _validate_anticaptcha()
+    
     if not payload.claim_ids:
         return {"message": "No claim IDs provided", "count": 0}
 

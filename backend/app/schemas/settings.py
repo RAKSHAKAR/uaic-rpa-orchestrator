@@ -29,7 +29,7 @@ CHROMIUM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
 
 def get_engine_user_agent(engine: str | None) -> str:
     """Return standard matching User-Agent string for the given browser engine."""
-    eng = (engine or "chromium").lower()
+    eng = (engine or "chrome").lower()
     if eng == "msedge":
         return MSEDGE_USER_AGENT
     return CHROME_USER_AGENT
@@ -48,8 +48,8 @@ class AutomationSettings(BaseModel):
     reload_backoff_seconds: int = Field(default=2, ge=0, le=30, description="Cool-down delay in seconds before refreshing page on bot retry/throttle")
     headless_mode: bool = Field(default=False, description="Run browser in headless background mode (False for visible Chrome)")
     browser_engine: str = Field(
-        default="chromium",
-        description="Browser engine: chromium (Playwright default, recommended for extension support), chrome (host executable), or msedge",
+        default="chrome",
+        description="Browser engine: chrome (System installed Google Chrome, recommended), chromium (Playwright default), or msedge",
     )
     use_chrome_browser: bool = Field(default=True, description="Always launch Google Chrome browser (supports Chrome extensions like AntiCaptcha)")
     chrome_binary_path: str | None = Field(default_factory=get_default_chrome_binary, description="Google Chrome executable path (default: Windows Program Files)")
@@ -57,7 +57,7 @@ class AutomationSettings(BaseModel):
     anticaptcha_api_key: str | None = Field(default="28b486b8f31f74c6bf4453735815aa53", description="AntiCaptcha API Key for auto-solving")
     chrome_user_data_dir: str | None = Field(default="", description="Path to Chrome User Data for persistent extension settings (optional, keep blank by default)")
     user_agent: str = Field(
-        default=CHROMIUM_USER_AGENT,
+        default=CHROME_USER_AGENT,
         description="Browser User-Agent header string",
     )
     max_concurrent_claims: int = Field(
@@ -73,29 +73,29 @@ class PortalsSettings(BaseModel):
     # Florida
     broward_url: str = Field(default="https://www.browardclerk.org/", description="Broward County Clerk Portal URL")
     broward_enabled: bool = Field(default=True, description="Enable Broward County Scraper")
-    
+
     hillsborough_url: str = Field(default="https://hover.hillsclerk.com/", description="Hillsborough County Clerk Portal URL")
     hillsborough_enabled: bool = Field(default=True, description="Enable Hillsborough County Scraper")
-    
+
     miami_url: str = Field(default="https://www2.miamidadeclerk.gov/ocs", description="Miami-Dade County Clerk Portal URL")
     miami_enabled: bool = Field(default=True, description="Enable Miami-Dade County Scraper")
     miami_username: str = Field(default="apoorvnigam07@gmail.com", description="Miami-Dade OCS Portal Login Username/Email")
     miami_password: str = Field(default="Apoorv@12345", description="Miami-Dade OCS Portal Login Password")
     miami_requires_login: bool = Field(default=True, description="Requires authentication to scrape Miami-Dade OCS portal")
-    
+
     # Texas
     travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/", description="Travis County Odyssey Portal URL")
     travis_enabled: bool = Field(default=True, description="Enable Travis County Scraper")
-    
+
     dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/", description="Dallas County Courts Portal URL")
     dallas_enabled: bool = Field(default=True, description="Enable Dallas County Scraper")
-    
+
     harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/", description="Harris County JP Courts Portal URL")
     harris_jp_enabled: bool = Field(default=True, description="Enable Harris County JP Scraper")
-    
+
     harris_cclerk_url: str = Field(default="https://www.cclerk.hctx.net/Applications/WebSearch/", description="Harris County Clerk Portal URL")
     harris_cclerk_enabled: bool = Field(default=True, description="Enable Harris County Clerk Scraper")
-    
+
     harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/", description="Harris District Clerk Portal URL")
     harris_district_enabled: bool = Field(default=True, description="Enable Harris District Clerk Scraper")
 
@@ -297,12 +297,21 @@ class EmailSettings(BaseModel):
     from_name: str = Field(default="UAIC Claim Alerts", description="Sender display name")
     from_email: str = Field(default="notifications@test.com", description="Sender email address")
     reply_to: str = Field(default="", description="Optional reply-to email address")
+    # Microsoft Graph configuration
+    graph_tenant_id: str = Field(default="", description="Azure/Microsoft Entra Tenant ID")
+    graph_client_id: str = Field(default="", description="Azure App Client ID")
+    graph_client_secret: str = Field(default="", description="Azure App Client Secret (masked)")
+    # Amazon SES configuration
+    ses_region: str = Field(default="us-east-1", description="AWS SES Region")
+    ses_access_key_id: str = Field(default="", description="AWS Access Key ID")
+    ses_secret_access_key: str = Field(default="", description="AWS Secret Access Key (masked)")
     to_recipients: list[str] = Field(default_factory=lambda: ["claims-ops@test.com"], description="Default primary To recipients")
     cc_recipients: list[str] = Field(default_factory=list, description="Default CC recipients")
     bcc_recipients: list[str] = Field(default_factory=list, description="Default BCC recipients")
     timeout_seconds: int = Field(default=15, ge=2, le=60, description="Email provider connection timeout in seconds")
     retry_count: int = Field(default=3, ge=0, le=5, description="Max delivery retry attempts on transient failure")
     retry_delay_seconds: int = Field(default=30, ge=5, le=300, description="Initial retry delay in seconds")
+    digest_mode: str = Field(default="immediate", description="Notification dispatch mode: immediate, hourly_digest, daily_digest")
     rules: dict[str, bool] = Field(
         default_factory=lambda: {
             "court_case_matched": True,
@@ -315,6 +324,15 @@ class EmailSettings(BaseModel):
     )
 
 
+class ProxySettings(BaseModel):
+    """Dedicated self-hosted proxy pool settings."""
+    enabled: bool = Field(default=False, description="Route Playwright traffic through dedicated proxy pool")
+    host: str = Field(default="", description="Proxy server IP or hostname (e.g., 10.0.0.5)")
+    port: int = Field(default=3128, description="Proxy server port (e.g., 3128 for Squid)")
+    username: str = Field(default="", description="Proxy authentication username")
+    password: str = Field(default="", description="Proxy authentication password")
+
+
 class SystemSettings(BaseModel):
     """Root configuration model containing all subsystem configurations."""
     automation: AutomationSettings = Field(default_factory=AutomationSettings)
@@ -325,6 +343,7 @@ class SystemSettings(BaseModel):
     branding: BrandingSettings = Field(default_factory=BrandingSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
+    proxy: ProxySettings = Field(default_factory=ProxySettings)
 
 
 # Test Connection Request & Response DTOs
@@ -376,7 +395,7 @@ class PortalTestResponse(BaseModel):
 class BrowserTestRequest(BaseModel):
     """Payload to test browser launch in Attended or Headless mode."""
     headless: bool | None = None
-    browser_engine: str | None = "chromium"
+    browser_engine: str | None = "chrome"
     test_url: str | None = "https://example.com"
     timeout_seconds: int | None = 25
     chrome_binary_path: str | None = None
@@ -387,7 +406,7 @@ class BrowserTestResponse(BaseModel):
     """Result of browser launch and execution test."""
     success: bool
     mode: str
-    browser_engine: str = "chromium"
+    browser_engine: str = "chrome"
     headless: bool
     chrome_found: bool
     chrome_executable: str | None = None
@@ -436,6 +455,13 @@ class EmailConnectionTestRequest(BaseModel):
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_encryption: str | None = "tls"
+    # Optional provider specific fields
+    graph_tenant_id: str | None = None
+    graph_client_id: str | None = None
+    graph_client_secret: str | None = None
+    ses_region: str | None = None
+    ses_access_key_id: str | None = None
+    ses_secret_access_key: str | None = None
     timeout_seconds: int | None = 10
     recipient_domain: str | None = None
 

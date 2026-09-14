@@ -75,10 +75,6 @@ async def _async_parse_and_ingest(
                     claimant_last_name=row.get("Claimant Last Name") or row.get("claimant_last_name"),
                     driver_first_name=row.get("Driver First Name (Insured Vehicle)") or row.get("driver_first_name"),
                     driver_last_name=row.get("Driver Last Name (Insured Vehicle)") or row.get("driver_last_name"),
-                    garaging_city=row.get("Garaging City") or row.get("garaging_city"),
-                    garaging_state=row.get("Garaging State") or row.get("garaging_state"),
-                    loss_location_city=row.get("Loss Location City") or row.get("loss_location_city"),
-                    loss_location_county=row.get("Loss Location County") or row.get("loss_location_county"),
                     loss_location_state=row.get("Loss Location State") or row.get("loss_location_state"),
                     policy_state=row.get("Policy State") or row.get("policy_state"),
                     record_status=RecordStatusEnum.NEW,
@@ -115,11 +111,6 @@ async def _async_parse_and_ingest(
                     target_claim.claimant_last_name = row.get("Claimant Last Name") or row.get("claimant_last_name")
                     target_claim.driver_first_name = row.get("Driver First Name (Insured Vehicle)") or row.get("driver_first_name")
                     target_claim.driver_last_name = row.get("Driver Last Name (Insured Vehicle)") or row.get("driver_last_name")
-                    target_claim.dol = row.get("DOL") or row.get("dol")
-                    target_claim.garaging_city = row.get("Garaging City") or row.get("garaging_city")
-                    target_claim.garaging_state = row.get("Garaging State") or row.get("garaging_state")
-                    target_claim.loss_location_city = row.get("Loss Location City") or row.get("loss_location_city")
-                    target_claim.loss_location_county = row.get("Loss Location County") or row.get("loss_location_county")
                     target_claim.loss_location_state = row.get("Loss Location State") or row.get("loss_location_state")
                     target_claim.policy_state = row.get("Policy State") or row.get("policy_state")
                     target_claim.record_status = RecordStatusEnum.NEW

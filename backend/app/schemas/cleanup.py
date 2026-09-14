@@ -32,6 +32,9 @@ class CleanupCategoryEnum(StrEnum):
 class TimeScopeEnum(StrEnum):
     CURRENT_MONTH = "current_month"
     PREVIOUS_MONTH = "previous_month"
+    CURRENT_QUARTER = "current_quarter"
+    PREVIOUS_QUARTER = "previous_quarter"
+    CURRENT_YEAR = "current_year"
     LAST_N_DAYS = "last_n_days"
     LAST_N_WEEKS = "last_n_weeks"
     LAST_N_MONTHS = "last_n_months"

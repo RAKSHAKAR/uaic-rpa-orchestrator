@@ -115,16 +115,34 @@ class NotificationService:
         context.setdefault("claim_number", claim_number or context.get("claim_number", "N/A"))
         context.setdefault("provider", selected_provider)
         context.setdefault("recipient", to_str)
+        # Normalization and aliases
+        if "county" in context and "county_name" not in context:
+            context["county_name"] = context["county"]
+        elif "county_name" in context and "county" not in context:
+            context["county"] = context["county_name"]
+        context.setdefault("county", "N/A")
+        context.setdefault("county_name", "N/A")
+        context.setdefault("activity_id", context.get("activityId", "N/A"))
+        context.setdefault("exposure_number", context.get("exposureNumber", "001"))
+        context.setdefault("case_number", "N/A")
+        context.setdefault("case_style", "N/A")
+        context.setdefault("suit_filed_date", "N/A")
+
+        effective_claim_id = claim_id or context.get("claim_id") or context.get("claimId")
+        effective_claim_number = claim_number or context.get("claim_number") or context.get("claimNumber")
 
         rendered_subject = TemplateRenderer.render(subject_template, context)
         rendered_html = TemplateRenderer.render(body_html_template, context)
         rendered_text = TemplateRenderer.render(body_text_template, context)
 
         # 6. Create Notification Record in DB
+        is_digest = email_settings.digest_mode in ["hourly_digest", "daily_digest"] and event_type != "TEST_EMAIL"
+        initial_status = "PENDING_DIGEST" if is_digest else "QUEUED"
+
         notification = Notification(
             event_type=event_type,
-            claim_id=claim_id,
-            claim_number=claim_number,
+            claim_id=effective_claim_id,
+            claim_number=effective_claim_number,
             recipient=to_str,
             cc=cc_str,
             bcc=bcc_str,
@@ -132,7 +150,7 @@ class NotificationService:
             body_html=rendered_html,
             body_text=rendered_text,
             provider=selected_provider,
-            status="QUEUED",
+            status=initial_status,
             idempotency_key=idempotency_key,
             queued_at=datetime.now(UTC),
             details=context,
@@ -141,19 +159,23 @@ class NotificationService:
         await db.commit()
         await db.refresh(notification)
 
-        # 7. Enqueue Async Celery Task
-        try:
-            celery_app.send_task(
-                "app.tasks.notification_tasks.send_notification_email_task",
-                args=[notification.id],
-                queue="notifications",
-            )
-            logger.info(f"[NotificationService] Dispatched notification {notification.id} to Celery 'notifications' queue.")
-        except Exception as e:
-            logger.error(f"[NotificationService] Failed to enqueue Celery notification task: {e}")
-            notification.status = "FAILED"
-            notification.error_message = f"Queue error: {e}"
-            notification.failed_at = datetime.now(UTC)
-            await db.commit()
+        # 7. Enqueue Async Celery Task if not Digest
+        if is_digest:
+            logger.info(f"[NotificationService] Digest mode active ({email_settings.digest_mode}). Notification {notification.id} held as PENDING_DIGEST.")
+        else:
+            try:
+                celery_app.send_task(
+                    "app.tasks.notification_tasks.send_notification_email_task",
+                    args=[notification.id],
+                    queue="notifications",
+                    retry=False,
+                )
+                logger.info(f"[NotificationService] Dispatched notification {notification.id} to Celery 'notifications' queue.")
+            except Exception as e:
+                logger.error(f"[NotificationService] Failed to enqueue Celery notification task: {e}")
+                notification.status = "FAILED"
+                notification.error_message = f"Queue error: {e}"
+                notification.failed_at = datetime.now(UTC)
+                await db.commit()
 
         return notification

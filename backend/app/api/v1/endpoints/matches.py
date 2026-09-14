@@ -1,9 +1,12 @@
 """Fuzzy Match Review and Exception Handling Endpoints."""
 
+import io
+import json
 import time
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+import pandas as pd
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from rapidfuzz import fuzz
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,14 +18,21 @@ from app.models.claim import ClaimRecord, RecordStatusEnum
 from app.models.court_case import ScrapedCourtCase
 from app.models.match_result import MatchPair, MatchReviewStatusEnum
 from app.schemas.match import (
+    DirectFuzzyMatchRequest,
+    DirectFuzzyMatchResponse,
     ExtractNamesResponse,
     FuzzyMatchItem,
+    FuzzyMatchScore,
     FuzzySearchRequest,
     FuzzySearchResponse,
     MatchPairResponse,
     MatchReviewRequest,
+    UniqueNameItem,
+    UniqueNamesRequest,
+    UniqueNamesResponse,
 )
 from app.services.audit_service import extract_client_context, log_audit_event_async
+from app.services.fuzzy_engine import derive_search_counts_fuzzy, generate_unique_names_for_claim
 
 router = APIRouter()
 
@@ -283,3 +293,191 @@ async def legacy_fuzzy_search(
         search_name=search_name,
         duration_ms=round(duration_ms, 2),
     )
+
+
+@router.get("/export")
+async def export_match_reviews(
+    format: str = Query("xlsx", pattern="^(xlsx|csv|json)$"),
+    status: str | None = Query(None),
+    limit: int = Query(5000, ge=1, le=10000),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export fuzzy match exception candidate records to Excel (.xlsx), CSV, or JSON.
+    Includes claim context, party information, court case details, and similarity score.
+    """
+    query = (
+        select(MatchPair)
+        .options(selectinload(MatchPair.court_case))
+        .order_by(desc(MatchPair.similarity_score), desc(MatchPair.created_at))
+        .limit(limit)
+    )
+    if status and status.upper() != "ALL":
+        try:
+            review_status_enum = MatchReviewStatusEnum(status.upper())
+            query = query.where(MatchPair.review_status == review_status_enum)
+        except ValueError:
+            pass
+
+    res = await db.execute(query)
+    match_pairs = res.scalars().all()
+
+    # Preload claim numbers if claim_ids exist
+    claim_ids = [mp.claim_id for mp in match_pairs if mp.claim_id]
+    claims_map: dict[str, str] = {}
+    if claim_ids:
+        c_res = await db.execute(
+            select(ClaimRecord.id, ClaimRecord.claim_number).where(ClaimRecord.id.in_(claim_ids))
+        )
+        for c_id, c_num in c_res.all():
+            claims_map[c_id] = c_num
+
+    export_rows = []
+    for mp in match_pairs:
+        court = mp.court_case
+        score_pct = round(mp.similarity_score * 100, 1) if mp.similarity_score is not None else 0.0
+        review_stat = mp.review_status.value if hasattr(mp.review_status, "value") else str(mp.review_status)
+        party_tp = mp.party_type.value if hasattr(mp.party_type, "value") else str(mp.party_type)
+
+        export_rows.append({
+            "Match ID": mp.id,
+            "Claim Number": claims_map.get(mp.claim_id, ""),
+            "Party Type": party_tp,
+            "Party Name": mp.party_name or "",
+            "Court Case Number": court.case_number if court else "Unknown",
+            "County Name": court.county_name if court else "Unknown",
+            "Case Style": mp.case_style or (court.case_style if court else ""),
+            "Similarity Score (%)": score_pct,
+            "Filing Date": court.filing_date if court and court.filing_date else "",
+            "Case Status": court.case_status if court and court.case_status else "",
+            "Case Type": court.case_type if court and court.case_type else "",
+            "Review Status": review_stat,
+            "Reviewed By": mp.reviewed_by or "",
+            "Reviewed At": mp.reviewed_at.strftime("%Y-%m-%d %H:%M:%S") if mp.reviewed_at else "",
+            "Review Notes": mp.review_notes or "",
+            "County Website": court.county_website if court and court.county_website else "",
+            "Created At": mp.created_at.strftime("%Y-%m-%d %H:%M:%S") if mp.created_at else "",
+        })
+
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+
+    if format == "json":
+        return Response(
+            content=json.dumps(export_rows, indent=2, default=str),
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.json"},
+        )
+
+    df = pd.DataFrame(export_rows)
+
+    if format == "csv":
+        csv_bytes = df.to_csv(index=False).encode("utf-8")
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.csv"},
+        )
+    else:
+        out = io.BytesIO()
+        with pd.ExcelWriter(out, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Fuzzy Exceptions")
+            ws = writer.sheets["Fuzzy Exceptions"]
+            for col in ws.columns:
+                max_len = max(len(str(cell.value or "")) for cell in col)
+                col_letter = col[0].column_letter
+                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 50)
+        out.seek(0)
+        return Response(
+            content=out.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.xlsx"},
+        )
+
+
+@router.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse)
+def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResponse:
+    """
+    Direct legacy Power Automate Desktop fuzzy match endpoint parity.
+    Evaluates a reference string against an array of target strings.
+    """
+    norm_ref = payload.reference_string.strip().lower()
+    threshold_scaled = payload.threshold * 100.0 if payload.threshold <= 1.0 else payload.threshold
+
+    matches = []
+    for target in payload.target_strings:
+        norm_target = target.strip().lower()
+        score = float(fuzz.partial_ratio(norm_ref, norm_target))
+        result = "Match Found" if score >= threshold_scaled else "No Match Found"
+        matches.append(FuzzyMatchScore(target_string=target, result=result, score=score))
+
+    return DirectFuzzyMatchResponse(
+        reference_string=payload.reference_string,
+        threshold_applied=threshold_scaled,
+        matches=matches
+    )
+
+
+@router.post("/unique-names", response_model=UniqueNamesResponse)
+async def generate_claim_unique_names(
+    payload: UniqueNamesRequest,
+    db: AsyncSession = Depends(get_db),
+) -> UniqueNamesResponse:
+    """
+    Generates the deduplicated list of unique search names (Insured, Driver, Claimant)
+    to be searched sequentially across all open county court portals.
+    Supports either passing a claim_id (queries DB) or supplying raw party names directly.
+    """
+    claim_record = None
+    claim_num = None
+    if payload.claim_id:
+        res = await db.execute(select(ClaimRecord).where(ClaimRecord.id == payload.claim_id))
+        claim_record = res.scalar_one_or_none()
+        if not claim_record:
+            raise HTTPException(status_code=404, detail=f"Claim record '{payload.claim_id}' not found")
+        claim_num = claim_record.claim_number
+        source_data = claim_record
+    else:
+        source_data = {
+            "insured_first_name": payload.insured_first_name,
+            "insured_last_name": payload.insured_last_name,
+            "driver_first_name": payload.driver_first_name,
+            "driver_last_name": payload.driver_last_name,
+            "claimant_first_name": payload.claimant_first_name,
+            "claimant_last_name": payload.claimant_last_name,
+        }
+
+    unique_list = generate_unique_names_for_claim(source_data, fuzzy_threshold=payload.threshold)
+    dual_s, triple_s = derive_search_counts_fuzzy(source_data, fuzzy_threshold=payload.threshold)
+
+    items = [
+        UniqueNameItem(
+            party_type=p["party_type"],
+            first_name=p.get("first_name"),
+            last_name=p.get("last_name"),
+            full_name=p["full_name"],
+            search_order=p["search_order"],
+        )
+        for p in unique_list
+    ]
+
+    return UniqueNamesResponse(
+        unique_names=items,
+        total_unique_names=len(items),
+        count=len(items),
+        dual_search=dual_s,
+        triple_search=triple_s,
+        claim_number=claim_num,
+    )
+
+
+@router.get("/claims/{claim_id}/unique-names", response_model=UniqueNamesResponse)
+async def get_claim_unique_names_get(
+    claim_id: str,
+    threshold: float = Query(0.85, ge=0.0, le=1.0),
+    db: AsyncSession = Depends(get_db),
+) -> UniqueNamesResponse:
+    """Convenience GET endpoint to extract unique search names for a specific claim record."""
+    req = UniqueNamesRequest(claim_id=claim_id, threshold=threshold)
+    return await generate_claim_unique_names(req, db=db)
+
+

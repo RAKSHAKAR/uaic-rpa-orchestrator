@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
     SECRET_KEY: str = "supersecretdevelopmentkeyfororchestrator"
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
 
     # CORS
     BACKEND_CORS_ORIGINS: list[str] | str = [
@@ -45,9 +47,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = _DEFAULT_DB_URL
 
     # Redis & Celery Message Broker
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
+    CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/1"
 
     # Fuzzy Matching Engine Parameters
     FUZZY_MATCH_DEFAULT_THRESHOLD: float = 0.60
@@ -64,6 +66,16 @@ class Settings(BaseSettings):
     PLAYWRIGHT_VIEWPORT_WIDTH: int = 1280
     PLAYWRIGHT_VIEWPORT_HEIGHT: int = 800
     SCREENSHOTS_DIR: Path = (_BACKEND_DIR / "screenshots").resolve()
+
+    # Portals
+    PORTAL_BROWARD_URL: str = "https://www.browardclerk.org/"
+    PORTAL_HILLSBOROUGH_URL: str = "https://hover.hillsclerk.com/"
+    PORTAL_MIAMI_URL: str = "https://www2.miamidadeclerk.gov/ocs"
+    PORTAL_TRAVIS_URL: str = "https://odysseyweb.traviscountytx.gov/Portal/"
+    PORTAL_DALLAS_URL: str = "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
+    PORTAL_HARRIS_JP_URL: str = "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
+    PORTAL_HARRIS_CCLERK_URL: str = "https://www.cclerk.hctx.net/Applications/WebSearch/"
+    PORTAL_HARRIS_DISTRICT_URL: str = "https://www.hcdistrictclerk.com/"
 
     # Whitelisted Legacy Case Types & Statuses
     ALLOWED_CASE_STATUSES: list[str] = [

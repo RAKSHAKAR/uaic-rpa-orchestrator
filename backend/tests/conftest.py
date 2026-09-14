@@ -3,6 +3,7 @@
 import gc
 import socket
 import warnings
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -11,18 +12,18 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def _is_redis_available() -> bool:
-    """Return True if Redis is reachable on localhost:6379."""
+    """Return True if Redis is reachable on 127.0.0.1:6379."""
     try:
-        with socket.create_connection(("localhost", 6379), timeout=1.0):
+        with socket.create_connection(("127.0.0.1", 6379), timeout=0.2):
             return True
     except OSError:
         return False
 
 
 def _is_maildev_available() -> bool:
-    """Return True if a local MailDev SMTP server is reachable on localhost:1025."""
+    """Return True if a local MailDev SMTP server is reachable on 127.0.0.1:1025."""
     try:
-        with socket.create_connection(("localhost", 1025), timeout=1.0):
+        with socket.create_connection(("127.0.0.1", 1025), timeout=0.2):
             return True
     except OSError:
         return False
@@ -95,4 +96,21 @@ def clean_async_transports():
             category=pytest.PytestUnraisableExceptionWarning,
         )
         gc.collect()
+
+
+@pytest.fixture(autouse=True)
+def mock_celery_when_no_redis(monkeypatch):
+    """
+    Prevent background Celery broker connection hangs when Redis is offline.
+    Tests explicitly requiring live Redis are marked with @pytest.mark.requires_redis
+    and auto-skipped by pytest_collection_modifyitems.
+    """
+    if not _REDIS_UP:
+        from app.core.celery_app import celery_app
+
+        monkeypatch.setattr(
+            celery_app,
+            "send_task",
+            MagicMock(return_value=MagicMock(id="mock-celery-task-id")),
+        )
 

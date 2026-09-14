@@ -11,7 +11,7 @@ export default function UploadPage() {
   const [lastBatch, setLastBatch] = useState<IngestionBatch | null>(null);
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen w-full">
+    <div className="flex-1 flex flex-col w-full">
       <Navbar />
 
       <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
@@ -31,20 +31,6 @@ export default function UploadPage() {
         <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
           <FileUploader onSuccess={(batch) => setLastBatch(batch)} />
 
-          {lastBatch && (
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between flex-wrap gap-3">
-              <span className="text-xs text-slate-600 dark:text-slate-400">
-                Ready to track live progress of this batch?
-              </span>
-              <Link
-                href="/monitor"
-                className="px-4 py-2 bg-indigo-50 dark:bg-indigo-600/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-600/30 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all"
-              >
-                Go to Queue Monitor
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          )}
         </div>
 
         {/* Architecture & Format Reference */}

@@ -1,0 +1,4 @@
+ReferenceNo,First,Last,EventDate,LossState
+MAP-862041,John,Doe,04/01/2024,Florida
+,Blank,Claim,04/02/2024,Florida
+MAP-862041,John,Duplicate,04/03/2024,Florida

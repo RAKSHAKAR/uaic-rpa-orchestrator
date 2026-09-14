@@ -3,6 +3,7 @@
 from app.models.audit_log import AuditLog
 from app.models.claim import (
     BotStatusEnum,
+    Claim,
     ClaimRecord,
     FuzzyMatchStatusEnum,
     IngestionBatch,
@@ -10,6 +11,12 @@ from app.models.claim import (
 )
 from app.models.court_case import ScrapedCourtCase
 from app.models.error_screenshot import ErrorScreenshot
+from app.models.guidewire import (
+    AutomationSetting,
+    FilteredOutCase,
+    GuidewireActivity,
+    SettingsAuditLog,
+)
 from app.models.match_result import (
     MatchPair,
     MatchReviewStatusEnum,
@@ -23,10 +30,14 @@ from app.models.notification import (
 
 __all__ = [
     "AuditLog",
+    "AutomationSetting",
     "BotStatusEnum",
+    "Claim",
     "ClaimRecord",
     "ErrorScreenshot",
+    "FilteredOutCase",
     "FuzzyMatchStatusEnum",
+    "GuidewireActivity",
     "IngestionBatch",
     "MatchPair",
     "MatchReviewStatusEnum",
@@ -36,4 +47,5 @@ __all__ = [
     "PartyTypeEnum",
     "RecordStatusEnum",
     "ScrapedCourtCase",
+    "SettingsAuditLog",
 ]

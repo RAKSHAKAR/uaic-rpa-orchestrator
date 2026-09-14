@@ -262,8 +262,8 @@ export default function BrandingPage() {
   const [isResetting, setIsResetting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
-  // Tab State: "brand" | "theme"
-  const [activeTab, setActiveTab] = useState<"brand" | "theme">("theme");
+  // Tab State: "brand" | "theme" (default to "brand" per UX spec)
+  const [activeTab, setActiveTab] = useState<"brand" | "theme">("brand");
 
   // Palette Mode in Theme Tab: "light" | "dark"
   const [paletteMode, setPaletteMode] = useState<"light" | "dark">("light");
@@ -479,7 +479,7 @@ export default function BrandingPage() {
   const darkPal = branding.dark_palette || DEFAULT_DARK_PALETTE;
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen w-full">
+    <div className="flex-1 flex flex-col w-full">
       <Navbar onRefresh={loadBranding} isRefreshing={isLoading} />
 
       <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">

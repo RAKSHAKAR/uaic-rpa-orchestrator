@@ -72,17 +72,61 @@ def test_calculate_match_score_exact_and_near():
 # ============================================================================
 
 def test_is_case_eligible_filing_date():
-    # Modern filing date >= 2010
+    # Modern filing date >= 2011 (strictly after 2010 per V4 §5.4)
     assert is_case_eligible(filing_date="2021-05-10", case_status="OPEN", case_type="CIVIL") is True
     assert is_case_eligible(filing_date="05/10/2021", case_status="OPEN", case_type="CIVIL") is True
     assert is_case_eligible(filing_date="2026/08/21", case_status="OPEN", case_type="CIVIL") is True
 
-    # Pre-2010 filing date -> Ineligible
+    # 2010 and pre-2010 filing dates -> Ineligible
+    assert is_case_eligible(filing_date="2010-12-31", case_status="OPEN", case_type="CIVIL") is False
+    assert is_case_eligible(filing_date="2010-01-01", case_status="OPEN", case_type="CIVIL") is False
     assert is_case_eligible(filing_date="2008-11-20", case_status="OPEN", case_type="CIVIL") is False
     assert is_case_eligible(filing_date="01/01/1999", case_status="OPEN", case_type="CIVIL") is False
 
     # Custom minimum filing date
     assert is_case_eligible(filing_date="2015-01-01", case_status="OPEN", case_type="CIVIL", min_filing_date="2018-01-01") is False
+
+
+# TC-FUZ-001 through TC-FUZ-011 explicit test cases
+def test_tc_fuz_001_filing_date_2011_01_01_passes():
+    """TC-FUZ-001: Filing date 2011-01-01 passes strictly after 2010 rule."""
+    assert is_case_eligible("2011-01-01", "OPEN", "CIVIL") is True
+
+
+def test_tc_fuz_002_filing_date_2010_12_31_excluded():
+    """TC-FUZ-002: Filing date 2010-12-31 is excluded (filed in year 2010)."""
+    assert is_case_eligible("2010-12-31", "OPEN", "CIVIL") is False
+
+
+def test_tc_fuz_003_filing_date_2010_01_01_excluded():
+    """TC-FUZ-003: Filing date 2010-01-01 is excluded."""
+    assert is_case_eligible("2010-01-01", "OPEN", "CIVIL") is False
+
+
+def test_tc_fuz_004_filing_date_2009_06_15_excluded():
+    """TC-FUZ-004: Filing date 2009-06-15 is excluded."""
+    assert is_case_eligible("2009-06-15", "OPEN", "CIVIL") is False
+
+
+def test_tc_fuz_005_approved_status_open_passes():
+    """TC-FUZ-005: Approved status OPEN passes."""
+    assert is_case_eligible("2023-01-01", "OPEN", "CIVIL", allowed_statuses=["OPEN", "ACTIVE"]) is True
+
+
+def test_tc_fuz_006_unapproved_status_dismissed_excluded():
+    """TC-FUZ-006: Unapproved status DISMISSED is excluded."""
+    assert is_case_eligible("2023-01-01", "DISMISSED", "CIVIL", allowed_statuses=["OPEN", "ACTIVE"]) is False
+
+
+def test_tc_fuz_007_approved_type_circuit_civil_passes():
+    """TC-FUZ-007: Approved type CIRCUIT CIVIL passes."""
+    assert is_case_eligible("2023-01-01", "OPEN", "CIRCUIT CIVIL", allowed_types=["CIRCUIT CIVIL"]) is True
+
+
+def test_tc_fuz_008_unapproved_type_criminal_excluded():
+    """TC-FUZ-008: Unapproved type CRIMINAL is excluded."""
+    assert is_case_eligible("2023-01-01", "OPEN", "CRIMINAL", allowed_types=["CIRCUIT CIVIL"]) is False
+
 
 
 def test_is_case_eligible_status_and_type():

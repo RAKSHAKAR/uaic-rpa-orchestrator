@@ -27,8 +27,8 @@ class MiamiDadeScraper(BaseCourtScraper):
             base_url=base_url or "https://www2.miamidadeclerk.gov/ocs/",
             **kwargs,
         )
-        self.username = username or "apoorvnigam07@gmail.com"
-        self.password = password or "Apoorv@12345"
+        self.username = username
+        self.password = password
         self.requires_login = requires_login
 
     async def search_by_party_name(
@@ -66,9 +66,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                 pwd_field = page.locator("input[type='password'], input[name*='Password' i], input#txtPassword")
 
                 if await email_field.count() > 0:
-                    await email_field.first.fill(self.username)
+                    await self.biometric_fill(email_field.first, self.username)
                 if await pwd_field.count() > 0:
-                    await pwd_field.first.fill(self.password)
+                    await self.biometric_fill(pwd_field.first, self.password)
 
                 login_btn = page.locator("#btnLogin, button:has-text('LOGIN'), input[type='submit'][value*='Login' i]")
                 if await login_btn.count() > 0:
@@ -93,9 +93,9 @@ class MiamiDadeScraper(BaseCourtScraper):
         first_input = page.locator("#txtFirstName, input[name='txtFirstName'], input[name*='FirstName']")
 
         await last_input.first.wait_for(state="visible", timeout=15000)
-        await last_input.first.fill(l_name)
+        await self.biometric_fill(last_input.first, l_name)
         if f_name and await first_input.count() > 0:
-            await first_input.first.fill(f_name)
+            await self.biometric_fill(first_input.first, f_name)
 
         # Date of Loss conversion to MM-dd-yyyy matching V4
         if date_of_loss:
@@ -116,13 +116,13 @@ class MiamiDadeScraper(BaseCourtScraper):
 
         date_from_input = page.locator("#filingDateFrom, input[name='filingDateFrom'], input[placeholder*='MM-DD-YYYY']")
         if await date_from_input.count() > 0:
-            await date_from_input.first.fill(dol_clean)
+            await self.biometric_fill(date_from_input.first, dol_clean)
             logger.info(f"[{self.county_name}] Filled filingDateFrom with DOL: {dol_clean}")
 
         date_to_input = page.locator("#filingDateTo, input[name='filingDateTo']")
         if await date_to_input.count() > 0:
             today_str = datetime.now().strftime("%m-%d-%Y")
-            await date_to_input.first.fill(today_str)
+            await self.biometric_fill(date_to_input.first, today_str)
 
         await page.wait_for_timeout(500)
         t_fill_end = datetime.now()

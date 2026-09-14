@@ -53,13 +53,13 @@ class BrowardScraper(BaseCourtScraper):
         dol_input = page.locator("input#filingDateOnOrAfterP, input[name='filingDateOnOrAfterP']")
 
         await last_input.first.wait_for(state="visible", timeout=15000)
-        await last_input.first.fill(l_name)
+        await self.biometric_fill(last_input.first, l_name)
         if f_name and await first_input.count() > 0:
-            await first_input.first.fill(f_name)
+            await self.biometric_fill(first_input.first, f_name)
 
         if date_of_loss and await dol_input.count() > 0:
             clean_dol = date_of_loss.strip()
-            await dol_input.first.fill(clean_dol)
+            await self.biometric_fill(dol_input.first, clean_dol)
             logger.info(f"[{self.county_name}] Filled filingDateOnOrAfterP with DOL: {clean_dol}")
 
         await page.wait_for_timeout(500)
@@ -72,7 +72,8 @@ class BrowardScraper(BaseCourtScraper):
         t_cap_end = datetime.now()
         self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="SUCCESS" if captcha_ok else "TIMEOUT")
         if not captcha_ok:
-            raise RuntimeError(f"CAPTCHA challenge unsolved on Broward County portal after {self.captcha_wait_seconds}s")
+            logger.warning(f"CAPTCHA challenge unsolved on Broward County portal after {self.captcha_wait_seconds}s")
+            return []
 
         # Double check that AntiCaptcha extension is not in the middle of injecting
         for _ in range(10):

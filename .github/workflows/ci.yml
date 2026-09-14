@@ -1,0 +1,88 @@
+name: Universal CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  backend-ci:
+    name: Backend CI (Python 3.14 + FastAPI + Pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          check-latest: true
+
+      - name: Cache Python Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Ruff Code Quality & Linter
+        run: |
+          ruff check app tests
+
+      - name: Run Automated Pytest Suite
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./orchestrator_ci.db
+          REDIS_URL: redis://localhost:6379/0
+          APP_ENV: testing
+        run: |
+          pytest -ra -q
+
+  frontend-ci:
+    name: Frontend CI (Next.js 14 + TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: Run TypeScript Strict Typecheck
+        run: |
+          npx tsc --noEmit
+
+      - name: Build Next.js Production Bundle
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          npm run build

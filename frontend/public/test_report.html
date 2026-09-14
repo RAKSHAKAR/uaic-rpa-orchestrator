@@ -1,0 +1,3083 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UAIC Orchestrator — Automated Test Suite & Live Verification Evidence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #374151;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      padding: 16px;
+      line-height: 1.5;
+      width: 100%;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .container {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 0;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      gap: 16px;
+    }
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo-badge {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    }
+    .title-area h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+    }
+    .title-area p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 12px #10b981;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    /* KPIs */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 20px;
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent-indigo);
+    }
+    .kpi-card.passed::after { background: var(--accent-emerald); }
+    .kpi-card.failed::after { background: var(--accent-rose); }
+    .kpi-card.time::after { background: var(--accent-amber); }
+    .kpi-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .kpi-val {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .kpi-val.green { color: #34d399; }
+    .kpi-val.red { color: #f87171; }
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .search-box {
+      position: relative;
+      flex: 1 1 320px;
+    }
+    .search-box input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 16px 10px 38px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.15s;
+    }
+    .search-box input:focus {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .pill {
+      background: #1f2937;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 7px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .pill:hover {
+      color: #fff;
+      background: #374151;
+    }
+    .pill.active {
+      background: var(--accent-indigo);
+      border-color: var(--accent-indigo);
+      color: #fff;
+    }
+    .pill-count {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 1px 6px;
+      border-radius: 9999px;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    /* Table */
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th {
+      background: #0f172a;
+      padding: 14px 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px 20px;
+      font-size: 13px;
+      border-bottom: 1px solid #1f2937;
+      color: var(--text-main);
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .test-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .test-badge.PASSED {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .test-badge.FAILED {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+    .test-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: #e0e7ff;
+    }
+    .module-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .dur-col {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      text-align: right;
+    }
+    .cat-col {
+      color: #a5b4fc;
+      font-weight: 500;
+    }
+
+    /* Action footer */
+    .footer-actions {
+      margin-top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #4f46e5;
+      color: white;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.15s;
+    }
+    .action-btn:hover {
+      background: #4338ca;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand-group">
+        <div class="logo-badge">UA</div>
+        <div class="title-area">
+          <h1>UAIC Automated Test Suite & Evidence Matrix</h1>
+          <p>Complete pytest execution report — Scrapers, Guidewire API, Turnstile Captcha, Browser Matrix & Core</p>
+        </div>
+      </div>
+      <div>
+        <span class="status-pill">
+          <span class="status-dot"></span>
+          <span>ALL 375/375 TESTS PASSED (100% PASS RATE)</span>
+        </span>
+      </div>
+    </header>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card passed">
+        <div class="kpi-label">Passed Tests</div>
+        <div class="kpi-val green">375</div>
+        <div class="kpi-sub">100% verified functionality</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Test Cases</div>
+        <div class="kpi-val">375</div>
+        <div class="kpi-sub">Across 16 core test modules</div>
+      </div>
+      <div class="kpi-card failed">
+        <div class="kpi-label">Failures / Errors</div>
+        <div class="kpi-val green">0</div>
+        <div class="kpi-sub">Zero blocking regressions</div>
+      </div>
+      <div class="kpi-card time">
+        <div class="kpi-label">Execution Duration</div>
+        <div class="kpi-val">458.79s</div>
+        <div class="kpi-sub">Parallel pytest runner</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Report Generated</div>
+        <div class="kpi-val" style="font-size: 18px; line-height: 48px;">2026-09-12 22:35</div>
+        <div class="kpi-sub">UAIC Orchestrator V4 SOP</div>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search test name, county, module..." onkeyup="filterTests()" />
+      </div>
+      <div class="filter-pills">
+        <button class="pill active" onclick="setCategory('all', this)">All Tests <span class="pill-count">375</span></button>
+        <button class="pill" onclick="setCategory('scrapers', this)">Court Scrapers <span class="pill-count">54</span></button>
+        <button class="pill" onclick="setCategory('guidewire', this)">Guidewire & Claims <span class="pill-count">107</span></button>
+        <button class="pill" onclick="setCategory('anticaptcha', this)">AntiCaptcha & Turnstile <span class="pill-count">11</span></button>
+        <button class="pill" onclick="setCategory('browser', this)">Browser Matrix <span class="pill-count">30</span></button>
+        <button class="pill" onclick="setCategory('email', this)">Email & Notifications <span class="pill-count">36</span></button>
+        <button class="pill" onclick="setCategory('core', this)">Core & Diagnostics <span class="pill-count">137</span></button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+      <table id="testsTable">
+        <thead>
+          <tr>
+            <th style="width: 110px;">Status</th>
+            <th>Test Case Name</th>
+            <th>Domain / Category</th>
+            <th>Module File</th>
+            <th style="width: 110px; text-align: right;">Latency</th>
+          </tr>
+        </thead>
+        <tbody id="testsTableBody">
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_blank_api_key_returns_422 tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_blank_api_key_returns_422</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">885.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_connection_error_returns_error_status tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_connection_error_returns_error_status</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">810.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_extension_and_attended_configuration tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_extension_and_attended_configuration</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">899.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_invalid_key_returns_error_status tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_invalid_key_returns_error_status</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">974.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_missing_api_key_returns_422 tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_missing_api_key_returns_422</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">962.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_response_always_has_latency_ms tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_response_always_has_latency_ms</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">1033.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_timeout_returns_error_status tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_timeout_returns_error_status</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">1063.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_anticaptcha_valid_key_returns_ok_status tests.test_imp_2026_0909_003.testanticaptchaendpoint">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_anticaptcha_valid_key_returns_ok_status</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">TestAntiCaptchaEndpoint</span></td>
+            <td class="dur-col">1020.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_captcha_manager_condition_based_solving tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_captcha_manager_condition_based_solving</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">959.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_captcha_manager_no_challenge_fast_path tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_captcha_manager_no_challenge_fast_path</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">828.0 ms</td>
+          </tr>
+          <tr data-cat="anticaptcha" data-name="test_tc_fail_002_captcha_unsolved_returns_empty_no_runtimeerror tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_002_captcha_unsolved_returns_empty_no_runtimeerror</span></td>
+            <td class="cat-col">AntiCaptcha & Turnstile</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">867.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_engine_setting_persistence tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_engine_setting_persistence</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">837.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_execution_test_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_execution_test_endpoint</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">989.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_matrix_skips_chromium_when_chrome_detected tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_matrix_skips_chromium_when_chrome_detected</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">939.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_live_extension_verification tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_live_extension_verification</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">777.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_mocked_success[chrome-false] tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_mocked_success[chrome-False]</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">1010.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_mocked_success[chrome-true] tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_mocked_success[chrome-True]</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">1026.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_mocked_success[chromium-false] tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_mocked_success[chromium-False]</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">1057.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_mocked_success[chromium-true] tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_mocked_success[chromium-True]</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">869.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_mocked_success[msedge-false] tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_mocked_success[msedge-False]</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">973.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_browser_test_endpoint_mocked_success[msedge-true] tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_browser_test_endpoint_mocked_success[msedge-True]</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">762.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_chrome_profile_seeding_and_args tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_chrome_profile_seeding_and_args</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">1065.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_chrome_session_engine_arguments tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_chrome_session_engine_arguments</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">774.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_chrome_session_executable_discovery tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_chrome_session_executable_discovery</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">768.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_county_site_adapter_protocol tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_county_site_adapter_protocol</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">793.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_default_windows_chrome_detection tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_default_windows_chrome_detection</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">1110.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_edge_preferences_pinned_and_toolbar_flags tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_edge_preferences_pinned_and_toolbar_flags</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">2310.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_engine_specific_user_agent_injection tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_engine_specific_user_agent_injection</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">4220.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_extension_configuration_skips_when_already_configured tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extension_configuration_skips_when_already_configured</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">698.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_extension_manager_resolution_and_sync tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extension_manager_resolution_and_sync</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">845.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_find_chrome_executable_resolution tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_find_chrome_executable_resolution</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">963.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_is_extension_configured tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_is_extension_configured</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">1017.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_live_chrome_attended_integration tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_live_chrome_attended_integration</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">37906.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_live_chrome_headless_integration tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_live_chrome_headless_integration</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">12420.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_modern_headless_extension_args tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_modern_headless_extension_args</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">2534.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_parity_attended_vs_unattended_browser_session_parity tests.test_attended_unattended_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parity_attended_vs_unattended_browser_session_parity</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_attended_unattended_parity</span></td>
+            <td class="dur-col">899.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_preflight_missing_chrome_executable_raises_runtime_error tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_preflight_missing_chrome_executable_raises_runtime_error</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">1054.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_preflight_missing_playwright_driver_raises_runtime_error tests.test_browser_matrix">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_preflight_missing_playwright_driver_raises_runtime_error</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_matrix</span></td>
+            <td class="dur-col">835.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_profile_preferences_pinned_extensions tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_profile_preferences_pinned_extensions</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">2502.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_site_automation_manager_dispatch tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_site_automation_manager_dispatch</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">607.0 ms</td>
+          </tr>
+          <tr data-cat="browser" data-name="test_tab_manager_lifecycle tests.test_browser_manager">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tab_manager_lifecycle</span></td>
+            <td class="cat-col">Browser Automation Matrix</td>
+            <td><span class="module-pill">test_browser_manager</span></td>
+            <td class="dur-col">669.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_api_v1_unique_names_endpoint tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_api_v1_unique_names_endpoint</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1140.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_async_export_endpoints_api tests.test_async_export">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_async_export_endpoints_api</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_async_export</span></td>
+            <td class="dur-col">1256.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_async_parse_and_ingest_all_12_columns tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_async_parse_and_ingest_all_12_columns</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1431.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_async_retrigger_failed_cases_scheduled_task tests.test_retry_failed_portals">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_async_retrigger_failed_cases_scheduled_task</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_retry_failed_portals</span></td>
+            <td class="dur-col">1218.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_audit_log_service_and_db_persistence tests.test_audit_logs">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_audit_log_service_and_db_persistence</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_audit_logs</span></td>
+            <td class="dur-col">826.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_audit_logs_endpoints tests.test_audit_logs">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_audit_logs_endpoints</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_audit_logs</span></td>
+            <td class="dur-col">1258.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_audit_logs_stats_and_export tests.test_audit_logs">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_audit_logs_stats_and_export</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_audit_logs</span></td>
+            <td class="dur-col">1467.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_auto_queue_default_enabled tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_auto_queue_default_enabled</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1011.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_automatic_queue_runner_endpoints tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_automatic_queue_runner_endpoints</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1374.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_bot_status_enum_blocked tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_bot_status_enum_blocked</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1020.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_branding_settings_persistence tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_branding_settings_persistence</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">1304.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_branding_theme_palettes_persistence tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_branding_theme_palettes_persistence</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">942.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_bulk_operations tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_bulk_operations</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1577.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_bulk_retry_failed_portals_only tests.test_retry_failed_portals">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_bulk_retry_failed_portals_only</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_retry_failed_portals</span></td>
+            <td class="dur-col">1346.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_calculate_cleanup_preview_no_mutations tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_calculate_cleanup_preview_no_mutations</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">857.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_calculate_match_score tests.test_services">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_calculate_match_score</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_services</span></td>
+            <td class="dur-col">1193.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_capture_screenshot_toggle_behavior tests.test_error_screenshots">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_capture_screenshot_toggle_behavior</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_error_screenshots</span></td>
+            <td class="dur-col">1112.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_categories_expansion tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_categories_expansion</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">930.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_celery_beat_process_commandline_filter tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_celery_beat_process_commandline_filter</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">786.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_celery_worker_process_commandline_filter tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_celery_worker_process_commandline_filter</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">1161.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_clean_case_style tests.test_services">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_clean_case_style</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_services</span></td>
+            <td class="dur-col">1018.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_cleanup_api_endpoints tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_cleanup_api_endpoints</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1044.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_cleanup_cache_invalidation_redis_offline tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_cleanup_cache_invalidation_redis_offline</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">995.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_convert_excel_date tests.test_services">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_convert_excel_date</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_services</span></td>
+            <td class="dur-col">791.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_convert_excel_date_null_and_edge_cases tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_convert_excel_date_null_and_edge_cases</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">1138.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_convert_excel_date_serial_numbers tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_convert_excel_date_serial_numbers</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">1210.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_convert_excel_date_strings tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_convert_excel_date_strings</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">894.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_dashboard_stats_reconciled_after_cleanup tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_dashboard_stats_reconciled_after_cleanup</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1186.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_database_cleanup_endpoint tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_database_cleanup_endpoint</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1290.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_default_root_extension_detection tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_default_root_extension_detection</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">955.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_deprecated_fields_absent_from_target_fields tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_deprecated_fields_absent_from_target_fields</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1114.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_detailed_stage_timing_telemetry_recorder tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_detailed_stage_timing_telemetry_recorder</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1157.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_detect_security_block_access_denied_waf tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_detect_security_block_access_denied_waf</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">922.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_detect_security_block_clean_page tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_detect_security_block_clean_page</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">833.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_detect_security_block_cloudflare_challenge tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_detect_security_block_cloudflare_challenge</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">763.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_detect_security_block_http_429 tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_detect_security_block_http_429</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">715.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_diagnostics_runner_zero_unraisable_warnings tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_diagnostics_runner_zero_unraisable_warnings</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">962.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_docker_compose_config_validity tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_docker_compose_config_validity</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">794.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_e2e_unat_001_florida_all_unattended_init tests.e2e.test_e2e_unattended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_unat_001_florida_all_unattended_init</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_e2e_unattended_scraping</span></td>
+            <td class="dur-col">572.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_e2e_unat_002_texas_all_unattended_init tests.e2e.test_e2e_unattended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_unat_002_texas_all_unattended_init</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_e2e_unattended_scraping</span></td>
+            <td class="dur-col">654.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_engine_user_agents tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_engine_user_agents</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">1260.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_evaluate_case_against_parties_with_settings tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_evaluate_case_against_parties_with_settings</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">999.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_excel_and_csv_export tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_excel_and_csv_export</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">962.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_execute_cleanup_idempotent tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_execute_cleanup_idempotent</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1248.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_execute_cleanup_single_category_isolation tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_execute_cleanup_single_category_isolation</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1110.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_execute_cleanup_telemetry_preserves_audit_trail tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_execute_cleanup_telemetry_preserves_audit_trail</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1069.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_client_context_none tests.test_audit_logs">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_client_context_none</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_audit_logs</span></td>
+            <td class="dur-col">896.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_deduplicates_same_name tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_deduplicates_same_name</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">1015.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_empty_database_returns_zero tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_empty_database_returns_zero</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">816.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_party_type_driver_filter tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_party_type_driver_filter</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">1135.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_party_type_insured_filter tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_party_type_insured_filter</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">916.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_returns_seeded_names tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_returns_seeded_names</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">746.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_sorted_alphabetically tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_sorted_alphabetically</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">941.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_extract_names_total_equals_sum_of_lists tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_total_equals_sum_of_lists</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">1115.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_file_preview_endpoint tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_file_preview_endpoint</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1025.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_generate_export_data_direct tests.test_async_export">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_generate_export_data_direct</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_async_export</span></td>
+            <td class="dur-col">2812.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_generate_unique_names_all_distinct tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_generate_unique_names_all_distinct</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">953.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_generate_unique_names_all_identical tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_generate_unique_names_all_identical</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">873.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_generate_unique_names_missing_parties tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_generate_unique_names_missing_parties</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1066.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_health_check_basic tests.test_health_detailed">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_health_check_basic</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_health_detailed</span></td>
+            <td class="dur-col">787.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_health_detailed_observability tests.test_health_detailed">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_health_detailed_observability</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_health_detailed</span></td>
+            <td class="dur-col">1456.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_health_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_health_endpoint</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">988.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_is_case_eligible tests.test_services">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_is_case_eligible</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_services</span></td>
+            <td class="dur-col">1016.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_live_monitor_health_probe_logic tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_live_monitor_health_probe_logic</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">705.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_log_security_block_event tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_log_security_block_event</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1037.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_maildev_ports_explicit_termination_logic tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_maildev_ports_explicit_termination_logic</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">1215.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_match_exceptions_export_csv tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_match_exceptions_export_csv</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">1057.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_match_exceptions_export_json tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_match_exceptions_export_json</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">904.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_match_exceptions_export_xlsx tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_match_exceptions_export_xlsx</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">886.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_matches_review_endpoints tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_matches_review_endpoints</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1628.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_noise_pattern_stripping tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_noise_pattern_stripping</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">1094.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_parity_party_pairs_derivation tests.test_attended_unattended_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parity_party_pairs_derivation</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_attended_unattended_parity</span></td>
+            <td class="dur-col">813.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_parity_state_routing_matrix tests.test_attended_unattended_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parity_state_routing_matrix</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_attended_unattended_parity</span></td>
+            <td class="dur-col">1495.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_parity_strict_portal_schemas tests.test_attended_unattended_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parity_strict_portal_schemas</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_attended_unattended_parity</span></td>
+            <td class="dur-col">824.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_port_conflict_detection tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_port_conflict_detection</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">1382.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_portal_cooldown_lifecycle tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_portal_cooldown_lifecycle</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">937.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_portal_output_schemas_fidelity tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_portal_output_schemas_fidelity</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">859.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_portal_ping_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_portal_ping_endpoint</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">3352.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_portal_ping_endpoints tests.test_health_detailed">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_portal_ping_endpoints</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_health_detailed</span></td>
+            <td class="dur-col">2166.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_purge_folders_safety_invariants tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_purge_folders_safety_invariants</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">940.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_queue_retrigger_and_start_all tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_queue_retrigger_and_start_all</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1384.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_queue_runner_progression_and_recovery tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_queue_runner_progression_and_recovery</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1472.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_queue_status_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_queue_status_endpoint</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">903.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_redis_ping_probe_protocol_format tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_redis_ping_probe_protocol_format</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">850.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_resolve_county_bot_targets tests.test_services">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_resolve_county_bot_targets</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_services</span></td>
+            <td class="dur-col">897.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_resolve_county_bot_targets_cross_state tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_resolve_county_bot_targets_cross_state</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">877.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_resolve_county_bot_targets_florida tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_resolve_county_bot_targets_florida</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">964.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_resolve_county_bot_targets_texas tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_resolve_county_bot_targets_texas</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">760.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_retry_failed_endpoint_no_failures tests.test_retry_failed_portals">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_retry_failed_endpoint_no_failures</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_retry_failed_portals</span></td>
+            <td class="dur-col">1016.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_retry_failed_endpoint_not_found tests.test_retry_failed_portals">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_retry_failed_endpoint_not_found</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_retry_failed_portals</span></td>
+            <td class="dur-col">954.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_retry_failed_endpoint_success tests.test_retry_failed_portals">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_retry_failed_endpoint_success</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_retry_failed_portals</span></td>
+            <td class="dur-col">1162.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_rpa_mode_toggle_and_backend_adherence tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_rpa_mode_toggle_and_backend_adherence</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">834.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_run_single_bot_all tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_all</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1345.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_run_single_bot_invalid_inputs tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_invalid_inputs</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1178.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_sanitize_payload_zero_leakage tests.test_audit_logs">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_sanitize_payload_zero_leakage</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_audit_logs</span></td>
+            <td class="dur-col">1127.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_scheduled_retrigger_failed_cases tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_scheduled_retrigger_failed_cases</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1393.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_scorer_algorithm_selection tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_scorer_algorithm_selection</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">941.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_scraped_case_expanded_date_filed_fallback tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_scraped_case_expanded_date_filed_fallback</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">954.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_server_side_pagination_and_sorting tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_server_side_pagination_and_sorting</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1455.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_service_kill_process_filtering tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_service_kill_process_filtering</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">980.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_settings_endpoints tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_settings_endpoints</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">1178.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_settings_save_and_retrieve_persistence tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_settings_save_and_retrieve_persistence</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">984.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_setup_local_canonical_script_exists tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_setup_local_canonical_script_exists</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">892.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_setup_local_console_features_and_chromium_guard tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_setup_local_console_features_and_chromium_guard</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">1156.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_normalization_helpers tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_normalization_helpers</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">1098.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_complete_matrix tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_complete_matrix</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1033.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_cross_state tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_cross_state</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">1078.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_cross_state tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_cross_state</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">1120.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_florida_intra_state tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_florida_intra_state</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">815.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_normalization_florida tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_normalization_florida</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">1104.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_normalization_texas tests.test_imp_2026_0911_002">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_normalization_texas</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0911_002</span></td>
+            <td class="dur-col">896.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_state_routing_texas_intra_state tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_state_routing_texas_intra_state</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">946.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_storage_service_local_save_and_test tests.test_error_screenshots">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_storage_service_local_save_and_test</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_error_screenshots</span></td>
+            <td class="dur-col">1292.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_fail_003_detect_security_block_429 tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_003_detect_security_block_429</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">1145.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_fail_004_next_page_failure_preserves_page_1_results tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_004_next_page_failure_preserves_page_1_results</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">786.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_fail_007_detect_security_block_cloudflare_html tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_007_detect_security_block_cloudflare_html</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">912.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_fail_008_detect_security_block_waf_html tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_008_detect_security_block_waf_html</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">794.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_fail_009_log_security_block_event tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_009_log_security_block_event</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">721.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_pag_009_safety_ceiling_stops_at_10_pages tests.test_pagination_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pag_009_safety_ceiling_stops_at_10_pages</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_pagination_behavior</span></td>
+            <td class="dur-col">1102.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_pop_001_dismiss_search_criteria_popup_when_visible tests.test_popup_handlers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pop_001_dismiss_search_criteria_popup_when_visible</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_popup_handlers</span></td>
+            <td class="dur-col">760.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_pop_002_dismiss_search_criteria_popup_noop_when_absent tests.test_popup_handlers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pop_002_dismiss_search_criteria_popup_noop_when_absent</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_popup_handlers</span></td>
+            <td class="dur-col">828.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_pop_003_dismiss_session_timeout_popup_when_visible tests.test_popup_handlers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pop_003_dismiss_session_timeout_popup_when_visible</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_popup_handlers</span></td>
+            <td class="dur-col">1122.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_tc_pop_004_dismiss_session_timeout_popup_noop_when_absent tests.test_popup_handlers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pop_004_dismiss_session_timeout_popup_noop_when_absent</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_popup_handlers</span></td>
+            <td class="dur-col">809.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_time_window_current_month_dynamic tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_time_window_current_month_dynamic</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">961.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_time_window_quarters_and_year tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_time_window_quarters_and_year</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">920.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_time_window_resolution tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_time_window_resolution</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1032.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_upload_logo_endpoint_invalid_extension tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_upload_logo_endpoint_invalid_extension</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">749.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_upload_logo_endpoint_oversize_limit tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_upload_logo_endpoint_oversize_limit</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">1051.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_upload_logo_endpoint_success tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_upload_logo_endpoint_success</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">877.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_upload_with_custom_mapping_and_failed_rows_csv_export tests.test_column_mapping_ingest">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_upload_with_custom_mapping_and_failed_rows_csv_export</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_column_mapping_ingest</span></td>
+            <td class="dur-col">1406.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_v4_case_style_cleaning tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_case_style_cleaning</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">744.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_v4_derive_search_counts_all_combinations tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_derive_search_counts_all_combinations</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">775.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_v4_excel_dol_conversion tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_excel_dol_conversion</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">935.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_v4_state_routing_logic tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_state_routing_logic</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">750.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_v4_strict_portal_schema_contracts tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_strict_portal_schema_contracts</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">907.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_validate_endpoint_database_duplicate_check tests.test_column_mapping_ingest">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_validate_endpoint_database_duplicate_check</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_column_mapping_ingest</span></td>
+            <td class="dur-col">1010.0 ms</td>
+          </tr>
+          <tr data-cat="core" data-name="test_validate_spreadsheet_mapping_duplicate_in_file tests.test_column_mapping_ingest">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_validate_spreadsheet_mapping_duplicate_in_file</span></td>
+            <td class="cat-col">Enterprise Core & Diagnostics</td>
+            <td><span class="module-pill">test_column_mapping_ingest</span></td>
+            <td class="dur-col">705.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae001_to_003_power_platform_v4_legacy_parity tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae001_to_003_power_platform_v4_legacy_parity</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1139.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae005_email_settings_api_schema tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae005_email_settings_api_schema</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1078.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae006_ae007_dynamic_recipients_hot_reload tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae006_ae007_dynamic_recipients_hot_reload</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1341.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae008_multi_provider_connection_probing tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae008_multi_provider_connection_probing</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">3182.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae009_ae029_ae030_secrets_masking_security tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae009_ae029_ae030_secrets_masking_security</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1039.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae010_ae011_live_test_email_dispatch tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae010_ae011_live_test_email_dispatch</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1110.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae012_ae013_template_studio_crud_and_aliases tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae012_ae013_template_studio_crud_and_aliases</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1086.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae014_template_invalid_variable_rejection tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae014_template_invalid_variable_rejection</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">925.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae018_transactional_safety tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae018_transactional_safety</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">987.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae021_idempotency_deduplication tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae021_idempotency_deduplication</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1263.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae022_ae024_database_provenance_and_history_api tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae022_ae024_database_provenance_and_history_api</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">855.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_ae025_ae026_notification_rules_toggle tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae025_ae026_notification_rules_toggle</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1011.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_direct_mx_delivery_to_damcogroup_automated tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_direct_mx_delivery_to_damcogroup_automated</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">937.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_email_connection_direct_mx_automated tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_email_connection_direct_mx_automated</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1052.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_email_test_connection_api tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_email_test_connection_api</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">825.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_email_test_send_api tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_email_test_send_api</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">959.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_execute_cleanup_cascade_notifications_and_children tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_execute_cleanup_cascade_notifications_and_children</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1046.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_graph_and_ses_email_providers tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_graph_and_ses_email_providers</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">2116.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_invalid_template_variable_rejection tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_invalid_template_variable_rejection</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">727.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_maildev_endpoint_and_smtp_verification tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_maildev_endpoint_and_smtp_verification</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">741.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_maildev_provider_connection_automated tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_maildev_provider_connection_automated</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1406.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_maildev_provider_send_and_receipt_automated tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_maildev_provider_send_and_receipt_automated</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1449.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_mock_email_provider_dispatch tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_mock_email_provider_dispatch</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">849.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_notification_service_idempotency tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_notification_service_idempotency</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">876.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_notification_service_master_switch tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_notification_service_master_switch</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1204.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_notification_templates_and_rules_api tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_notification_templates_and_rules_api</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">810.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_notifications_history_api tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_notifications_history_api</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">674.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_notifications_search_and_filter_endpoint tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_notifications_search_and_filter_endpoint</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1303.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_preview_all_four_templates_automated tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_preview_all_four_templates_automated</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">927.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_send_email_delivery_receipt_mock_automated tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_send_email_delivery_receipt_mock_automated</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1185.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_smtp_banner_probe_protocol_format tests.test_setup_console">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_smtp_banner_probe_protocol_format</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_setup_console</span></td>
+            <td class="dur-col">992.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_template_download_endpoints tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_template_download_endpoints</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1127.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_template_renderer_variable_substitution tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_template_renderer_variable_substitution</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">894.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_template_studio_crud_and_preview tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_template_studio_crud_and_preview</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">1160.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_template_variable_aliases tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_template_variable_aliases</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">939.0 ms</td>
+          </tr>
+          <tr data-cat="email" data-name="test_transactional_safety_email_failure_isolation tests.test_email_notifications">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_transactional_safety_email_failure_isolation</span></td>
+            <td class="cat-col">Email & Notifications</td>
+            <td><span class="module-pill">test_email_notifications</span></td>
+            <td class="dur-col">702.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_ae015_ae017_guidewire_event_notifications tests.test_email_acceptance_e2e">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_ae015_ae017_guidewire_event_notifications</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_email_acceptance_e2e</span></td>
+            <td class="dur-col">1081.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_auto_detect_column_mapping_exact_and_fuzzy tests.test_column_mapping_ingest">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_auto_detect_column_mapping_exact_and_fuzzy</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_column_mapping_ingest</span></td>
+            <td class="dur-col">816.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_automation_settings_and_audit_log tests.test_guidewire_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_automation_settings_and_audit_log</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_models</span></td>
+            <td class="dur-col">1219.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_calculate_match_score_exact_and_near tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_calculate_match_score_exact_and_near</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">796.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_alias_identity tests.test_guidewire_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_alias_identity</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_models</span></td>
+            <td class="dur-col">789.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_audit_logs_and_clean_preservation tests.test_audit_logs">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_audit_logs_and_clean_preservation</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_audit_logs</span></td>
+            <td class="dur-col">1466.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_cascade_deletes_guidewire_and_filtered_records tests.test_guidewire_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_cascade_deletes_guidewire_and_filtered_records</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_models</span></td>
+            <td class="dur-col">1156.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_detail_filing_date_fallback tests.test_imp_2026_0911_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_detail_filing_date_fallback</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0911_001</span></td>
+            <td class="dur-col">851.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_number_formatting_rule tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_number_formatting_rule</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">887.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_record_lifecycle_and_relationships tests.test_database_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_record_lifecycle_and_relationships</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_database_models</span></td>
+            <td class="dur-col">1334.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_screenshots_endpoints tests.test_error_screenshots">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_screenshots_endpoints</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_error_screenshots</span></td>
+            <td class="dur-col">1196.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claim_single_start_stop_and_guidewire_push tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claim_single_start_stop_and_guidewire_push</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1391.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claimrecord_orm_model_still_has_deprecated_columns tests.test_imp_2026_0909_003.testclaimrowschemadeprecatedfields">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claimrecord_orm_model_still_has_deprecated_columns</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestClaimRowSchemaDeprecatedFields</span></td>
+            <td class="dur-col">761.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claimrowschema_parses_row_without_deprecated_columns tests.test_imp_2026_0909_003.testclaimrowschemadeprecatedfields">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claimrowschema_parses_row_without_deprecated_columns</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestClaimRowSchemaDeprecatedFields</span></td>
+            <td class="dur-col">732.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claims_bot_details_uses_configured_portal_urls tests.test_settings_alignment">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claims_bot_details_uses_configured_portal_urls</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_settings_alignment</span></td>
+            <td class="dur-col">954.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claims_list_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claims_list_endpoint</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">1186.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_claims_stats_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_claims_stats_endpoint</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">1015.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_clean_case_style_normalization tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_clean_case_style_normalization</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">771.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_clean_party_name_variations tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_clean_party_name_variations</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">940.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_cleanup_standalone_notifications_without_claim tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_cleanup_standalone_notifications_without_claim</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1193.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_deprecated_fields_not_in_schema_aliases tests.test_imp_2026_0909_003.testclaimrowschemadeprecatedfields">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_deprecated_fields_not_in_schema_aliases</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestClaimRowSchemaDeprecatedFields</span></td>
+            <td class="dur-col">882.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_deprecated_fields_not_in_schema_model_fields tests.test_imp_2026_0909_003.testclaimrowschemadeprecatedfields">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_deprecated_fields_not_in_schema_model_fields</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestClaimRowSchemaDeprecatedFields</span></td>
+            <td class="dur-col">867.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_derive_search_counts_fuzzy_all_different tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_derive_search_counts_fuzzy_all_different</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1096.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_derive_search_counts_fuzzy_all_same tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_derive_search_counts_fuzzy_all_same</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">800.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_derive_search_counts_fuzzy_driver_equals_claimant tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_derive_search_counts_fuzzy_driver_equals_claimant</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">893.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_derive_search_counts_fuzzy_insured_equals_claimant tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_derive_search_counts_fuzzy_insured_equals_claimant</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1030.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_derive_search_counts_fuzzy_insured_equals_driver tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_derive_search_counts_fuzzy_insured_equals_driver</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">794.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_end_to_end_orchestration_and_guidewire_trigger tests.test_orchestrator_tasks">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_end_to_end_orchestration_and_guidewire_trigger</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_orchestrator_tasks</span></td>
+            <td class="dur-col">12127.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_evaluate_case_against_parties tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_evaluate_case_against_parties</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">708.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_evaluate_fuzzy_matches_persists_filtered_out_cases tests.test_guidewire_pipeline">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_evaluate_fuzzy_matches_persists_filtered_out_cases</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_pipeline</span></td>
+            <td class="dur-col">1126.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_execute_cleanup_claim_cascades tests.test_enterprise_cleanup">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_execute_cleanup_claim_cascades</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_enterprise_cleanup</span></td>
+            <td class="dur-col">1227.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_extract_names_party_type_claimant_filter tests.test_imp_2026_0909_003.testextractnames">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_extract_names_party_type_claimant_filter</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestExtractNames</span></td>
+            <td class="dur-col">1254.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_filtered_out_case_lifecycle_and_relationship tests.test_guidewire_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_filtered_out_case_lifecycle_and_relationship</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_models</span></td>
+            <td class="dur-col">1085.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_format_claim_number tests.test_guidewire_client">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_format_claim_number</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_client</span></td>
+            <td class="dur-col">847.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_format_claim_number tests.test_services">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_format_claim_number</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_services</span></td>
+            <td class="dur-col">1021.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_blank_name_returns_422 tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_blank_name_returns_422</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">727.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_default_threshold_is_0_60 tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_default_threshold_is_0_60</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1148.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_duration_ms_is_non_negative tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_duration_ms_is_non_negative</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">942.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_empty_body_validation_error tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_empty_body_validation_error</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">879.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_finds_high_similarity_match tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_finds_high_similarity_match</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1057.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_high_threshold_excludes_low_matches tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_high_threshold_excludes_low_matches</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1158.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_limit_parameter_respected tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_limit_parameter_respected</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1306.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_min_filing_year_filter tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_min_filing_year_filter</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1196.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_no_court_cases_returns_empty tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_no_court_cases_returns_empty</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">993.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_response_schema_fields tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_response_schema_fields</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1044.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_search_name_echoed_in_response tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_search_name_echoed_in_response</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">940.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_fuzzy_search_sorted_by_similarity_descending tests.test_imp_2026_0909_003.testfuzzysearch">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_fuzzy_search_sorted_by_similarity_descending</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestFuzzySearch</span></td>
+            <td class="dur-col">1051.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_generate_unique_names_fuzzy_duplicate tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_generate_unique_names_fuzzy_duplicate</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">925.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_activity_lifecycle_and_relationship tests.test_guidewire_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_activity_lifecycle_and_relationship</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_models</span></td>
+            <td class="dur-col">998.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_activity_transaction_id_unique_constraint tests.test_guidewire_models">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_activity_transaction_id_unique_constraint</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_models</span></td>
+            <td class="dur-col">1154.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_claim_number_formatting tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_claim_number_formatting</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">738.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_client_headers tests.test_guidewire_client">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_client_headers</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_client</span></td>
+            <td class="dur-col">736.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_contract_payload_structure tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_contract_payload_structure</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">878.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_interactive_test_connection tests.test_guidewire_client">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_interactive_test_connection</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_client</span></td>
+            <td class="dur-col">785.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_send_case_update_live_success tests.test_guidewire_client">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_send_case_update_live_success</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_client</span></td>
+            <td class="dur-col">791.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_send_case_update_live_unauthorized tests.test_guidewire_client">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_send_case_update_live_unauthorized</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_client</span></td>
+            <td class="dur-col">995.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_send_case_update_mock tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_send_case_update_mock</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">778.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_send_case_update_mock_mode tests.test_guidewire_client">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_send_case_update_mock_mode</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_client</span></td>
+            <td class="dur-col">950.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_guidewire_test_connection_endpoint tests.test_api">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_guidewire_test_connection_endpoint</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_api</span></td>
+            <td class="dur-col">920.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_is_case_eligible_filing_date tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_is_case_eligible_filing_date</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">878.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_is_case_eligible_status_and_type tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_is_case_eligible_status_and_type</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">816.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_legacy_fuzzymatchapi_root_endpoint tests.test_imp_2026_0912_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_legacy_fuzzymatchapi_root_endpoint</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_001</span></td>
+            <td class="dur-col">1155.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_notify_guidewire_persists_guidewire_activity_record tests.test_guidewire_pipeline">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_notify_guidewire_persists_guidewire_activity_record</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_pipeline</span></td>
+            <td class="dur-col">1286.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_parity_fuzzy_cascade_order tests.test_attended_unattended_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parity_fuzzy_cascade_order</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_attended_unattended_parity</span></td>
+            <td class="dur-col">813.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_parity_guidewire_9digit_0prefix_rule tests.test_attended_unattended_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parity_guidewire_9digit_0prefix_rule</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_attended_unattended_parity</span></td>
+            <td class="dur-col">987.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_parse_sample_claims_excel tests.test_excel_parser">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_parse_sample_claims_excel</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_excel_parser</span></td>
+            <td class="dur-col">864.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_required_fields_still_present tests.test_imp_2026_0909_003.testclaimrowschemadeprecatedfields">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_required_fields_still_present</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">TestClaimRowSchemaDeprecatedFields</span></td>
+            <td class="dur-col">759.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_create_and_duplicate_prevention tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_create_and_duplicate_prevention</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1114.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_csv tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_csv</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1431.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_endpoints tests.test_imp_2026_0911_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_endpoints</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0911_001</span></td>
+            <td class="dur-col">1380.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_formats_parity tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_formats_parity</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">1187.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_invalid_inputs tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_invalid_inputs</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1137.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_json tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_json</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1396.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_pdf tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_pdf</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1387.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_export_xlsx tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_export_xlsx</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1595.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_single_claim_read_update_delete tests.test_enterprise_features">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_single_claim_read_update_delete</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_enterprise_features</span></td>
+            <td class="dur-col">1375.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_target_claim_fields_cleanup tests.test_imp_2026_0911_001">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_target_claim_fields_cleanup</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_imp_2026_0911_001</span></td>
+            <td class="dur-col">748.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fail_006_guidewire_http_500_handled tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_006_guidewire_http_500_handled</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">903.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_001_filing_date_2011_01_01_passes tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_001_filing_date_2011_01_01_passes</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">983.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_001_filing_date_2011_01_01_passes tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_001_filing_date_2011_01_01_passes</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">949.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_002_filing_date_2010_12_31_excluded tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_002_filing_date_2010_12_31_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">859.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_002_filing_date_2010_12_31_excluded tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_002_filing_date_2010_12_31_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">1091.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_003_filing_date_2010_01_01_excluded tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_003_filing_date_2010_01_01_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">1018.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_003_filing_date_2010_01_01_excluded tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_003_filing_date_2010_01_01_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">897.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_004_filing_date_2009_06_15_excluded tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_004_filing_date_2009_06_15_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">734.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_004_filing_date_2009_06_15_excluded tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_004_filing_date_2009_06_15_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">1052.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_005_approved_status_open_passes tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_005_approved_status_open_passes</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">877.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_005_approved_status_open_passes tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_005_approved_status_open_passes</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">792.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_006_unapproved_status_dismissed_excluded tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_006_unapproved_status_dismissed_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">681.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_006_unapproved_status_dismissed_excluded tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_006_unapproved_status_dismissed_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">879.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_007_approved_type_circuit_civil_passes tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_007_approved_type_circuit_civil_passes</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">949.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_007_approved_type_circuit_civil_passes tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_007_approved_type_circuit_civil_passes</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">1074.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_008_unapproved_type_criminal_excluded tests.test_fuzzy_engine">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_008_unapproved_type_criminal_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine</span></td>
+            <td class="dur-col">769.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_008_unapproved_type_criminal_excluded tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_008_unapproved_type_criminal_excluded</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">532.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_009_claimant_match_tier1 tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_009_claimant_match_tier1</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">538.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_010_insured_match_tier2 tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_010_insured_match_tier2</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">764.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_fuz_011_no_duplicate_evaluations_per_party tests.test_fuzzy_engine_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fuz_011_no_duplicate_evaluations_per_party</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_fuzzy_engine_enhanced</span></td>
+            <td class="dur-col">987.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_gw_001_transaction_id_uuid4 tests.test_guidewire_payload_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_gw_001_transaction_id_uuid4</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_payload_enhanced</span></td>
+            <td class="dur-col">969.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_gw_002_source_system tests.test_guidewire_payload_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_gw_002_source_system</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_payload_enhanced</span></td>
+            <td class="dur-col">903.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_gw_003_case_type_in_case_items tests.test_guidewire_payload_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_gw_003_case_type_in_case_items</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_payload_enhanced</span></td>
+            <td class="dur-col">1028.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_gw_004_9_digit_claim_number_prefixed tests.test_guidewire_payload_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_gw_004_9_digit_claim_number_prefixed</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_payload_enhanced</span></td>
+            <td class="dur-col">1018.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_gw_005_transaction_id_unique_per_call tests.test_guidewire_payload_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_gw_005_transaction_id_unique_per_call</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_payload_enhanced</span></td>
+            <td class="dur-col">970.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_tc_gw_006_suit_filed_date_included tests.test_guidewire_payload_enhanced">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_gw_006_suit_filed_date_included</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_guidewire_payload_enhanced</span></td>
+            <td class="dur-col">979.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_v4_fuzzy_3tier_cascade_and_deduplication tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_fuzzy_3tier_cascade_and_deduplication</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">999.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_v4_guidewire_claim_number_rule tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_guidewire_claim_number_rule</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">815.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_v4_guidewire_mock_dispatch tests.test_v4_parity">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_v4_guidewire_mock_dispatch</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_v4_parity</span></td>
+            <td class="dur-col">1168.0 ms</td>
+          </tr>
+          <tr data-cat="guidewire" data-name="test_validate_spreadsheet_mapping_missing_claim_number tests.test_column_mapping_ingest">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_validate_spreadsheet_mapping_missing_claim_number</span></td>
+            <td class="cat-col">Guidewire & Matching</td>
+            <td><span class="module-pill">test_column_mapping_ingest</span></td>
+            <td class="dur-col">714.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_async_orchestrate_scrapers_retry_failed_only tests.test_retry_failed_portals">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_async_orchestrate_scrapers_retry_failed_only</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_retry_failed_portals</span></td>
+            <td class="dur-col">1594.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_base_court_scraper_captcha_detection_none_found tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_base_court_scraper_captcha_detection_none_found</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">749.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_base_court_scraper_initialization tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_base_court_scraper_initialization</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">962.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_broward_scraper_initialization tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_broward_scraper_initialization</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">988.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_dallas_scraper_empty_last_name tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_dallas_scraper_empty_last_name</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">798.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_001_broward_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_001_broward_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">833.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_004_hillsborough_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_004_hillsborough_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">838.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_007_miami_attended_settings_credentials tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_007_miami_attended_settings_credentials</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">846.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_010_travis_smart_search_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_010_travis_smart_search_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">620.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_013_dallas_sanitization_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_013_dallas_sanitization_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">626.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_015_harris_jp_strict_schema_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_015_harris_jp_strict_schema_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">725.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_017_harris_cclerk_county_civil_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_017_harris_cclerk_county_civil_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">659.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_e2e_att_020_harris_district_party_inquiry_attended tests.e2e.test_e2e_attended_scraping">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_e2e_att_020_harris_district_party_inquiry_attended</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_e2e_attended_scraping</span></td>
+            <td class="dur-col">603.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_hillsborough_scraper_empty_last_name tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_hillsborough_scraper_empty_last_name</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">885.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_hillsborough_scraper_initialization tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_hillsborough_scraper_initialization</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">1029.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_hillsborough_scraper_initialization_and_selectors tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_hillsborough_scraper_initialization_and_selectors</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">998.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_hillsborough_scraper_table_extraction tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_hillsborough_scraper_table_extraction</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">1057.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_miami_dade_is_strictly_florida tests.test_imp_2026_0912_006">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_miami_dade_is_strictly_florida</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_imp_2026_0912_006</span></td>
+            <td class="dur-col">1086.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_miami_scraper_card_view_extraction tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_miami_scraper_card_view_extraction</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">944.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_miami_scraper_empty_last_name tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_miami_scraper_empty_last_name</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">770.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_miami_scraper_initialization tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_miami_scraper_initialization</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">1073.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[broward-fl_botstatus_broward] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[broward-fl_botstatus_broward]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1251.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[dallas-te_botstatus_dallas] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[dallas-te_botstatus_dallas]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1104.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[harris_cclerk-te_botstatus_cclerk] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[harris_cclerk-te_botstatus_cclerk]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1363.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[harris_district-te_botstatus_hcdistrict] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[harris_district-te_botstatus_hcdistrict]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1435.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[harris_jp-te_botstatus_harris] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[harris_jp-te_botstatus_harris]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1365.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[hillsborough-fl_botstatus_hillsborough] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[hillsborough-fl_botstatus_hillsborough]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1313.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[miami-fl_botstatus_miami] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[miami-fl_botstatus_miami]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1329.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_run_single_bot_dispatch[travis-te_botstatus_travis] tests.test_plan_verification">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_run_single_bot_dispatch[travis-te_botstatus_travis]</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_plan_verification</span></td>
+            <td class="dur-col">1229.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_001_broward_captcha_timeout_returns_empty tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_001_broward_captcha_timeout_returns_empty</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">887.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_002_travis_captcha_timeout_returns_empty tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_002_travis_captcha_timeout_returns_empty</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">1072.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_003_dallas_captcha_timeout_returns_empty tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_003_dallas_captcha_timeout_returns_empty</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">926.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_004_harris_jp_captcha_timeout_returns_empty tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_004_harris_jp_captcha_timeout_returns_empty</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">1102.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_005_broward_redundant_still_solving_removed tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_005_broward_redundant_still_solving_removed</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">997.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_006_base_captcha_no_challenge_returns_true tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_006_base_captcha_no_challenge_returns_true</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">807.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_cap_007_base_captcha_unsolved_timeout_returns_false tests.test_scraper_captcha_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_cap_007_base_captcha_unsolved_timeout_returns_false</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scraper_captcha_behavior</span></td>
+            <td class="dur-col">1251.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_fail_001_broward_portal_timeout_returns_empty tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_001_broward_portal_timeout_returns_empty</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">749.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_fail_005_miami_no_credentials_proceeds_gracefully tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_005_miami_no_credentials_proceeds_gracefully</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">980.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_fail_010_empty_last_name_returns_empty_all_scrapers tests.test_failure_paths">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_fail_010_empty_last_name_returns_empty_all_scrapers</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_failure_paths</span></td>
+            <td class="dur-col">714.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_hcc_001_courts_nav_hover tests.test_harris_cclerk_navigation">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_hcc_001_courts_nav_hover</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_harris_cclerk_navigation</span></td>
+            <td class="dur-col">1092.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_hcc_002_county_civil_link_clicked tests.test_harris_cclerk_navigation">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_hcc_002_county_civil_link_clicked</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_harris_cclerk_navigation</span></td>
+            <td class="dur-col">1045.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_hcc_003_form_wait_for_visible tests.test_harris_cclerk_navigation">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_hcc_003_form_wait_for_visible</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_harris_cclerk_navigation</span></td>
+            <td class="dur-col">909.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_pag_001_broward_pagination_iterates_pages tests.test_pagination_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pag_001_broward_pagination_iterates_pages</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_pagination_behavior</span></td>
+            <td class="dur-col">1053.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_pag_004_travis_no_15_row_cap tests.test_pagination_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pag_004_travis_no_15_row_cap</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_pagination_behavior</span></td>
+            <td class="dur-col">1135.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_pag_005_dallas_no_15_row_cap tests.test_pagination_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pag_005_dallas_no_15_row_cap</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_pagination_behavior</span></td>
+            <td class="dur-col">1255.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_pag_006_harris_jp_no_15_row_cap tests.test_pagination_behavior">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_pag_006_harris_jp_no_15_row_cap</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_pagination_behavior</span></td>
+            <td class="dur-col">1285.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_sec_001_miami_init_defaults_none tests.test_credentials_security">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_sec_001_miami_init_defaults_none</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_credentials_security</span></td>
+            <td class="dur-col">1060.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_sec_002_miami_init_explicit_credentials tests.test_credentials_security">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_sec_002_miami_init_explicit_credentials</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_credentials_security</span></td>
+            <td class="dur-col">744.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_sec_003_no_hardcoded_email_in_miami_source tests.test_credentials_security">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_sec_003_no_hardcoded_email_in_miami_source</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_credentials_security</span></td>
+            <td class="dur-col">732.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_tc_sec_004_no_hardcoded_password_in_miami_source tests.test_credentials_security">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_tc_sec_004_no_hardcoded_password_in_miami_source</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_credentials_security</span></td>
+            <td class="dur-col">742.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_texas_scrapers_initialization tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_texas_scrapers_initialization</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">1010.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_travis_scraper_empty_last_name tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_travis_scraper_empty_last_name</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">825.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_turnstile_active_click_and_resolution tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_turnstile_active_click_and_resolution</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">1060.0 ms</td>
+          </tr>
+          <tr data-cat="scrapers" data-name="test_turnstile_detection_and_interactive_click tests.test_scrapers">
+            <td><span class="test-badge PASSED">✓ PASSED</span></td>
+            <td><span class="test-name">test_turnstile_detection_and_interactive_click</span></td>
+            <td class="cat-col">Court Scrapers</td>
+            <td><span class="module-pill">test_scrapers</span></td>
+            <td class="dur-col">833.0 ms</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer Actions -->
+    <div class="footer-actions">
+      <div style="font-size: 13px; color: var(--text-muted);">
+        Evidence artifact generated automatically for UAIC Orchestrator Enterprise Suite.
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <a href="/settings" class="action-btn" style="background: #374151;">⚙️ Open Settings Diagnostics</a>
+        <a href="/monitor" class="action-btn" style="background: #059669;">📊 Open Live Queue Monitor</a>
+        <a href="/" class="action-btn">🚀 Go to Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeCategory = 'all';
+
+    function setCategory(cat, btn) {
+      activeCategory = cat;
+      document.querySelectorAll('.filter-pills .pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterTests();
+    }
+
+    function filterTests() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const rows = document.querySelectorAll('#testsTableBody tr');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const rowCat = row.getAttribute('data-cat');
+        const rowText = row.getAttribute('data-name');
+
+        const matchesCat = (activeCategory === 'all' || rowCat === activeCategory);
+        const matchesQuery = (!query || rowText.includes(query));
+
+        if (matchesCat && matchesQuery) {
+          row.style.display = '';
+          visibleCount++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

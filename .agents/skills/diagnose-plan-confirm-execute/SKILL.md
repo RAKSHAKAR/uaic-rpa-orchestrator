@@ -307,14 +307,14 @@ Module:              [Module]
 Feature / Issue:     [Feature or task]
 Document Type:       Implementation Plan | Gap Analysis | Walkthrough | Change Log | Test Report | Validation
 Version:             v1
-Status:              Awaiting Approval
+Status:              Awaiting Approval | Complete
 Created:             YYYY-MM-DD
 Last Updated:        YYYY-MM-DD
 AI Agent:            Antigravity / Claude / Gemini / etc.
-Approval Status:     Pending
-Approved By:         Pending
-Approval Date:       Pending
-Verification Status: AI Generated — Awaiting Human Verification
+Approval Status:     Pending | Approved
+Approved By:         Pending | User
+Approval Date:       Pending | YYYY-MM-DD
+AI Verification:     Complete (100% Automated Testing Suite)
 ```
 
 ### The Plan Saved ≡ The Plan Shown
@@ -511,33 +511,38 @@ Create or update final documents under `implementation_plan/`:
 
 ### Document Statuses
 ```
-AI Generated | Awaiting Approval | Approved | In Progress | Implemented |
-Testing | Validated | Awaiting Human Verification | Human Verified |
-Rejected | Superseded | Corrected | Archived
+Proposed | Awaiting Approval | Approved | In Progress | Implemented |
+Testing | Validated | Complete | Rejected | Superseded | Corrected | Archived
 ```
 
-> **The AI MUST NEVER mark a document `Human Verified` itself.**
+### Dynamic AI Verification Status
+When the full automated testing suite (100%) and visual evidence (recordings/screenshots) have executed and passed:
+`**AI Verification:** Complete (100% Automated Testing Suite)`
+
+> **Mandatory Rule:** Never leave completed deliverables with stale statuses such as `Approved - In Execution`, `Completed - Pending Human Verification`, or `Awaiting Human Verification`. Once the automated testing suite and visual evidence collection pass, the document status must be finalized as `Complete` with `**AI Verification:** Complete (100% Automated Testing Suite)`.
 
 ---
 
-## Stage 15 — Human Verification of Documentation
+## Stage 15 — Finalize Deliverables & Verification Reporting
 
-After implementation is complete:
+After implementation is complete and all automated tests have passed:
 
-1. Tell the user exactly which files were created in `implementation_plan/`.
-2. State that AI-generated documentation requires human verification.
-3. **Wait. Do NOT automatically move, delete, or rename any `implementation_plan/` files.**
+1. Update the document status in `implementation_plan/` to `Complete` with:
+   `**AI Verification:** Complete (100% Automated Testing Suite)`.
+2. Verify all browser video recordings are stored in `implementation_plan/Recording/` (`.webp`) and inspection screenshots in `implementation_plan/Images/` (`.png`).
+3. Report test results and links to created/updated files in `implementation_plan/`.
 
 ```text
 AI implementation is complete.
-AI documentation is awaiting human verification.
+AI Verification: Complete (100% Automated Testing Suite)
 
-Documents created in implementation_plan/:
+Documents updated in implementation_plan/:
 - [file 1]
 - [file 2]
 
-Please review and verify the documentation.
-I will NOT move or delete these files until you explicitly confirm they are verified.
+Visual Evidence:
+- Recordings: implementation_plan/Recording/
+- Screenshots: implementation_plan/Images/
 ```
 
 ---
@@ -654,14 +659,14 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 18. Maintain implementation history.
 19. Document deviations from the approved plan.
 20. Never hide failures — preserve history with `Rejected`, `Superseded`, `Archived`.
-21. Keep AI documentation in `implementation_plan/` until human verification.
-22. Never mark documentation as `Human Verified` yourself.
+21. Keep AI documentation in `implementation_plan/` and store media strictly in `implementation_plan/Recording/` and `implementation_plan/Images/`.
+22. Upon passing the full automated test suite (100%) and visual validation, set document status to `Complete` and AI Verification to `Complete (100% Automated Testing Suite)`.
 23. Never automatically move/delete `implementation_plan/` records.
 24. Never delete history to hide mistakes.
 25. Keep documentation synchronized with actual implementation.
 26. Use measurable acceptance evidence — not vague statements.
 27. Never claim work was completed without evidence.
-28. Human verification is mandatory for final AI-generated documentation.
+28. Never leave completed tasks in `Approved - In Execution`, `Completed - Pending Human Verification`, or `Awaiting Human Verification`.
 
 ---
 
@@ -686,15 +691,20 @@ IMP-YYYY-MMDD-NNN
 - `implementation_plan/YYYY-MM-DD_..._test-report_v1.md`
 - `implementation_plan/YYYY-MM-DD_..._validation_v1.md`
 
+### Visual Evidence
+- Recordings: `implementation_plan/Recording/`
+- Screenshots: `implementation_plan/Images/`
+
 ### README Updates
 [What was added/updated and why]
 
 ### Test Results
 | Test | Command | Result |
 |------|---------|--------|
-| Unit Tests | `pytest -q` | ✅ 157/157 passed |
+| Unit Tests | `pytest -q` | ✅ 270/270 passed |
 | Linter | `ruff check` | ✅ 0 errors |
 | TypeScript | `tsc --noEmit` | ✅ 0 errors |
+| PowerShell Syntax | `check_ps1_syntax.ps1` | ✅ 0 errors |
 
 ### Acceptance Criteria
 - [x] Evidence 1
@@ -707,8 +717,28 @@ IMP-YYYY-MMDD-NNN
 [Anything intentionally unresolved]
 
 ---
-**AI implementation is complete.**
-**AI documentation is awaiting human verification.**
-**Please review:** `implementation_plan/`
-**I will NOT move or delete these files until you explicitly verify them.**
+**Status:** Complete  
+**AI Verification:** Complete (100% Automated Testing Suite)  
+**Visual Evidence Preserved In:** `implementation_plan/Recording/` & `implementation_plan/Images/`  
+**Implementation Record:** `implementation_plan/`  
 ```
+
+---
+
+## Stage 17 — Mandatory Task Completion & Error Resolution
+
+1. **Complete Every Task Fully:** Do not mark a task as completed merely because the implementation was partially added. Verify that the requested functionality actually works end-to-end.
+2. **Never Silently Skip:** If execution crashes, times out, or a dependency/build fails, perform a gap analysis and **resume from the last successful point**. 
+3. **No Error Left Behind:** Before reporting completion, you MUST explicitly check the browser Developer Console (for unhandled promises, React errors, network failures) and the Terminal (for build errors, lint errors, test failures). Fix all root causes.
+4. **Document Unresolved Blockers:** If an error cannot be immediately resolved due to external dependencies, document the exact error, root cause, impact, and recommended next action.
+5. **The Non-Negotiable Definition of Done:** `Implemented → Tested → Verified → Errors Fixed → Documentation Updated → Requirements Rechecked`.
+
+---
+
+## Global Engineering & File Management Standards
+
+1. **Zero Duplicate Files Rule:** Never create multiple files with the same name or for the same purpose in different directories.
+2. **Strict DRY Principle:** Extract reusable components, utility functions, or shared modules instead of duplicating functionality.
+3. **Exception to Default Skills:** If the user explicitly specifies a custom path (e.g., "Store file in root"), you must place the file *exactly* where requested and nowhere else, overriding default skill behaviors.
+4. **Verification Before Modification:** Before deleting or renaming, verify dependencies across the codebase (imports, Docker configs, scripts) and update them simultaneously.
+5. **Clean Code & Comments:** Every file MUST include a top-level Docstring/Header. Complex logic/regex MUST include inline comments explaining *why*.

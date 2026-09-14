@@ -77,13 +77,13 @@ def is_case_eligible(
     filing_date: str | None,
     case_status: str | None,
     case_type: str | None,
-    min_filing_date: str = "2010-01-01",
+    min_filing_date: str = "2011-01-01",
     allowed_statuses: list[str] | None = None,
     allowed_types: list[str] | None = None,
 ) -> bool:
     """
     Validates if court case meets business criteria:
-    1. FilingDate >= 2010-01-01
+    1. FilingDate >= 2011-01-01 (strictly after year 2010 per V4 §5.4)
     2. CaseStatus is in allowed statuses (or empty)
     3. CaseType is in allowed types (or empty)
     """
@@ -227,3 +227,130 @@ def evaluate_case_against_parties(
         })
 
     return results
+
+
+def _get_claim_field(obj: Any, *keys: str) -> str:
+    """Safely retrieves first non-empty string value across candidate attribute/dict keys."""
+    for k in keys:
+        if isinstance(obj, dict):
+            val = obj.get(k)
+        else:
+            val = getattr(obj, k, None)
+        if val is not None and str(val).strip() and str(val).strip().lower() not in ("none", "null", "nan"):
+            return str(val).strip()
+    return ""
+
+
+def derive_search_counts_fuzzy(
+    claim: Any,
+    fuzzy_threshold: float = 0.85,
+    noise_patterns: list[str] | None = None,
+) -> tuple[int, int]:
+    """
+    Derives DualSearch and TripleSearch count configuration using fuzzy party matching (Power Automate V4 parity).
+    - Insured == Driver == Claimant: (1, 1) -> 1 search (Insured)
+    - Insured == Driver, Claimant !=: (1, 3) -> 2 searches (Insured, Claimant)
+    - Insured == Claimant, Driver !=: (2, 1) -> 2 searches (Insured, Driver)
+    - Driver == Claimant, Insured !=: (2, 1) -> 2 searches (Insured, Driver)
+    - All different: (2, 3) -> 3 searches (Insured, Driver, Claimant)
+    """
+    ins_f = _get_claim_field(claim, "insured_first_name", "Insured First Name", "insured_fn")
+    ins_l = _get_claim_field(claim, "insured_last_name", "Insured Last Name", "insured_ln")
+    drv_f = _get_claim_field(claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn")
+    drv_l = _get_claim_field(claim, "driver_last_name", "Driver Last Name (Insured Vehicle)", "driver_ln")
+    clm_f = _get_claim_field(claim, "claimant_first_name", "Claimant First Name", "claimant_fn")
+    clm_l = _get_claim_field(claim, "claimant_last_name", "Claimant Last Name", "claimant_ln")
+
+    ins_name = clean_party_name(ins_f, ins_l, noise_patterns=noise_patterns).lower()
+    drv_name = clean_party_name(drv_f, drv_l, noise_patterns=noise_patterns).lower()
+    clm_name = clean_party_name(clm_f, clm_l, noise_patterns=noise_patterns).lower()
+
+    rf_thresh = fuzzy_threshold * 100.0
+
+    def _is_same(n1: str, n2: str) -> bool:
+        if not n1 or not n2:
+            return False
+        if n1 == n2:
+            return True
+        return fuzz.token_sort_ratio(n1, n2) >= rf_thresh or fuzz.ratio(n1, n2) >= rf_thresh
+
+    ins_eq_drv = _is_same(ins_name, drv_name)
+    ins_eq_clm = _is_same(ins_name, clm_name)
+    drv_eq_clm = _is_same(drv_name, clm_name)
+
+    if ins_eq_drv and ins_eq_clm:
+        return 1, 1
+    elif ins_eq_drv and not ins_eq_clm:
+        return 1, 3
+    elif (ins_eq_clm and not ins_eq_drv) or (drv_eq_clm and not ins_eq_drv):
+        return 2, 1
+    else:
+        return 2, 3
+
+
+def generate_unique_names_for_claim(
+    claim: Any,
+    fuzzy_threshold: float = 0.85,
+    noise_patterns: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Generates the ordered, deduplicated list of unique search names for a claim
+    (Insured, Driver, Claimant) to be searched sequentially across county court portals.
+    Preserves DualSearch and TripleSearch rules while deduplicating near-identical names.
+    """
+    dual_search, triple_search = derive_search_counts_fuzzy(
+        claim, fuzzy_threshold=fuzzy_threshold, noise_patterns=noise_patterns
+    )
+
+    ins_f = _get_claim_field(claim, "insured_first_name", "Insured First Name", "insured_fn")
+    ins_l = _get_claim_field(claim, "insured_last_name", "Insured Last Name", "insured_ln")
+    drv_f = _get_claim_field(claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn")
+    drv_l = _get_claim_field(claim, "driver_last_name", "Driver Last Name (Insured Vehicle)", "driver_ln")
+    clm_f = _get_claim_field(claim, "claimant_first_name", "Claimant First Name", "claimant_fn")
+    clm_l = _get_claim_field(claim, "claimant_last_name", "Claimant Last Name", "claimant_ln")
+
+    unique_parties: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+
+    def _add_party(ptype: str, f: str, l: str):
+        full = clean_party_name(f, l, noise_patterns=noise_patterns)
+        norm = full.lower().strip()
+        if not l or not str(l).strip() or not norm:
+            return
+        # Avoid duplicate addition
+        if norm in seen_names:
+            return
+        seen_names.add(norm)
+        unique_parties.append({
+            "party_type": ptype,
+            "first_name": f or None,
+            "last_name": l or None,
+            "full_name": full,
+            "search_order": len(unique_parties) + 1,
+        })
+
+    # 1. Primary: Insured
+    if ins_l:
+        _add_party("Insured", ins_f, ins_l)
+
+    # 2. Dual Search: Driver (if dual_search == 2)
+    if dual_search == 2 and drv_l:
+        _add_party("Driver", drv_f, drv_l)
+
+    # 3. Triple Search: Claimant (if triple_search == 3)
+    if triple_search == 3 and clm_l:
+        _add_party("Claimant", clm_f, clm_l)
+
+    # Fallback if no party met the criteria
+    if not unique_parties:
+        for p_label, f_val, l_val in [
+            ("Claimant", clm_f, clm_l),
+            ("Insured", ins_f, ins_l),
+            ("Driver", drv_f, drv_l),
+        ]:
+            if l_val and str(l_val).strip():
+                _add_party(p_label, f_val, l_val)
+                break
+
+    return unique_parties
+

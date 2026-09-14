@@ -90,3 +90,54 @@ class ExtractNamesResponse(BaseModel):
     driver: list[str]
     claimant: list[str]
     total: int
+
+
+# --- Direct Legacy /fuzzymatchapi Parity Schemas ---
+
+class DirectFuzzyMatchRequest(BaseModel):
+    reference_string: str
+    target_strings: list[str]
+    threshold: float = 0.60
+
+
+class FuzzyMatchScore(BaseModel):
+    target_string: str
+    result: str  # "Match Found" | "No Match Found"
+    score: float
+
+
+class DirectFuzzyMatchResponse(BaseModel):
+    reference_string: str
+    threshold_applied: float
+    matches: list[FuzzyMatchScore]
+
+
+# --- Unique Names API Schemas ---
+
+class UniqueNameItem(BaseModel):
+    party_type: str
+    first_name: str | None = None
+    last_name: str | None = None
+    full_name: str
+    search_order: int
+
+
+class UniqueNamesRequest(BaseModel):
+    claim_id: str | None = None
+    insured_first_name: str | None = None
+    insured_last_name: str | None = None
+    driver_first_name: str | None = None
+    driver_last_name: str | None = None
+    claimant_first_name: str | None = None
+    claimant_last_name: str | None = None
+    threshold: float = 0.85
+
+
+class UniqueNamesResponse(BaseModel):
+    unique_names: list[UniqueNameItem]
+    total_unique_names: int
+    count: int | None = None
+    dual_search: int
+    triple_search: int
+    claim_number: str | None = None
+

@@ -15,6 +15,7 @@ from app.schemas.settings import (
     FuzzyMatcherSettings,
     IntegrationSettings,
     PortalsSettings,
+    ProxySettings,
     StorageSettings,
     SystemSettings,
     TaskQueueSettings,
@@ -35,7 +36,7 @@ def get_default_settings() -> SystemSettings:
             page_timeout_seconds=60,
             reload_backoff_seconds=2,
             headless_mode=getattr(settings, "PLAYWRIGHT_HEADLESS", False),
-            browser_engine="chromium",
+            browser_engine="chrome",
             use_chrome_browser=True,
             chrome_binary_path=get_default_chrome_binary(),
             chrome_extension_dir=get_default_extension_dir(),
@@ -45,24 +46,24 @@ def get_default_settings() -> SystemSettings:
             max_concurrent_claims=3,
         ),
         portals=PortalsSettings(
-            broward_url="https://www.browardclerk.org/",
+            broward_url=getattr(settings, "PORTAL_BROWARD_URL", "https://www.browardclerk.org/"),
             broward_enabled=True,
-            hillsborough_url="https://hover.hillsclerk.com/",
+            hillsborough_url=getattr(settings, "PORTAL_HILLSBOROUGH_URL", "https://hover.hillsclerk.com/"),
             hillsborough_enabled=True,
-            miami_url="https://www2.miamidadeclerk.gov/ocs",
+            miami_url=getattr(settings, "PORTAL_MIAMI_URL", "https://www2.miamidadeclerk.gov/ocs"),
             miami_enabled=True,
             miami_username="apoorvnigam07@gmail.com",
             miami_password="Apoorv@12345",
             miami_requires_login=True,
-            travis_url="https://odysseyweb.traviscountytx.gov/Portal/",
+            travis_url=getattr(settings, "PORTAL_TRAVIS_URL", "https://odysseyweb.traviscountytx.gov/Portal/"),
             travis_enabled=True,
-            dallas_url="https://courtsportal.dallascounty.org/DALLASPROD/Home/",
+            dallas_url=getattr(settings, "PORTAL_DALLAS_URL", "https://courtsportal.dallascounty.org/DALLASPROD/Home/"),
             dallas_enabled=True,
-            harris_jp_url="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/",
+            harris_jp_url=getattr(settings, "PORTAL_HARRIS_JP_URL", "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"),
             harris_jp_enabled=True,
-            harris_cclerk_url="https://www.cclerk.hctx.net/Applications/WebSearch/",
+            harris_cclerk_url=getattr(settings, "PORTAL_HARRIS_CCLERK_URL", "https://www.cclerk.hctx.net/Applications/WebSearch/"),
             harris_cclerk_enabled=True,
-            harris_district_url="https://www.hcdistrictclerk.com/",
+            harris_district_url=getattr(settings, "PORTAL_HARRIS_DISTRICT_URL", "https://www.hcdistrictclerk.com/"),
             harris_district_enabled=True,
         ),
         matcher=FuzzyMatcherSettings(
@@ -119,6 +120,7 @@ def get_default_settings() -> SystemSettings:
         branding=BrandingSettings(),
         storage=StorageSettings(),
         email=EmailSettings(),
+        proxy=ProxySettings(),
     )
 
 
@@ -129,7 +131,7 @@ async def get_system_settings_async() -> SystemSettings:
     """Retrieve system settings from Redis with fallback to in-memory or default config."""
     global _local_settings_cache
     try:
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0)
         raw = await r.get(SETTINGS_REDIS_KEY)
         await r.aclose()
         if raw:
@@ -156,7 +158,7 @@ def get_system_settings_sync() -> SystemSettings:
     """Synchronous getter for settings (used by Celery workers if outside event loop)."""
     global _local_settings_cache
     try:
-        r = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+        r = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0)
         raw = r.get(SETTINGS_REDIS_KEY)
         if raw:
             data = json.loads(raw)
@@ -183,7 +185,7 @@ async def save_system_settings_async(new_settings: SystemSettings) -> SystemSett
     global _local_settings_cache
     _local_settings_cache = new_settings
     try:
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0)
         await r.set(SETTINGS_REDIS_KEY, new_settings.model_dump_json())
         await r.aclose()
         logger.info("System settings saved to Redis successfully.")
@@ -199,7 +201,7 @@ async def reset_system_settings_async() -> SystemSettings:
     default_cfg = get_default_settings()
     _local_settings_cache = default_cfg
     try:
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0)
         await r.set(SETTINGS_REDIS_KEY, default_cfg.model_dump_json())
         await r.aclose()
         logger.info("System settings reset to default in Redis.")

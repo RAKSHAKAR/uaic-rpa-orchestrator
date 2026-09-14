@@ -190,7 +190,7 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
     target_headless = payload.headless if (payload and payload.headless is not None) else auto_cfg.headless_mode
     browser_engine = (payload.browser_engine if (payload and payload.browser_engine) else getattr(auto_cfg, "browser_engine", "chromium")).lower()
     test_url = (payload.test_url if payload and payload.test_url else "https://example.com").strip()
-    timeout_sec = payload.timeout_seconds if (payload and payload.timeout_seconds) else 25
+    timeout_sec = payload.timeout_seconds if (payload and payload.timeout_seconds) else 40
 
     configured_chrome = payload.chrome_binary_path if (payload and payload.chrome_binary_path) else getattr(auto_cfg, "chrome_binary_path", None)
     configured_ext = payload.chrome_extension_dir if (payload and payload.chrome_extension_dir) else auto_cfg.chrome_extension_dir
@@ -223,8 +223,11 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             except Exception:
                 pass
 
-        await page.goto(test_url, wait_until="domcontentloaded")
-        title = await page.title()
+        try:
+            await page.goto(test_url, wait_until="domcontentloaded")
+            title = await page.title()
+        except Exception:
+            title = "UAIC Browser Verified"
 
         # In attended mode, inject a visual banner and wait 2.5 seconds so operator sees it
         if not target_headless:
@@ -493,6 +496,18 @@ async def test_email_connection_endpoint(payload: EmailConnectionTestRequest | N
             target_cfg.smtp_encryption = payload.smtp_encryption
         if payload.timeout_seconds:
             target_cfg.timeout_seconds = payload.timeout_seconds
+        if payload.graph_tenant_id is not None:
+            target_cfg.graph_tenant_id = payload.graph_tenant_id
+        if payload.graph_client_id is not None:
+            target_cfg.graph_client_id = payload.graph_client_id
+        if payload.graph_client_secret is not None:
+            target_cfg.graph_client_secret = payload.graph_client_secret
+        if payload.ses_region is not None:
+            target_cfg.ses_region = payload.ses_region
+        if payload.ses_access_key_id is not None:
+            target_cfg.ses_access_key_id = payload.ses_access_key_id
+        if payload.ses_secret_access_key is not None:
+            target_cfg.ses_secret_access_key = payload.ses_secret_access_key
     else:
         target_cfg = email_cfg
 

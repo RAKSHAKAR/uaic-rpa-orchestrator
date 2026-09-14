@@ -122,8 +122,6 @@ class LiveQueueItemResponse(BaseModel):
     dol: str | None = None
     policy_state: str | None = None
     loss_location_state: str | None = None
-    loss_location_city: str | None = None
-    loss_location_county: str | None = None
     record_status: str
     fuzzy_match_status: str | None = None
     queue_position: int | None = None

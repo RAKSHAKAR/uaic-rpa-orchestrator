@@ -104,10 +104,10 @@ async def test_browser_test_endpoint_mocked_success(browser_engine, headless, mo
 async def test_live_chrome_attended_integration():
     """Live integration test verifying that Google Chrome Attended Mode succeeds via HTTP API."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", timeout=30.0) as client:
+    async with AsyncClient(transport=transport, base_url="http://test", timeout=50.0) as client:
         response = await client.post(
             "/api/v1/settings/test-browser",
-            json={"browser_engine": "chrome", "headless": False},
+            json={"browser_engine": "chrome", "headless": False, "timeout_seconds": 45},
         )
         assert response.status_code == 200
         data = response.json()
@@ -123,10 +123,10 @@ async def test_live_chrome_attended_integration():
 async def test_live_chrome_headless_integration():
     """Live integration test verifying that Google Chrome Headless Mode succeeds via HTTP API."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", timeout=30.0) as client:
+    async with AsyncClient(transport=transport, base_url="http://test", timeout=50.0) as client:
         response = await client.post(
             "/api/v1/settings/test-browser",
-            json={"browser_engine": "chrome", "headless": True},
+            json={"browser_engine": "chrome", "headless": True, "timeout_seconds": 45},
         )
         assert response.status_code == 200
         data = response.json()

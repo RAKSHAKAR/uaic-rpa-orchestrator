@@ -89,6 +89,9 @@ MENU_CATEGORIES = [
 MENU_TIME_SCOPES = [
     ("current_month", "Current Month (Dynamic: 1st of month 00:00:00 to now)"),
     ("previous_month", "Previous Month (1st to last day of previous calendar month)"),
+    ("current_quarter", "Current Quarter (1st of quarter 00:00:00 to now)"),
+    ("previous_quarter", "Previous Quarter (1st to last day of previous calendar quarter)"),
+    ("current_year", "Current Year (January 1st of current year to now)"),
     ("last_n_days", "Last N Days"),
     ("last_n_weeks", "Last N Weeks"),
     ("last_n_months", "Last N Months"),
@@ -142,7 +145,7 @@ def prompt_time_scope_selection() -> tuple[str, int | None, str | None, str | No
         print(f" [{idx:2d}] {scope_desc}")
     print("=" * 70)
 
-    choice = input("\nEnter time scope [1-10] (Default: 1 - Current Month): ").strip()
+    choice = input("\nEnter time scope [1-13] (Default: 1 - Current Month): ").strip()
     idx = 1
     if choice.isdigit() and 1 <= int(choice) <= len(MENU_TIME_SCOPES):
         idx = int(choice)

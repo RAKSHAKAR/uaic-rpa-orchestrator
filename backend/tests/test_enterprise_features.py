@@ -48,8 +48,6 @@ async def test_single_claim_create_and_duplicate_prevention():
             "dol": "01/15/2025",
             "policy_state": "Florida",
             "loss_location_state": "Florida",
-            "loss_location_city": "Miami",
-            "loss_location_county": "Miami-Dade",
         }
         
         # 1. Create claim
@@ -96,11 +94,11 @@ async def test_single_claim_read_update_delete():
         # 3. Update (Edit)
         update_res = await client.put(f"/api/v1/claims/{claim_id}", json={
             "insured_last_name": "UpdatedLastname",
-            "loss_location_city": "Austin",
+            "loss_location_state": "Florida",
         })
         assert update_res.status_code == 200
         assert update_res.json()["insured_name"] == "Alice UpdatedLastname"
-        assert update_res.json()["loss_location_city"] == "Austin"
+        assert update_res.json()["loss_location_state"] == "Florida"
 
         # 4. Delete
         del_res = await client.delete(f"/api/v1/claims/{claim_id}")
@@ -193,6 +191,17 @@ async def test_excel_and_csv_export():
     """Test GET /api/v1/claims/export for both Excel (.xlsx) and CSV (.csv)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Seed a claim via API to ensure database isn't empty
+        payload = {
+            "claim_number": "CSV_TEST_001",
+            "loss_location_state": "FL",
+            "policy_state": "FL",
+            "insured_first_name": "CSV",
+            "insured_last_name": "Test",
+            "record_status": "Pending"
+        }
+        await client.post("/api/v1/claims", json=payload)
+
         # 1. Export CSV
         csv_res = await client.get("/api/v1/claims/export?format=csv")
         assert csv_res.status_code == 200

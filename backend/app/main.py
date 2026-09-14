@@ -68,9 +68,17 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown events with clean connection pool disposal."""
     logger.info("Starting UAIC Claim & RPA Orchestrator Backend (Python 3.14.7)...")
     await init_db()
+    from app.core.http_client import HTTPClient
+    HTTPClient.get_client()
     logger.info("Database schema initialized successfully.")
     yield
     logger.info("Shutting down UAIC Claim & RPA Orchestrator Backend...")
+    try:
+        await HTTPClient.close_client()
+        logger.info("HTTP client closed cleanly.")
+    except Exception as e:
+        logger.warning(f"Error closing HTTP client: {e}")
+        
     from app.core.database import engine, task_engine
     try:
         await engine.dispose()
@@ -110,6 +118,21 @@ if settings.BACKEND_CORS_ORIGINS:
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 
+@app.post("/fuzzymatchapi")
+def root_fuzzy_match_parity(payload: dict):
+    """Legacy Power Automate Desktop root-level fuzzy match parity route."""
+    from rapidfuzz import fuzz
+    t1 = str(payload.get("text1", "")).strip().lower()
+    t2 = str(payload.get("text2", "")).strip().lower()
+    thresh = float(payload.get("threshold", 0.6))
+    score = float(fuzz.partial_ratio(t1, t2))
+    scale = thresh * 100.0 if thresh <= 1.0 else thresh
+    return {
+        "result": "Match Found" if score >= scale else "No Match Found",
+        "score": score,
+    }
+
+
 @app.get("/")
 async def root():
     return {
@@ -119,3 +142,13 @@ async def root():
         "docs_url": "/docs",
         "api_v1": settings.API_V1_PREFIX,
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.environ.get("PORT", settings.PORT))
+    host = os.environ.get("HOST", settings.HOST)
+    uvicorn.run("app.main:app", host=host, port=port, reload=settings.DEBUG)
+
+

@@ -208,7 +208,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 ## 7. Test Commands
 
 ```bash
-# Backend tests (270 tests across 27 test suites)
+# Backend tests (281 tests across 28 test suites)
 cd backend
 .venv\Scripts\pytest --tb=short -q
 
@@ -244,24 +244,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 - ✅ Place all utility, scratch, diagnostic, and verification scripts into `scripts/` or `backend/app/scripts/` (never loose in root)
 - ✅ Save every substantial implementation plan to `implementation_plan/` BEFORE showing it to the user (naming: `YYYY-MM-DD_uaic_<feature>_<doc-type>_v<N>.md`)
 - ✅ Assign a unique Implementation ID (`IMP-YYYY-MMDD-NNN`) to every substantial task and cross-reference it in all related documents
-- ✅ Keep AI-generated documentation in `implementation_plan/` with status headers until the user explicitly verifies it
+- ✅ Ensure dynamic automated verification: upon completing work and running the full automated testing suite (pytest, ruff, tsc, ps1) with visual/video evidence, document status must be finalized as Complete with: `**AI Verification:** Complete (100% Automated Testing Suite)`
 - ✅ Create a final implementation record (plan + change log + test report + validation) in `implementation_plan/` after every substantial task
 - ✅ Save all browser subagent recordings (.webp) into `implementation_plan/Recording/` and all visual verification screenshots (.png) into `implementation_plan/Images/` (strictly separated, never leave them exclusively in the transient IDE brain directory)
-- ✅ Run `pytest` after any backend change (270 tests across 27 test suites)
+- ✅ Run `pytest` after any backend change (281 tests across 28 test suites)
 - ✅ Run `ruff check` after any Python change (0 errors)
 - ✅ Run `tsc --noEmit` after any TypeScript change (0 errors)
 - ✅ Run `scripts\check_ps1_syntax.ps1` after any `.ps1` change (0 errors)
 - ✅ Inspect and resolve all IDE problems (`@[current_problems]`); verify zero Pyrefly virtual diagnostics or syntax errors
 - ✅ Build full-width enterprise UI layouts (`w-full max-w-none flex-1`) with the unified `<Navbar />` on all primary routes
-- ✅ PowerShell launchers (`setup.ps1` & `setup_local.ps1`) must be persistent, interactive, and never auto-close unexpectedly
+- ✅ PowerShell launcher (`setup_local.ps1`) must be persistent, interactive, and never auto-close unexpectedly
 - ✅ Preserve all existing API contracts (do not rename endpoints)
 - ✅ Preserve all business logic (state routing, fuzzy cascade, DOL date, claim number prefix)
 - ✅ Keep portal output schemas EXACT (especially no CaseType for Harris JP + Harris Clerk)
 - ✅ Settings must persist in DB and workers must read from `get_system_settings_async()`
 - ✅ All secrets must be masked in API responses and logs
-- ✅ Always validate `setup.ps1` / `setup_local.ps1` and `docker-compose.yml` integrity as the final verification step before reporting completion
+- ✅ Always validate `setup_local.ps1` and `docker-compose.yml` integrity as the final verification step before reporting completion
 
 ### MUST NOT DO
+- ❌ Do not leave completed tasks with stale, intermediate, or pending statuses such as `Approved - In Execution`, `Completed - Pending Human Verification`, or `Awaiting Human Verification` after automated testing passes
 - ❌ Do not create unnecessary, stray, or loose files/folders in the project root or scattered in the workspace
 - ❌ Do not delete, rename, or purge any of the 5 protected user directories (`implementation_plan`, `PowerAutomateSolutions`, `Testing files`, `anticaptcha-plugin_v0.83`, `.agents`)
 - ❌ Do not modify source code before presenting a detailed plan and receiving explicit user confirmation

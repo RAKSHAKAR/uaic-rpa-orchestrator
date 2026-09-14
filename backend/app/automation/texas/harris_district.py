@@ -63,13 +63,13 @@ class HarrisDistrictClerkScraper(BaseCourtScraper):
         await party_input.first.wait_for(state="visible", timeout=15000)
 
         query = f"{l_name}, {f_name}".strip(", ")
-        await party_input.first.fill(query)
+        await self.biometric_fill(party_input.first, query)
         logger.info(f"[{self.county_name}] Filled Party Name: {query}")
 
         dol_input = page.locator("input[id*='txtFiledDateFrom'], input[name*='txtFiledDateFrom'], input[id*='txtDateFrom']")
         if date_of_loss and await dol_input.count() > 0:
             clean_dol = date_of_loss.strip()
-            await dol_input.first.fill(clean_dol)
+            await self.biometric_fill(dol_input.first, clean_dol)
             logger.info(f"[{self.county_name}] Filled Filed Date Range with DOL: {clean_dol}")
 
         await page.wait_for_timeout(500)

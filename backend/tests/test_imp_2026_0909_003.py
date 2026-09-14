@@ -150,6 +150,7 @@ class TestExtractNames:
     @pytest.mark.asyncio
     async def test_extract_names_party_type_driver_filter(self):
         """?party_type=driver returns only driver list."""
+        await _seed_claim("EXT-DRV-01", "Steve", "Rogers", "Bucky", "Barnes", "Sam", "Wilson")
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             res = await client.get("/api/v1/matches/extract-names?party_type=driver")
@@ -163,6 +164,7 @@ class TestExtractNames:
     @pytest.mark.asyncio
     async def test_extract_names_party_type_claimant_filter(self):
         """?party_type=claimant returns only claimant list."""
+        await _seed_claim("EXT-CLM-01", "Steve", "Rogers", "Bucky", "Barnes", "Sam", "Wilson")
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             res = await client.get("/api/v1/matches/extract-names?party_type=claimant")
@@ -629,11 +631,11 @@ class TestClaimRowSchemaDeprecatedFields:
         assert schema.insured_first_name == "John"
         assert schema.dol == "01/15/2024"
 
-    def test_claimrecord_orm_model_still_has_deprecated_columns(self):
-        """The DB ORM model (ClaimRecord) retains all 4 columns for data integrity."""
+    def test_claimrecord_orm_model_no_longer_has_deprecated_columns(self):
+        """The DB ORM model (ClaimRecord) completely removes all 4 deprecated geographic columns."""
         from app.models.claim import ClaimRecord
         orm_cols = {col.key for col in ClaimRecord.__table__.columns}
         for col in ["garaging_city", "garaging_state", "loss_location_city", "loss_location_county"]:
-            assert col in orm_cols, (
-                f"ORM column '{col}' must remain in ClaimRecord table (only removed from ingestion schema)"
+            assert col not in orm_cols, (
+                f"ORM column '{col}' must be completely removed from ClaimRecord table"
             )

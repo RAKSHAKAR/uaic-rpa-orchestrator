@@ -1,5 +1,34 @@
 # Mandatory Task Completion, Error Resolution, Skills & Technology Documentation Requirements
 
+## GLOBAL ENGINEERING & FILE MANAGEMENT STANDARDS (CRITICAL GUARDRAILS)
+
+The AI MUST strictly adhere to the following file management and coding standards across the entire project. Failure to do so will result in broken functionality and architectural drift.
+
+### 1. Zero Duplicate Files Rule
+* **No File Duplication:** Never create multiple files with the same name or for the same purpose in different directories. 
+* **Example:** Do not create `root/Deploy-To-GitHub.ps1` and `scripts/Deploy-To-GitHub.ps1`. Maintain a single, authoritative source of truth for every script, component, and configuration file.
+
+### 2. Strict DRY Principle (Don't Repeat Yourself)
+* **Componentization:** Do not duplicate functionality, business logic, or UI elements across multiple pages or files. 
+* **Shared Modules:** If a piece of functionality is required in multiple places, you MUST extract it into a reusable component, utility function, or shared module, and import/call it where needed.
+
+### 3. Exception to Default Skills (Explicit Paths)
+* **Default to Skills:** You should normally use your configured skills and best practices for file organization (e.g., automatically placing generic scripts into a `scripts/` folder).
+* **The Override Exception:** **HOWEVER**, if the user explicitly specifies a custom path for a file (e.g., "Store `Deploy-To-GitHub.ps1` in the root folder"), that specific instruction is an exception. You must place the file *exactly* where requested and nowhere else.
+* **No Duplication:** Do not create a second copy in your default folder just to satisfy your normal skills. Following the user's explicit path for one file does not permanently change your skills; it just creates a temporary exception for that specific request.
+
+### 4. Verification Before Modification
+* **Safe Refactoring:** Before deleting, renaming, or modifying any existing file or function, you MUST verify its dependencies across the codebase.
+* **Preserve Functionality:** Ensure that refactoring does not break existing imports, Docker configurations, or orchestrator scripts. If a modification risks breaking a dependent file, you must update the dependent file simultaneously.
+
+### 5. Clean Code & Documentation Standards
+* **Enterprise Quality:** All code must be clean, modular, and adhere to standard enterprise formatting.
+* **Mandatory Comments:** 
+  * Every file MUST include a top-level Header/Docstring explaining its purpose.
+  * Complex logic, regex, and integration points MUST include clear, inline developer comments explaining *why* the code does what it does.
+
+---
+
 ## 1. TASK COMPLETION & CONTINUATION — MANDATORY
 
 ### Current Problems / Tasks

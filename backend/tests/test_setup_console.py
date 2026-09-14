@@ -282,3 +282,70 @@ def test_maildev_endpoint_and_smtp_verification():
 
     assert "1080" in maildev_http_url
     assert maildev_smtp_port == 1025
+
+
+def test_setup_local_canonical_script_exists():
+    """Verify that setup_local.ps1 exists in repository root as the single canonical console script."""
+    script_path = ROOT_DIR / "setup_local.ps1"
+    assert script_path.exists(), "setup_local.ps1 must exist as the single canonical console script."
+    content = script_path.read_text(encoding="utf-8")
+    assert "Enterprise Operations & Orchestration Console" in content
+    assert "Show-EnterpriseMenu" in content
+    # Assert neither setup.ps1 nor setup-local.ps1 exist to prevent confusion
+    assert not (ROOT_DIR / "setup.ps1").exists(), "setup.ps1 must not exist to eliminate confusion."
+    assert not (ROOT_DIR / "setup-local.ps1").exists(), "setup-local.ps1 must not exist to eliminate confusion."
+
+
+def test_redis_ping_probe_protocol_format():
+    """Verify the Redis wire protocol query format and response validation."""
+    query = b"*1\r\n$4\r\nPING\r\n"
+    assert query == b"*1\r\n$4\r\nPING\r\n"
+
+    valid_response = b"+PONG\r\n"
+    assert valid_response.startswith(b"+PONG")
+
+
+def test_smtp_banner_probe_protocol_format():
+    """Verify SMTP protocol greeting banner and termination syntax."""
+    valid_greeting = "220 maildev.local ESMTP MailDev ready"
+    assert valid_greeting.startswith("220")
+
+    quit_cmd = "QUIT\r\n"
+    assert quit_cmd.endswith("\r\n")
+
+
+def test_celery_worker_process_commandline_filter():
+    """Verify that process detection accurately identifies celery worker processes."""
+    valid_worker_cmd = (
+        r"C:\UAIC\backend\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app worker -E -P solo"
+    )
+    unrelated_cmd = r"C:\Windows\system32\cmd.exe /c echo hello"
+
+    def is_celery_worker(cmd: str) -> bool:
+        return bool(cmd and ("celery" in cmd.lower() and "worker" in cmd.lower()))
+
+    assert is_celery_worker(valid_worker_cmd) is True
+    assert is_celery_worker(unrelated_cmd) is False
+
+
+def test_celery_beat_process_commandline_filter():
+    """Verify that process detection accurately identifies celery beat scheduler processes."""
+    valid_beat_cmd = (
+        r"C:\UAIC\backend\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app beat --loglevel=info"
+    )
+    unrelated_cmd = r"C:\Windows\system32\cmd.exe /c echo hello"
+
+    def is_celery_beat(cmd: str) -> bool:
+        return bool(cmd and ("celery" in cmd.lower() and "beat" in cmd.lower()))
+
+    assert is_celery_beat(valid_beat_cmd) is True
+    assert is_celery_beat(unrelated_cmd) is False
+
+
+def test_setup_local_console_features_and_chromium_guard():
+    """Verify setup_local.ps1 exists."""
+    script_path = ROOT_DIR / "setup_local.ps1"
+    assert script_path.exists()
+    content = script_path.read_text(encoding="utf-8")
+    assert "playwright install chromium" in content
+

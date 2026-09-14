@@ -158,9 +158,7 @@ _____
                 "Claimant First Name"	
                 "Claimant Last Name"
             2) The same API which was using in earlier solution and is available here (.\PowerAutomateSolutions\fuzzy-match-api\) you can take refrense and make the exact same api and implement in current solution
-            3) You have already Implemented below APIs in the current solution, pls explain these both in very small details that answer my all my possible (How, why and what) releated questions:
-                GET Method for api/v1/matches/pending?limit=50 and POST Method for /api/v1/matches/{match_pair_id}/review 
-
+            
             Important Note(s) for above all APIs: 
                 i) All settings must be configurable and testable like API docs to get the real response from Automation Setting page.
                 ii) Put/set the current exact configuration (from the path) as defualt configuration there in Automation Setting page.
@@ -177,7 +175,7 @@ _____
                 e) Click on the check of captcha, if captcha solving is not started automatically.
                 e) Wait for solve the captcha and right tick (Tick design or color may be change frequently based on the solving nature of Anti-Captcha and captcha's security)
                     Exception: 
-                        1) Sometime captcha fails to Verify, if it fails then refresh the browser page and do all the same things from point c. 
+                        1) Sometime AntiCaptcha fails to Verify, if it fails then refresh the browser page and do all the same things from point c. 
                         2) Also sometime you will get message/popup saying "Session timeout warning" then pls click on "Continiue session". if you will not do this then it will auto navigate to home page and you have to start form point b else starts from point c with existing or new data depend on Failure or new search.
                         3) We have already set default "CAPTCHA Resolution Wait (Seconds)" = 120. This is actually max wait time to solve the captch, it does not mean our workflow process will stop, if captcha is not solved in this given time then you have to hard refresh the page and this hard refresh also do till "Max Retry & Refresh Attempts":2 and this also we have already set by default.  
                 e) Once Captcha is solved then imediately click on Search.
@@ -214,8 +212,8 @@ _____
                 h) Now navigate to the point d and keep the browser tab as it is. 
                 i) Close All the tabs encloding Browser
     Note: 
-    1) This must be repeated until all the unique names one by one received from 3>i>a>1 api so pls do this activity before launching the brower tabs.
-    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>a>1.
+    1) This must be repeated until all the unique names one by one received from 3>i>b>1 api so pls do this activity before launching the brower tabs.
+    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>b>1.
     3) Close the broser completly and start the work on next queue that we don't know the next item is realted to Florida or something else. Depend on this you can proceed.   
   
 

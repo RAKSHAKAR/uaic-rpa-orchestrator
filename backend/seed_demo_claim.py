@@ -28,8 +28,6 @@ async def seed():
             dol="11/20/2025",
             policy_state="Florida",
             loss_location_state="Florida",
-            loss_location_city="Miami",
-            loss_location_county="Miami-Dade",
             record_status=RecordStatusEnum.MATCH_FOUND,
             fuzzy_match_status=FuzzyMatchStatusEnum.COMPLETED,
             fl_website_miami="Yes",

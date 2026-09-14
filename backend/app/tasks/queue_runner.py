@@ -6,6 +6,7 @@ when automatic mode is enabled, with seamless sequential fallback when concurren
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 
 import redis
 from sqlalchemy import select
@@ -164,11 +165,13 @@ async def _async_advance_auto_queue():
         # If more slots available, check for retryable failed claims if enabled
         if len(claims_to_run) < available_slots and queue_cfg.auto_retry_failed_scrapes:
             needed = available_slots - len(claims_to_run)
+            retry_threshold = datetime.now(UTC) - timedelta(seconds=getattr(queue_cfg, "task_retry_delay_seconds", 30))
             failed_q = (
                 select(ClaimRecord)
                 .where(
                     ClaimRecord.record_status == RecordStatusEnum.FAILED,
-                    ClaimRecord.retry_count < queue_cfg.max_task_retries,
+                    ClaimRecord.retry_count < getattr(queue_cfg, "max_task_retries", 3),
+                    ClaimRecord.updated_at <= retry_threshold
                 )
                 .order_by(ClaimRecord.created_at.asc())
                 .limit(needed)
@@ -186,12 +189,14 @@ async def _async_advance_auto_queue():
         # Mark selected claims and dispatch Celery tasks concurrently
         for claim in claims_to_run:
             logger.info(f"Automatic Queue: Dispatching parallel worker for Claim {claim.claim_number} (ID: {claim.id})")
+            is_retry = claim.record_status == RecordStatusEnum.FAILED
             claim.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
-            claim.retry_count += 1
+            if is_retry:
+                claim.retry_count += 1
             add_active_queue_item_id(claim.id)
             celery_app.send_task(
                 "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
-                args=[claim.id],
+                kwargs={"claim_id": claim.id, "retry_failed_only": is_retry},
                 queue="scrapers",
             )
 

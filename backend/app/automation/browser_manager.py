@@ -64,7 +64,7 @@ class ExtensionManager:
 
     @staticmethod
     def resolve_extension_path(configured_path: str | Path | None = None) -> Path | None:
-        """Resolves existing AntiCaptcha extension directory on disk with dynamic relative fallback."""
+        """Resolves existing AntiCaptcha extension directory on disk, preferring the DB-configured path."""
         backend_dir = Path(__file__).resolve().parent.parent.parent
         repo_root = backend_dir.parent
 
@@ -78,14 +78,8 @@ class ExtensionManager:
             else:
                 candidate_paths.append(p)
 
-        candidate_paths.extend([
-            repo_root / "anticaptcha-plugin_v0.83",
-            backend_dir / "anticaptcha-plugin_v0.83",
-            Path.cwd() / "anticaptcha-plugin_v0.83",
-            Path.cwd().parent / "anticaptcha-plugin_v0.83",
-            Path(r"D:\UAIG\Bot Automation Project\anticaptcha-plugin_v0.83_1"),
-            Path(r"C:\UAIG\Bot Automation Project\anticaptcha-plugin_v0.83_1"),
-        ])
+        # Canonical project fallback if DB config is missing/invalid
+        candidate_paths.append(repo_root / "anticaptcha-plugin_v0.83")
 
         for p in candidate_paths:
             if p.is_dir() and (p / "manifest.json").exists():
@@ -623,7 +617,7 @@ class ChromeSession:
             # Verify extension loading and extract metadata
             if has_ext:
                 # Poll up to 1.5s for service worker or background page registration
-                for _ in range(15):
+                for _ in range(50):
                     if self.context.service_workers or self.context.background_pages:
                         break
                     await asyncio.sleep(0.1)
@@ -642,7 +636,7 @@ class ChromeSession:
                     self.browser_engine = "chromium"
                     self.context = await self.playwright.chromium.launch_persistent_context(**launch_kwargs)
 
-                    for _ in range(15):
+                    for _ in range(50):
                         if self.context.service_workers or self.context.background_pages:
                             break
                         await asyncio.sleep(0.1)
@@ -669,15 +663,18 @@ class ChromeSession:
 
                     if self.context.service_workers:
                         try:
-                            stored = await self.context.service_workers[0].evaluate("""() => {
-                                return new Promise(resolve => {
-                                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                                        chrome.storage.local.get(['account_key', 'enable', 'account_key_checked'], res => resolve(res));
-                                    } else {
-                                        resolve(null);
-                                    }
-                                });
-                            }""")
+                            stored = await asyncio.wait_for(
+                                self.context.service_workers[0].evaluate("""() => {
+                                    return new Promise(resolve => {
+                                        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                            chrome.storage.local.get(['account_key', 'enable', 'account_key_checked'], res => resolve(res));
+                                        } else {
+                                            resolve(null);
+                                        }
+                                    });
+                                }"""),
+                                timeout=2.0
+                            )
                             if stored and stored.get("account_key") == api_key_to_use and stored.get("enable") is True:
                                 already_configured = True
                         except Exception:

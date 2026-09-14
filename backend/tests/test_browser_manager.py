@@ -22,6 +22,7 @@ from app.automation.browser_manager import (
     SiteAutomationManager,
     TabManager,
 )
+from app.automation.session_runner import SingleSessionBrowserRunner
 
 
 class DummyCountyAdapter:
@@ -413,3 +414,37 @@ async def test_extension_configuration_skips_when_already_configured(mocker):
     # new_page was NEVER called because popup setup was skipped!
     mock_context.new_page.assert_not_called()
 
+
+@pytest.mark.asyncio
+async def test_single_session_proxy_injection(mocker):
+    """Verify SingleSessionBrowserRunner correctly maps proxy settings into launch_kwargs."""
+    captured_kwargs = {}
+    mock_context = MagicMock()
+    mock_chromium = MagicMock()
+
+    async def mock_launch(**kwargs):
+        nonlocal captured_kwargs
+        captured_kwargs = kwargs
+        return mock_context
+
+    mock_chromium.launch_persistent_context = mock_launch
+    mock_pw_instance = MagicMock(chromium=mock_chromium)
+
+    mocker.patch(
+        "app.automation.session_runner.async_playwright",
+        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance)),
+    )
+
+    runner = SingleSessionBrowserRunner(
+        proxy_server="http://10.0.0.5:3128",
+        proxy_username="my_proxy_user",
+        proxy_password="my_proxy_password",
+    )
+    async with runner:
+        pass
+
+    assert "proxy" in captured_kwargs
+    proxy_dict = captured_kwargs["proxy"]
+    assert proxy_dict["server"] == "http://10.0.0.5:3128"
+    assert proxy_dict["username"] == "my_proxy_user"
+    assert proxy_dict["password"] == "my_proxy_password"

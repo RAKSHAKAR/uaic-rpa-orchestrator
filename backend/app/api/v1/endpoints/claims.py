@@ -43,27 +43,99 @@ from app.services.audit_service import (
     record_audit_event_background,
 )
 from app.services.excel_parser import resolve_county_bot_targets
+from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.api.claims")
 router = APIRouter()
 
 
+# Stage key name aliases — maps non-canonical keys recorded by various scrapers/tasks
+# to the canonical keys expected by the frontend telemetry UI.
+_STAGE_KEY_ALIASES: dict[str, str] = {
+    "captcha_bypass": "captcha",
+    "cloudflare_bypass": "captcha",
+    "captcha_solve": "captcha",
+    "turnstile_bypass": "captcha",
+    "court_scraping": "result_retrieval",
+    "scraping": "result_retrieval",
+    "data_extraction": "result_retrieval",
+    "results_parsing": "result_retrieval",
+    "guidewire_mock": "guidewire_trigger",
+    "guidewire_dispatch": "guidewire_trigger",
+    "guidewire_api": "guidewire_trigger",
+    "excel_ingestion": "browser_launch",
+    "browser_start": "browser_launch",
+    "context_launch": "browser_launch",
+    "navigation": "website_navigation",
+    "page_navigation": "website_navigation",
+    "portal_navigation": "website_navigation",
+    "data_entry": "data_filling",
+    "form_fill": "data_filling",
+    "form_filling": "data_filling",
+    "search_submit": "submit",
+    "page_submit": "submit",
+    "form_submit": "submit",
+    "db_save": "database_save",
+    "db_commit": "database_save",
+    "db_write": "database_save",
+}
+
+
+def _normalize_stage_keys(stages: dict) -> dict:
+    """Map alternative stage key names to their canonical frontend-expected keys.
+    Preserves all existing data; only renames keys that have known aliases.
+    Canonical keys: browser_launch, website_navigation, data_filling, captcha,
+                    submit, result_retrieval, database_save, fuzzy_matching, guidewire_trigger.
+    """
+    if not stages:
+        return stages
+    normalized: dict = {}
+    for k, v in stages.items():
+        canonical = _STAGE_KEY_ALIASES.get(k, k)
+        # Don't overwrite if canonical key already present with real data
+        if canonical not in normalized:
+            normalized[canonical] = v
+        elif not normalized[canonical]:
+            normalized[canonical] = v
+    return normalized
+
+
 def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
-    """Helper to construct list of 8 county bot details with dynamic portal URLs from settings."""
+    """Helper to construct list of 8 county bot details with dynamic portal URLs from settings.
+    Falls back to scraped_cases count per county when te_jsonbody_* / fl_jsonbody_* are empty.
+    """
     try:
         from app.services.settings_service import get_system_settings_sync
         portals_cfg = get_system_settings_sync().portals
     except Exception:
         portals_cfg = None
 
-    broward_url = portals_cfg.broward_url if portals_cfg else "https://www.browardclerk.org/Web2"
-    hillsborough_url = portals_cfg.hillsborough_url if portals_cfg else "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+    broward_url = portals_cfg.broward_url if portals_cfg else "https://www.browardclerk.org/"
+    hillsborough_url = portals_cfg.hillsborough_url if portals_cfg else "https://hover.hillsclerk.com/"
     miami_url = portals_cfg.miami_url if portals_cfg else "https://www2.miamidadeclerk.gov/ocs"
-    travis_url = portals_cfg.travis_url if portals_cfg else "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
-    dallas_url = portals_cfg.dallas_url if portals_cfg else "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
-    harris_jp_url = portals_cfg.harris_jp_url if portals_cfg else "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
+    travis_url = portals_cfg.travis_url if portals_cfg else "https://odysseyweb.traviscountytx.gov/Portal/"
+    dallas_url = portals_cfg.dallas_url if portals_cfg else "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
+    harris_jp_url = portals_cfg.harris_jp_url if portals_cfg else "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
     harris_cclerk_url = portals_cfg.harris_cclerk_url if portals_cfg else "https://www.cclerk.hctx.net/Applications/WebSearch/"
-    harris_district_url = portals_cfg.harris_district_url if portals_cfg else "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
+    harris_district_url = portals_cfg.harris_district_url if portals_cfg else "https://www.hcdistrictclerk.com/"
+
+    # Build per-county scraped case count from the scraped_cases relationship
+    # so the bot grid always shows correct counts even when te_jsonbody_*/fl_jsonbody_* are empty.
+    scraped_by_county: dict[str, int] = {}
+    if hasattr(claim, "scraped_cases") and claim.scraped_cases:
+        for sc in claim.scraped_cases:
+            county = (sc.county_name or "").lower()
+            scraped_by_county[county] = scraped_by_county.get(county, 0) + 1
+
+    def _case_count(json_body, county_keywords: list[str]) -> int:
+        """Return case count from json_body field, falling back to scraped_cases count."""
+        if isinstance(json_body, list) and json_body:
+            return len(json_body)
+        # Fallback: count from ScrapedCourtCase records by county keyword match
+        for county_lower, cnt in scraped_by_county.items():
+            if any(kw in county_lower for kw in county_keywords):
+                return cnt
+        return 0
 
     bots = [
         BotStatusDetail(
@@ -71,56 +143,56 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
             website_url=broward_url,
             target=claim.fl_website_broward or "No",
             status=claim.fl_botstatus_broward or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.fl_jsonbody_broward) if isinstance(claim.fl_jsonbody_broward, list) else 0,
+            cases_found=_case_count(claim.fl_jsonbody_broward, ["broward"]),
         ),
         BotStatusDetail(
             name="Hillsborough County (FL)",
             website_url=hillsborough_url,
             target=claim.fl_website_hillsborough or "No",
             status=claim.fl_botstatus_hillsborough or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.fl_jsonbody_hillsborough) if isinstance(claim.fl_jsonbody_hillsborough, list) else 0,
+            cases_found=_case_count(claim.fl_jsonbody_hillsborough, ["hillsborough"]),
         ),
         BotStatusDetail(
             name="Miami-Dade County (FL)",
             website_url=miami_url,
             target=claim.fl_website_miami or "No",
             status=claim.fl_botstatus_miami or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.fl_jsonbody_miami) if isinstance(claim.fl_jsonbody_miami, list) else 0,
+            cases_found=_case_count(claim.fl_jsonbody_miami, ["miami", "miami-dade", "miamidade"]),
         ),
         BotStatusDetail(
             name="Travis County (TX)",
             website_url=travis_url,
             target=claim.te_website_travis or "No",
             status=claim.te_botstatus_travis or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.te_jsonbody_travis) if isinstance(claim.te_jsonbody_travis, list) else 0,
+            cases_found=_case_count(claim.te_jsonbody_travis, ["travis"]),
         ),
         BotStatusDetail(
             name="Dallas County (TX)",
             website_url=dallas_url,
             target=claim.te_website_dallas or "No",
             status=claim.te_botstatus_dallas or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.te_jsonbody_dallas) if isinstance(claim.te_jsonbody_dallas, list) else 0,
+            cases_found=_case_count(claim.te_jsonbody_dallas, ["dallas"]),
         ),
         BotStatusDetail(
             name="Harris County JP (TX)",
             website_url=harris_jp_url,
             target=claim.te_website_harris or "No",
             status=claim.te_botstatus_harris or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.te_jsonbody_harris) if isinstance(claim.te_jsonbody_harris, list) else 0,
+            cases_found=_case_count(claim.te_jsonbody_harris, ["harris"]),
         ),
         BotStatusDetail(
             name="Harris County Clerk (TX)",
             website_url=harris_cclerk_url,
             target=claim.te_website_cclerk or "No",
             status=claim.te_botstatus_cclerk or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.te_jsonbody_cclerk) if isinstance(claim.te_jsonbody_cclerk, list) else 0,
+            cases_found=_case_count(claim.te_jsonbody_cclerk, ["harris"]),
         ),
         BotStatusDetail(
             name="Harris District Clerk (TX)",
             website_url=harris_district_url,
             target=claim.te_website_hcdistrict or "No",
             status=claim.te_botstatus_hcdistrict or BotStatusEnum.NOT_TRIGGERED,
-            cases_found=len(claim.te_jsonbody_hcdistrict) if isinstance(claim.te_jsonbody_hcdistrict, list) else 0,
+            cases_found=_case_count(claim.te_jsonbody_hcdistrict, ["harris"]),
         ),
     ]
     return bots
@@ -129,7 +201,30 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
 _build_bot_status_list = _build_bot_details
 
 
+def _normalize_action_timings(action_timings: dict | None) -> dict | None:
+    """Normalize stage key names inside action_timings before returning to frontend.
+    Applies _normalize_stage_keys to both top-level stages dict and per-portal stages dicts.
+    """
+    if not action_timings:
+        return action_timings
+    timings = dict(action_timings)
+    # Normalize top-level stages
+    if "stages" in timings and isinstance(timings["stages"], dict):
+        timings["stages"] = _normalize_stage_keys(timings["stages"])
+    # Normalize per-portal stages
+    if "portals" in timings and isinstance(timings["portals"], dict):
+        portals = dict(timings["portals"])
+        for portal_key, portal_data in portals.items():
+            if isinstance(portal_data, dict) and "stages" in portal_data:
+                portal_data = dict(portal_data)
+                portal_data["stages"] = _normalize_stage_keys(portal_data["stages"])
+                portals[portal_key] = portal_data
+        timings["portals"] = portals
+    return timings
+
+
 def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
+
     insured_name = f"{claim.insured_first_name or ''} {claim.insured_last_name or ''}".strip() or "N/A"
     claimant_name = f"{claim.claimant_first_name or ''} {claim.claimant_last_name or ''}".strip() or "N/A"
     driver_name = f"{claim.driver_first_name or ''} {claim.driver_last_name or ''}".strip() or "N/A"
@@ -154,6 +249,11 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                         or sc.raw_payload.get("Filing Date")
                         or sc.raw_payload.get("SuitFiledDate")
                         or sc.raw_payload.get("suit_filed_date")
+                        or sc.raw_payload.get("DateFiled")
+                        or sc.raw_payload.get("date_filed")
+                        or sc.raw_payload.get("Filed")
+                        or sc.raw_payload.get("filed")
+                        or sc.raw_payload.get("filed_date")
                         if isinstance(sc.raw_payload, dict)
                         else None
                     ),
@@ -182,10 +282,6 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
         claimant_last_name=claim.claimant_last_name,
         driver_first_name=claim.driver_first_name,
         driver_last_name=claim.driver_last_name,
-        garaging_city=claim.garaging_city,
-        garaging_state=claim.garaging_state,
-        loss_location_city=claim.loss_location_city,
-        loss_location_county=claim.loss_location_county,
         loss_location_state=claim.loss_location_state,
         policy_state=claim.policy_state,
         record_status=claim.record_status,
@@ -196,7 +292,7 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
         activity_id=claim.activity_id,
         retry_count=claim.retry_count,
         last_error=claim.last_error,
-        action_timings=claim.action_timings,
+        action_timings=_normalize_action_timings(claim.action_timings),
         total_duration_seconds=claim.total_duration_seconds,
         created_at=claim.created_at,
         updated_at=claim.updated_at,
@@ -210,7 +306,6 @@ async def list_claims(
     status: str | None = None,
     fuzzy_status: str | None = None,
     state: str | None = None,
-    county: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     search: str | None = None,
@@ -246,8 +341,6 @@ async def list_claims(
                 func.upper(ClaimRecord.policy_state).in_(patterns),
             )
         )
-    if county:
-        query = query.where(ClaimRecord.loss_location_county.ilike(f"%{county.strip()}%"))
     if search:
         search_pattern = f"%{search.strip()}%"
         query = query.where(
@@ -257,7 +350,6 @@ async def list_claims(
                 ClaimRecord.insured_first_name.ilike(search_pattern),
                 ClaimRecord.claimant_last_name.ilike(search_pattern),
                 ClaimRecord.claimant_first_name.ilike(search_pattern),
-                ClaimRecord.loss_location_city.ilike(search_pattern),
             )
         )
 
@@ -314,10 +406,6 @@ async def create_claim(
         driver_first_name=payload.driver_first_name.strip() if payload.driver_first_name else None,
         driver_last_name=payload.driver_last_name.strip() if payload.driver_last_name else None,
         dol=payload.dol,
-        garaging_city=payload.garaging_city,
-        garaging_state=payload.garaging_state,
-        loss_location_city=payload.loss_location_city,
-        loss_location_county=payload.loss_location_county,
         loss_location_state=payload.loss_location_state,
         policy_state=payload.policy_state,
         record_status=RecordStatusEnum.NEW,
@@ -488,8 +576,6 @@ async def export_claims(
             "DOL": c.dol or "",
             "Policy State": c.policy_state or "",
             "Loss Location State": c.loss_location_state or "",
-            "Loss Location City": c.loss_location_city or "",
-            "Loss Location County": c.loss_location_county or "",
             "Status": c.record_status.value if hasattr(c.record_status, "value") else str(c.record_status),
             "Fuzzy Match": c.fuzzy_match_status.value if hasattr(c.fuzzy_match_status, "value") else str(c.fuzzy_match_status),
             "Total Duration (s)": c.total_duration_seconds or "",
@@ -789,6 +875,13 @@ async def bulk_start_claims(
     if not payload.claim_ids:
         return BulkActionResponse(success=True, affected_count=0, message="No claim IDs provided.")
     
+    settings = await get_system_settings_async()
+    if not settings.automation.anticaptcha_api_key or not settings.automation.anticaptcha_api_key.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers."
+        )
+
     query = select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
     res = await db.execute(query)
     claims = res.scalars().all()
@@ -975,6 +1068,13 @@ async def start_single_claim(
     claim = res.scalar_one_or_none()
     if not claim:
         raise HTTPException(status_code=404, detail="Claim record not found")
+
+    settings = await get_system_settings_async()
+    if not settings.automation.anticaptcha_api_key or not settings.automation.anticaptcha_api_key.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scraper."
+        )
 
     claim.record_status = RecordStatusEnum.NEW
     claim.retry_count += 1
@@ -1344,7 +1444,7 @@ async def export_single_claim(
     driver = f"{claim.driver_first_name or ''} {claim.driver_last_name or ''}".strip()
     rec_status = claim.record_status.value if hasattr(claim.record_status, "value") else str(claim.record_status)
     fuzzy_status = claim.fuzzy_match_status.value if hasattr(claim.fuzzy_match_status, "value") else str(claim.fuzzy_match_status)
-    loss_loc = f"{claim.loss_location_city or ''}, {claim.loss_location_county or ''}, {claim.loss_location_state or ''}".strip(", ")
+    loss_loc = f"{claim.loss_location_state or ''}".strip(", ")
 
     if claim.scraped_cases:
         for c in claim.scraped_cases:

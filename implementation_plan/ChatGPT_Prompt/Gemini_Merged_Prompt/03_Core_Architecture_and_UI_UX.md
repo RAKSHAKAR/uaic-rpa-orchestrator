@@ -32,5 +32,7 @@ Suporting Docs you can ref:
 5) UAIC Claim & RPA Orchestrator — Final Comprehensive Implementation, Validation & Productionization Prompt.md
 6) UAIC Claim & RPA Orchestrator — Corrected and Ordered Requirements.md
 
-Note: Most of them are already implemented, test before making any changes.
+**Note:**
 
+1. Most of the requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+2. Always focus on **upgrading, enhancing, and fixing** the existing implementation. **Do not delete or remove any existing functionality** if it is already working. If any existing functionality is not working correctly, **fix it and make it fully functional** rather than removing or replacing it unnecessarily.

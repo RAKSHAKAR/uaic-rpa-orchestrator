@@ -206,7 +206,7 @@ async def test_browser_engine_setting_persistence():
     # Reset to default
     await reset_system_settings_async()
     reset_settings = await get_system_settings_async()
-    assert reset_settings.automation.browser_engine == "chromium"
+    assert reset_settings.automation.browser_engine == "chrome"
 
 
 @pytest.mark.asyncio

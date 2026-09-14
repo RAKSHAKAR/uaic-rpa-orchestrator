@@ -1,7 +1,7 @@
 """Comprehensive automated test suite for the Enterprise Data Cleanup & Retention Engine."""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -560,4 +560,156 @@ async def test_cleanup_cache_invalidation_redis_offline():
     assert res.success is True
     assert res.referential_integrity == "PASS"
     assert res.dashboard_reconciliation == "PASS"
+
+
+def test_time_window_quarters_and_year():
+    """Verify that current_quarter, previous_quarter, and current_year calculate precise calendar boundaries."""
+    # Reference in Q3: September 5, 2026
+    ref_q3 = datetime(2026, 9, 5, 14, 30, 0)
+
+    # 1. Current Quarter (Q3: July 1 00:00:00 -> now)
+    s_cq, e_cq, desc_cq = resolve_time_window("current_quarter", reference_now=ref_q3)
+    assert s_cq == datetime(2026, 7, 1, 0, 0, 0)
+    assert e_cq == ref_q3
+    assert "Current Quarter" in desc_cq
+
+    # 2. Previous Quarter (Q2: April 1 00:00:00 -> June 30 23:59:59.999999)
+    s_pq, e_pq, desc_pq = resolve_time_window("previous_quarter", reference_now=ref_q3)
+    assert s_pq == datetime(2026, 4, 1, 0, 0, 0)
+    assert e_pq == datetime(2026, 6, 30, 23, 59, 59, 999999)
+    assert "Previous Quarter" in desc_pq
+
+    # 3. Previous Quarter when in Q1 (Rollover to Q4 previous year)
+    ref_q1 = datetime(2026, 2, 10, 11, 0, 0)
+    s_pq1, e_pq1, desc_pq1 = resolve_time_window("previous_quarter", reference_now=ref_q1)
+    assert s_pq1 == datetime(2025, 10, 1, 0, 0, 0)
+    assert e_pq1 == datetime(2025, 12, 31, 23, 59, 59, 999999)
+
+    # 4. Current Year (January 1 of current year 00:00:00 -> now)
+    s_cy, e_cy, desc_cy = resolve_time_window("current_year", reference_now=ref_q3)
+    assert s_cy == datetime(2026, 1, 1, 0, 0, 0)
+    assert e_cy == ref_q3
+    assert "Current Year" in desc_cy
+
+
+@pytest.mark.asyncio
+async def test_cleanup_standalone_notifications_without_claim():
+    """Verify that standalone notifications (claim_id=None, e.g. system alerts/test emails)
+
+    are successfully identified in preview and deleted alongside cascaded claim records.
+    """
+    notif_id_standalone = str(uuid.uuid4())
+    test_claim_id = str(uuid.uuid4())
+    notif_id_child = str(uuid.uuid4())
+    case_id = str(uuid.uuid4())
+
+    async with TaskAsyncSessionLocal() as session:
+        # 1. Standalone notification (no parent claim)
+        standalone_notif = Notification(
+            id=notif_id_standalone,
+            event_type="TEST_EMAIL",
+            claim_id=None,
+            recipient="admin@uaic.com",
+            subject="Standalone System Alert",
+            body_html="<p>Test</p>",
+            status="SENT",
+            created_at=datetime.now(UTC),
+        )
+        session.add(standalone_notif)
+
+        # 2. Claim with child records
+        claim = ClaimRecord(
+            id=test_claim_id,
+            claim_number=f"TEST-STANDALONE-{test_claim_id[:6]}",
+            dol="09/01/2026",
+            insured_first_name="Standalone",
+            insured_last_name="Cascade",
+            policy_state="FL",
+            loss_location_state="FL",
+            record_status=RecordStatusEnum.NEW,
+            created_at=datetime.now(UTC),
+        )
+        session.add(claim)
+
+        # Child notification linked to claim
+        child_notif = Notification(
+            id=notif_id_child,
+            event_type="SCRAPER_FAILED",
+            claim_id=test_claim_id,
+            recipient="claims@uaic.com",
+            subject="Scraper Failed",
+            body_html="<p>Failed</p>",
+            status="SENT",
+            created_at=datetime.now(UTC),
+        )
+        session.add(child_notif)
+
+        # Child court case linked to claim
+        court_case = ScrapedCourtCase(
+            id=case_id,
+            claim_id=test_claim_id,
+            county_name="Broward",
+            county_website="https://www.browardclerk.org",
+            case_number="CASE-STANDALONE-01",
+            case_style="Doe vs State Farm",
+            created_at=datetime.now(UTC),
+        )
+        session.add(court_case)
+        await session.commit()
+
+    try:
+        # Calculate preview
+        preview = await calculate_cleanup_preview(
+            categories=["claims", "notifications"],
+            time_scope="all_time",
+        )
+        assert preview.total_database_records >= 4
+        assert preview.record_counts.get("notifications", 0) >= 2
+        assert preview.record_counts.get("claims", 0) >= 1
+
+        # Execute cleanup
+        exec_res = await execute_enterprise_cleanup(
+            categories=["claims", "notifications"],
+            time_scope="all_time",
+            operator="TEST_STANDALONE_CLEANUP",
+            dry_run=False,
+        )
+        assert exec_res.success is True
+        assert exec_res.referential_integrity == "PASS"
+
+        # Verify DB is clean of these specific records
+        async with TaskAsyncSessionLocal() as session:
+            assert (
+                await session.execute(
+                    select(Notification).where(Notification.id == notif_id_standalone)
+                )
+            ).scalar_one_or_none() is None
+
+            assert (
+                await session.execute(
+                    select(Notification).where(Notification.id == notif_id_child)
+                )
+            ).scalar_one_or_none() is None
+
+            assert (
+                await session.execute(
+                    select(ScrapedCourtCase).where(ScrapedCourtCase.id == case_id)
+                )
+            ).scalar_one_or_none() is None
+
+            assert (
+                await session.execute(
+                    select(ClaimRecord).where(ClaimRecord.id == test_claim_id)
+                )
+            ).scalar_one_or_none() is None
+    finally:
+        # Cleanup in case of assertion failure
+        async with TaskAsyncSessionLocal() as session:
+            await session.execute(
+                select(Notification).where(
+                    Notification.id.in_([notif_id_standalone, notif_id_child])
+                )
+            )
+            await session.commit()
+
 

@@ -40,8 +40,7 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
             return results
 
         t_nav_start = datetime.now()
-        await page.goto(self.base_url, wait_until="domcontentloaded")
-        await page.wait_for_timeout(1500)
+        await self._navigate_to_county_civil(page)
         t_nav_end = datetime.now()
         self.record_stage("website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=self.base_url)
 
@@ -52,13 +51,13 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
         dol_input = page.locator("#ctl00_ContentPlaceHolder1_txtDateFrom, input[name*='DateFrom'], input[id*='DateFrom'], input[placeholder*='File Date from']")
 
         await last_input.first.wait_for(state="visible", timeout=15000)
-        await last_input.first.fill(l_name)
+        await self.biometric_fill(last_input.first, l_name)
         if f_name and await first_input.count() > 0:
-            await first_input.first.fill(f_name)
+            await self.biometric_fill(first_input.first, f_name)
 
         if date_of_loss and await dol_input.count() > 0:
             clean_dol = date_of_loss.strip()
-            await dol_input.first.fill(clean_dol)
+            await self.biometric_fill(dol_input.first, clean_dol)
             logger.info(f"[{self.county_name}] Filled File Date from with DOL: {clean_dol}")
 
         await page.wait_for_timeout(500)
@@ -119,3 +118,21 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
             result_category="Data Found" if results else "No Record Found",
         )
         return results
+
+    async def _navigate_to_county_civil(self, page) -> None:
+        """Navigate to County Civil if not already on the form."""
+        await page.goto(self.base_url, wait_until="domcontentloaded")
+        await page.wait_for_timeout(1500)
+        
+        form = page.locator("#ctl00_ContentPlaceHolder1_txtLastName, input[name*='txtLastName']")
+        if not await form.count() > 0 or not await form.first.is_visible():
+            courts_menu = page.locator("a:has-text('COURTS')")
+            if await courts_menu.count() > 0:
+                await courts_menu.first.hover()
+                await page.wait_for_timeout(500)
+            civil_link = page.locator("a:has-text('County Civil')")
+            if await civil_link.count() > 0:
+                await civil_link.first.click()
+                await page.wait_for_timeout(1500)
+            if await form.count() > 0:
+                await form.first.wait_for(state="visible", timeout=15000)

@@ -22,7 +22,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.automation.florida.hillsborough import HillsboroughScraper
 from app.core.database import Base, TaskAsyncSessionLocal, engine
@@ -77,8 +77,6 @@ async def sample_claim_with_details():
             driver_last_name="Dent",
             policy_state="Florida",
             loss_location_state="Florida",
-            loss_location_city="Tampa",
-            loss_location_county="Hillsborough",
             record_status=RecordStatusEnum.MATCH_FOUND,
             fuzzy_match_status=FuzzyMatchStatusEnum.COMPLETED,
             fl_website_hillsborough="Yes",
@@ -639,9 +637,6 @@ async def test_async_parse_and_ingest_all_12_columns(tmp_path):
         assert claim_db.policy_state == "Florida"
         assert "12COL-" in claim_db.claim_number
         assert claim_db.loss_location_state == "Florida"
-        # Deprecated fields (loss_location_city, loss_location_county) removed per Prompt 03
-        assert claim_db.loss_location_city is None
-        assert claim_db.loss_location_county is None
         assert claim_db.exposure_number == "3"
         assert claim_db.claimant_first_name == "Arthur"
         assert claim_db.claimant_last_name == "Dent"
@@ -672,6 +667,11 @@ async def test_queue_runner_progression_and_recovery():
     # 2. When auto-queue is enabled, picks next NEW claim and locks it
     claim_id = str(uuid.uuid4())
     async with TaskAsyncSessionLocal() as session:
+        await session.execute(
+            update(ClaimRecord)
+            .where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
+            .values(record_status=RecordStatusEnum.COMPLETED)
+        )
         c = ClaimRecord(
             id=claim_id,
             claim_number=f"QUEUE-ADV-{claim_id[:6]}",

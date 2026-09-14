@@ -17,7 +17,6 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Join-Path $PSScriptRoot ".."
 $setupLocal = Join-Path $root "setup_local.ps1"
-$setupRoot  = Join-Path $root "setup.ps1"
 
 Write-Host "=======================================================================" -ForegroundColor Cyan
 Write-Host "      Enterprise Setup Console Automated Test Harness (PS1)            " -ForegroundColor Cyan
@@ -26,17 +25,15 @@ Write-Host "====================================================================
 $testResults = @()
 
 # --- TEST 1: PowerShell AST Syntax Validation ---
-Write-Host "`n[TEST 1/5] Verifying PowerShell AST syntax for setup_local.ps1 & setup.ps1..." -ForegroundColor Yellow
+Write-Host "`n[TEST 1/5] Verifying PowerShell AST syntax for setup_local.ps1..." -ForegroundColor Yellow
 $syntaxErrors = 0
-foreach ($file in @($setupLocal, $setupRoot)) {
-    $errs = $null
-    [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$errs) | Out-Null
-    if ($errs.Count -eq 0) {
-        Write-Host "  -> $(Split-Path $file -Leaf): PASS (0 syntax errors)" -ForegroundColor Green
-    } else {
-        Write-Host "  -> $(Split-Path $file -Leaf): FAIL ($($errs.Count) syntax errors)" -ForegroundColor Red
-        $syntaxErrors += $errs.Count
-    }
+$errs = $null
+[System.Management.Automation.Language.Parser]::ParseFile($setupLocal, [ref]$null, [ref]$errs) | Out-Null
+if ($errs.Count -eq 0) {
+    Write-Host "  -> $(Split-Path $setupLocal -Leaf): PASS (0 syntax errors)" -ForegroundColor Green
+} else {
+    Write-Host "  -> $(Split-Path $setupLocal -Leaf): FAIL ($($errs.Count) syntax errors)" -ForegroundColor Red
+    $syntaxErrors += $errs.Count
 }
 $status1 = if ($syntaxErrors -eq 0) { "PASS" } else { "FAIL" }
 $testResults += [PSCustomObject]@{ Test = "AST Syntax"; Status = $status1 }

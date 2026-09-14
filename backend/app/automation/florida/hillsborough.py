@@ -83,9 +83,9 @@ class HillsboroughScraper(BaseCourtScraper):
         dol_input = page.locator("#spDateFiledAfter, input[name='spDateFiledAfter']")
 
         await last_input.first.wait_for(state="visible", timeout=25000)
-        await last_input.first.fill(l_name)
+        await self.biometric_fill(last_input.first, l_name)
         if f_name and await first_input.count() > 0:
-            await first_input.first.fill(f_name)
+            await self.biometric_fill(first_input.first, f_name)
 
         if date_of_loss and await dol_input.count() > 0:
             clean_dol = date_of_loss.strip()
@@ -106,7 +106,7 @@ class HillsboroughScraper(BaseCourtScraper):
             except Exception as e:
                 logger.warning(f"[{self.county_name}] DOM date fill note: {e}, falling back to locator.fill")
                 try:
-                    await dol_input.first.fill(clean_dol)
+                    await self.biometric_fill(dol_input.first, clean_dol)
                 except Exception as ex:
                     logger.warning(f"[{self.county_name}] Could not fill datepicker: {ex}")
 

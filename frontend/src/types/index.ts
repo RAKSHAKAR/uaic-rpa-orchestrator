@@ -20,7 +20,8 @@ export type BotStatus =
   | 'IN_PROGRESS'
   | 'COMPLETED'
   | 'FAILED'
-  | 'NO_MATCH_FOUND';
+  | 'NO_MATCH_FOUND'
+  | 'BLOCKED';
 
 export interface BotDetail {
   name: string;
@@ -48,14 +49,20 @@ export interface ScrapedCourtCase {
 export interface ErrorScreenshot {
   id: string;
   claim_id: string;
-  portal_key: string;
-  portal_name: string;
+  portal_key?: string;
+  portal_name?: string;
+  portal?: string;
+  county?: string;
   page_url?: string;
   page_title?: string;
   exception_message?: string;
-  attempt_number: number;
+  error_message?: string;
+  error_stage?: string;
+  attempt_number?: number;
   storage_provider?: string;
-  file_path: string;
+  file_path?: string;
+  file_size_bytes?: number;
+  content_type?: string;
   image_url: string;
   created_at?: string;
 }
@@ -318,6 +325,15 @@ export interface SystemSettings {
   branding?: BrandingSettings;
   storage?: StorageSettings;
   email?: EmailSettings;
+  proxy?: ProxySettings;
+}
+
+export interface ProxySettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
 }
 
 export interface StorageTestRequest {
@@ -602,6 +618,14 @@ export interface EmailSettings {
   from_name: string;
   from_email: string;
   reply_to?: string;
+  // Microsoft Graph configuration
+  graph_tenant_id?: string;
+  graph_client_id?: string;
+  graph_client_secret?: string;
+  // Amazon SES configuration
+  ses_region?: string;
+  ses_access_key_id?: string;
+  ses_secret_access_key?: string;
   to_recipients: string[];
   cc_recipients: string[];
   bcc_recipients: string[];
@@ -624,6 +648,12 @@ export interface EmailConnectionTestRequest {
   smtp_username?: string;
   smtp_password?: string;
   smtp_encryption?: string;
+  graph_tenant_id?: string;
+  graph_client_id?: string;
+  graph_client_secret?: string;
+  ses_region?: string;
+  ses_access_key_id?: string;
+  ses_secret_access_key?: string;
   timeout_seconds?: number;
   recipient_domain?: string;
 }
@@ -769,6 +799,52 @@ export interface FuzzySearchResponse {
   duration_ms: number;
 }
 
+export interface UniqueNameItem {
+  party_type: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name: string;
+  search_order: number;
+}
+
+export interface UniqueNamesRequest {
+  claim_id?: string;
+  insured_first_name?: string | null;
+  insured_last_name?: string | null;
+  driver_first_name?: string | null;
+  driver_last_name?: string | null;
+  claimant_first_name?: string | null;
+  claimant_last_name?: string | null;
+  threshold?: number;
+}
+
+export interface UniqueNamesResponse {
+  unique_names: UniqueNameItem[];
+  total_unique_names: number;
+  count: number;
+  dual_search: number;
+  triple_search: number;
+  claim_number?: string | null;
+}
+
+export interface FuzzyMatchScore {
+  target_string: string;
+  result: string;
+  score: number;
+}
+
+export interface DirectFuzzyMatchRequest {
+  reference_string: string;
+  target_strings: string[];
+  threshold?: number;
+}
+
+export interface DirectFuzzyMatchResponse {
+  reference_string: string;
+  threshold_applied: number;
+  matches: FuzzyMatchScore[];
+}
+
 // --- New: Extract Unique Party Names ---
 
 export interface ExtractNamesResponse {
@@ -786,4 +862,68 @@ export interface AntiCaptchaTestResponse {
   message: string;
   latency_ms: number;
   error_code?: string | null;
+}
+
+// --- Enterprise Data Cleanup & Retention Types ---
+
+export interface CleanupCategory {
+  id: string;
+  name: string;
+  description: string;
+  is_database: boolean;
+  current_count: number;
+}
+
+export interface CleanupPreviewRequest {
+  categories: string[];
+  time_scope?: string;
+  n_units?: number;
+  start_date?: string;
+  end_date?: string;
+  before_date?: string;
+  after_date?: string;
+}
+
+export interface CleanupPreviewResponse {
+  time_scope: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  categories: string[];
+  record_counts: Record<string, number>;
+  file_counts: Record<string, number>;
+  total_database_records: number;
+  total_files: number;
+  can_proceed: boolean;
+  warnings: string[];
+}
+
+export interface CleanupExecuteRequest {
+  categories: string[];
+  time_scope?: string;
+  n_units?: number;
+  start_date?: string;
+  end_date?: string;
+  before_date?: string;
+  after_date?: string;
+  confirmed?: boolean;
+  dry_run?: boolean;
+}
+
+export interface CleanupExecuteResponse {
+  cleanup_id: string;
+  success: boolean;
+  started_at: string;
+  completed_at: string;
+  time_scope: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  records_deleted: Record<string, number>;
+  total_records_deleted: number;
+  files_deleted: number;
+  redis_purged: boolean;
+  referential_integrity: string;
+  dashboard_reconciliation: string;
+  notification_history_reconciliation: string;
+  message: string;
+  details?: Record<string, any>;
 }

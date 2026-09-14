@@ -1,0 +1,1154 @@
+MANDATORY TASK COMPLETION RULES
+must perform a gap analysis and resume from the last successful point. Never silently skip tasks.
+Requirements Rechecked.
+must rely on standard Dockerfiles, `.env` variables, and standard shell scripts.
+must use dynamic environment variables (e.g., `NEXT_PUBLIC_API_BASE_URL`) to easily switch between localhost and live production backend URLs.
+must be maintained for isolated testing and containerized deployment.
+must expose its port dynamically via the `PORT` environment variable (e.g., `0.0.0.0:$PORT`) to satisfy external host routing requirements.
+must be maintained. 
+must be strictly isolated to `backend/requirements.txt`.
+must communicate exclusively via HTTP/REST APIs.
+must implement models to audit Guidewire transmissions, filter exclusions, and configuration changes:
+Mandatory Task Completion, Error Resolution, Skills & Technology Documentation Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+Mandatory Task Completion, Error Resolution, Skills & Technology Documentation Requirements.md ---
+Mandatory Task Completion, Error Resolution, Skills & Technology Documentation Requirements
+MUST extract it into a reusable component, utility function, or shared module, and import/call it where needed.
+must place the file *exactly* where requested and nowhere else.
+MUST verify its dependencies across the codebase.
+must update the dependent file simultaneously.
+must be clean, modular, and adhere to standard enterprise formatting.
+Mandatory Comments:** 
+MUST include a top-level Header/Docstring explaining its purpose.
+MUST include clear, inline developer comments explaining *why* the code does what it does.
+MANDATORY
+requirement that has been assigned, you must:
+must continue from the last successful point** and complete all remaining work.
+requirements and verify that **nothing has been missed**.
+Mandatory Completion Rule
+MANDATORY
+must always check and resolve **all relevant errors and problems**.
+must:
+must also check all relevant terminal output and resolve:
+MANDATORY
+requirements were requested.
+missing or incomplete task.
+MUST BE UPDATED
+requirements must be permanently added to the appropriate project/agent **Skills** so they are automatically followed in future tasks.
+must explicitly enforce:
+must become part of the standard development workflow and must not be treated as a one-time instruction.
+MANDATORY
+must help a new developer understand:
+must contain a dedicated section such as:
+must be maintained continuously.
+must review and update the relevant `README.md` documentation.
+Requirements
+Missing Work
+Missing Work
+Missing Test/Re-run Tests
+Requirement-by-Requirement Verification
+mandatory development/completion rules.
+requirement-by-requirement gap analysis has been completed.
+Requirements Rechecked**
+must be followed for all future development work in this solution.
+must now update the existing implementation to officially target and support:
+must be treated as the target Python runtime for the backend.
+Requirement
+must be developed and tested against Python 3.14.7.
+requirements.txt`
+requirements*.txt`
+requirements.lock`
+requirement, not an optional activity.
+must remain reliable.
+requirement.
+must continue to use the **normal/default Chrome installation** required by the existing Anti-Captcha extension.
+missing indexes
+must remain reliable and sequential where business logic requires sequential processing.
+must not violate the required record-processing semantics.
+must be event/condition based wherever possible.
+must be configurable.
+must remain backward compatible unless the change is explicitly required.
+Requirements File
+must:
+must not silently select another Python version.
+must remain efficient for large datasets.
+requirement remains mandatory.
+must respect:
+must NOT change the established business behavior.
+must be no hidden fallback to an older Python installation.
+Must Remain Compatible
+Requirement
+requirements.txt`.
+must be fully functional, production-ready, flexible, safe, enterprise-grade, and actually tested.**
+must be redesigned as a **complete enterprise data-retention/cleanup engine**.
+MUST BECOME A REAL ENTERPRISE CLEANUP ENGINE
+must be able to control:
+must first ask the user what type(s) of data should be deleted.
+must be generated from the actual application's data model.
+must be able to select multiple categories in one operation.
+must also have:
+MANDATORY
+must NOT simply mean:
+must provide the desired retention/deletion period.
+MUST BE SUPPORTED
+must dynamically determine the current calendar month.
+must automatically change.
+must be configurable and must use the application's configured timezone.
+MANDATORY DRY-RUN PREVIEW
+MUST BE RELATIONSHIP-AWARE
+must also be removed according to the application's data-retention rules.
+MUST BE HANDLED CORRECTLY
+must be fixed.
+must reflect the actual remaining database state.
+MUST BE CLEANED
+mandatory acceptance requirement.
+must actually be removed.
+MUST BE RELATIONSHIP-AWARE
+MUST NEVER BE ACCIDENTALLY DELETED
+must never accidentally remove:
+must remain safe.
+must be implemented safely.
+MUST BE IDEMPOTENT
+must not cause errors.
+must complete successfully.
+must NOT be deleted by the cleanup operation currently executing.
+Must support:
+requirements where actually required.
+requirement for attended/unattended browser automation.
+must visibly launch and control the actual browser.
+must not introduce assumptions that break unattended execution.
+must distinguish:
+must show real status.
+Mandatory tests:
+must be tested where applicable.
+requirement:
+must actually be changed.
+must return the correct data.
+must display the correct data.
+REQUIREMENT
+must be fast and fluent.
+must remain responsive.
+must work on:
+must remain usable.
+must remain readable.
+must be clear.
+must have complete but safe control over:
+requirement is to use the installed system Google Chrome.
+must be investigated.
+must be made reliable.
+must understand all services actually used by the application.
+must be tested in real execution, not merely inspected statically.
+must be verified.
+MUST BE CENTRALIZED
+must be derived from the actual project.
+Requirement
+must actually start every required local service.
+must not merely launch a few terminals and assume everything started correctly.
+must understand dependencies.
+must allow the user to select:
+must actually propagate to the backend/RPA engine.
+must not merely change text displayed by the console.
+must be visibly launched when an actual automation task executes.
+must actually interact with the visible browser.
+must use the configured extension.
+must be resolved dynamically from the project root.
+must use the configured extension.
+must use the same core business workflow.
+must be fixed.
+MUST stop every service actually started by the application.
+must:
+Requirement
+must explicitly be handled by Option [2].
+must no longer be serving MailDev.
+requirement is mandatory.
+must not produce an error.
+must remain safe.
+must be a real enterprise cleanup tool.
+must NOT delete configuration or secrets accidentally.
+must allow selection of:
+must be based on the actual database/storage model.
+must understand relationships.
+must be updated so it does **not assume Google Chrome or Chromium only**.
+must fully install, update, repair, and validate ALL dependencies required by the existing UAIC Claim & RPA Orchestrator.
+MUST NOT be removed, restricted, or simplified.
+must therefore understand and validate ALL THREE supported browser engines.
+MUST support:
+must determine which browser runtime is used by the RPA engine.
+must detect all supported browsers independently.
+missing.
+MUST report the configuration as invalid and provide a clear remediation.
+must install or repair the runtime required by EACH supported browser.
+missing or corrupted.
+must distinguish between:
+must always be downloaded.
+must determine whether the current application actually requires the Playwright-managed Chromium distribution.
+must optimize setup time, disk usage, startup time, and maintenance.
+MUST BE CONFIGURATION-DRIVEN
+must come from the application's centralized Settings / Browser Automation Engine configuration.
+must use the centralized browser factory/runtime abstraction.
+must use Chrome, Chromium, or Edge.
+must resolve:
+must work for:
+must be validated for ALL THREE supported browsers.
+MUST be dynamically resolved from the project root:
+must verify:
+requirements are satisfied
+must perform an actual browser smoke test for every installed supported browser.
+must distinguish:
+must validate visible browser operation.
+must actually appear
+must connect
+must work
+must work
+must load
+must close cleanly
+must NOT be based only on a background/headless process.
+must also be validated in unattended/headless mode where supported.
+must use the same browser abstraction and configuration.
+must be resolved automatically and safely.
+MUST remain aligned with:
+must be intelligent and idempotent.
+must NOT repeatedly:
+MUST always be installed and validated.
+must verify that the browser factory is compatible with:
+must NEVER be classified as Texas.
+must therefore explicitly show:
+must verify:
+must report:
+must NOT falsely report:
+must:
+MUST NOT CHANGE APPLICATION FUNCTIONALITY
+must NOT:
+MUST maintain all three.
+must be:
+must be investigated.
+requirement is to use **system Google Chrome**, not bundled Playwright Chromium.
+must be investigated.
+must be a safe and complete cleanup option.
+must be able to recreate the environment successfully.
+must control the actual RPA engine.
+must be:
+Must Include
+must return a meaningful success/failure state.
+mandatory test fails:
+must be reported.
+must correctly support:
+must be a real service monitoring function.
+must:
+MUST BE FULLY INTEGRATED INTO SERVICE LIFECYCLE
+must not be treated as an unrelated optional process if the application depends on it for local email testing.
+must correctly report MailDev.
+must actually reach MailDev.
+must be investigated.
+requirement.
+MUST BE ROBUST
+must detect port conflicts before startup.
+must clearly report the partial state.
+must have structured logging.
+Requirements:
+must not crash the console.
+must recover successfully.
+must actually become visible.
+must not break the eight-county automation.
+must remain classified as **Florida**, never Texas.
+must be tested from its configured home page through the actual search flow.
+must work in:
+REQUIREMENT
+must remain compatible with:
+REQUIREMENTS
+MUST stop MailDev and release port 1080.**
+must verify:
+MUST explicitly stop MailDev (Ports 1080, 1025).
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+must be an enterprise-grade, reliable, safe, configurable, observable and fully tested local operations/orchestration console.
+must actually perform the operation it claims to perform.
+must respect dependencies.
+must start the complete application environment.
+must NOT merely open several terminals and assume success.
+missing services.
+mandatory-service failures.
+must allow:
+must actually propagate to:
+must actually appear.
+must control the visible browser.
+must work.
+must work.
+must load.
+must execute.
+must close cleanly.
+must run without requiring visible GUI;
+must support the configured unattended mode;
+must work;
+must work;
+must be validated;
+must work;
+must work.
+Mandatory sequence:
+must not be a situation where:
+must stop ALL application-owned services.
+must come from the service registry.
+REQUIREMENT
+MUST be included in Option [2].
+must be safe.
+must not cause errors.
+MUST be handled properly.
+must be a real enterprise data-retention system.
+must be reconciled.
+must be able to select multiple categories in one operation.
+MUST BE DYNAMIC
+must automatically change.
+MUST NOT delete anything.
+must result in:
+MUST be deleted when eligible.
+MUST NOT accidentally delete:
+must be clearly separated.
+must be safe.
+must still complete successfully.
+must generate an audit record.
+must not be deleted by the cleanup currently executing.
+must install, repair and validate ALL required dependencies.
+MUST remain:
+MUST REMAIN SUPPORTED.
+must be configuration-driven.
+must resolve:
+requirement.
+must be dynamically resolved.
+must be persisted and consumed by the actual backend.
+must support combinations such as:
+must be fully functional.
+must NEVER display:
+must continue.
+must not stop the entire queue unless the failure is classified as a global infrastructure failure.
+must be treated as a maximum, not automatically the safest production setting.
+MUST be investigated and fixed.
+must correctly honor its configured Auto Queue setting.
+must run comprehensive diagnostics.
+must return one of:
+must verify:
+must be investigated.
+must execute a controlled real test task.
+must support:
+MUST enforce these rules to prevent Windows Docker Daemon crashes:
+MUST ONLY execute `docker compose` targeting the `$rootDir/docker-compose.yml` file.
+MUST physically copy `backend/.env` to the root folder as `.env`. Do NOT rely on `--env-file` flags or process-level memory.
+MUST execute `docker system prune --volumes -f` to aggressively wipe out dangling containers and volumes.
+must be significantly more capable than:
+MUST VERIFY ACTUAL HEALTH
+must both be validated.
+mandatory.
+MUST ALWAYS be Florida.
+must be selected simultaneously.
+must:
+must actually be used.
+must not automatically fail unrelated claim processing.
+must be represented separately.
+must generate structured logs.
+must be used for safe lifecycle management.
+mandatory service fails:
+must provide:
+Mandatory:
+must run:
+must be followed by actual behavioral validation where applicable.
+must validate:
+MUST remain Florida.
+REQUIREMENT
+must recover successfully.
+must be explained.
+REQUIREMENT
+must provide:
+must be:
+must be:
+must be actually executed and verified before being reported as PASS.**
+must use the full available viewport width. Remove unnecessary `max-width` constraints. No horizontal overflow.
+must NOT change, corrupt, omit, or rename the data payload being sent to Guidewire. Preserve the exact Power Automate format.
+MANDATORY RESPONSIVE UI-UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION.md  
+Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+MANDATORY RESPONSIVE UI-UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION.md ---
+MANDATORY RESPONSIVE UI/UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION
+must now perform a complete responsive UI/UX audit and implementation across the **entire existing application**.
+MANDATORY
+must use the **full available viewport width**.
+must be **zero accidental horizontal scrolling** on normal application pages.
+must support at minimum:
+must occupy remaining width.
+must not unnecessarily consume excessive width.
+must remain usable.
+must expand into available space.
+MANDATORY
+must use a dedicated mobile navigation pattern.
+must:
+must include sufficient bottom padding so that the last item is never hidden behind the fixed navigation.
+must be based on the application's actual modules.
+must not simply be squeezed into mobile.
+must not permanently consume mobile viewport width.
+must dynamically reflow.
+must also resize correctly.
+must also adapt.
+must remain usable.
+must adapt.
+must be large enough for touch interaction.
+must be tested on mobile.
+must:
+must become appropriate mobile sheets where required.
+must work on small screens.
+must remain understandable on mobile.
+must be fully responsive.
+must work on mobile.
+must work on mobile.
+must scale appropriately.
+must be touch friendly.
+must have appropriate touch target dimensions.
+must account for:
+must not cover the final content/action area.
+must NOT break scrolling.
+must remain reachable above the footer.
+must be inspected for unnecessary:
+REQUIREMENT
+must remain available and functional unless there is a deliberate responsive UX transformation that preserves the same capability.
+missing functionality.
+requirement is:
+mandatory.
+requirements include:
+must run on the machine/environment where Chrome is actually available.
+REQUIREMENT
+requirements.
+MUST launch the installed/default **Google Chrome browser**, not merely bundled Chromium.
+must:
+must:
+must:
+must be controlled by Settings.
+must be preferred.
+must perform real UI interactions.
+must:
+must preserve the existing business input model.
+must retain the original values accurately.
+must be converted correctly using the equivalent Excel date base behavior.
+must not be changed merely because another routing strategy appears cleaner.
+must have a centralized portal registry.
+must contain:
+must be configurable from Settings.
+must NEVER be hardcoded.
+must preserve existing behavior:
+must now come from Settings.
+MUST be supported.
+must preserve the existing legacy text-cleaning behavior where status is derived from result data.
+must preserve portal-specific output.
+must be reliable and observable.
+must preserve the existing sequential behavior.
+MUST provide:
+must actually invoke backend operations.
+must automatically process queued items one by one.
+MISSING FILE DOCUMENTS
+must be reproduced exactly.
+must support:
+must be ONE authoritative Settings system.
+must be persisted in the backend/database.
+must read the latest effective configuration.
+must have:
+must:
+must support:
+must support:
+must respect:
+must support server-side pagination.
+must have a real loading state.
+must not be confused with actual scraper execution.
+must have structured exceptions.
+must be safe to retry.
+must be isolated per job.
+must have:
+must be deterministic where business logic requires it.
+must be fully responsive.
+must use the full available width of the active screen.
+must remain accessible
+must work correctly in:
+must be server-side for large datasets.
+must not be treated as:
+mandatory.
+Must process all configured portals.
+Must preserve the legacy behavior.
+must be configurable.
+must:
+must clearly separate:
+missing components
+must remain available.
+must be permission-aware.
+must handle:
+must work.
+must continue working. 
+Missing pagination on some portals.
+Missing portal-specific validation.
+REQUIREMENT
+must be idempotent or protected from duplicate clicks.
+must remain usable if:
+must execute:
+must behave like the existing Power Automate solution from an input/output perspective while improving:
+must combine both correctly.
+must work end-to-end.
+must be analyzed is:
+must deeply inspect V4 and all related subflows/actions.
+Missing behavior
+must clearly and correctly represent the following automation structure.
+must NEVER be displayed, categorized, routed, or located under Texas.
+must all follow the same geography.
+must be automatically routed based on policy/loss-location geography.
+must dispatch all 8 portals concurrently according to the V4 behavior.
+must be centralized and reused by:
+must contain implementations for all 8 required portals.
+must exist.
+must not remain as stale runtime artifacts if they are no longer required.
+must officially target:
+must use Python 3.14.7.
+MANDATORY
+must use the **normal system-installed Google Chrome**.
+must be tested in the same Chrome environment used by the automation.
+must be:
+must not cause the system to use Chromium for this automation.
+must explicitly launch the detected system Google Chrome.
+MUST NOT BE HARDCODED.
+must work if the project is moved to another directory.
+must come from Settings.
+must be aligned with:
+must be the source of truth for configurable behavior.
+must be one consistent configuration flow:
+must preserve all of them.
+must NOT display only a subset.
+must support all required imported fields.
+must support:
+must be fully responsive.
+must be consistent between frontend and backend.
+must work reliably.
+must not merely start successfully.
+must actually process tasks.
+must still provide accurate operational status through the application's own backend APIs.
+must be verified end-to-end.
+must:
+must actually work:
+must happen automatically.
+must also be a manual option to:
+must be preserved.
+must actually see the browser automation occurring.
+MUST BE FUNCTIONAL
+must be implemented and tested against its actual behavior.
+must support:
+must be deterministic.
+must be:
+must remain unchanged unless V4 explicitly changes it.
+must be displayed.
+must exist:
+requirement is global.
+must support, where applicable:
+must remain compatible with the existing workflow.
+must reflect real execution.
+must clearly show all eight bots.
+must use real backend data.
+must export actual claim data.
+REQUIREMENTS
+must:
+must be opened and confirmed valid.
+must be readable.
+must parse correctly.
+must be valid JSON.
+must work globally.
+must not:
+must be consistent with the application's design system.
+must share consistent:
+must be responsive.
+must be:
+must include:
+must actually work.
+must provide:
+must be migrated to secure configuration.
+must be observable and verifiable.
+missing form fields
+must use real data.
+requirement is already correctly implemented, **do not rewrite it unnecessarily**. Verify it and preserve it.
+requirement is partially implemented, finish it.
+must be a **real, working, production-grade UAIC Claim & RPA Orchestrator**, not a collection of screens that merely appears complete.
+must be improved **without changing the backend data contract or breaking the automation pipeline**.
+must preserve it unless there is a documented reason that the field is intentionally not required.
+requirement is:
+must NOT change, corrupt, omit, rename, or otherwise affect the data being sent to Guidewire.**
+must continue to receive the exact expected structure.
+must never become the source of truth for the Guidewire payload.
+must be presented in a **professional enterprise table grouped by Portal Link**.
+must display all relevant scraped fields that are actually produced by the Power Automate workflow/current backend.
+must support full enterprise-grade table functionality.
+must work correctly across all grouped portal sections.
+Must Work With Pagination and Filtering
+must always understand:
+Must Remain Available
+must preserve the raw scraped JSON/data generated by the scraping process.
+Missing optional fields.
+must also follow the application's global responsive requirements.
+must adapt appropriately.
+must include the application's **fixed bottom/footer navigation** for the primary navigation destinations.
+Requirements
+must look like a polished enterprise application.
+must not become the source of truth.
+must provide a dedicated, responsive management card titled **"Guidewire Integration & Case Filtering Rules"**:
+Requirements
+requirement below must be implemented, tested, verified, documented, and demonstrated to work correctly.
+must work with the **existing implementation and existing data model**.
+must be tested through the actual application/browser/API/workflow wherever applicable.
+REQUIREMENTS
+must be properly tested in:
+must be fully responsive for:
+must be no:
+REQUIREMENT
+must have the same visual design.
+must be implemented as a reusable component and reused wherever background exports are supported.
+must be available at the top of the page.
+must be properly tested.
+must be applied to the data table.
+must refresh correctly.
+must be visually understandable.
+must work with pagination.
+must work with sorting.
+must be implemented on table columns.
+must support multi-select.
+Requirements
+Requirements
+must use the same established visual language/design as the Dashboard.
+must be available and functional.
+must be converted into a reusable component.
+must be enabled by default.**
+Requirements
+must display **all stages** of the workflow.
+must **not** be hardcoded here.
+must be controlled from:
+must follow the configured policy.
+must work with:
+must perform the intended action and display the appropriate stage information.
+must support:
+Must contain all information/data that JSON contains, wherever the data can be represented in Excel.
+Must contain all available information represented by JSON in a sensible CSV-compatible structure.
+requirements.
+must use the same established dashboard card design/language.
+must be processed.
+must support multi-select.
+must contain all available data, similar in completeness to JSON.
+must provide quick-download options for:
+must be reusable across all other applicable pages.
+Requirements
+must be **ON by default**.
+Requirements
+must be available.
+must support multi-select.
+must be clear and documented.
+must be:
+missing data, or intended behavior.
+must only be visible after the user clicks:
+must actually work.
+must be tested completely.
+REQUIREMENT
+must be supported.**
+must respect the purpose of each field.
+must be documented.
+Requirements:
+must be configurable.
+must be persisted.
+must be used by the actual automation workflow.
+must be handled as an authorized integration/configuration component of the automation system.
+must:
+must be configurable and testable from:
+must be able to:
+Missing required data
+must **not start** unless all prerequisite configuration and services are:
+missing, inactive, invalid, or not working:
+missing.
+must be tested/activated.
+must be actionable.
+must process the unique names returned by the unique-name API.
+must determine the next queue item's applicable state/workflow.
+mandatory.
+must be called/used before launching the browser tabs for the search workflow.
+must process:
+must make it easy for developers to locate the screenshot and for the application to display it later.
+must be easy to correlate.
+must be traceable to:
+must describe:
+must cover, where applicable:
+must be retained for future regression testing.
+must be tested on all relevant pages and workflows.
+must allow developers to easily identify which:
+requirements, do not silently choose one.
+must strictly adhere to the following global rules:
+MUST begin from its **Required Default Home URL**. Do not start from deep links or direct search endpoints.
+missing here to mention and available there) 
+missing here to mention and available there) 
+missing here to mention and available there) 
+missing here to mention and available there) 
+missing here to mention and available there) 
+missing here to mention and available there) 
+missing here to mention and available there) 
+missing here to mention and available there) 
+must be stored in portal-specific JSON attributes matching legacy database models:
+Requirements
+must be executed:
+MISSING FILE DOCUMENTS`
+must be excluded.*
+must be excluded. If an unapproved Case Type is present in the extracted data, it must be removed before sending to Guidewire.*  
+must be excluded.
+must be dynamically pulled from the Settings page (defaulting to `2010`).
+must be filtered out and dropped prior to Guidewire payload generation.*
+must be dynamically configurable via the Admin Settings Page and persisted in the database:
+must not be redesigned or changed unless explicitly required and approved.
+REQUIREMENT
+MUST NOT bypass, defeat, spoof, circumvent, or conceal automation from CAPTCHA, anti-bot, WAF, bot-detection, or security systems.
+must respect:
+requirements where applicable.
+MUST NEVER be classified or routed as a Texas county.
+must determine:
+requirements
+must be explicitly marked:
+must be verified for each portal.
+must be documented before implementation.
+must intervene.
+must follow the legitimate website interaction flow.
+must include controlled request management.
+Requirements:
+must not trigger aggressive retry behavior.
+must preserve the existing data contract and current Power Automate/V4 behavior.
+MANDATORY
+must be fully discovered and implemented.
+must prevent:
+MANDATORY**.
+must be developed in the current solution**.
+must be searched on county court portals.
+must:
+must be validated against the current data requirements before implementation.
+must be implemented **exactly** as follows:
+must not hard-code the workflow to exactly three portals.
+must be executed only after:
+must be handled deterministically.
+must be documented and testable.
+must be:
+must be created first.
+must visibly demonstrate:
+must not hide security challenges from the authorized user.
+must never pretend that a CAPTCHA/security challenge was completed.
+must demonstrate that the implementation follows the legitimate verified flow.
+must contain, for each portal:
+requirements
+must also verify:
+must verify the exact orchestration sequence.
+must NOT produce:
+requirement is verified when it has not been verified.
+mandatory and must be reflected consistently in the:
+MISSING_REQUIREMENT_CAPTCHA_COMPLIANCE_AND_RETRY_LOGIC.md ---
+Requirements:
+MUST NOT stop the entire orchestrator process.
+must seamlessly continue processing the remaining site(s) and queued items in the dataset.
+must automatically retry and resume processing the previously failed/blocked items.
+MANDATORY)
+must follow this exact sequence:
+must NEVER attempt to bypass, defeat, or spoof reCAPTCHA, Cloudflare, or Arkose Labs. 
+Must be enabled by default.
+missing `Filing Date` capture in the Scraped Cases section along with other all columns.
+MISSING_REQUIREMENT_CAPTCHA_COMPLIANCE_AND_RETRY_LOGIC.md  
+Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+must NOT stop the entire orchestration process. Instead, it must continue processing the remaining site(s) and queue items.
+Requirements.md ---
+Requirements
+must be enabled by default.
+must be displayed.
+must be able to download the screenshot corresponding to each respective stage.
+must be available under:
+must include the required change/update policy.
+must work against the connected storage.
+must work with local storage as well as supported service/storage providers.
+must have time period selection and other important things like deletion confirmation, other validation, logs generation, etc.
+must be fully responsive according to the responsiveness requirements defined in the existing Skills.
+requirements.
+must support multi-select functionality.
+must be there in all the data table.
+must be enabled by default.
+Requirements
+must be available at the top of the page.
+must work correctly when clicking the statistic cards.
+must be available directly on the table columns.
+must support multi-select.
+must be available.
+must support multi-select.
+must be the default settings:
+requirements already provided.
+must be always visible based on the screensize dynamically.
+must work properly.
+Requirements
+must support multiple selections.
+must be suport automatic and manual both kind of processing.
+must be `500`.
+must explicitly display as `Florida (FL)` or `Texas (TX)` or `Others (OT)`.
+Requirements:
+must be configurable.
+must be testable from Automation Settings.
+Requirements
+must be configurable from the Automation Settings page.
+must be testable from the Automation Settings page.
+must return the real response.
+must include different types of positive and negative match scenarios.
+must represent realistic scenarios.
+must only start when all the required prerequisites above are:
+must clearly explain what prerequisite is missing or not working and what needs to be configured/fixed.
+must be created realeted to workflow as well with all workflow diagram(s).
+must follow **Max Retry & Refresh Attempts = 2**.
+must be preserved because this data may already be used by existing APIs and may also be sent to the Guidewire API.
+must be able to handle both situations.
+must be repeated until all unique names returned by the Unique Names API have been processed.
+must be called before launching the browser tabs.
+must determine the next workflow.
+must follow **Max Retry & Refresh Attempts = 2**.
+must follow **Max Retry & Refresh Attempts = 2**.
+must follow **Max Retry & Refresh Attempts = 2**.
+must be repeated until all unique names returned by the Unique Names API have been processed.
+must be called before launching the browser tabs.
+must determine the next workflow.
+must be repeated until all unique names returned by the Unique Names API have been processed.
+must proceed according to the queue item's actual state/type.
+Requirements
+must follow the configured **Error Screenshot Capture on Portal Scraper Failure** setting.
+must allow screenshots and logs to be easily identified and matched for debugging and application display.
+must be automated and vedio and screenshot evidence recorded as per abvoe defination(s).
+must always be maintained consistently for proper development identification, debugging, testing, and future reference.
+MUST dynamically respect the "Parallel RPA Concurrency" setting defined in the Automation Settings UI. 
+MUST launch entirely separate, distinct, and visible GUI Browser Instances for each parallel worker. 
+must NOT use hidden background contexts or headless tabs. 
+MUST execute entirely in the background without rendering a graphical user interface (GUI).
+MUST utilize `headless=True` for all browser instances to optimize server CPU and memory allocation.
+must display these skeleton loaders or localized spinners so the user explicitly knows which parts of the page are updating.
+MUST be fully clickable and actionable.
+MUST be connected to the real backend data state and work perfectly.
+must correctly filter the respective dataset either in real-time or upon submission.
+must instantly render the correct sub-components. 
+must work flawlessly without trapping the user or failing to load data.
+must check if the Anti-Captcha extension has automatically started the solving process. 
+MUST generate a unique `Batch ID` (UUID) and record the original `Filename` and `Upload Timestamp`.
+must be securely tagged with this `Batch ID` and `Filename` in the database.
+must instantly detect the new items in the queue and resume processing automatically without requiring any manual server restarts or service reboots.
+must immediately capture the error screenshot/log, flag the record as `Failed`, and route it to the Exceptions Queue.
+MUST include an "Auto-Retrigger Failed Claims" toggle and a "Max Global Retries per Claim" numeric input (e.g., default value of 1).
+must be permanently flagged as a "Hard Exception." The system MUST NOT automatically retrigger Hard Exceptions.
+must include functional "Retrigger" buttons (both for individual rows and a bulk "Retrigger Selected" action). 
+must be captured and saved for *every* failed attempt (both in-flight retries and hard failures), ensuring no diagnostic data is overwritten or lost.
+must run a scheduled background worker (e.g., daily Celery Beat / Cron task) that scans diagnostic directories.
+must be preserved for historical reporting; only heavy image files and raw HTML diagnostic logs are purged.
+must generate an audit record for every cleanup run detailing execution time, number of files purged, and disk space reclaimed.
+must maintain an isolated consecutive failure counter for each of the 8 county portals independently.
+must flag that portal as `CRITICAL_OUTAGE`.
+must be dispatched to the configured recipients containing:
+MUST dynamically display the exact physical file path of the browser executable that the automation engine is actively using to run the bots.
+must not be a static or hardcoded string. The frontend must fetch this path directly from the backend automation framework upon loading.
+missing, the UI must dynamically update to reflect the actual fallback path being utilized by the active workers.
+must natively support routing traffic through a residential or datacenter proxy pool. 
+MUST include a section for "Proxy Configuration" (e.g., Proxy URL, Username, Password, and a toggle to Enable/Disable proxies).
+must immediately identify this as an IP block, rather than a standard page failure.
+must dump the compromised proxy IP, request a fresh IP from the proxy pool, and retry the claim without failing the entire batch.
+must NOT rely on strict, hardcoded string matching for table headers.
+must normalize all extracted dates into a consistent `MM/DD/YYYY` or standard ISO format in the database for seamless Guidewire integration.
+MUST be encrypted at rest in the database (e.g., using AES-256). 
+MUST include a dedicated section for "Network Evasion & Proxies."
+must also include options for major external providers (e.g., `Oxylabs`, `Smartproxy`, `BrightData`, `IPRoyal`) and a `Custom External` option.
+must expose the following configurable inputs:
+MUST NOT allow the workers to share network signatures.
+must strictly isolate the `BrowserContext` by assigning it:
+must maintain completely isolated cookie jars and cache storage. If Worker 1 triggers a security flag, Worker 2 must remain completely unaffected.
+MUST be appended with a hidden provenance metadata object in the database.
+must be included to serve as a legal audit trail of when the public record was accessed.
+MUST include live telemetry widgets tracking the hardware utilization of the execution engine.
+MUST feature an "Active Execution Fleet" data grid that dynamically displays rows for each concurrent slot (e.g., Worker 1 through Worker 10).
+must display:
+MUST include a "Targeted Maintenance Mode" section listing all 8 county portals individually with active/inactive toggle switches.
+MUST feature a persistent filter bar at the top with pre-configured temporal filters:
+MUST instantly recalculate all Dashboard KPI cards, throughput charts, and summary tables to reflect only the selected scope.
+must display:
+must compute and display a dynamic countdown for in-flight batches:
+must display total elapsed execution time from start to finish.
+must provide a concise, high-level overview containing:
+must dispatch payload batches to the Guidewire API using a configurable rate limiter (e.g., maximum 5 requests/sec or burst token-bucket algorithm).
+must automatically apply exponential backoff without stalling or crashing active scraping browser contexts.
+must compute a content checksum (e.g., SHA-256 hash of extracted case numbers on the current page) prior to advancing.
+must immediately break pagination, log an anomaly warning, and continue to the extraction review phase.
+MUST NOT discard the extracted dataset or fail the scraping workflow.
+must be cached to an encrypted temporary disk buffer (`.\backend\spool\pending_commits\`) or an in-memory queue.
+must preserve every email behavior that actually exists in V4.
+Missing | Required Implementation |
+requirements. Extend the existing architecture.
+must be stored securely.
+must support the legacy `notification_email` behavior.
+must be preserved where it exists.
+must be derived from the actual event payload.
+must not silently produce broken emails.
+must be based on the Power Platform behavior plus sensible enterprise defaults.
+requirement requires `notification_email` per claim or per transaction, support it.
+must not silently disappear.
+must generate an email.
+must provide:
+must verify:
+must not slow down:
+must not be marked failed merely because an email provider is temporarily unavailable.
+must be auditable.
+MUST REMAIN THE SINGLE SOURCE OF TRUTH
+must follow:
+must load the latest effective configuration.
+must respect the same tenant/claim security model.
+must be permission-aware.
+must not depend on them.
+REQUIREMENTS
+must use the existing global design system.
+must support:
+must make it possible to trace:
+must integrate with the existing architecture.
+Missing:
+must clearly distinguish:
+REQUIREMENT
+must improve overall application responsiveness rather than make it slower.
+must NOT need to edit source code or `.env` just to change a notification email address.
+Missing email functionality has been implemented.
+must be in UI with eye icon.
+must NOT mark the underlying Guidewire claim processing as failed.
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+requirement below must have **verifiable evidence**.
+Requirement**
+must include:
+must identify:
+Missing
+must visibly contain, where applicable:
+must prove:
+must prove all recipients were persisted correctly.
+must show:
+must be masked.
+must show the complete chain:
+must be opened and verified.
+must show:
+must show every operation succeeded.
+must contain the actual values.
+must show:
+must be defined and verified.
+must NOT silently send a broken production email.
+must show the validation/error behavior.
+must show:
+must contain the expected information from the legacy Power Platform behavior.
+must prove that the notification was generated.
+mandatory acceptance test.
+must show:
+must show actual retry count.
+must show:
+must not appear.
+must show:
+must show:
+must prove no email delivery occurred.
+must prove this.
+must show that secret fields are:
+must have evidence.
+must be listed separately:
+Must include:
+REQUIREMENT
+must include links/paths to actual generated evidence artifacts where supported:
+mandatory items pass:
+mandatory item marked:
+MANDATORY ACCEPTANCE ITEMS:
+mandatory acceptance item has concrete evidence.
+requirements, previous AI implementation history, current implementation, current project state, and documentation**.
+must work extremely carefully.
+requirements and the historical implementation documents represent what was previously planned/implemented.
+must reconcile all three.
+REQUIREMENT SOURCE
+MANDATORY RESPONSIVE UI-UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION.md
+MUST read the entire contents of EVERY file in `ChatGPT_Prompt/`.
+requirement by requirement**.
+requirement source.
+REQUIREMENT
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+requirements;
+must" requirements;
+requirements;
+must carefully review them before consolidation.
+requirement, compare:
+REQUIREMENT
+requirement.
+REQUIREMENT TRACEABILITY MODEL
+requirement identify:
+Requirement ID
+Requirement
+REQUIREMENT LOST
+MUST NOT do this:
+REQUIREMENT
+MUST BE COMPREHENSIVE
+missing entries.
+must prevent accidental commits of generated/local/secrets data, not hide legitimate project files.
+MUST REMAIN THE COMPLETE PROJECT BOOKLET
+must contain comprehensive knowledge about the project.
+missing information discovered during this task.
+must continue to contain all relevant information, including small technical details.
+mandatory.
+requirement/reference documents and must remain available for future AI agents.
+requirements.
+must incorporate all meaningful information from the historical implementation plans.
+MUST NOT BE JUST A SUMMARY
+must retain the meaningful technical detail from the existing plans.
+requirements;
+requirement traceability;
+MUST REFLECT CURRENT CODE
+must be based on:
+REQUIREMENTS
+Requirement
+must clearly indicate:
+Requirements
+must identify:
+requirement;
+Requirements
+must explain how the current application actually works.
+missing:
+must reflect:
+must capture the remaining work.
+requirement is:
+requirements were extracted;
+MUST be transferred to the final authoritative document before deletion.
+requirement;
+MUST BE UPDATED AFTER CONSOLIDATION
+requirements, current status, remaining work, architecture, scope, acceptance criteria and implementation decisions.
+missing, incorrect, incomplete, blocked or inconsistent.
+requirements/reference material.
+requirement extracted
+Requirements compared with implementation
+requirements preserved
+requirements preserved
+requirements preserved
+requirements preserved
+requirements preserved
+requirements preserved
+REQUIREMENT TRACEABILITY CHECK
+requirement from `ChatGPT_Prompt/`, answer:
+requirement represented now?
+must exist in one or more of:
+requirement is not implemented, it must NOT disappear.
+must appear as:
+MUST CONTAIN PENDING WORK
+must clearly distinguish:
+must be written so that a future AI agent can open the repository and understand:
+must be useful for future AI-assisted development.
+REQUIREMENT
+must have the opportunity to review it.
+requirement to move them from `ai_current`.
+requirement/reference material and allow future AI agents to compare the master documents against the original instructions.
+MANDATORY RESPONSIVE UI-UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION.md
+missing information.
+Requirements
+must be no unexplained major contradictions.
+must be preserved in the consolidated documents.
+must appear multiple times.
+must produce a **single authoritative current-state understanding** while preserving the original ChatGPT prompts as reference material.
+must allow a future AI agent to understand the project without needing to guess what happened during the previous part-by-part implementation.
+requirement traceability
+requirements vs historical documentation
+requirements/documentation vs actual code
+must be **better than the collection of old documents**, while preserving all meaningful knowledge contained within them.
+Requirement
+requirement and overall business goal.
+MUST understand:
+must preserve the **original business goal**, incorporate the valid changes introduced in V4, and correct defects discovered in either source.
+requirement determine:
+Requirement
+MISSING
+must work at runtime.
+missing telemetry
+MUST:
+MANDATORY
+must be visibly available.
+must be able to observe:
+must use the configured **system Google Chrome installation**.
+must be dynamically resolved from the project root:
+must be observed and verified.
+MUST BE VALIDATED
+must NEVER appear under Texas.
+MUST MATCH BUSINESS LOGIC
+must be eligible:
+MUST WORK
+MUST SHOW REAL ACTIVITY
+must be tested.
+must come from the application's dynamic Settings/configuration system where applicable.
+must not incorrectly mark unrelated successful stages as failed.
+must be:
+must reflect actual runtime execution.
+must not report success when the actual browser/process failed.
+must agree.
+must be:
+REQUIREMENT — CRITICAL
+mandatory.
+must also work in Unattended Mode.**
+must programmatically control the required browser/application.
+must be investigated and fixed.
+must come from the application's supported configuration mechanism.
+must never become a regression.
+must work together.
+MUST IDENTIFY V4 DEFECTS
+MUST IDENTIFY ENHANCEMENTS
+mandatory V4 parity.
+MUST work in Unattended Mode. Automation cannot rely on manual clicks, active desktop sessions, or pre-opened browsers.
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+must update the existing implementation to officially target Python 3.14.7.
+MANDATORY TASK COMPLETION RULES
+must perform a gap analysis and resume from the last successful point. Never silently skip tasks.
+Requirements Rechecked.
+must rely on standard Dockerfiles, `.env` variables, and standard shell scripts.
+must use dynamic environment variables (e.g., `NEXT_PUBLIC_API_BASE_URL`) to easily switch between localhost and live production backend URLs.
+must be maintained for isolated testing and containerized deployment.
+must expose its port dynamically via the `PORT` environment variable (e.g., `0.0.0.0:$PORT`) to satisfy external host routing requirements.
+must be maintained. 
+must be strictly isolated to `backend/requirements.txt`.
+must communicate exclusively via HTTP/REST APIs.
+must implement models to audit Guidewire transmissions, filter exclusions, and configuration changes:
+Mandatory Task Completion, Error Resolution, Skills & Technology Documentation Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+MUST explicitly stop MailDev (Ports 1080, 1025).
+Must support multi-select for Claims, Queue Data, Scraped Cases, Fuzzy Matches, Guidewire Data, Notifications, Telemetry, Logs, and Caches.
+Must support **Current Month** (dynamically calculated), Days, Weeks, Months, Years, and Custom Date Ranges.
+Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+MANDATORY RESPONSIVE DESIGN & THEME
+must use the full available viewport width. Remove unnecessary `max-width` constraints. No horizontal overflow.
+must NOT change, corrupt, omit, or rename the data payload being sent to Guidewire. Preserve the exact Power Automate format[cite: 15, 20].
+MANDATORY RESPONSIVE UI-UX REDESIGN & FULL-VIEWPORT IMPLEMENTATION.md
+Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+MANDATORY SEQUENCE)
+must follow this exact sequence:
+must be applied/implemented if missing.
+MISSING REQUIREMENT INJECTED) & NON-BLOCKING ARCHITECTURE
+must NEVER attempt to bypass, defeat, or circumvent/spoof reCAPTCHA, Cloudflare, or Arkose Labs.
+Must be enabled by default.
+missing `Filing Date` capture in the Scraped Cases section.
+MISSING_REQUIREMENT_CAPTCHA_COMPLIANCE_AND_RETRY_LOGIC.md
+Requirements.md
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+must show in UI with visible eye icon.
+must NOT mark the underlying Guidewire claim processing as failed.
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**
+MUST work in Unattended Mode. Automation cannot rely on manual clicks, active desktop sessions, or pre-opened browsers.
+requirements are already implemented. **Test and verify the existing functionality before making any changes.**

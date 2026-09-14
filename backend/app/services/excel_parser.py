@@ -48,15 +48,26 @@ def convert_excel_date(val: Any) -> str | None:
     return str(val)
 
 
+def _normalize_state_code(state_str: str | None) -> str:
+    """Normalize state representation to 2-letter uppercase or normalized title."""
+    s = (state_str or "").strip().upper()
+    if s in ("FL", "FLORIDA"):
+        return "FL"
+    if s in ("TX", "TEXAS"):
+        return "TX"
+    return s
+
+
 def resolve_county_bot_targets(policy_state: str | None, loss_state: str | None) -> dict[str, str]:
     """
     Resolve target county RPA bots based on legacy switch routing logic:
     - If Policy State == Loss Location State:
-      * Florida -> Broward, Hillsborough, Miami = 'Yes', Texas = 'No'
-      * Texas -> Travis, Dallas, Harris, CClerk, Hcdistrict = 'Yes', Florida = 'No'
+      * Florida (FL) -> Broward, Hillsborough, Miami = 'Yes', Texas = 'No'
+        (CRITICAL: Miami-Dade is Florida; never classify it as Texas)
+      * Texas (TX) -> Travis, Dallas, Harris JP, Harris Clerk, Harris District = 'Yes', Florida = 'No'
       * Other -> All 8 = 'Yes'
     - If Policy State != Loss Location State:
-      * All 8 = 'Yes'
+      * All 8 = 'Yes' (Cross-state discovery across both jurisdictions)
     """
     targets = {
         "fl_broward": "No",
@@ -69,22 +80,22 @@ def resolve_county_bot_targets(policy_state: str | None, loss_state: str | None)
         "te_hcdistrict": "No",
     }
 
-    p_state = (policy_state or "").strip().title()
-    l_state = (loss_state or "").strip().title()
+    norm_p = _normalize_state_code(policy_state)
+    norm_l = _normalize_state_code(loss_state)
 
-    if p_state and l_state and p_state == l_state:
-        if p_state in ["Florida", "Fl"]:
+    if norm_p and norm_l and norm_p == norm_l:
+        if norm_p == "FL":
             targets["fl_broward"] = "Yes"
             targets["fl_hillsborough"] = "Yes"
             targets["fl_miami"] = "Yes"
-        elif p_state in ["Texas", "Tx"]:
+        elif norm_p == "TX":
             targets["te_travis"] = "Yes"
             targets["te_dallas"] = "Yes"
             targets["te_harris"] = "Yes"
             targets["te_cclerk"] = "Yes"
             targets["te_hcdistrict"] = "Yes"
         else:
-            # Default for same-state match
+            # Default for same-state match outside FL/TX
             for k in targets:
                 targets[k] = "Yes"
     else:
@@ -452,14 +463,10 @@ def validate_and_normalize_claim_data(
 
         pol_state = get_val("policy_state") or "Florida"
         loss_state = get_val("loss_location_state") or pol_state
-        loss_city = get_val("loss_location_city")
-        loss_county = get_val("loss_location_county")
-        garaging_city = get_val("garaging_city")
-        garaging_state = get_val("garaging_state")
         exposure_num = get_val("exposure_number") or "001"
         primary_key = get_val("primary_key") or claim_num_str
 
-        loss_loc_parts = [p for p in [loss_city, loss_county, loss_state] if p]
+        loss_loc_parts = [p for p in [loss_state] if p]
         loss_location_str = ", ".join(loss_loc_parts) or None
 
         targets = resolve_county_bot_targets(pol_state, loss_state)
@@ -485,10 +492,6 @@ def validate_and_normalize_claim_data(
             "Driver First Name (Insured Vehicle)": drv_first,
             "Driver Last Name (Insured Vehicle)": drv_last,
             "DOL": dol_str,
-            "Garaging City": garaging_city,
-            "Garaging State": garaging_state,
-            "Loss Location City": loss_city,
-            "Loss Location County": loss_county,
             "Loss Location State": loss_state,
             "Policy State": pol_state,
             "Exposure Number": exposure_num,
@@ -502,10 +505,6 @@ def validate_and_normalize_claim_data(
             "driver_first_name": drv_first,
             "driver_last_name": drv_last,
             "dol": dol_str,
-            "garaging_city": garaging_city,
-            "garaging_state": garaging_state,
-            "loss_location_city": loss_city,
-            "loss_location_county": loss_county,
             "loss_location_state": loss_state,
             "policy_state": pol_state,
             "exposure_number": exposure_num,

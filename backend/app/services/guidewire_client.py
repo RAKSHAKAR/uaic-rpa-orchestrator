@@ -3,11 +3,13 @@
 import base64
 import logging
 import time
+import uuid
 from typing import Any
 
 import httpx
 
 from app.core.config import settings
+from app.core.http_client import HTTPClient
 from app.schemas.settings import (
     GuidewireTestRequest,
     GuidewireTestResponse,
@@ -87,6 +89,8 @@ class GuidewireClient:
             })
 
         payload = {
+            "TransactionId": str(uuid.uuid4()),
+            "SourceSystem": "UAIC_ORCHESTRATOR",
             "ClaimNumber": formatted_claim_num,
             "ExposureNumber": exposure_number or "",
             "CaseItems": case_items,
@@ -110,34 +114,34 @@ class GuidewireClient:
         headers = self._build_headers()
         logger.info(f"Sending Guidewire case update for Claim {formatted_claim_num} ({len(case_items)} cases)")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(self.api_url, json=payload, headers=headers)
-                response.raise_for_status()
-                result = response.json() if response.content else {"status": "success"}
-                logger.info(f"Guidewire case update succeeded for Claim {formatted_claim_num}: {result}")
-                return {
-                    "success": True,
-                    "status_code": response.status_code,
-                    "response": result,
-                    "payload_sent": payload,
-                }
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Guidewire HTTP error {e.response.status_code}: {e.response.text}")
-                return {
-                    "success": False,
-                    "status_code": e.response.status_code,
-                    "error": str(e),
-                    "response_body": e.response.text,
-                    "payload_sent": payload,
-                }
-            except Exception as e:
-                logger.error(f"Guidewire request failed: {e}")
-                return {
-                    "success": False,
-                    "error": str(e),
-                    "payload_sent": payload,
-                }
+        client = HTTPClient.get_client(timeout=self.timeout)
+        try:
+            response = await client.post(self.api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            result = response.json() if response.content else {"status": "success"}
+            logger.info(f"Guidewire case update succeeded for Claim {formatted_claim_num}: {result}")
+            return {
+                "success": True,
+                "status_code": response.status_code,
+                "response": result,
+                "payload_sent": payload,
+            }
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Guidewire HTTP error {e.response.status_code}: {e.response.text}")
+            return {
+                "success": False,
+                "status_code": e.response.status_code,
+                "error": str(e),
+                "response_body": e.response.text,
+                "payload_sent": payload,
+            }
+        except Exception as e:
+            logger.error(f"Guidewire request failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "payload_sent": payload,
+            }
 
     async def test_connection(self, request_data: GuidewireTestRequest | None = None) -> GuidewireTestResponse:
         """Interactive Swagger-style Guidewire API tester."""
@@ -222,31 +226,31 @@ class GuidewireClient:
 
         # Real Live Request
         try:
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                res = await client.post(url, json=test_payload, headers=headers)
-                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            client = HTTPClient.get_client(timeout=timeout)
+            res = await client.post(url, json=test_payload, headers=headers)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
-                try:
-                    resp_body = res.json()
-                except Exception:
-                    resp_body = res.text
+            try:
+                resp_body = res.json()
+            except Exception:
+                resp_body = res.text
 
-                res_headers = {k: v for k, v in res.headers.items()}
-                is_ok = 200 <= res.status_code < 300
+            res_headers = {k: v for k, v in res.headers.items()}
+            is_ok = 200 <= res.status_code < 300
 
-                return GuidewireTestResponse(
-                    success=is_ok,
-                    status_code=res.status_code,
-                    status_text=f"{res.status_code} {res.reason_phrase or 'Response'}",
-                    duration_ms=duration_ms,
-                    request_url=url,
-                    request_method="POST",
-                    request_headers=masked_headers,
-                    request_body=test_payload,
-                    response_headers=res_headers,
-                    response_body=resp_body,
-                    error_detail=None if is_ok else f"HTTP Status {res.status_code}",
-                )
+            return GuidewireTestResponse(
+                success=is_ok,
+                status_code=res.status_code,
+                status_text=f"{res.status_code} {res.reason_phrase or 'Response'}",
+                duration_ms=duration_ms,
+                request_url=url,
+                request_method="POST",
+                request_headers=masked_headers,
+                request_body=test_payload,
+                response_headers=res_headers,
+                response_body=resp_body,
+                error_detail=None if is_ok else f"HTTP Status {res.status_code}",
+            )
         except httpx.ConnectError as e:
             duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
             return GuidewireTestResponse(
@@ -305,20 +309,20 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
 
     start = time.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
-            res = await client.get(url, headers=headers)
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
-            is_reachable = res.status_code < 500
+        client = HTTPClient.get_client(timeout=timeout)
+        res = await client.get(url, headers=headers, follow_redirects=True)
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        is_reachable = res.status_code < 500
 
-            return PortalTestResponse(
-                portal_name=request_data.portal_name,
-                url=url,
-                reachable=is_reachable,
-                status_code=res.status_code,
-                status_text=f"{res.status_code} {res.reason_phrase or 'OK'}",
-                duration_ms=duration_ms,
-                error_detail=None if is_reachable else f"Server error: {res.status_code}",
-            )
+        return PortalTestResponse(
+            portal_name=request_data.portal_name,
+            url=url,
+            reachable=is_reachable,
+            status_code=res.status_code,
+            status_text=f"{res.status_code} {res.reason_phrase or 'OK'}",
+            duration_ms=duration_ms,
+            error_detail=None if is_reachable else f"Server error: {res.status_code}",
+        )
     except httpx.ConnectError as e:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         return PortalTestResponse(

@@ -100,8 +100,6 @@ async def _generate_export_data(
             "DOL": c.dol or "",
             "Policy State": c.policy_state or "",
             "Loss Location State": c.loss_location_state or "",
-            "Loss Location City": c.loss_location_city or "",
-            "Loss Location County": c.loss_location_county or "",
             "Status": c.record_status.value if hasattr(c.record_status, "value") else str(c.record_status),
             "Fuzzy Match": c.fuzzy_match_status.value if hasattr(c.fuzzy_match_status, "value") else str(c.fuzzy_match_status),
             "Total Duration (s)": c.total_duration_seconds or "",

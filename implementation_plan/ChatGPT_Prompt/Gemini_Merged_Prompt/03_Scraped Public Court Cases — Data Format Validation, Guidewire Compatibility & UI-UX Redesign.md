@@ -727,3 +727,49 @@ Do not consider this task complete until all of the following are true:
 First understand exactly what Power Automate produces, verify the columns and downstream Guidewire contract, then redesign the UI around that verified data model.
 
 The final result should be an **enterprise-grade, responsive, searchable, filterable, sortable, paginated, portal-grouped court-case data experience** while maintaining **100% data integrity and compatibility with the existing automation and Guidewire workflow.**
+
+
+---
+
+## Dynamic Settings Page Module: Guidewire Integration & Case Filtering
+
+The Admin Settings UI (`/settings`) must provide a dedicated, responsive management card titled **"Guidewire Integration & Case Filtering Rules"**:
+
+```mermaid
+graph LR
+    SettingsUI[Admin Settings Page] -->|Update Cutoff Year| API[/api/v1/settings/]
+    SettingsUI -->|Manage Approved Statuses| API
+    SettingsUI -->|Manage Approved Types| API
+    SettingsUI -->|Test Filter Button| FilterService[Case Validation Engine]
+    API --> DB[(PostgreSQL App Settings)]
+```
+
+### UI Component Requirements
+1. **Filing Date Threshold Field:**
+   * **Input Type:** Number input / Numeric stepper.
+   * **Label:** `Minimum Case Filing Year (Cutoff)`
+   * **Default:** `2010`
+   * **Helper Text:** *"Cases filed on or prior to Dec 31 of this year will be excluded from Guidewire."*
+
+2. **Approved Case Statuses Tag Manager:**
+   * **Input Type:** Interactive multi-select chip/tag input with autocomplete.
+   * **Label:** `Approved Case Statuses`
+   * **Default Pre-fill:** The 15 approved status strings from SOP Section 5.4.
+   * **Actions:** Add custom badge, click 'X' to remove badge, 'Reset to Default' button.
+
+3. **Approved Case Types Tag Manager:**
+   * **Input Type:** Interactive multi-select chip/tag input with autocomplete.
+   * **Label:** `Approved Case Types`
+   * **Default Pre-fill:** The 24 approved case type strings from SOP Section 5.4.
+   * **Actions:** Add custom badge, click 'X' to remove badge, 'Reset to Default' button.
+
+4. **Guidewire Transmission Endpoint & Controls:**
+   * `Guidewire Base URL`: Text input with HTTPS validation.
+   * `API Authentication Key / Token`: Masked password input with reveal toggle.
+   * `Default Exposure Number`: Text input (Default: `001`, length: 3 digits).
+   * `Max Retry Attempts`: Dropdown (`1`, `2`, `3`, `5`).
+
+5. **Test Filtering & Integration Action:**
+   * **Button Label:** `Test Filtering & Guidewire Connection`
+   * **Behavior:** Sends sample mock records through active filter rules and performs a dry-run ping against the Guidewire endpoint.
+   * **Feedback:** Displays a real-time toast notification (`PASS`/`FAIL`) with diagnostic latency and filter pass/fail counts.

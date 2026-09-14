@@ -19,6 +19,10 @@ import {
   TemplateParameter,
   TemplateUpdateRequest,
   QueueStatus,
+  UniqueNamesRequest,
+  UniqueNamesResponse,
+  DirectFuzzyMatchRequest,
+  DirectFuzzyMatchResponse
 } from "../../types";
 import { StatCard } from "../../components/StatCard";
 import {
@@ -65,10 +69,18 @@ import {
   FileCode,
   Activity,
   Plug,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Columns,
+  Smartphone,
+  Laptop,
+  AlignLeft,
+  Network,
 } from "lucide-react";
 import { useBranding, DEFAULT_BRANDING } from "../../components/BrandingContext";
 
-type SettingsTab = "guidewire" | "portals" | "automation" | "extension" | "email" | "storage" | "matcher" | "queue";
+type SettingsTab = "guidewire" | "portals" | "automation" | "extension" | "email" | "storage" | "matcher" | "queue" | "proxy";
 
 const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   email_notifications_enabled: true,
@@ -82,6 +94,12 @@ const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   from_name: "UAIC Claim Alerts",
   from_email: "notifications@test.com",
   reply_to: "",
+  graph_tenant_id: "",
+  graph_client_id: "",
+  graph_client_secret: "",
+  ses_region: "us-east-1",
+  ses_access_key_id: "",
+  ses_secret_access_key: "",
   to_recipients: ["claims-ops@test.com"],
   cc_recipients: [],
   bcc_recipients: [],
@@ -119,6 +137,8 @@ export default function SettingsPage() {
   const [showS3Secret, setShowS3Secret] = useState(false);
   const [showAzureConn, setShowAzureConn] = useState(false);
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [showGraphSecret, setShowGraphSecret] = useState(false);
+  const [showSesSecret, setShowSesSecret] = useState(false);
 
   // Guidewire interactive test console state
   const [isTestingGuidewire, setIsTestingGuidewire] = useState(false);
@@ -132,7 +152,7 @@ export default function SettingsPage() {
           {
             CaseNumber: "COCE-23-019482",
             CaseStyle: "JOHN DOE VS JANE SMITH",
-            CountyWebsite: "https://www.browardclerk.org/Web2/",
+            CountyWebsite: "https://www.browardclerk.org/",
             SuitFiledDate: "2023-05-14",
           },
         ],
@@ -164,6 +184,78 @@ export default function SettingsPage() {
     latency_ms: number;
     error_code?: string | null;
   } | null>(null);
+
+  // Unique Names Tester State
+  const [isTestingUniqueNames, setIsTestingUniqueNames] = useState(false);
+  const [uniqueNamesResult, setUniqueNamesResult] = useState<UniqueNamesResponse | null>(null);
+  const [testUniqueNamesPayload, setTestUniqueNamesPayload] = useState<string>(
+    JSON.stringify(
+      {
+        Claimants: [{ FirstName: "John", LastName: "Doe", MiddleName: "A", Suffix: "Jr" }],
+        Insureds: [{ FirstName: "Jane", LastName: "Doe", MiddleName: "", Suffix: "" }],
+        Drivers: [{ FirstName: "John", LastName: "Doe", MiddleName: "", Suffix: "" }]
+      },
+      null,
+      2
+    )
+  );
+
+  // Fuzzy Match Tester State
+  const [isTestingFuzzyMatch, setIsTestingFuzzyMatch] = useState(false);
+  const [fuzzyMatchResult, setFuzzyMatchResult] = useState<DirectFuzzyMatchResponse | null>(null);
+  const [testFuzzyMatchPayload, setTestFuzzyMatchPayload] = useState<string>(
+    JSON.stringify(
+      {
+        UniqueNames: ["JOHN DOE", "JANE DOE"],
+        Threshold: 0.60,
+        Cases: [
+          {
+            CaseNumber: "COCE-23-019482",
+            CaseStyle: "JOHN DOE VS JANE SMITH",
+            FilingDate: "2023-05-14"
+          }
+        ]
+      },
+      null,
+      2
+    )
+  );
+
+  const handleTestUniqueNames = async () => {
+    setIsTestingUniqueNames(true);
+    setUniqueNamesResult(null);
+    try {
+      const payload: UniqueNamesRequest = JSON.parse(testUniqueNamesPayload);
+      const res = await api.generateUniqueNames(payload);
+      setUniqueNamesResult(res);
+      setFeedback({
+        type: "success",
+        msg: `Generated ${res.unique_names.length} unique names successfully.`,
+      });
+    } catch (err: any) {
+      setFeedback({ type: "error", msg: err?.response?.data?.detail || err.message || "Failed to generate unique names." });
+    } finally {
+      setIsTestingUniqueNames(false);
+    }
+  };
+
+  const handleTestFuzzyMatch = async () => {
+    setIsTestingFuzzyMatch(true);
+    setFuzzyMatchResult(null);
+    try {
+      const payload: DirectFuzzyMatchRequest = JSON.parse(testFuzzyMatchPayload);
+      const res = await api.testFuzzyMatch(payload);
+      setFuzzyMatchResult(res);
+      setFeedback({
+        type: "success",
+        msg: `Fuzzy match completed successfully.`,
+      });
+    } catch (err: any) {
+      setFeedback({ type: "error", msg: err?.response?.data?.detail || err.message || "Failed to test fuzzy match." });
+    } finally {
+      setIsTestingFuzzyMatch(false);
+    }
+  };
 
   const handleTestAntiCaptchaBalance = async () => {
     if (!settings) return;
@@ -336,11 +428,22 @@ export default function SettingsPage() {
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [selectedReceiptNotif, setSelectedReceiptNotif] = useState<NotificationItem | null>(null);
 
+  // Outbound Delivery History filter and pagination states
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("ALL");
+  const [historyEventTypeFilter, setHistoryEventTypeFilter] = useState<string>("ALL");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyTotalCount, setHistoryTotalCount] = useState(0);
+
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [selectedTemplateEvent, setSelectedTemplateEvent] = useState<string>("COURT_CASE_MATCHED");
   const [selectedTemplate, setSelectedTemplate] = useState<NotificationTemplate | null>(null);
   const [tokensCatalog, setTokensCatalog] = useState<TemplateParameter[]>([]);
-  const [activeEditorTab, setActiveEditorTab] = useState<"edit" | "preview">("edit");
+  const [activeEditorTab, setActiveEditorTab] = useState<"split" | "edit" | "preview">("split");
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
+  const [isTokensPaletteOpen, setIsTokensPaletteOpen] = useState<boolean>(true);
+  const [copiedTemplateCode, setCopiedTemplateCode] = useState<boolean>(false);
   const [templateEditFormat, setTemplateEditFormat] = useState<"html" | "text">("html");
   const [draftSubject, setDraftSubject] = useState<string>("");
   const [draftHtml, setDraftHtml] = useState<string>("");
@@ -429,6 +532,12 @@ export default function SettingsPage() {
         smtp_username: emailCfg.smtp_username,
         smtp_password: emailCfg.smtp_password,
         smtp_encryption: emailCfg.smtp_encryption,
+        graph_tenant_id: emailCfg.graph_tenant_id,
+        graph_client_id: emailCfg.graph_client_id,
+        graph_client_secret: emailCfg.graph_client_secret,
+        ses_region: emailCfg.ses_region,
+        ses_access_key_id: emailCfg.ses_access_key_id,
+        ses_secret_access_key: emailCfg.ses_secret_access_key,
         timeout_seconds: emailCfg.timeout_seconds,
         recipient_domain: targetDomain,
       });
@@ -502,13 +611,31 @@ export default function SettingsPage() {
     }
   };
 
-  const fetchRecentNotifications = async () => {
+  const fetchRecentNotifications = async (
+    targetPage?: number,
+    targetStatus?: string,
+    targetSearch?: string,
+    targetEventType?: string
+  ) => {
     setIsLoadingNotifications(true);
+    const p = targetPage !== undefined ? targetPage : historyPage;
+    const s = targetStatus !== undefined ? targetStatus : historyStatusFilter;
+    const q = targetSearch !== undefined ? targetSearch : historySearch;
+    const e = targetEventType !== undefined ? targetEventType : historyEventTypeFilter;
     try {
-      const res = await api.getNotifications({ page: 1, page_size: 10 });
+      const res = await api.getNotifications({
+        page: p,
+        page_size: 10,
+        status: s !== "ALL" ? s : undefined,
+        search: q.trim() ? q.trim() : undefined,
+        event_type: e !== "ALL" ? e : undefined,
+      });
       setRecentNotifications(res.items || []);
+      setHistoryPage(res.page || p);
+      setHistoryTotalPages(res.total_pages || 1);
+      setHistoryTotalCount(res.total || 0);
     } catch (err) {
-      console.error("Failed to load notifications history:", err);
+      console.error("FETCH_NOTIF_ERR:", err);
     } finally {
       setIsLoadingNotifications(false);
     }
@@ -535,6 +662,7 @@ export default function SettingsPage() {
     fetchSettings();
     fetchTemplates();
     fetchRecentNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectTemplateForEditing = (tpl: NotificationTemplate) => {
@@ -591,6 +719,59 @@ export default function SettingsPage() {
         loadTemplatePreviewWithDraft(selectedTemplateEvent, draftSubject, next, draftText);
         return next;
       });
+    }
+  };
+
+  const handleFormatHtml = () => {
+    if (!draftHtml) return;
+    try {
+      let formatted = "";
+      let indent = 0;
+      const tokens = draftHtml.replace(/>\s*</g, "><").split(/(<[^>]+>)/g).filter(Boolean);
+      for (const token of tokens) {
+        if (token.startsWith("</")) {
+          indent = Math.max(0, indent - 1);
+          formatted += "  ".repeat(indent) + token + "\n";
+        } else if (
+          token.startsWith("<") &&
+          !token.endsWith("/>") &&
+          !token.startsWith("<!") &&
+          !token.startsWith("<meta") &&
+          !token.startsWith("<link") &&
+          !token.startsWith("<img") &&
+          !token.startsWith("<br") &&
+          !token.startsWith("<hr") &&
+          !token.startsWith("<input")
+        ) {
+          formatted += "  ".repeat(indent) + token + "\n";
+          indent += 1;
+        } else if (token.startsWith("<")) {
+          formatted += "  ".repeat(indent) + token + "\n";
+        } else {
+          const text = token.trim();
+          if (text) {
+            formatted += "  ".repeat(indent) + text + "\n";
+          }
+        }
+      }
+      const clean = formatted.trim();
+      if (clean) {
+        setDraftHtml(clean);
+        loadTemplatePreviewWithDraft(selectedTemplateEvent, draftSubject, clean, draftText);
+        setFeedback({ type: "success", msg: "HTML markup formatted and indented." });
+      }
+    } catch {
+      // keep current html if parsing fails
+    }
+  };
+
+  const handleCopyTemplateCode = () => {
+    const code = templateEditFormat === "html" ? draftHtml : draftText;
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(code);
+      setCopiedTemplateCode(true);
+      setTimeout(() => setCopiedTemplateCode(false), 2000);
+      setFeedback({ type: "success", msg: `${templateEditFormat.toUpperCase()} template copied to clipboard.` });
     }
   };
 
@@ -876,7 +1057,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col min-h-screen w-full">
+      <div className="flex-1 flex flex-col w-full">
         <Navbar />
         <div className="p-8 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
           <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
@@ -888,7 +1069,7 @@ export default function SettingsPage() {
 
   if (!settings) {
     return (
-      <div className="flex-1 flex flex-col min-h-screen w-full">
+      <div className="flex-1 flex flex-col w-full">
         <Navbar />
         <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
           <AlertCircle className="w-8 h-8 text-rose-500" />
@@ -911,6 +1092,7 @@ export default function SettingsPage() {
     { id: "guidewire", label: "Guidewire API & Live Tester", icon: Zap },
     { id: "portals", label: "County Court Portals", icon: Globe },
     { id: "automation", label: "Browser & CAPTCHA", icon: ShieldCheck },
+    { id: "proxy", label: "Proxy Settings", icon: Network },
     { id: "extension", label: "AntiCaptcha Extension", icon: Plug },
     { id: "email", label: "Email & Notifications", icon: Mail },
     { id: "storage", label: "Storage & Error Screenshots", icon: HardDrive },
@@ -919,7 +1101,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen w-full">
+    <div className="flex-1 flex flex-col w-full">
       <Navbar onRefresh={fetchSettings} isRefreshing={isLoading} />
 
       <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
@@ -2405,6 +2587,22 @@ export default function SettingsPage() {
                     <p className="mt-2.5 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                       Google Chrome opens visibly on your desktop maximized. Operators can observe portal queries in real-time, inspect page structures, and manually solve or oversee CAPTCHA challenges when required.
                     </p>
+                    {!settings.automation.headless_mode && (
+                      <div className="mt-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-[10px] text-amber-800 dark:text-amber-300 leading-relaxed space-y-1">
+                        <div className="font-bold flex items-center gap-1.5">
+                          <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                          </svg>
+                          ⚠️ Windows Desktop Session Required
+                        </div>
+                        <p>The Celery worker <strong>must be started from your own desktop terminal</strong> (not an IDE or background service) for Chrome windows to appear on screen.</p>
+                        <p>Open a new <strong>PowerShell/CMD window on your desktop</strong>, navigate to the <code className="bg-amber-100 dark:bg-amber-900/60 px-1 rounded font-mono">backend/</code> folder and run:</p>
+                        <code className="block mt-1 p-1.5 bg-amber-100 dark:bg-amber-900/60 rounded font-mono text-[9px] break-all">
+                          .\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app worker -E --loglevel=info -Q ingest,scrapers,matcher,notifications,default -P solo
+                        </code>
+                        <p className="text-[9px] text-amber-700 dark:text-amber-400">This ensures the browser runs in your interactive desktop session (WinSta0) where windows are rendered.</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Option 2: Headless Mode */}
@@ -2623,6 +2821,232 @@ export default function SettingsPage() {
         )}
 
         {/* ========================================================= */}
+        {/* TAB: AUTOMATION (Unique Names Tester)                       */}
+        {/* ========================================================= */}
+        {activeTab === "automation" && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors mt-6">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+              <Terminal className="w-5 h-5 text-indigo-500" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                  Unique Names API Tester
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Test the name permutations generator used before scraping county portals.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  JSON Request Payload (UniqueNamesRequest)
+                </label>
+                <textarea
+                  value={testUniqueNamesPayload}
+                  onChange={(e) => setTestUniqueNamesPayload(e.target.value)}
+                  className="w-full h-64 p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-lg border border-slate-800 focus:ring-2 focus:ring-indigo-500/50 resize-y"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  onClick={handleTestUniqueNames}
+                  disabled={isTestingUniqueNames}
+                  className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {isTestingUniqueNames ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  {isTestingUniqueNames ? "Generating..." : "Generate Unique Names"}
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Response
+                </label>
+                <div className="w-full h-64 p-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto">
+                  {uniqueNamesResult ? (
+                    <pre className="text-[11px] font-mono text-slate-800 dark:text-slate-300 break-all whitespace-pre-wrap">
+                      {JSON.stringify(uniqueNamesResult, null, 2)}
+                    </pre>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
+                      Run test to see results
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB: AUTOMATION (Fuzzy Match API Tester)                    */}
+        {/* ========================================================= */}
+        {activeTab === "automation" && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors mt-6">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+              <Search className="w-5 h-5 text-indigo-500" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                  Fuzzy Match API Tester
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Test the rapidfuzz cascade matching algorithm for claims evaluation.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  JSON Request Payload (DirectFuzzyMatchRequest)
+                </label>
+                <textarea
+                  value={testFuzzyMatchPayload}
+                  onChange={(e) => setTestFuzzyMatchPayload(e.target.value)}
+                  className="w-full h-64 p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-lg border border-slate-800 focus:ring-2 focus:ring-indigo-500/50 resize-y"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  onClick={handleTestFuzzyMatch}
+                  disabled={isTestingFuzzyMatch}
+                  className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {isTestingFuzzyMatch ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  {isTestingFuzzyMatch ? "Evaluating..." : "Evaluate Fuzzy Match"}
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Match Result
+                </label>
+                <div className="w-full h-64 p-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto">
+                  {fuzzyMatchResult ? (
+                    <pre className="text-[11px] font-mono text-slate-800 dark:text-slate-300 break-all whitespace-pre-wrap">
+                      {JSON.stringify(fuzzyMatchResult, null, 2)}
+                    </pre>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
+                      Run test to see matching results
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB: PROXY SETTINGS                                       */}
+        {/* ========================================================= */}
+        {activeTab === "proxy" && (
+          <div className="space-y-6 w-full">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg shadow-slate-900/20">
+              <div className="flex items-center gap-3 mb-2">
+                <Network className="w-6 h-6 text-slate-300" />
+                <h3 className="text-xl font-bold">Proxy Pool Settings</h3>
+              </div>
+              <p className="text-sm text-slate-300 max-w-2xl">
+                Configure a dedicated proxy server to route all automation traffic through. 
+                This helps distribute requests and avoid IP bans from county court portals.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm w-full">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                <Network className="w-4 h-4 text-slate-400" />
+                Proxy Connection Details
+              </h4>
+              <div className="space-y-6 w-full">
+                <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full">
+                  <input
+                    type="checkbox"
+                    checked={settings?.proxy?.enabled ?? false}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        proxy: { ...(settings?.proxy || { host: "", port: 8080 }), enabled: e.target.checked },
+                      } as SystemSettings)
+                    }
+                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Enable Proxy Server</div>
+                    <div className="text-xs text-slate-500">Route all scraping traffic through this proxy</div>
+                  </div>
+                </label>
+
+                {settings?.proxy?.enabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Proxy Host / IP</label>
+                      <input
+                        type="text"
+                        value={settings?.proxy?.host || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), host: e.target.value },
+                          } as SystemSettings)
+                        }
+                        placeholder="e.g. 192.168.1.50 or proxy.example.com"
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Port</label>
+                      <input
+                        type="number"
+                        value={settings?.proxy?.port || 8080}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), port: parseInt(e.target.value) || 8080 },
+                          } as SystemSettings)
+                        }
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Username (Optional)</label>
+                      <input
+                        type="text"
+                        value={settings?.proxy?.username || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), username: e.target.value },
+                          } as SystemSettings)
+                        }
+                        placeholder="Proxy Username"
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password (Optional)</label>
+                      <input
+                        type="password"
+                        value={settings?.proxy?.password || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), password: e.target.value },
+                          } as SystemSettings)
+                        }
+                        placeholder="Proxy Password"
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
         {/* TAB: ANTICAPTCHA EXTENSION                                 */}
         {/* ========================================================= */}
         {activeTab === "extension" && (
@@ -2713,7 +3137,7 @@ export default function SettingsPage() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
                     <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-                    Step 3 — Test API Key Balance & Connectivity
+                    Test API Key Balance & Connectivity
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Validates the key by calling the live AntiCaptcha <code className="font-mono">getBalance</code> endpoint. Shows credit balance and latency.
@@ -2754,7 +3178,7 @@ export default function SettingsPage() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    Step 4 — Extension Health Diagnostics
+                    Extension Health Diagnostics
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Verifies extension directory, manifest.json validity, and API key synchronization to the plugin config file.
@@ -2807,7 +3231,7 @@ export default function SettingsPage() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
                     <Play className="w-4 h-4 text-purple-500" />
-                    Step 5 — Live Browser Launch Test
+                    Live Browser Launch Test
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Launches a real browser with the AntiCaptcha extension loaded and navigates to a test page to confirm the CAPTCHA-solving pipeline works end-to-end.
@@ -2854,7 +3278,7 @@ export default function SettingsPage() {
         {activeTab === "email" && (() => {
           const emailCfg: EmailSettings = settings.email || DEFAULT_EMAIL_SETTINGS;
           return (
-          <div className="space-y-8 w-full">
+          <div className="space-y-8 w-full pb-[600px]">
             {/* 1. MASTER ON/OFF TOGGLE & ENGINE STATUS */}
             <div
               className={`p-6 rounded-2xl border transition-all shadow-xs ${
@@ -2934,7 +3358,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Provider Selection Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div
                   onClick={() => updateEmailSettings({ provider: "local_mock" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
@@ -3039,7 +3463,55 @@ export default function SettingsPage() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-                    Dispatches live emails via authenticated SMTP relay (Google Workspace, SendGrid, Amazon SES, or internal corporate relay with user/password credentials).
+                    Dispatches live emails via authenticated SMTP relay (Google Workspace, SendGrid, Amazon SES SMTP, or internal corporate relay with user/password credentials).
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => updateEmailSettings({ provider: "graph" })}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    emailCfg.provider === "graph"
+                      ? "border-indigo-500 bg-indigo-500/10 dark:bg-indigo-950/30 ring-1 ring-indigo-500"
+                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-950/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="w-4 h-4 text-indigo-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        Microsoft Graph API
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                      O365 / Azure AD
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    App-only modern OAuth2 token authentication via Microsoft Graph REST API endpoint. Complies with modern zero-trust policies with basic auth disabled.
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => updateEmailSettings({ provider: "ses" })}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    emailCfg.provider === "ses"
+                      ? "border-indigo-500 bg-indigo-500/10 dark:bg-indigo-950/30 ring-1 ring-indigo-500"
+                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-950/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Send className="w-4 h-4 text-indigo-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        Amazon SES API
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                      AWS Cloud SDK
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    High-throughput cloud email delivery via Amazon Simple Email Service (SES) API using AWS access keys and regional endpoints with cryptographic provenance.
                   </p>
                 </div>
               </div>
@@ -3196,6 +3668,114 @@ export default function SettingsPage() {
                       }
                       className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Microsoft Graph API Settings Inputs */}
+              {emailCfg.provider === "graph" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      Azure AD / M365 Tenant ID
+                    </label>
+                    <input
+                      type="text"
+                      value={emailCfg.graph_tenant_id || ""}
+                      onChange={(e) => updateEmailSettings({ graph_tenant_id: e.target.value })}
+                      placeholder="e.g. 00000000-0000-0000-0000-000000000000"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      Application / Client ID
+                    </label>
+                    <input
+                      type="text"
+                      value={emailCfg.graph_client_id || ""}
+                      onChange={(e) => updateEmailSettings({ graph_client_id: e.target.value })}
+                      placeholder="e.g. 11111111-1111-1111-1111-111111111111"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      Client Secret (Application Password)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showGraphSecret ? "text" : "password"}
+                        value={emailCfg.graph_client_secret || ""}
+                        onChange={(e) => updateEmailSettings({ graph_client_secret: e.target.value })}
+                        placeholder="••••••••••••"
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-10 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowGraphSecret(!showGraphSecret)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
+                        title={showGraphSecret ? "Hide secret" : "Show secret"}
+                      >
+                        {showGraphSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Amazon SES Settings Inputs */}
+              {emailCfg.provider === "ses" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      AWS Region
+                    </label>
+                    <input
+                      type="text"
+                      value={emailCfg.ses_region || "us-east-1"}
+                      onChange={(e) => updateEmailSettings({ ses_region: e.target.value })}
+                      placeholder="us-east-1"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      AWS Access Key ID
+                    </label>
+                    <input
+                      type="text"
+                      value={emailCfg.ses_access_key_id || ""}
+                      onChange={(e) => updateEmailSettings({ ses_access_key_id: e.target.value })}
+                      placeholder="AKIAIOSFODNN7EXAMPLE"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      AWS Secret Access Key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showSesSecret ? "text" : "password"}
+                        value={emailCfg.ses_secret_access_key || ""}
+                        onChange={(e) => updateEmailSettings({ ses_secret_access_key: e.target.value })}
+                        placeholder="••••••••••••"
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-10 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSesSecret(!showSesSecret)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
+                        title={showSesSecret ? "Hide secret" : "Show secret"}
+                      >
+                        {showSesSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -3784,7 +4364,7 @@ export default function SettingsPage() {
             </div>
 
             {/* 6. DYNAMIC EMAIL TEMPLATE STUDIO & DESIGNER */}
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
+            <div id="template-studio-section" className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
               {/* Top Header */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 gap-4">
                 <div className="flex items-center gap-2.5">
@@ -3814,8 +4394,21 @@ export default function SettingsPage() {
 
                 {/* Top Action Toolbar */}
                 <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
-                  {/* View Mode Toggle: Edit vs Preview */}
+                  {/* View Mode Toggle: Parallel vs Edit vs Preview */}
                   <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setActiveEditorTab("split")}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                        activeEditorTab === "split"
+                          ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      }`}
+                      title="Side-by-side parallel view of editor and synchronized live preview"
+                    >
+                      <Columns className="w-3.5 h-3.5" />
+                      Parallel View
+                    </button>
                     <button
                       type="button"
                       onClick={() => setActiveEditorTab("edit")}
@@ -3824,9 +4417,10 @@ export default function SettingsPage() {
                           ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                       }`}
+                      title="Full width editor only"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      Editor & Design
+                      Editor Only
                     </button>
                     <button
                       type="button"
@@ -3836,6 +4430,7 @@ export default function SettingsPage() {
                           ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                       }`}
+                      title="Full width live preview"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       Live Preview
@@ -3904,6 +4499,95 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* STUDIO UTILITY & TOOLS MENU BAR */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Format / Beautify HTML */}
+                  {templateEditFormat === "html" && (
+                    <button
+                      type="button"
+                      onClick={handleFormatHtml}
+                      className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-semibold text-slate-700 dark:text-slate-300 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                      title="Auto-indent and format HTML markup"
+                    >
+                      <AlignLeft className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Beautify HTML</span>
+                    </button>
+                  )}
+
+                  {/* Copy Code */}
+                  <button
+                    type="button"
+                    onClick={handleCopyTemplateCode}
+                    className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-semibold text-slate-700 dark:text-slate-300 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                    title="Copy template markup to clipboard"
+                  >
+                    {copiedTemplateCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                    <span>{copiedTemplateCode ? "Copied!" : "Copy Code"}</span>
+                  </button>
+
+                  {/* Parameter Tokens Palette Drawer Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTokensPaletteOpen(!isTokensPaletteOpen)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 border ${
+                      isTokensPaletteOpen
+                        ? "bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 shadow-2xs"
+                    }`}
+                    title="Toggle dynamic token chips drawer"
+                  >
+                    <Tag className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Tokens ({tokensCatalog.length})</span>
+                  </button>
+
+                  {/* Device Viewport Toggle (Active in Split or Preview mode) */}
+                  {(activeEditorTab === "split" || activeEditorTab === "preview") && (
+                    <div className="flex items-center bg-white dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDevice("desktop")}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                          previewDevice === "desktop"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                        }`}
+                        title="Standard Desktop Email Layout (650px container)"
+                      >
+                        <Laptop className="w-3.5 h-3.5" />
+                        <span>Desktop</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDevice("mobile")}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                          previewDevice === "mobile"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                        }`}
+                        title="Mobile Phone Viewport Simulation (375px)"
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Mobile</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Stats Pill */}
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                  <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                    {(templateEditFormat === "html" ? draftHtml : draftText).length} chars
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                    {((templateEditFormat === "html" ? draftHtml : draftText).match(/\n/g) || []).length + 1} lines
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-semibold">
+                    {((templateEditFormat === "html" ? draftHtml : draftText).match(/\{\{[^}]+\}\}/g) || []).length} tokens
+                  </span>
+                </div>
+              </div>
+
               {/* Feedback Alert Banner */}
               {templateSaveFeedback && (
                 <div
@@ -3931,20 +4615,22 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Main Content Area */}
-              {activeEditorTab === "edit" ? (
-                <div className="space-y-5">
-                  {/* Subject Line Input */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                        Subject Line Template
-                      </label>
-                      <span className="text-[11px] text-slate-400">
-                        Supports <code className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1 rounded">{"{{variable}}"}</code> tokens
-                      </span>
-                    </div>
-                    <div className="relative">
+              {/* ==================================================== */}
+              {/* DYNAMIC STUDIO CONTENT (PARALLEL / EDIT / PREVIEW)  */}
+              {/* ==================================================== */}
+              {(() => {
+                const renderEditor = () => (
+                  <div className="space-y-4">
+                    {/* Subject Line Input */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                          Subject Line Template
+                        </label>
+                        <span className="text-[11px] text-slate-400">
+                          Supports <code className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1 rounded">{"{{variable}}"}</code> tokens
+                        </span>
+                      </div>
                       <input
                         type="text"
                         value={draftSubject}
@@ -3962,270 +4648,240 @@ export default function SettingsPage() {
                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-200 font-mono focus:outline-hidden focus:border-indigo-500 transition-colors"
                       />
                     </div>
-                  </div>
 
-                  {/* Format Tabs & Token Insert Helper */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                        Body Content Format:
-                      </label>
-                      <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTemplateEditFormat("html");
-                            setActiveFocusedField("html");
-                          }}
-                          className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                            templateEditFormat === "html"
-                              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                          }`}
-                        >
-                          <Code2 className="w-3.5 h-3.5" />
-                          HTML View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTemplateEditFormat("text");
-                            setActiveFocusedField("text");
-                          }}
-                          className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                            templateEditFormat === "text"
-                              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                          }`}
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          Plain Text View
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Target Field: <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400 uppercase text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40">{activeFocusedField}</span>
-                    </div>
-                  </div>
-
-                  {/* DYNAMIC PARAMETER PALETTE & TOKEN SELECTOR */}
-                  <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-950 bg-indigo-50/40 dark:bg-indigo-950/15 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    {/* Format Tabs & Token Target */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-800">
                       <div className="flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                          Dynamic Parameter Palette (Click to Insert)
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                        Click any token chip below to insert <code className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 rounded">{"{{token}}"}</code> into the active field.
-                      </span>
-                    </div>
-
-                    {/* Category Filter Tabs */}
-                    <div className="flex flex-wrap gap-1">
-                      {["All", "Claim Info", "Parties", "Court & Match Info", "Guidewire", "System & Runtime"].map(
-                        (cat) => (
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                          Body Format:
+                        </label>
+                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
                           <button
-                            key={cat}
                             type="button"
-                            onClick={() => setSelectedTokenCategory(cat)}
-                            className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all cursor-pointer ${
-                              selectedTokenCategory === cat
-                                ? "bg-indigo-600 text-white shadow-xs"
-                                : "bg-white/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+                            onClick={() => {
+                              setTemplateEditFormat("html");
+                              setActiveFocusedField("html");
+                            }}
+                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                              templateEditFormat === "html"
+                                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                             }`}
                           >
-                            {cat}
+                            <Code2 className="w-3.5 h-3.5" />
+                            HTML View
                           </button>
-                        )
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateEditFormat("text");
+                              setActiveFocusedField("text");
+                            }}
+                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                              templateEditFormat === "text"
+                                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Plain Text View
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Target Field: <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400 uppercase text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40">{activeFocusedField}</span>
+                      </div>
+                    </div>
+
+                    {/* DYNAMIC PARAMETER PALETTE (Collapsible) */}
+                    {isTokensPaletteOpen && (
+                      <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-950 bg-indigo-50/40 dark:bg-indigo-950/15 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                              Dynamic Parameter Palette (Click to Insert)
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Click any token to insert into <code className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 rounded">{activeFocusedField}</code>
+                          </span>
+                        </div>
+
+                        {/* Category Filter Tabs */}
+                        <div className="flex flex-wrap gap-1">
+                          {["All", "Claim Info", "Parties", "Court & Match Info", "Guidewire", "System & Runtime"].map(
+                            (cat) => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setSelectedTokenCategory(cat)}
+                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all cursor-pointer ${
+                                  selectedTokenCategory === cat
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "bg-white/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+                                }`}
+                              >
+                                {cat}
+                              </button>
+                            )
+                          )}
+                        </div>
+
+                        {/* Token Chips */}
+                        <div className="flex flex-wrap gap-1.5 pt-1 max-h-[140px] overflow-y-auto">
+                          {tokensCatalog
+                            .filter(
+                              (t) =>
+                                selectedTokenCategory === "All" ||
+                                t.category === selectedTokenCategory
+                            )
+                            .map((t) => (
+                              <button
+                                key={t.token}
+                                type="button"
+                                onClick={() => handleInsertToken(t.token)}
+                                title={`${t.description} (Sample: ${t.sample})`}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 text-xs font-mono text-slate-800 dark:text-slate-200 transition-all cursor-pointer shadow-2xs group"
+                              >
+                                <span className="text-indigo-600 dark:text-indigo-400 font-bold group-hover:scale-125 transition-transform">+</span>
+                                <span>{`{{${t.token}}}`}</span>
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                                  {t.label}
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Code Editor Textarea */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                          {templateEditFormat === "html"
+                            ? "HTML Body Template (Responsive Email Layout)"
+                            : "Plain Text Body Template (Fallback)"}
+                        </label>
+                        <span className="text-[10px] font-mono text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          Live Sync Active
+                        </span>
+                      </div>
+                      {templateEditFormat === "html" ? (
+                        <textarea
+                          rows={activeEditorTab === "split" ? 18 : 16}
+                          value={draftHtml}
+                          onFocus={() => setActiveFocusedField("html")}
+                          onChange={(e) => {
+                            setDraftHtml(e.target.value);
+                            loadTemplatePreviewWithDraft(
+                              selectedTemplateEvent,
+                              draftSubject,
+                              e.target.value,
+                              draftText
+                            );
+                          }}
+                          placeholder="Write HTML markup here..."
+                          spellCheck={false}
+                          className="w-full bg-slate-950 text-emerald-400 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner"
+                        />
+                      ) : (
+                        <textarea
+                          rows={activeEditorTab === "split" ? 18 : 10}
+                          value={draftText}
+                          onFocus={() => setActiveFocusedField("text")}
+                          onChange={(e) => {
+                            setDraftText(e.target.value);
+                            loadTemplatePreviewWithDraft(
+                              selectedTemplateEvent,
+                              draftSubject,
+                              draftHtml,
+                              e.target.value
+                            );
+                          }}
+                          placeholder="Plain text fallback body..."
+                          spellCheck={false}
+                          className="w-full bg-slate-950 text-slate-200 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner"
+                        />
                       )}
                     </div>
-
-                    {/* Token Chips */}
-                    <div className="flex flex-wrap gap-1.5 pt-1 max-h-[160px] overflow-y-auto">
-                      {tokensCatalog
-                        .filter(
-                          (t) =>
-                            selectedTokenCategory === "All" ||
-                            t.category === selectedTokenCategory
-                        )
-                        .map((t) => (
-                          <button
-                            key={t.token}
-                            type="button"
-                            onClick={() => handleInsertToken(t.token)}
-                            title={`${t.description} (Sample: ${t.sample})`}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 text-xs font-mono text-slate-800 dark:text-slate-200 transition-all cursor-pointer shadow-2xs group"
-                          >
-                            <span className="text-indigo-600 dark:text-indigo-400 font-bold group-hover:scale-125 transition-transform">+</span>
-                            <span>{`{{${t.token}}}`}</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-sans">
-                              {t.label}
-                            </span>
-                          </button>
-                        ))}
-                    </div>
                   </div>
+                );
 
-                  {/* Code Editor Textarea */}
-                  <div className="space-y-1.5">
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                      {templateEditFormat === "html"
-                        ? "HTML Body Template (Responsive Email Layout)"
-                        : "Plain Text Body Template (Fallback)"}
-                    </label>
-                    {templateEditFormat === "html" ? (
-                      <textarea
-                        rows={16}
-                        value={draftHtml}
-                        onFocus={() => setActiveFocusedField("html")}
-                        onChange={(e) => {
-                          setDraftHtml(e.target.value);
-                          loadTemplatePreviewWithDraft(
-                            selectedTemplateEvent,
-                            draftSubject,
-                            e.target.value,
-                            draftText
-                          );
-                        }}
-                        placeholder="Write HTML markup here..."
-                        spellCheck={false}
-                        className="w-full bg-slate-950 text-emerald-400 dark:bg-slate-950 dark:text-emerald-300 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner"
-                      />
-                    ) : (
-                      <textarea
-                        rows={8}
-                        value={draftText}
-                        onFocus={() => setActiveFocusedField("text")}
-                        onChange={(e) => {
-                          setDraftText(e.target.value);
-                          loadTemplatePreviewWithDraft(
-                            selectedTemplateEvent,
-                            draftSubject,
-                            draftHtml,
-                            e.target.value
-                          );
-                        }}
-                        placeholder="Plain text fallback body..."
-                        spellCheck={false}
-                        className="w-full bg-slate-950 text-slate-200 dark:bg-slate-950 dark:text-slate-200 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner"
-                      />
-                    )}
-                  </div>
-
-                  {/* Synchronized Real-time Preview Below Editor */}
-                  <div className="pt-2 space-y-2">
+                const renderPreview = () => (
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         <Eye className="w-3.5 h-3.5 text-indigo-500" />
                         Live Synchronized Render Preview
                       </span>
-                      <span className="text-[10px] text-slate-400">
-                        {isLoadingTemplatePreview ? "Rendering..." : "Synchronized with Editor"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400">
+                          {isLoadingTemplatePreview ? "Rendering..." : "Synchronized with Editor"}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white shadow-inner">
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-inner">
                       {/* Subject Banner */}
                       <div className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono shrink-0">
                             Subject
                           </span>
-                          <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono text-xs">
+                          <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono text-xs truncate">
                             {templatePreviewSubject || "UAIC Notification Alert"}
                           </span>
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono self-start sm:self-auto">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono self-start sm:self-auto shrink-0">
                           {templateEditFormat === "html" ? "Responsive HTML5" : "RFC-822 Text"}
                         </span>
                       </div>
 
-                      {/* Rendered content */}
-                      {templateEditFormat === "html" ? (
-                        <div
-                          className="p-6 overflow-x-auto text-slate-900 bg-white"
-                          dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
-                        />
-                      ) : (
-                        <pre className="p-6 overflow-x-auto text-xs font-mono text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950 whitespace-pre-wrap">
-                          {templatePreviewText || "No plain text body defined."}
-                        </pre>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Fullscreen Live Preview Tab */
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      Live Preview for {selectedTemplate?.name || selectedTemplateEvent}
-                    </span>
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => setTemplatePreviewMode("html")}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
-                          templatePreviewMode === "html"
-                            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                        }`}
-                      >
-                        HTML View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTemplatePreviewMode("text")}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer ${
-                          templatePreviewMode === "text"
-                            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                        }`}
-                      >
-                        Plain Text
-                      </button>
-                    </div>
-                  </div>
-
-                  {isLoadingTemplatePreview ? (
-                    <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
-                      Rendering dynamic template preview...
-                    </div>
-                  ) : (
-                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white shadow-inner">
-                      {/* Subject Banner */}
-                      <div className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono">
-                            Subject
-                          </span>
-                          <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono text-xs">
-                            {templatePreviewSubject || "UAIC Notification Alert"}
-                          </span>
-                        </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono self-start sm:self-auto">
-                          {templatePreviewMode === "html" ? "Responsive HTML5" : "RFC-822 Text"}
-                        </span>
+                      {/* Rendered Viewport Frame */}
+                      <div className="p-4 sm:p-6 bg-slate-100 dark:bg-slate-950 overflow-y-auto max-h-[520px]">
+                        {isLoadingTemplatePreview ? (
+                          <div className="py-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
+                            Rendering dynamic preview...
+                          </div>
+                        ) : templateEditFormat === "html" ? (
+                          templatePreviewHtml ? (
+                            <div className="flex justify-center w-full">
+                              {previewDevice === "mobile" ? (
+                                <div className="w-[375px] max-w-full bg-slate-900 p-3 rounded-[2.5rem] shadow-2xl border-4 border-slate-700">
+                                  {/* Smartphone Speaker / Notch */}
+                                  <div className="w-24 h-4 bg-slate-800 rounded-full mx-auto mb-2 flex items-center justify-center">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-slate-900 mr-2" />
+                                    <div className="w-8 h-1 rounded-full bg-slate-700" />
+                                  </div>
+                                  <div
+                                    className="bg-white rounded-2xl p-4 text-slate-900 text-xs overflow-x-auto min-h-[360px]"
+                                    dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                                  />
+                                </div>
+                              ) : (
+                                <div
+                                  className="w-full max-w-2xl bg-white rounded-xl shadow-md border border-slate-200 p-6 text-slate-900 overflow-x-auto"
+                                  dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-center py-12 text-xs text-slate-400 font-mono">
+                              No preview markup generated.
+                            </div>
+                          )
+                        ) : (
+                          <pre className="p-4 overflow-y-auto max-h-[460px] text-xs font-mono text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950 whitespace-pre-wrap rounded-lg">
+                            {templatePreviewText || "No plain text body defined."}
+                          </pre>
+                        )}
                       </div>
 
-                      {/* Rendered content */}
-                      {templatePreviewMode === "html" ? (
-                        <div
-                          className="p-6 overflow-x-auto text-slate-900 bg-white"
-                          dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
-                        />
-                      ) : (
-                        <pre className="p-6 overflow-x-auto text-xs font-mono text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950 whitespace-pre-wrap">
-                          {templatePreviewText || "No plain text body defined."}
-                        </pre>
-                      )}
-
                       {/* Sample Context Mock Tokens */}
-                      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
                         <span className="font-semibold">Context Tokens:</span>
                         <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">Claim: 0100456789</span>
                         <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">Insured: JOHNATHAN DOE</span>
@@ -4234,13 +4890,28 @@ export default function SettingsPage() {
                         <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">Matches: 2 case(s)</span>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                );
+
+                if (activeEditorTab === "split") {
+                  return (
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start w-full">
+                      {renderEditor()}
+                      {renderPreview()}
+                    </div>
+                  );
+                }
+
+                if (activeEditorTab === "edit") {
+                  return <div className="w-full">{renderEditor()}</div>;
+                }
+
+                return <div className="w-full">{renderPreview()}</div>;
+              })()}
             </div>
 
             {/* 7. DELIVERY HISTORY LOG TABLE */}
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs w-full transition-colors">
+            <div id="delivery-history-section" className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs w-full transition-colors">
               <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800/80">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-indigo-500" />
@@ -4256,7 +4927,7 @@ export default function SettingsPage() {
 
                 <button
                   type="button"
-                  onClick={fetchRecentNotifications}
+                  onClick={() => fetchRecentNotifications()}
                   disabled={isLoadingNotifications}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
                 >
@@ -4265,289 +4936,192 @@ export default function SettingsPage() {
                 </button>
               </div>
 
+              {/* Interactive Search & Filter Toolbar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                {/* Search Bar */}
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={historySearch}
+                    onChange={(e) => {
+                      setHistorySearch(e.target.value);
+                      fetchRecentNotifications(1, historyStatusFilter, e.target.value, historyEventTypeFilter);
+                    }}
+                    placeholder="Search recipient, subject, claim #..."
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-indigo-500"
+                  />
+                  {historySearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHistorySearch("");
+                        fetchRecentNotifications(1, historyStatusFilter, "", historyEventTypeFilter);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Event Type Filter Dropdown & Status Filter Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={historyEventTypeFilter}
+                    onChange={(e) => {
+                      setHistoryEventTypeFilter(e.target.value);
+                      fetchRecentNotifications(1, historyStatusFilter, historySearch, e.target.value);
+                    }}
+                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-medium"
+                  >
+                    <option value="ALL">All Event Triggers</option>
+                    <option value="GUIDEWIRE_ACTIVITY_CREATED">Guidewire Created</option>
+                    <option value="GUIDEWIRE_ACTIVITY_FAILED">Guidewire Failed</option>
+                    <option value="COURT_CASE_MATCHED">Court Case Matched</option>
+                    <option value="SCRAPER_FAILED">Scraper Failed</option>
+                    <option value="CLAIM_PROCESSING_FAILED">Claim Failed</option>
+                    <option value="TEST_EMAIL">Interactive Test</option>
+                  </select>
+
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
+                    {["ALL", "SENT", "FAILED", "QUEUED", "SKIPPED"].map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => {
+                          setHistoryStatusFilter(st);
+                          fetchRecentNotifications(1, st, historySearch, historyEventTypeFilter);
+                        }}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer ${
+                          historyStatusFilter === st
+                            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {isLoadingNotifications ? (
                 <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                   <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
                   Loading notification delivery records...
                 </div>
               ) : recentNotifications.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                      <tr>
-                        <th className="px-4 py-3">Timestamp</th>
-                        <th className="px-4 py-3">Event</th>
-                        <th className="px-4 py-3">Recipient</th>
-                        <th className="px-4 py-3">Subject</th>
-                        <th className="px-4 py-3">Provider</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3 text-right">Delivery Proof</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono text-[11px]">
-                      {recentNotifications.map((notif) => (
-                        <tr key={notif.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">
-                            {new Date(notif.created_at).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
-                            {notif.event_type}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-300">
-                            {notif.recipient}
-                          </td>
-                          <td className="px-4 py-2.5 max-w-xs truncate text-slate-600 dark:text-slate-300 font-sans">
-                            {notif.subject}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400 uppercase text-[10px]">
-                            {notif.provider}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                notif.status === "SENT"
-                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                  : notif.status === "FAILED"
-                                  ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                                  : notif.status === "SKIPPED"
-                                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                  : "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
-                              }`}
-                            >
-                              {notif.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-right font-sans">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedReceiptNotif(notif)}
-                              className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                            >
-                              <Receipt className="w-3 h-3" />
-                              View Receipt
-                            </button>
-                          </td>
+                <div className="space-y-3">
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3">Timestamp</th>
+                          <th className="px-4 py-3">Event</th>
+                          <th className="px-4 py-3">Recipient</th>
+                          <th className="px-4 py-3">Subject</th>
+                          <th className="px-4 py-3">Provider</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-right">Delivery Proof</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono text-[11px]">
+                        {recentNotifications.map((notif) => (
+                          <tr key={notif.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">
+                              {new Date(notif.created_at).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                              {notif.event_type}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-300">
+                              {notif.recipient}
+                            </td>
+                            <td className="px-4 py-2.5 max-w-xs truncate text-slate-600 dark:text-slate-300 font-sans">
+                              {notif.subject}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400 uppercase text-[10px]">
+                              {notif.provider}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                  notif.status === "SENT"
+                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                    : notif.status === "FAILED"
+                                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    : notif.status === "SKIPPED"
+                                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                    : "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                                }`}
+                              >
+                                {notif.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap text-right font-sans">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptNotif(notif)}
+                                className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                              >
+                                <Receipt className="w-3 h-3" />
+                                View Receipt
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 px-1 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <span>Showing</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        {recentNotifications.length}
+                      </span>
+                      <span>of</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        {historyTotalCount}
+                      </span>
+                      <span>total notifications</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchRecentNotifications(historyPage - 1, historyStatusFilter, historySearch, historyEventTypeFilter)}
+                        disabled={historyPage <= 1 || isLoadingNotifications}
+                        className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 cursor-pointer transition-colors shadow-xs text-xs"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        Previous
+                      </button>
+
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        Page {historyPage} of {historyTotalPages || 1}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => fetchRecentNotifications(historyPage + 1, historyStatusFilter, historySearch, historyEventTypeFilter)}
+                        disabled={historyPage >= historyTotalPages || isLoadingNotifications}
+                        className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 cursor-pointer transition-colors shadow-xs text-xs"
+                      >
+                        Next
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="p-8 text-center text-xs text-slate-400 italic">
-                  No notification records found in history yet. Use the &quot;Send Test Email&quot; console above or trigger a claim automation run to record deliveries.
+                  No notification records found matching criteria. Use the &quot;Send Test Email&quot; console above or trigger a claim automation run to record deliveries.
                 </div>
               )}
             </div>
-
-            {/* 8. DELIVERY RECEIPT INSPECTION MODAL */}
-            {selectedReceiptNotif && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-                  {/* Modal Header */}
-                  <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                        <Receipt className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                          Email Delivery Receipt & Provenance
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                          ID: {selectedReceiptNotif.id}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedReceiptNotif(null)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Modal Body */}
-                  <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
-                    {/* Status & Key Stats Banner */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
-                          Delivery Status
-                        </span>
-                        <span
-                          className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            selectedReceiptNotif.status === "SENT"
-                              ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-                              : selectedReceiptNotif.status === "FAILED"
-                              ? "bg-rose-500/20 text-rose-700 dark:text-rose-300"
-                              : "bg-amber-500/20 text-amber-700 dark:text-amber-300"
-                          }`}
-                        >
-                          {selectedReceiptNotif.status}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
-                          Provider / Relay
-                        </span>
-                        <span className="inline-block mt-1 font-mono font-bold text-slate-900 dark:text-slate-100 uppercase">
-                          {selectedReceiptNotif.provider}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
-                          Dispatched At
-                        </span>
-                        <span className="inline-block mt-1 font-mono text-slate-700 dark:text-slate-300">
-                          {new Date(selectedReceiptNotif.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
-                          Retry Count
-                        </span>
-                        <span className="inline-block mt-1 font-mono text-slate-700 dark:text-slate-300">
-                          {selectedReceiptNotif.retry_count || 0}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Recipient & Event Details */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 font-mono">
-                        <span className="text-slate-500">Destination Recipient:</span>
-                        <span className="font-bold text-slate-900 dark:text-slate-100">
-                          {selectedReceiptNotif.recipient}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 font-mono">
-                        <span className="text-slate-500">Subject:</span>
-                        <span className="text-slate-800 dark:text-slate-200 max-w-sm truncate text-right">
-                          {selectedReceiptNotif.subject}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 font-mono">
-                        <span className="text-slate-500">Event Trigger:</span>
-                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">
-                          {selectedReceiptNotif.event_type}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Gateway Receipt Provenance */}
-                    {selectedReceiptNotif.delivery_receipt ? (
-                      <div className="space-y-2">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
-                          MTA Gateway Proof of Delivery
-                        </span>
-                        <div className="p-3 rounded-xl bg-slate-950 text-slate-200 font-mono text-[11px] space-y-1.5 border border-slate-800">
-                          {selectedReceiptNotif.delivery_receipt.message_id && (
-                            <div>
-                              <span className="text-slate-500">Message-ID: </span>
-                              <span className="text-emerald-400 break-all">
-                                {selectedReceiptNotif.delivery_receipt.message_id}
-                              </span>
-                            </div>
-                          )}
-                          {selectedReceiptNotif.delivery_receipt.gateway_host && (
-                            <div>
-                              <span className="text-slate-500">Gateway Server: </span>
-                              <span className="text-indigo-300">
-                                {selectedReceiptNotif.delivery_receipt.gateway_host}:
-                                {selectedReceiptNotif.delivery_receipt.gateway_port || 25}
-                              </span>
-                            </div>
-                          )}
-                          {selectedReceiptNotif.delivery_receipt.server_response && (
-                            <div>
-                              <span className="text-slate-500">SMTP Response: </span>
-                              <span className="text-amber-300 break-all">
-                                {selectedReceiptNotif.delivery_receipt.server_response}
-                              </span>
-                            </div>
-                          )}
-                          {selectedReceiptNotif.delivery_receipt.receipt_requested && (
-                            <div>
-                              <span className="text-slate-500">RFC Receipt Headers: </span>
-                              <span className="text-cyan-300">
-                                RFC-3798 & RFC-822 Acknowledgment Headers Active
-                              </span>
-                            </div>
-                          )}
-                          {selectedReceiptNotif.delivery_receipt.duration_ms !== undefined && (
-                            <div>
-                              <span className="text-slate-500">Transmission Latency: </span>
-                              <span className="text-slate-300">
-                                {selectedReceiptNotif.delivery_receipt.duration_ms} ms
-                              </span>
-                            </div>
-                          )}
-                          {selectedReceiptNotif.delivery_receipt.webbox_url && (
-                            <div className="pt-2 border-t border-slate-800/80">
-                              <a
-                                href={selectedReceiptNotif.delivery_receipt.webbox_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                Inspect in MailDev Webbox ({selectedReceiptNotif.delivery_receipt.webbox_url})
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Raw Delivery Receipt JSON */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-semibold">Raw Receipt JSON Payload</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const raw = JSON.stringify(
-                              selectedReceiptNotif.delivery_receipt || selectedReceiptNotif,
-                              null,
-                              2
-                            );
-                            navigator.clipboard.writeText(raw);
-                            setFeedback({ type: "success", msg: "Receipt JSON copied to clipboard." });
-                          }}
-                          className="hover:text-indigo-500 inline-flex items-center gap-1 cursor-pointer font-mono"
-                        >
-                          <Copy className="w-3 h-3" />
-                          Copy JSON
-                        </button>
-                      </div>
-                      <pre className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto text-[10px] font-mono text-slate-700 dark:text-slate-300 max-h-40 whitespace-pre-wrap">
-                        {JSON.stringify(
-                          selectedReceiptNotif.delivery_receipt || selectedReceiptNotif,
-                          null,
-                          2
-                        )}
-                      </pre>
-                    </div>
-                  </div>
-
-                  {/* Modal Footer */}
-                  <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedReceiptNotif(null)}
-                      className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                    >
-                      Close Receipt
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
           );
         })()}
@@ -5390,6 +5964,216 @@ export default function SettingsPage() {
         </div>
       )}
       </main>
+
+      {/* DELIVERY RECEIPT INSPECTION MODAL (ROOT PORTAL LEVEL) */}
+      {selectedReceiptNotif && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Email Delivery Receipt &amp; Provenance
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                    ID: {selectedReceiptNotif.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReceiptNotif(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+              {/* Status & Key Stats Banner */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                    Delivery Status
+                  </span>
+                  <span
+                    className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      selectedReceiptNotif.status === "SENT"
+                        ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                        : selectedReceiptNotif.status === "FAILED"
+                        ? "bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                        : "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                    }`}
+                  >
+                    {selectedReceiptNotif.status}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                    Provider / Relay
+                  </span>
+                  <span className="inline-block mt-1 font-mono font-bold text-slate-900 dark:text-slate-100 uppercase">
+                    {selectedReceiptNotif.provider}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                    Dispatched At
+                  </span>
+                  <span className="inline-block mt-1 font-mono text-slate-700 dark:text-slate-300">
+                    {new Date(selectedReceiptNotif.created_at).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                    Retry Count
+                  </span>
+                  <span className="inline-block mt-1 font-mono text-slate-700 dark:text-slate-300">
+                    {selectedReceiptNotif.retry_count || 0}
+                  </span>
+                </div>
+              </div>
+
+              {/* Recipient & Event Details */}
+              <div className="space-y-2">
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 font-mono">
+                  <span className="text-slate-500">Destination Recipient:</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                    {selectedReceiptNotif.recipient}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 font-mono">
+                  <span className="text-slate-500">Subject:</span>
+                  <span className="text-slate-800 dark:text-slate-200 max-w-sm truncate text-right">
+                    {selectedReceiptNotif.subject}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 font-mono">
+                  <span className="text-slate-500">Event Trigger:</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                    {selectedReceiptNotif.event_type}
+                  </span>
+                </div>
+              </div>
+
+              {/* Gateway Receipt Provenance */}
+              {selectedReceiptNotif.delivery_receipt ? (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                    <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    MTA Gateway Proof of Delivery
+                  </span>
+                  <div className="p-3 rounded-xl bg-slate-950 text-slate-200 font-mono text-[11px] space-y-1.5 border border-slate-800">
+                    {selectedReceiptNotif.delivery_receipt.message_id && (
+                      <div>
+                        <span className="text-slate-500">Message-ID: </span>
+                        <span className="text-emerald-400 break-all">
+                          {selectedReceiptNotif.delivery_receipt.message_id}
+                        </span>
+                      </div>
+                    )}
+                    {selectedReceiptNotif.delivery_receipt.gateway_host && (
+                      <div>
+                        <span className="text-slate-500">Gateway Server: </span>
+                        <span className="text-indigo-300">
+                          {selectedReceiptNotif.delivery_receipt.gateway_host}:
+                          {selectedReceiptNotif.delivery_receipt.gateway_port || 25}
+                        </span>
+                      </div>
+                    )}
+                    {selectedReceiptNotif.delivery_receipt.server_response && (
+                      <div>
+                        <span className="text-slate-500">SMTP Response: </span>
+                        <span className="text-amber-300 break-all">
+                          {selectedReceiptNotif.delivery_receipt.server_response}
+                        </span>
+                      </div>
+                    )}
+                    {selectedReceiptNotif.delivery_receipt.receipt_requested && (
+                      <div>
+                        <span className="text-slate-500">RFC Receipt Headers: </span>
+                        <span className="text-cyan-300">
+                          RFC-3798 &amp; RFC-822 Acknowledgment Headers Active
+                        </span>
+                      </div>
+                    )}
+                    {selectedReceiptNotif.delivery_receipt.duration_ms !== undefined && (
+                      <div>
+                        <span className="text-slate-500">Transmission Latency: </span>
+                        <span className="text-slate-300">
+                          {selectedReceiptNotif.delivery_receipt.duration_ms} ms
+                        </span>
+                      </div>
+                    )}
+                    {selectedReceiptNotif.delivery_receipt.webbox_url && (
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <a
+                          href={selectedReceiptNotif.delivery_receipt.webbox_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Inspect in MailDev Webbox ({selectedReceiptNotif.delivery_receipt.webbox_url})
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Raw Delivery Receipt JSON */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span className="font-semibold">Raw Receipt JSON Payload</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const raw = JSON.stringify(
+                        selectedReceiptNotif.delivery_receipt || selectedReceiptNotif,
+                        null,
+                        2
+                      );
+                      navigator.clipboard.writeText(raw);
+                      setFeedback({ type: "success", msg: "Receipt JSON copied to clipboard." });
+                    }}
+                    className="hover:text-indigo-500 inline-flex items-center gap-1 cursor-pointer font-mono"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Copy JSON
+                  </button>
+                </div>
+                <pre className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto text-[10px] font-mono text-slate-700 dark:text-slate-300 max-h-40 whitespace-pre-wrap">
+                  {JSON.stringify(
+                    selectedReceiptNotif.delivery_receipt || selectedReceiptNotif,
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedReceiptNotif(null)}
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              >
+                Close Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,6 +22,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.court_case import ScrapedCourtCase
     from app.models.error_screenshot import ErrorScreenshot
+    from app.models.guidewire import FilteredOutCase, GuidewireActivity
     from app.models.match_result import MatchPair
 
 
@@ -53,6 +54,7 @@ class BotStatusEnum(enum.StrEnum):
     COMPLETED = "COMPLETED"                         # 870300001
     FAILED = "FAILED"                               # 870300002
     NO_MATCH_FOUND = "NO_MATCH_FOUND"               # 870300003
+    BLOCKED = "BLOCKED"                             # Rate limit / WAF / Security challenge block
 
 
 class IngestionBatch(Base):
@@ -100,10 +102,6 @@ class ClaimRecord(Base):
     driver_last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Geographic / Location Data
-    garaging_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    garaging_state: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    loss_location_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    loss_location_county: Mapped[str | None] = mapped_column(String(100), nullable=True)
     loss_location_state: Mapped[str | None] = mapped_column(String(50), nullable=True)
     policy_state: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
@@ -171,3 +169,9 @@ class ClaimRecord(Base):
     scraped_cases: Mapped[list["ScrapedCourtCase"]] = relationship("ScrapedCourtCase", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
     match_pairs: Mapped[list["MatchPair"]] = relationship("MatchPair", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
     error_screenshots: Mapped[list["ErrorScreenshot"]] = relationship("ErrorScreenshot", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
+    guidewire_activities: Mapped[list["GuidewireActivity"]] = relationship("GuidewireActivity", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
+    filtered_cases: Mapped[list["FilteredOutCase"]] = relationship("FilteredOutCase", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
+
+
+# Alias for backward compatibility and prompt diagram conventions
+Claim = ClaimRecord

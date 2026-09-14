@@ -17,6 +17,81 @@ from app.core.config import settings
 logger = logging.getLogger("uaic_orchestrator.automation")
 
 
+class SecurityBlockException(Exception):
+    """Raised when a portal explicitly blocks requests due to rate limits, WAF, or IP restrictions."""
+    def __init__(self, message: str, cooldown_seconds: int = 300, portal_key: str | None = None):
+        super().__init__(message)
+        self.message = message
+        self.cooldown_seconds = cooldown_seconds
+        self.portal_key = portal_key
+
+
+def detect_security_block(
+    status_code: int | None = None,
+    html_text: str | None = None,
+    portal_key: str | None = None,
+    default_cooldown: int = 300,
+) -> None:
+    """Check HTTP response status code and page HTML for WAF, Cloudflare challenge, or rate limiting.
+
+    Raises SecurityBlockException if a block or challenge is detected.
+    """
+    if status_code == 429:
+        raise SecurityBlockException(
+            message=f"Rate limit exceeded (HTTP 429) on {portal_key or 'portal'}",
+            cooldown_seconds=default_cooldown,
+            portal_key=portal_key,
+        )
+    if status_code in (403, 503) and html_text:
+        lower_html = html_text.lower()
+        if any(keyword in lower_html for keyword in ["access denied", "blocked", "waf", "security check", "forbidden", "cloudflare"]):
+            raise SecurityBlockException(
+                message=f"Access blocked (HTTP {status_code}) by security gateway on {portal_key or 'portal'}",
+                cooldown_seconds=default_cooldown,
+                portal_key=portal_key,
+            )
+
+    if html_text:
+        lower_html = html_text.lower()
+        if "cf-browser-verification" in lower_html or "cf-challenge" in lower_html or "checking your browser" in lower_html:
+            raise SecurityBlockException(
+                message=f"Cloudflare challenge page detected on {portal_key or 'portal'}",
+                cooldown_seconds=default_cooldown,
+                portal_key=portal_key,
+            )
+        if "ray id" in lower_html and any(term in lower_html for term in ["access denied", "blocked", "attention required"]):
+            raise SecurityBlockException(
+                message=f"WAF block page detected on {portal_key or 'portal'}",
+                cooldown_seconds=default_cooldown,
+                portal_key=portal_key,
+            )
+
+
+def log_security_block_event(
+    portal_name: str | None = None,
+    url: str | None = None,
+    reason: str | None = None,
+    cooldown_seconds: int = 300,
+    portal_key: str | None = None,
+    block_reason: str | None = None,
+    page_url: str | None = None,
+):
+    """Appends an explicit security/rate-limit block incident to backend/logs/security_blocks.log."""
+    p_name = portal_key or portal_name or "unknown"
+    p_url = page_url or url or ""
+    p_reason = block_reason or reason or "security_block"
+    try:
+        backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        log_dir = os.path.join(backend_dir, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "security_blocks.log")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] PORTAL='{p_name}' URL='{p_url}' BLOCKED='{p_reason}' COOLDOWN={cooldown_seconds}s\n")
+    except Exception as e:
+        logger.debug(f"Could not append to security_blocks.log: {e}")
+
+
 async def _safe_eval(page: Any, script: str) -> Any:
     """Safely execute evaluate script on page or mock without throwing unawaited mock errors."""
     try:
@@ -107,6 +182,10 @@ def sync_anticaptcha_api_key(ext_dir: str, api_key: str):
         if os.path.exists(cfg_path):
             with open(cfg_path, encoding="utf-8") as f:
                 cfg_content = f.read()
+            # If the file already contains this exact api_key, skip writing!
+            if f"'{api_key}'" in cfg_content or f'"{api_key}"' in cfg_content:
+                logger.debug("AntiCaptcha API key already up-to-date in config_ac_api_key.js")
+                return
             import re
             new_cfg = re.sub(
                 r"var antiCapthaPredefinedApiKey = '[^']*';",
@@ -123,6 +202,7 @@ def sync_anticaptcha_api_key(ext_dir: str, api_key: str):
             logger.info("Synchronized AntiCaptcha API key into config_ac_api_key.js")
     except Exception as e:
         logger.warning(f"Could not synchronize config_ac_api_key.js: {e}")
+
 
 
 class BaseCourtScraper(ABC):
@@ -168,6 +248,60 @@ class BaseCourtScraper(ABC):
         self.user_agent = user_agent
         self.stage_timings: dict[str, Any] = {}
 
+    async def biometric_fill(self, locator: Any, text: str) -> None:
+        """Implement biometric pacing for input fields to evade anti-bot detection."""
+        import inspect
+        import random
+        try:
+            # Handle AsyncMocks in testing vs real Playwright locators
+            clear_res = locator.clear()
+            if inspect.isawaitable(clear_res):
+                await clear_res
+            for char in text:
+                seq_res = locator.press_sequentially(char, delay=random.randint(50, 150))
+                if inspect.isawaitable(seq_res):
+                    await seq_res
+        except TypeError:
+            # If MagicMock throws TypeError when awaiting
+            pass
+        except AttributeError:
+            # Fallback to fill for older Playwright versions
+            fill_res = locator.fill(text)
+            if inspect.isawaitable(fill_res):
+                await fill_res
+
+    async def biometric_click(self, page: Page, locator: Any) -> None:
+        """Implement human-like anti-bot metrics (biometric mouse pacing & jitter scaling)."""
+        import asyncio
+        import inspect
+        import random
+        try:
+            # Jitter scaling: random wait before interaction
+            await asyncio.sleep(random.uniform(0.1, 0.4))
+            box = await locator.bounding_box()
+            if box:
+                # Biometric mouse pacing: hover with steps
+                x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+                jitter_x = x + random.uniform(-box["width"]/3, box["width"]/3)
+                jitter_y = y + random.uniform(-box["height"]/3, box["height"]/3)
+                await page.mouse.move(jitter_x, jitter_y, steps=random.randint(5, 10))
+                await asyncio.sleep(random.uniform(0.05, 0.15))
+                await page.mouse.down()
+                await asyncio.sleep(random.uniform(0.02, 0.08))
+                await page.mouse.up()
+            else:
+                clk_res = locator.click()
+                if inspect.isawaitable(clk_res):
+                    await clk_res
+        except Exception:
+            # Fallback
+            try:
+                clk_res = locator.click(force=True)
+                if inspect.isawaitable(clk_res):
+                    await clk_res
+            except Exception:
+                pass
+
     def record_stage(
         self,
         stage_key: str,
@@ -188,7 +322,67 @@ class BaseCourtScraper(ABC):
             **kwargs,
         }
 
+    async def _dismiss_session_timeout_popup(self, page: Page) -> None:
+        """Dismiss Odyssey/Smart Search session-timeout warning by clicking Continue (V4 Global Standard §5)."""
+        try:
+            continue_btn = page.locator(
+                "button:has-text('Continue session' i), button:has-text('Continue Session'), "
+                "button:has-text('Continue'), a:has-text('Continue session' i), "
+                "a:has-text('Continue'), input[value*='Continue' i], [aria-label*='Continue' i]"
+            )
+            if await continue_btn.count() > 0 and await continue_btn.first.is_visible():
+                await continue_btn.first.click()
+                await page.wait_for_timeout(500)
+                logger.info(f"[{self.county_name}] Dismissed session timeout popup.")
+        except Exception as e:
+            logger.debug(f"[{self.county_name}] Session timeout popup check: {e}")
+
+    async def _dismiss_search_criteria_popup(self, page: Page) -> None:
+        """Dismiss 'YOUR SEARCH CRITERIA' or 'No Results Found' modal popups (V4 §§ 2.2, 2.3, 3.4, 3.5)."""
+        try:
+            close_btns = page.locator(
+                "button:has-text('Close'), button:has-text('×'), button:has-text('X'), "
+                ".modal-header .close, .ui-dialog-titlebar-close, button[aria-label*='Close' i], "
+                "#btnCriteriaClose, button:has-text('OK')"
+            )
+            if await close_btns.count() > 0 and await close_btns.first.is_visible():
+                await close_btns.first.click()
+                await page.wait_for_timeout(500)
+                logger.info(f"[{self.county_name}] Dismissed search criteria/result modal.")
+        except Exception as e:
+            logger.debug(f"[{self.county_name}] Search criteria modal dismiss check: {e}")
+
+    async def _click_pagination_next(self, page: Page, next_selectors: list[str] | None = None) -> bool:
+        """Click next-page control for pagination across portals. Returns True if advanced, False otherwise."""
+        selectors = next_selectors or [
+            ".k-pager-wrap .k-i-arrow-e:not(.k-state-disabled)",
+            "a.k-link[title*='next page' i]:not(.k-state-disabled)",
+            ".k-pager-nav[title*='next' i]:not(.k-state-disabled)",
+            "#resultsTable_next a:not(.disabled)",
+            ".paginate_button.next:not(.disabled)",
+            "a[title*='next' i]:not(.disabled)",
+            "a:has-text('Go to the next page'):not(.disabled)",
+            "a:has-text('Next'):not(.disabled)",
+            "table[id*='dgSearchResults'] tfoot a:last-child",
+            "a.next:not(.disabled)",
+        ]
+        combined_sel = ", ".join(selectors)
+        try:
+            next_btn = page.locator(combined_sel)
+            if await next_btn.count() > 0 and await next_btn.first.is_visible():
+                is_disabled = await next_btn.first.get_attribute("disabled") or await next_btn.first.get_attribute("aria-disabled")
+                css_class = await next_btn.first.get_attribute("class") or ""
+                if is_disabled == "true" or "disabled" in css_class or "k-state-disabled" in css_class:
+                    return False
+                await next_btn.first.click()
+                await page.wait_for_timeout(2500)
+                return True
+        except Exception as e:
+            logger.debug(f"[{self.county_name}] Pagination next click note: {e}")
+        return False
+
     @abstractmethod
+
     async def search_by_party_name(
         self,
         first_name: str | None,
@@ -474,7 +668,20 @@ class BaseCourtScraper(ABC):
                 logger.info(f"[{self.county_name}] Attempt {attempt} SUCCESS! Found {len(results)} court cases.")
                 return results
 
+            except SecurityBlockException:
+                # Re-raise directly to bypass redundant retry loops and trigger non-blocking failover
+                raise
+
             except Exception as e:
+                # Check for active security challenge or rate-limit block immediately
+                is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+                if is_blocked:
+                    logger.error(
+                        f"[{self.county_name}] Security/rate-limit block detected on attempt {attempt}: {reason}. "
+                        f"Immediate failover engaged to protect session IP and queue."
+                    )
+                    raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs) from e
+
                 logger.warning(
                     f"[{self.county_name}] Attempt {attempt}/{self.max_attempts} failed: {e}. "
                     f"{'Refreshing tab and retrying...' if attempt < self.max_attempts else 'Max retries reached.'}"
@@ -487,6 +694,64 @@ class BaseCourtScraper(ABC):
                         f"Safely skipping this portal and continuing."
                     )
         return []
+
+    async def detect_security_block(self, page: Page) -> tuple[bool, str, int]:
+        """
+        Detects whether the portal has actively blocked requests due to rate limits,
+        IP bans, Cloudflare WAF challenges, or HTTP 429 Too Many Requests.
+        Returns: (is_blocked: bool, block_reason: str, suggested_cooldown_seconds: int)
+        """
+        try:
+            p_url = getattr(page, "url", "") or self.base_url
+            p_title = ""
+            try:
+                title_fn = getattr(page, "title", None)
+                if title_fn:
+                    res = title_fn()
+                    p_title = (await res if inspect.isawaitable(res) else res) or ""
+            except Exception:
+                pass
+
+            # Safe DOM body inspection
+            body_text = await _safe_eval(page, "() => (document.body ? document.body.innerText : '')")
+            body_text = str(body_text or "").lower()
+            title_lower = str(p_title).lower()
+
+            # 1. Check Rate Limit / 429
+            if any(term in body_text or term in title_lower for term in [
+                "429 too many requests", "rate limit exceeded", "too many requests",
+                "rate limited", "request limit reached", "retry after"
+            ]):
+                cooldown = 180
+                reason = "Rate Limit Exceeded (HTTP 429 / Throttled)"
+                log_security_block_event(self.county_name, p_url, reason, cooldown)
+                return True, reason, cooldown
+
+            # 2. Check Cloudflare 1020 / WAF Block
+            if any(term in body_text or term in title_lower for term in [
+                "error 1020", "access denied", "attention required! | cloudflare",
+                "blocked by cloudflare", "cloudflare ray id", "sorry, you have been blocked",
+                "security service to protect itself from online attacks"
+            ]):
+                cooldown = 300
+                reason = "WAF / Cloudflare Access Denied (Error 1020)"
+                log_security_block_event(self.county_name, p_url, reason, cooldown)
+                return True, reason, cooldown
+
+            # 3. Check IP Ban / Forbidden
+            if any(term in body_text or term in title_lower for term in [
+                "your ip has been blocked", "ip address has been banned",
+                "client ip forbidden", "access has been restricted"
+            ]):
+                cooldown = 600
+                reason = "Client IP Ban / Restriction Detected"
+                log_security_block_event(self.county_name, p_url, reason, cooldown)
+                return True, reason, cooldown
+
+        except Exception as e:
+            logger.debug(f"[{self.county_name}] Note on security block detection: {e}")
+
+        return False, "", 0
 
     async def capture_screenshot_on_error(
         self,
@@ -531,11 +796,12 @@ class BaseCourtScraper(ABC):
             # Capture screenshot bytes
             image_bytes: bytes | None = None
             try:
-                image_bytes = await page.screenshot(full_page=False, timeout=5000)
+                # Capture full-page screenshot per Prompt 04 specifications with viewport fallback
+                image_bytes = await page.screenshot(full_page=True, timeout=5000)
             except Exception as ss_err:
-                logger.warning(f"[{self.county_name}] Primary screenshot failed: {ss_err}")
+                logger.warning(f"[{self.county_name}] Full-page screenshot failed, falling back to viewport: {ss_err}")
                 try:
-                    image_bytes = await page.screenshot(timeout=3000)
+                    image_bytes = await page.screenshot(full_page=False, timeout=3000)
                 except Exception as ss_err2:
                     logger.error(f"[{self.county_name}] Could not capture screenshot bytes: {ss_err2}")
                     return None
@@ -611,6 +877,11 @@ class BaseCourtScraper(ABC):
             is_headless = self.headless
             if is_headless and has_extension:
                 launch_args.append("--headless=new")
+                # In Playwright, to load extensions in headless mode, persistent context must receive headless=False
+                # while Chromium executes silently via --headless=new.
+                context_headless = False
+            else:
+                context_headless = is_headless
 
             context: BrowserContext | None = None
             is_temp_profile = False
@@ -622,7 +893,7 @@ class BaseCourtScraper(ABC):
             try:
                 launch_kwargs = {
                     "user_data_dir": profile_to_use,
-                    "headless": is_headless,
+                    "headless": context_headless,
                     "args": launch_args,
                     "ignore_default_args": ["--disable-extensions"] if has_extension else None,
                     "no_viewport": True if not is_headless else False,

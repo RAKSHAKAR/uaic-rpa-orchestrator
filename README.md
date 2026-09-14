@@ -9,8 +9,7 @@
 
 ```
 Bot_UAIC/
-+-- setup.ps1                            # Root PowerShell setup launcher (delegates to setup_local.ps1)
-+-- setup_local.ps1                      # Enterprise Operations & Orchestration Console (interactive menu [0]-[9])
++-- setup_local.ps1                      # Enterprise Operations & Orchestration Console (single canonical launcher [0]-[9])
 +-- docker-compose.yml                   # Docker multi-container stack (Postgres 16, Redis 7, Flower, etc.)
 +-- AGENTS.md                            # Universal AI assistant context, engineering rules & guidelines
 +-- README.md                            # Definitive project booklet, architecture, and operations manual
@@ -105,7 +104,7 @@ Bot_UAIC/
 |   +-- exports/                         # Generated asynchronous export downloads (XLSX, CSV, PDF)
 |   +-- screenshots/                     # Automatic scraper error capture screenshots
 |   +-- uploads/                         # Backend uploaded import spreadsheets
-|   +-- tests/                           # Comprehensive backend test suite (270 tests across 27 test suites, 100% pass rate)
+|   +-- tests/                           # Comprehensive backend test suite (307 tests across 31 test suites, 100% pass rate)
 |   +-- live_e2e_verification.py         # Direct end-to-end integration test against live backend
 |   +-- seed_demo_claim.py               # Seed script creating realistic demonstration claims
 |   +-- seed_rich_data.py                # Database population script with rich multi-portal test claims
@@ -211,44 +210,63 @@ The following 5 folders are strictly protected. No cleanup script, purge routine
 
 ---
 
-## 3. Technology Stack & Modern Architecture
+## 3. Technology Stack & Documentation
 
-```
- Next.js 14 Web Application (React 18, TypeScript, Tailwind CSS)
-                       |
-                       | REST API Calls (Axios Typed Client)
-                       v
-       FastAPI 0.141+ REST Backend (Python 3.14.7, Uvicorn)
-         |                                       |
-         v                                       v
- SQLAlchemy 2.0 Async               Celery 5.6+ Task Queue Broker
- (SQLite dev / PostgreSQL prod)            (Redis 7 Alpine)
-                                                 |
-                                 +---------------+---------------+
-                                 v                               v
-                         Ingest Worker                   Fuzzy Match Worker
-                                                         (RapidFuzz Engine)
-                                                                 |
-                                                                 v
-                                                        Scraper Task Worker
-                                                                 |
-                                                       Playwright Browser
-                                                                 |
-                                                         Google Chrome
-                                                                 |
-                                                    AntiCaptcha Plugin v0.83
-```
+### Frontend
 
-| Layer | Technology |
-|---|---|
-| **Frontend UI** | Next.js 14 App Router, React 18, TypeScript, Tailwind CSS, Lucide Icons |
-| **Backend API** | FastAPI 0.141+, Python 3.14.7, Pydantic v2, Uvicorn 0.52+ |
-| **Task Queue & Broker** | Celery 5.6+, Redis 7 Alpine, Celery Beat, Celery Flower |
-| **Database & ORM** | SQLAlchemy 2.0 Async, SQLite (Local Dev) / PostgreSQL 16 (Production) |
-| **Browser RPA Automation** | Playwright 1.62+, Real Google Chrome, AntiCaptcha Extension v0.83 |
-| **Fuzzy Matching** | RapidFuzz 3.14+ (C-accelerated partial_ratio string distance cascade) |
-| **Insurance Cloud Integration**| Guidewire Cloud REST API (Bearer, ApiKey, Basic, OAuth2) |
-| **Verification & Quality** | Pytest 9.1+ (270 test cases across 27 test suites, 100% pass), Ruff 0.16+, TypeScript Compiler |
+| Technology   | Purpose in This Solution | How We Use It                               | Official Documentation                       |
+| ------------ | ------------------------ | ------------------------------------------- | -------------------------------------------- |
+| Next.js 14   | Framework                | App Router for claims dashboard and routing | [Next.js](https://nextjs.org/docs)           |
+| React 18     | UI library               | Core component rendering                    | [React](https://react.dev/reference/react)   |
+| Tailwind CSS | CSS framework            | Styling all UI components                   | [Tailwind CSS](https://tailwindcss.com/docs) |
+| Axios        | HTTP/API client          | Typed REST API calls to backend             | [Axios](https://axios-http.com/docs/intro)   |
+| Lucide       | Icons                    | SVG icons across dashboard                  | [Lucide](https://lucide.dev/)                |
+
+### Backend
+
+| Technology     | Purpose in This Solution | How We Use It                           | Official Documentation                            |
+| -------------- | ------------------------ | --------------------------------------- | ------------------------------------------------- |
+| Python 3.14.7  | Programming language     | Core execution runtime                  | [Python](https://docs.python.org/3.14/)           |
+| FastAPI        | API framework            | High-performance REST endpoints         | [FastAPI](https://fastapi.tiangolo.com/)          |
+| Pydantic v2    | Validation               | Schema definition and data validation   | [Pydantic](https://docs.pydantic.dev/)            |
+| SQLAlchemy 2.0 | ORM                      | Async database models and queries       | [SQLAlchemy](https://docs.sqlalchemy.org/en/20/)  |
+| PostgreSQL 16  | Database                 | Production relational storage           | [PostgreSQL](https://www.postgresql.org/docs/16/) |
+| SQLite         | Database                 | Local development storage               | [SQLite](https://www.sqlite.org/docs.html)        |
+| Celery 5.6+    | Background jobs          | Task queue for async scraping & exports | [Celery](https://docs.celeryq.dev/en/stable/)     |
+| Redis 7        | Queue system & Caching   | Broker for Celery and in-memory cache   | [Redis](https://redis.io/docs/)                   |
+
+### Testing
+
+| Technology | Purpose in This Solution | How We Use It                    | Official Documentation                                        |
+| ---------- | ------------------------ | -------------------------------- | ------------------------------------------------------------- |
+| Pytest     | Unit testing framework   | Executing 307 backend test cases | [Pytest](https://docs.pytest.org/en/9.1.x/)                   |
+| Playwright | Browser automation       | Headless Chrome court scraping   | [Playwright Python](https://playwright.dev/python/docs/intro) |
+
+### Build & Development
+
+| Technology | Purpose in This Solution | How We Use It                      | Official Documentation                             |
+| ---------- | ------------------------ | ---------------------------------- | -------------------------------------------------- |
+| Ruff       | Linter                   | Python code formatting and linting | [Ruff](https://docs.astral.sh/ruff/)               |
+| TypeScript | Compiler                 | Static type checking for Next.js   | [TypeScript](https://www.typescriptlang.org/docs/) |
+| npm        | Package manager          | Node dependency management         | [npm](https://docs.npmjs.com/)                     |
+| pip / venv | Environment management   | Python dependency management       | [pip](https://pip.pypa.io/en/stable/)              |
+
+### Infrastructure & Deployment
+
+| Technology            | Purpose in This Solution | How We Use It                               | Official Documentation                                      |
+| --------------------- | ------------------------ | ------------------------------------------- | ----------------------------------------------------------- |
+| Docker                | Containerization         | Isolated application and service containers | [Docker](https://docs.docker.com/)                          |
+| Docker Compose        | Orchestration            | Root multi-container orchestration stack    | [Docker Compose](https://docs.docker.com/compose/)          |
+| Windows PowerShell 7+ | Development scripts      | `setup_local.ps1` enterprise console        | [PowerShell](https://learn.microsoft.com/en-us/powershell/) |
+
+### Integrations
+
+| Technology               | Purpose in This Solution | How We Use It                                       | Official Documentation                                       |
+| ------------------------ | ------------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
+| Guidewire Cloud REST API | Core Insurance API       | Pushing matched claims to policy system             | [Guidewire Developer Docs](https://developer.guidewire.com/) |
+| RapidFuzz                | Fuzzy Matching           | C-accelerated partial_ratio string distance cascade | [RapidFuzz](https://maxbachmann.github.io/RapidFuzz/)        |
+| AntiCaptcha Plugin       | CAPTCHA Solving          | Automatically bypasses court portal captchas        | [AntiCaptcha](https://anti-captcha.com/)                     |
+| MailDev                  | Email Mocking            | Local intercept of outbound SMTP notifications      | [MailDev](https://github.com/maildev/maildev)                |
 
 ---
 
@@ -256,33 +274,35 @@ The following 5 folders are strictly protected. No cleanup script, purge routine
 
 The **V4** Robin desktop flow definitions inside [`PowerAutomateSolutions/BotCreation_1_0_0_7/`](./PowerAutomateSolutions/BotCreation_1_0_0_7/) serve as the authoritative behavioral reference for court automation.
 
-| Legacy Power Automate Component | Modern Python / Next.js Implementation | Key V4 Enhancements Retained |
-|---|---|---|
-| `Import_ExcelData_To_Dataverse.json` | `backend/app/services/excel_parser.py` + `/api/v1/ingest/upload` | 1899-12-30 serial date base preserved without timezone drift. |
-| `PA_FuzzyMatch_ActivityCreation_v1_Main.json` | `backend/app/services/fuzzy_engine.py` + `tasks/fuzzy_tasks.py` | RapidFuzz partial_ratio cascade (Claimant>Insured>Driver). |
-| `AddItemstoWorkQueue.json` | Celery Queues (`ingest`, `scrapers`, `matcher`, `notifications`) | Distributed Redis broker with automated priority queues. |
-| `RetriggerFailedCases.json` | `backend/app/tasks/retry_tasks.py` + Celery Beat | Automatic retry of failed court portals with configurable limits. |
-| `Broward_`, `Hillsborough_`, `Miami_` | `backend/app/automation/florida/` (Playwright) | Multi-tab session re-use; no aggressive Chrome termination. |
-| `Travis_`, `Dallas_`, `Harris_`, `CClerk_`, `HCDistrict_` | `backend/app/automation/texas/` (Playwright) | Strict schema alignment: Harris JP & Harris Clerk have NO CaseType. |
-| Power Apps Model-Driven Forms | Next.js 14 Full Dashboard & Health Console | Real-time queue telemetry, live portal matrix, and branding console. |
+| Legacy Power Automate Component                           | Modern Python / Next.js Implementation                           | Key V4 Enhancements Retained                                         |
+| --------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `Import_ExcelData_To_Dataverse.json`                      | `backend/app/services/excel_parser.py` + `/api/v1/ingest/upload` | 1899-12-30 serial date base preserved without timezone drift.        |
+| `PA_FuzzyMatch_ActivityCreation_v1_Main.json`             | `backend/app/services/fuzzy_engine.py` + `tasks/fuzzy_tasks.py`  | RapidFuzz partial_ratio cascade (Claimant>Insured>Driver).           |
+| `AddItemstoWorkQueue.json`                                | Celery Queues (`ingest`, `scrapers`, `matcher`, `notifications`) | Distributed Redis broker with automated priority queues.             |
+| `RetriggerFailedCases.json`                               | `backend/app/tasks/retry_tasks.py` + Celery Beat                 | Automatic retry of failed court portals with configurable limits.    |
+| `Broward_`, `Hillsborough_`, `Miami_`                     | `backend/app/automation/florida/` (Playwright)                   | Multi-tab session re-use; no aggressive Chrome termination.          |
+| `Travis_`, `Dallas_`, `Harris_`, `CClerk_`, `HCDistrict_` | `backend/app/automation/texas/` (Playwright)                     | Strict schema alignment: Harris JP & Harris Clerk have NO CaseType.  |
+| Power Apps Model-Driven Forms                             | Next.js 14 Full Dashboard & Health Console                       | Real-time queue telemetry, live portal matrix, and branding console. |
 
 ---
 
-## 5. Operations & Orchestration Console (`setup.ps1` & `setup_local.ps1`)
+## 5. Operations & Orchestration Console (`setup_local.ps1`)
 
-The repository includes a unified, interactive operations console built in PowerShell for Windows local development and Attended RPA operation.
+The repository includes a single, unified interactive operations console built in PowerShell for Windows local development and Attended RPA operation: **`setup_local.ps1`**.
 
 ### Launching the Console
+
 ```powershell
-# Interactive Menu:
-.\setup.ps1
+# Interactive Operations Menu:
+.\setup_local.ps1
 
 # Non-interactive CLI switches:
-.\setup.ps1 -StartAll -Mode Attended -NoPrompt    # Start all 5 service windows in Attended GUI mode
-.\setup.ps1 -StopAll -NoPrompt                   # Stop all running processes and containers
-.\setup.ps1 -CleanHistory -NoPrompt              # Purge queue history and all bytecode/test caches
-.\setup.ps1 -RunTests -NoPrompt                  # Run full 4-tier diagnostics (Pytest, Ruff, TS, Docker)
-.\setup.ps1 -InstallDeps -NoPrompt               # Verify/reinstall Python .venv and NPM dependencies
+.\setup_local.ps1 -StartAll -Mode Attended -NoPrompt    # Start all 5 service windows in Attended GUI mode
+.\setup_local.ps1 -StopAll -NoPrompt                   # Stop all running processes, MailDev (1080/1025) and containers
+.\setup_local.ps1 -CleanHistory -NoPrompt              # Purge queue history and all bytecode/test caches
+.\setup_local.ps1 -RunTests -NoPrompt                  # Run full 5-tier diagnostics (Pytest, Ruff, TS, Docker, PS1 AST)
+.\setup_local.ps1 -InstallDeps -NoPrompt               # Verify/reinstall Python .venv, Playwright, and NPM dependencies
+.\setup_local.ps1 -CheckPorts                          # Pre-flight port conflict detection across all application ports
 ```
 
 ### Menu Options Overview (`setup_local.ps1`)
@@ -290,34 +310,36 @@ The repository includes a unified, interactive operations console built in Power
 ```
 =======================================================================
                   Enterprise Operations & Orchestration Console
- Active RPA Engine Mode: [Attended (GUI)]
- Log File: C:\Users\priyer\.gemini\antigravity-ide\scratch\Bot_UAIC\setup.log
+ Active RPA Engine Mode : Attended (GUI Chrome/Edge)
+ Console Log Session    : C:\Users\priyer\.gemini\antigravity-ide\scratch\Bot_UAIC\logs\setup_latest.log
 =======================================================================
  [1] Start All Application Services (Interactive Launch with Mode Select)
- [2] Stop / Kill All Running Services (Ports 3000, 8000, 5555, Celery)
- [3] Clean Run History, Logs & Scraper Caches
- [4] Install / Update Dependencies (Python venv, Playwright, NPM)
- [5] Purge / Delete All Dependency Folders (.venv, node_modules, .next)
- [6] Configure RPA Execution Mode (Attended GUI vs Unattended Headless)
- [7] Run Full Diagnostics & Test Suite (Pytest, Ruff, TypeScript)
- [8] Docker Container & Infrastructure Console (PostgreSQL & Redis)
- [9] Live Service Status Monitor (Quick Controls: [R/K/M/Q])
+ [2] Stop / Kill All Running Services (Clean ports, containers & volumes)
+ [3] Enterprise Data Cleanup & Retention
+ [4] Install / Update Dependencies
+ [5] Purge / Delete All Dependency Folders
+ [6] Configure RPA Execution Mode (Current: Attended (GUI Chrome/Edge))
+ [7] Run Full Diagnostics & Test Suite
+ [8] Docker Stack Management
+ [9] Live Service Status Monitor
+ [M] Open MailDev Web Inspector (http://localhost:1080)
  [0] Exit Console
 =======================================================================
 ```
 
-| Option | Function | Execution Details |
-|---|---|---|
-| **`[1]` Start All Services** | Launches stack in 5 separate persistent consoles | Spawns FastAPI (`:8000`), Next.js (`:3000`), Celery Worker (`-P solo`), Celery Beat, and Flower (`:5555`). Prompts for Attended GUI or Unattended Headless mode. |
-| **`[2]` Stop All Services** | Complete termination of all processes & containers | Kills listening processes on ports 3000, 8000, and 5555; terminates Celery worker; stops Redis (`6379`) and PostgreSQL (`5432`) containers. |
-| **`[3]` Clean Run History & Caches** | Deep cache, queue, and database cleanup | Clears `setup.log`, resets Celery beat schedule, empties temporary scraper media, purges Redis queues and database records via `clean_history.py`, and recursively purges `__pycache__`, `.pyc`, `.pytest_cache`, `.ruff_cache`, and `.next/cache` while strictly safeguarding `.venv` and protected folders. |
-| **`[4]` Install Dependencies** | Automated dependency manager | Creates Python 3.14 `.venv`, installs `requirements.txt`, installs Playwright Chromium browser binaries, and runs `npm install`. |
-| **`[5]` Purge Dependency Folders** | Clean-slate reset | Safely deletes `.venv`, `node_modules`, and `.next` after user confirmation, preserving all 5 protected folders. |
-| **`[6]` Configure RPA Mode** | Hot-swaps browser execution mode | Updates `PLAYWRIGHT_HEADLESS=false` (Attended GUI) or `PLAYWRIGHT_HEADLESS=true` (Unattended Headless) in `backend/.env`. |
-| **`[7]` Run Diagnostics & Tests** | 4-tier automated test runner | Executes Backend Pytest (270 tests across 27 suites), Ruff Linter, Frontend TypeScript (`tsc --noEmit`), and Docker Compose validation. |
-| **`[8]` Docker Infrastructure Console** | Manage Redis & PostgreSQL containers | Supports `docker compose` (v2) and `docker-compose` (v1) with actions: Up `[U]`, Down `[D]`, Restart infrastructure only `[R]`, and Status `[S]`. |
-| **`[9]` Live Status Monitor** | Real-time port listener status | Displays live listening status for ports 3000, 8000, 5555, 6379, and 5432 with hotkey actions: `[R]` Refresh, `[K]` Stop Services, `[M]` Main Menu, `[Q]` Exit. |
-| **`[0]` Exit** | Clean exit | Closes the console with exit code 0. |
+| Option                                  | Function                                           | Execution Details                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`[1]` Start All Services**            | Launches stack in 5 separate persistent consoles   | Spawns FastAPI (`:8000`), Next.js (`:3000`), Celery Worker (`-P solo`), Celery Beat Scheduler, and Flower (`:5555`). Checks pre-flight port conflicts and prompts for Attended GUI or Unattended Headless mode.                                                                                                                                                                                                               |
+| **`[2]` Stop All Services**             | Complete termination of all processes & containers | Kills listening processes on ports 3000, 8000, and 5555; terminates Celery workers and Beat; explicitly stops MailDev (Ports 1080 & 1025); stops Redis (`6379`) and PostgreSQL (`5432`) containers.                                                                                                                                                                                                                           |
+| **`[3]` Enterprise Data Cleanup**       | Time-scoped multi-category retention engine        | Supports 18 operational retention categories across 13 flexible time scopes (**Current Month** from 1st 00:00:00 to now, Previous Month, Current Quarter, Previous Quarter, Current Year, Days, Weeks, Months, Years, Custom Range, All Time) with dry-run preview, transactional rollback, cascade deletion of child records, standalone notification support (`claim_id = None`), and Redis + dashboard cache invalidation. |
+| **`[4]` Install Dependencies**          | Automated dependency manager                       | Creates Python 3.14.7 `.venv`, installs `requirements.txt`, installs Node dependencies, dynamically detects Google Chrome and Microsoft Edge, and avoids redownloading bundled Playwright Chromium when host browser is selected (with clear instructions on testing in Chromium via `$pyExe -m playwright install chromium`).                                                                                                |
+| **`[5]` Purge Dependency Folders**      | Clean-slate reset                                  | Safely deletes `.venv`, `node_modules`, `.next`, `.turbo`, root `.pytest_cache`, and recursive `__pycache__` after user confirmation, strictly preserving all 5 protected user directories.                                                                                                                                                                                                                                   |
+| **`[6]` Configure RPA Mode**            | Hot-swaps browser execution mode                   | Synchronizes Attended GUI (`headless=False`) or Unattended Headless (`headless=True`) across both `backend/.env` (`PLAYWRIGHT_HEADLESS`) and runtime DB/Redis settings (`SystemSettings.automation.headless_mode`). Displays active mode dynamically in main console header.                                                                                                                                                  |
+| **`[7]` Run Diagnostics & Tests**       | 5-tier automated test runner                       | Executes Backend Pytest (307 tests across 31 suites, 0 unraisable warnings), Ruff Linter, Frontend TypeScript (`tsc --noEmit`), Docker Compose validation, and PowerShell AST syntax validation.                                                                                                                                                                                                                              |
+| **`[8]` Docker Infrastructure Console** | Manage Redis, PostgreSQL & MailDev                 | Interactive submenu: Infra only `[1]`, Full stack `[2]`, Stop & purge `[3]`, and Container status `[4]`.                                                                                                                                                                                                                                                                                                                      |
+| **`[9]` Live Status Monitor**           | Real application-level health monitor              | Executes raw socket wire-level protocol checks: Redis RESP `*1\r\n$4\r\nPING\r\n` -> `+PONG`, MailDev SMTP RFC 821/2821 `220` greeting banner probe, Celery RPA worker PID detection, and Celery Beat scheduler PID detection. Hotkeys: `[R]` Refresh, `[K]` Stop, `[M]` Main Menu, `[Q]` Exit.                                                                                                                               |
+| **`[M]` MailDev Web Inspector**         | Email notification visual inspection               | Probes HTTP 1080 and SMTP 1025 socket reachability; if offline, offers to launch MailDev container via Docker before opening `http://localhost:1080` in default browser.                                                                                                                                                                                                                                                      |
+| **`[0]` Exit**                          | Clean exit                                         | Closes the console with exit code 0.                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ---
 
@@ -325,36 +347,41 @@ The repository includes a unified, interactive operations console built in Power
 
 All standalone and diagnostic scripts are organized in [`scripts/`](./scripts/):
 
-| Script | Purpose & Description | Handled in `setup_local.ps1`? |
-|---|---|---|
-| **`clean_run_history.bat`** | Standalone batch file to reset SQLite database tables and purge Redis queues without the menu. | **Yes** — Handled directly via Option `[3]` and `setup.ps1 -CleanHistory`. |
-| **`start_worker.bat`** | Standalone batch file to launch only the Celery worker in Attended mode. | **Yes** — Handled directly via Option `[1]` in `setup_local.ps1`. |
-| **`run_visible_test.bat`** | Standalone batch runner that triggers `live_visible_scrape.py`. | **Yes** — Handled directly via the visible GUI test button in the `/health` UI and Option `[7]`. |
-| **`live_visible_scrape.py`** | Standalone Python script that launches Chrome in visible GUI mode and searches Hillsborough County Court portal for 'JOHN DOE'. | **Yes** — Fully incorporated into the RPA Health Panel on `/health`. |
-| **`verify_attended_unattended_parity_e2e.py`** | Standalone Python validation harness verifying 1:1 functional parity between Attended GUI and Unattended Headless automation. | **Yes** — Validated directly and via Pytest suite `tests/test_attended_unattended_parity.py`. |
-| **`setup.py`** | Legacy Python CLI diagnostic tool for environment inspection. | **Yes** — Replaced and superseded by `setup.ps1` and `setup_local.ps1`. |
-| **`debug_xlsx.py`** | Diagnostic script to test 1899-12-30 Excel serial date conversions and pandas column parsing. | Standalone diagnostic tool for testing custom client Excel files. |
-| **`inspect_and_render_exports.py`** | Utility to validate generated PDF, CSV, Excel, and JSON claim export packages. | Standalone test tool. |
-| **`verify_export_files.py`** | Verifies file integrity and MIME types for exported claim dossiers. | Standalone test tool. |
-| **`test_mapping_import.csv`** & **`.xlsx`** | Sample datasets for testing custom column-mapping ingestion. | Standalone test assets. |
-| **`orchestrator_historical.db`** | Archived SQLite database snapshot from early development. | Archived reference. The active database is in `backend/orchestrator.db`. |
+| Script                                         | Purpose & Description                                                                                                           | Handled in `setup_local.ps1`?                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **`clean_run_history.bat`**                    | Standalone batch file to reset SQLite database tables and purge Redis queues without the menu.                                  | **Yes** — Handled directly via Option `[3]` and `setup_local.ps1 -CleanHistory`.                 |
+| **`start_worker.bat`**                         | Standalone batch file to launch only the Celery worker in Attended mode.                                                        | **Yes** — Handled directly via Option `[1]` in `setup_local.ps1`.                                |
+| **`run_visible_test.bat`**                     | Standalone batch runner that triggers `live_visible_scrape.py`.                                                                 | **Yes** — Handled directly via the visible GUI test button in the `/health` UI and Option `[7]`. |
+| **`live_visible_scrape.py`**                   | Standalone Python script that launches Chrome in visible GUI mode and searches Hillsborough County Court portal for 'JOHN DOE'. | **Yes** — Fully incorporated into the RPA Health Panel on `/health`.                             |
+| **`verify_attended_unattended_parity_e2e.py`** | Standalone Python validation harness verifying 1:1 functional parity between Attended GUI and Unattended Headless automation.   | **Yes** — Validated directly and via Pytest suite `tests/test_attended_unattended_parity.py`.    |
+| **`setup.py`**                                 | Legacy Python CLI diagnostic tool for environment inspection.                                                                   | **Yes** — Replaced and superseded by `setup_local.ps1`.                                          |
+| **`debug_xlsx.py`**                            | Diagnostic script to test 1899-12-30 Excel serial date conversions and pandas column parsing.                                   | Standalone diagnostic tool for testing custom client Excel files.                                |
+| **`inspect_and_render_exports.py`**            | Utility to validate generated PDF, CSV, Excel, and JSON claim export packages.                                                  | Standalone test tool.                                                                            |
+| **`verify_export_files.py`**                   | Verifies file integrity and MIME types for exported claim dossiers.                                                             | Standalone test tool.                                                                            |
+| **`test_mapping_import.csv`** & **`.xlsx`**    | Sample datasets for testing custom column-mapping ingestion.                                                                    | Standalone test assets.                                                                          |
+| **`orchestrator_historical.db`**               | Archived SQLite database snapshot from early development.                                                                       | Archived reference. The active database is in `backend/orchestrator.db`.                         |
 
 ---
 
 ## 7. Cache & Temporary Storage Management
 
 ### Why are caches generated?
+
 - **Python Bytecode (`__pycache__`, `*.pyc`)**: Generated automatically by the Python interpreter during unit testing, backend startup, or Celery task execution to speed up module imports.
 - **Test & Linter Caches (`.pytest_cache`, `.ruff_cache`)**: Generated by `pytest` and `ruff` to track file hashes and accelerate subsequent test passes.
 - **Frontend Build Caches (`.next/cache`)**: Generated by Next.js during compilation to optimize incremental page rendering.
 - **Temporary Media Storage (`.tempmediaStorage`)**: Generated during browser scraping sessions to capture error screenshots and debug snapshots.
 
 ### How to purge all caches?
+
 Execute Option `[3]` in `setup_local.ps1` or run:
+
 ```powershell
-.\setup.ps1 -CleanHistory -NoPrompt
+.\setup_local.ps1 -CleanHistory -NoPrompt
 ```
+
 This performs a deep clean across all project directories:
+
 1. Deletes all `__pycache__` folders and `.pyc`/`.pyo` files across root, `backend/`, and `tests/` (while safeguarding `.venv` packages).
 2. Purges `.pytest_cache` and `.ruff_cache`.
 3. Clears Next.js `.next/cache`.
@@ -367,17 +394,19 @@ This performs a deep clean across all project directories:
 
 The project uses `docker-compose.yml` to orchestrate services:
 
-| Container | Image | Ports | Role |
-|---|---|---|---|
-| **`uaic_postgres`** | `postgres:16-alpine` | `5432:5432` | Production PostgreSQL relational database with health check and persistent volume `postgres_data`. |
-| **`uaic_redis`** | `redis:7-alpine` | `6379:6379` | High-throughput in-memory Celery task broker, result backend, and system settings cache with persistent volume `redis_data`. |
-| **`uaic_backend`** | Custom Python 3.14 | `8000:8000` | FastAPI REST API container (used in all-in-one container deployments). |
-| **`uaic_celery_worker`** | Custom Python 3.14 | - | Headless background worker for cloud/container deployments. |
-| **`uaic_flower`** | Custom Python 3.14 | `5555:5555` | Celery Flower real-time task observability dashboard. |
-| **`uaic_frontend`** | Custom Node.js 20 | `3000:3000` | Next.js 14 web application. |
+| Container                | Image                | Ports       | Role                                                                                                                         |
+| ------------------------ | -------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **`uaic_postgres`**      | `postgres:16-alpine` | `5432:5432` | Production PostgreSQL relational database with health check and persistent volume `postgres_data`.                           |
+| **`uaic_redis`**         | `redis:7-alpine`     | `6379:6379` | High-throughput in-memory Celery task broker, result backend, and system settings cache with persistent volume `redis_data`. |
+| **`uaic_backend`**       | Custom Python 3.14   | `8000:8000` | FastAPI REST API container (used in all-in-one container deployments).                                                       |
+| **`uaic_celery_worker`** | Custom Python 3.14   | -           | Headless background worker for cloud/container deployments.                                                                  |
+| **`uaic_flower`**        | Custom Python 3.14   | `5555:5555` | Celery Flower real-time task observability dashboard.                                                                        |
+| **`uaic_frontend`**      | Custom Node.js 20    | `3000:3000` | Next.js 14 web application.                                                                                                  |
 
 ### Hybrid Local Development Workflow
+
 In local Windows development with real Google Chrome and the AntiCaptcha extension:
+
 1. Run Docker Compose in infrastructure mode to launch Redis (`6379`) and PostgreSQL (`5432`):
    ```bash
    docker compose up -d postgres redis
@@ -390,32 +419,32 @@ In local Windows development with real Google Chrome and the AntiCaptcha extensi
 
 When court case scrapers complete execution, their results are stored in the database under standardized JSON payload keys:
 
-| Portal | Storage Key | Output Schema |
-|---|---|---|
-| **Broward County (FL)** | `fl_jsonbody_broward` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType` |
-| **Hillsborough County (FL)** | `fl_jsonbody_hillsborough` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType` |
-| **Miami-Dade County (FL)** | `fl_jsonbody_miami` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType` |
-| **Harris County Clerk (TX)** | `te_jsonbody_cclerk` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus` (**NO CaseType**) |
-| **Dallas County (TX)** | `te_jsonbody_dallas` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType` |
-| **Harris County JP (TX)** | `te_jsonbody_harris` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus` (**NO CaseType**) |
-| **Harris District Clerk (TX)**| `te_jsonbody_hcdistrict`| `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType` |
-| **Travis County (TX)** | `te_jsonbody_travis` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType` |
+| Portal                         | Storage Key                | Output Schema                                                           |
+| ------------------------------ | -------------------------- | ----------------------------------------------------------------------- |
+| **Broward County (FL)**        | `fl_jsonbody_broward`      | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`       |
+| **Hillsborough County (FL)**   | `fl_jsonbody_hillsborough` | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`       |
+| **Miami-Dade County (FL)**     | `fl_jsonbody_miami`        | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`       |
+| **Harris County Clerk (TX)**   | `te_jsonbody_cclerk`       | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus` (**NO CaseType**) |
+| **Dallas County (TX)**         | `te_jsonbody_dallas`       | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`       |
+| **Harris County JP (TX)**      | `te_jsonbody_harris`       | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus` (**NO CaseType**) |
+| **Harris District Clerk (TX)** | `te_jsonbody_hcdistrict`   | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`       |
+| **Travis County (TX)**         | `te_jsonbody_travis`       | `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`       |
 
 ---
 
 ## 10. Frontend Application Routes
 
-| Route | Component | Description |
-|---|---|---|
-| **`/`** | `app/page.tsx` | Claims Dashboard — Search, filter presets, bulk operations, async export trigger. |
-| **`/claims/:id`** | `app/claims/[id]/page.tsx` | Claim Detail — Dossier view, 8-portal results, fuzzy match cascade, Guidewire push. |
-| **`/upload`** | `app/upload/page.tsx` | Ingestion — Drag-and-drop Excel/CSV file upload with column mapping & preview. |
-| **`/monitor`** | `app/monitor/page.tsx` | Queue Monitor — Real-time queue metrics, auto-queue, expandable 8-portal matrix with single bot triggers. |
-| **`/health`** | `app/health/page.tsx` | System Health — 8 component health checks, 8 portal pings, and RPA Browser & Automation Health Panel. |
-| **`/exceptions`** | `app/exceptions/page.tsx` | Fuzzy Match Review — Review and approve/reject borderline court matches. |
-| **`/settings`** | `app/settings/page.tsx` | Automation & Robot Configuration — Guidewire API, Portals, Browser/Extension settings. |
-| **`/branding`** | `app/branding/page.tsx` | Brand & Identity Console — Customize portal title, logo, themes, and styles. |
-| **`/audit`** | `app/audit/page.tsx` | Enterprise Audit Trail Console — High-resolution operational audit logging across all scraper and matching runs. |
+| Route                | Component                    | Description                                                                                                                         |
+| -------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **`/`**              | `app/page.tsx`               | Claims Dashboard — Search, filter presets, bulk operations, async export trigger.                                                   |
+| **`/claims/:id`**    | `app/claims/[id]/page.tsx`   | Claim Detail — Dossier view, 8-portal results, fuzzy match cascade, Guidewire push.                                                 |
+| **`/upload`**        | `app/upload/page.tsx`        | Ingestion — Drag-and-drop Excel/CSV file upload with column mapping & preview.                                                      |
+| **`/monitor`**       | `app/monitor/page.tsx`       | Queue Monitor — Real-time queue metrics, auto-queue, expandable 8-portal matrix with single bot triggers.                           |
+| **`/health`**        | `app/health/page.tsx`        | System Health — 8 component health checks, 8 portal pings, and RPA Browser & Automation Health Panel.                               |
+| **`/exceptions`**    | `app/exceptions/page.tsx`    | Fuzzy Match Review — Review and approve/reject borderline court matches.                                                            |
+| **`/settings`**      | `app/settings/page.tsx`      | Automation & Robot Configuration — Guidewire API, Portals, Browser/Extension settings.                                              |
+| **`/branding`**      | `app/branding/page.tsx`      | Brand & Identity Console — Customize portal title, logo, themes, and styles.                                                        |
+| **`/audit`**         | `app/audit/page.tsx`         | Enterprise Audit Trail Console — High-resolution operational audit logging across all scraper and matching runs.                    |
 | **`/notifications`** | `app/notifications/page.tsx` | Dynamic Email & Notification Console — Delivery history log, HTML template manager & live preview, event notification rules matrix. |
 
 **Global Command Palette (`Ctrl+K`)**: Instant search and navigation across all claims, queue triggers, and settings.
@@ -435,117 +464,126 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 
 ## 12. Backend API Endpoints Summary
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/health` | Basic health check |
-| `GET` | `/api/v1/health/detailed` | Full system observability (8 components + 8 court portals) |
-| `GET/POST` | `/api/v1/health/portals/{key}/ping` | Portal reachability and latency ping |
-| `GET` | `/api/v1/claims` | List claims (paginated, filterable, sortable) |
-| `POST` | `/api/v1/claims` | Create claim |
-| `GET` | `/api/v1/claims/{id}` | Claim detail dossier |
-| `PUT` | `/api/v1/claims/{id}` | Update claim details |
-| `DELETE`| `/api/v1/claims/{id}` | Delete claim record |
-| `POST` | `/api/v1/claims/{id}/start` | Start court discovery automation for claim |
-| `POST` | `/api/v1/claims/{id}/stop` | Cancel in-flight claim automation |
-| `POST` | `/api/v1/claims/{id}/push-guidewire` | Push validated matches to Guidewire |
-| `POST` | `/api/v1/claims/{id}/run-bot/{key}` | Trigger single portal scraper on demand |
-| `POST` | `/api/v1/claims/{id}/retry-failed` | Retry only failed court portals for single claim (S66) |
-| `GET` | `/api/v1/claims/{id}/audit-logs` | Retrieve chronological audit provenance for claim |
-| `GET` | `/api/v1/claims/{id}/screenshots` | List failure error screenshots for claim |
-| `GET` | `/api/v1/claims/{id}/screenshots/{id}/image` | Stream binary failure screenshot directly to browser |
-| `GET` | `/api/v1/claims/{id}/export` | Export single claim dossier (XLSX, CSV, JSON, PDF) |
-| `GET` | `/api/v1/claims/stats` | Aggregate dashboard statistics |
-| `GET` | `/api/v1/claims/export` | Synchronous bulk export |
-| `POST` | `/api/v1/claims/export-async` | Celery background chunked streaming export for large datasets (S55) |
-| `GET` | `/api/v1/claims/export-async/{task_id}/status` | Check status and progress of async export task |
-| `GET` | `/api/v1/claims/export-async/download/{filename}` | Download generated async export file |
-| `POST` | `/api/v1/claims/bulk-delete` | Bulk delete selected claims |
-| `POST` | `/api/v1/claims/bulk-start` | Bulk start court automation |
-| `POST` | `/api/v1/claims/bulk-retry` | Bulk retry failed claims (supports `failed_portals_only`) |
-| `POST` | `/api/v1/claims/bulk-status` | Bulk update status |
-| `POST` | `/api/v1/claims/clean` | Clear claim records (preserves audit log provenance) |
-| `POST` | `/api/v1/ingest/upload` | Upload and ingest Excel/CSV dataset |
-| `POST` | `/api/v1/ingest/preview` | Preview file structure and auto-detect columns |
-| `POST` | `/api/v1/ingest/validate` | Validate user column mapping & sample data preview (S56) |
-| `GET` | `/api/v1/ingest/batches/{batch_id}` | Retrieve ingestion batch status and counts |
-| `GET` | `/api/v1/ingest/batches/{batch_id}/failed-rows` | Export invalid rows as downloadable CSV |
-| `GET` | `/api/v1/ingest/sample/excel` | Download sample Excel template |
-| `GET` | `/api/v1/ingest/sample/csv` | Download sample CSV template |
-| `GET` | `/api/v1/matches/pending` | Get pending fuzzy match reviews |
-| `POST` | `/api/v1/matches/{id}/review` | Approve or reject a fuzzy match candidate |
-| `GET` | `/api/v1/queue/status` | Real-time queue metrics and worker health |
-| `POST` | `/api/v1/queue/start-all` | Start sequential queue processor |
-| `POST` | `/api/v1/queue/pause` | Pause queue processing |
-| `POST` | `/api/v1/queue/retrigger` | Retrigger failed queue items |
-| `GET/POST`| `/api/v1/queue/auto-mode` | Get or toggle auto-queue processing mode |
-| `GET` | `/api/v1/settings` | Get system settings (passwords masked) |
-| `POST` | `/api/v1/settings` | Save system settings |
-| `POST` | `/api/v1/settings/reset` | Reset system settings to clean defaults |
-| `POST` | `/api/v1/settings/test-guidewire` | Test Guidewire connection with custom payload |
-| `POST` | `/api/v1/settings/test-portal` | Test portal reachability |
-| `POST` | `/api/v1/settings/test-browser` | Launch live Chrome test (Attended GUI vs Headless) |
-| `POST` | `/api/v1/settings/validate-extension` | Validate AntiCaptcha extension directory, manifest, and engine |
-| `POST` | `/api/v1/settings/test-storage` | Test storage provider connectivity (Local, S3, Azure, GCS) |
-| `POST` | `/api/v1/settings/email/test-connection` | Test SMTP/Mock email provider connectivity & latency |
-| `POST` | `/api/v1/settings/email/test-send` | Send interactive live test email |
-| `GET/POST`| `/api/v1/settings/branding` | Get or update branding configuration |
-| `POST` | `/api/v1/settings/branding/reset`| Reset branding to system defaults |
-| `POST` | `/api/v1/settings/upload-logo` | Upload brand logo image |
-| `GET` | `/api/v1/settings/logo/{filename}` | Stream uploaded logo image (HTTP 200 OK) |
-| `GET` | `/api/v1/notifications` | Paginated notification delivery history log |
-| `GET` | `/api/v1/notifications/{id}` | Retrieve single notification record details |
-| `GET` | `/api/v1/notifications/templates` | List notification email templates |
-| `GET` | `/api/v1/notifications/templates/{id}/preview` | Dynamic HTML preview of notification template |
-| `GET` | `/api/v1/notifications/rules` | List event trigger rules & recipient matrix |
-| `PUT` | `/api/v1/notifications/rules` | Update event notification rules |
-| `GET` | `/api/v1/audit-logs` | Query paginated audit events with filters (S73) |
-| `GET` | `/api/v1/audit-logs/stats` | Aggregate audit event KPI statistics |
-| `GET` | `/api/v1/audit-logs/export` | Stream full compliance audit logs (CSV or JSON) |
-| `GET` | `/api/v1/audit-logs/{id}` | Retrieve single audit event details |
+| Method     | Path                                              | Description                                                         |
+| ---------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET`      | `/api/v1/health`                                  | Basic health check                                                  |
+| `GET`      | `/api/v1/health/detailed`                         | Full system observability (8 components + 8 court portals)          |
+| `GET/POST` | `/api/v1/health/portals/{key}/ping`               | Portal reachability and latency ping                                |
+| `GET`      | `/api/v1/claims`                                  | List claims (paginated, filterable, sortable)                       |
+| `POST`     | `/api/v1/claims`                                  | Create claim                                                        |
+| `GET`      | `/api/v1/claims/{id}`                             | Claim detail dossier                                                |
+| `PUT`      | `/api/v1/claims/{id}`                             | Update claim details                                                |
+| `DELETE`   | `/api/v1/claims/{id}`                             | Delete claim record                                                 |
+| `POST`     | `/api/v1/claims/{id}/start`                       | Start court discovery automation for claim                          |
+| `POST`     | `/api/v1/claims/{id}/stop`                        | Cancel in-flight claim automation                                   |
+| `POST`     | `/api/v1/claims/{id}/push-guidewire`              | Push validated matches to Guidewire                                 |
+| `POST`     | `/api/v1/claims/{id}/run-bot/{key}`               | Trigger single portal scraper on demand                             |
+| `POST`     | `/api/v1/claims/{id}/retry-failed`                | Retry only failed court portals for single claim (S66)              |
+| `GET`      | `/api/v1/claims/{id}/audit-logs`                  | Retrieve chronological audit provenance for claim                   |
+| `GET`      | `/api/v1/claims/{id}/screenshots`                 | List failure error screenshots for claim                            |
+| `GET`      | `/api/v1/claims/{id}/screenshots/{id}/image`      | Stream binary failure screenshot directly to browser                |
+| `GET`      | `/api/v1/claims/{id}/export`                      | Export single claim dossier (XLSX, CSV, JSON, PDF)                  |
+| `GET`      | `/api/v1/claims/stats`                            | Aggregate dashboard statistics                                      |
+| `GET`      | `/api/v1/claims/export`                           | Synchronous bulk export                                             |
+| `POST`     | `/api/v1/claims/export-async`                     | Celery background chunked streaming export for large datasets (S55) |
+| `GET`      | `/api/v1/claims/export-async/{task_id}/status`    | Check status and progress of async export task                      |
+| `GET`      | `/api/v1/claims/export-async/download/{filename}` | Download generated async export file                                |
+| `POST`     | `/api/v1/claims/bulk-delete`                      | Bulk delete selected claims                                         |
+| `POST`     | `/api/v1/claims/bulk-start`                       | Bulk start court automation                                         |
+| `POST`     | `/api/v1/claims/bulk-retry`                       | Bulk retry failed claims (supports `failed_portals_only`)           |
+| `POST`     | `/api/v1/claims/bulk-status`                      | Bulk update status                                                  |
+| `POST`     | `/api/v1/claims/clean`                            | Clear claim records (preserves audit log provenance)                |
+| `POST`     | `/api/v1/ingest/upload`                           | Upload and ingest Excel/CSV dataset                                 |
+| `POST`     | `/api/v1/ingest/preview`                          | Preview file structure and auto-detect columns                      |
+| `POST`     | `/api/v1/ingest/validate`                         | Validate user column mapping & sample data preview (S56)            |
+| `GET`      | `/api/v1/ingest/batches/{batch_id}`               | Retrieve ingestion batch status and counts                          |
+| `GET`      | `/api/v1/ingest/batches/{batch_id}/failed-rows`   | Export invalid rows as downloadable CSV                             |
+| `GET`      | `/api/v1/ingest/sample/excel`                     | Download sample Excel template                                      |
+| `GET`      | `/api/v1/ingest/sample/csv`                       | Download sample CSV template                                        |
+| `GET`      | `/api/v1/matches/pending`                         | Get pending fuzzy match reviews                                     |
+| `POST`     | `/api/v1/matches/{id}/review`                     | Approve or reject a fuzzy match candidate                           |
+| `GET`      | `/api/v1/queue/status`                            | Real-time queue metrics and worker health                           |
+| `POST`     | `/api/v1/queue/start-all`                         | Start sequential queue processor                                    |
+| `POST`     | `/api/v1/queue/pause`                             | Pause queue processing                                              |
+| `POST`     | `/api/v1/queue/retrigger`                         | Retrigger failed queue items                                        |
+| `GET/POST` | `/api/v1/queue/auto-mode`                         | Get or toggle auto-queue processing mode                            |
+| `GET`      | `/api/v1/settings`                                | Get system settings (passwords masked)                              |
+| `POST`     | `/api/v1/settings`                                | Save system settings                                                |
+| `POST`     | `/api/v1/settings/reset`                          | Reset system settings to clean defaults                             |
+| `POST`     | `/api/v1/settings/test-guidewire`                 | Test Guidewire connection with custom payload                       |
+| `POST`     | `/api/v1/settings/test-portal`                    | Test portal reachability                                            |
+| `POST`     | `/api/v1/settings/test-browser`                   | Launch live Chrome test (Attended GUI vs Headless)                  |
+| `POST`     | `/api/v1/settings/validate-extension`             | Validate AntiCaptcha extension directory, manifest, and engine      |
+| `POST`     | `/api/v1/settings/test-storage`                   | Test storage provider connectivity (Local, S3, Azure, GCS)          |
+| `POST`     | `/api/v1/settings/email/test-connection`          | Test SMTP/Mock email provider connectivity & latency                |
+| `POST`     | `/api/v1/settings/email/test-send`                | Send interactive live test email                                    |
+| `GET/POST` | `/api/v1/settings/branding`                       | Get or update branding configuration                                |
+| `POST`     | `/api/v1/settings/branding/reset`                 | Reset branding to system defaults                                   |
+| `POST`     | `/api/v1/settings/upload-logo`                    | Upload brand logo image                                             |
+| `GET`      | `/api/v1/settings/logo/{filename}`                | Stream uploaded logo image (HTTP 200 OK)                            |
+| `GET`      | `/api/v1/notifications`                           | Paginated notification delivery history log                         |
+| `GET`      | `/api/v1/notifications/{id}`                      | Retrieve single notification record details                         |
+| `GET`      | `/api/v1/notifications/templates`                 | List notification email templates                                   |
+| `GET`      | `/api/v1/notifications/templates/{id}/preview`    | Dynamic HTML preview of notification template                       |
+| `GET`      | `/api/v1/notifications/rules`                     | List event trigger rules & recipient matrix                         |
+| `PUT`      | `/api/v1/notifications/rules`                     | Update event notification rules                                     |
+| `GET`      | `/api/v1/audit-logs`                              | Query paginated audit events with filters (S73)                     |
+| `GET`      | `/api/v1/audit-logs/stats`                        | Aggregate audit event KPI statistics                                |
+| `GET`      | `/api/v1/audit-logs/export`                       | Stream full compliance audit logs (CSV or JSON)                     |
+| `GET`      | `/api/v1/audit-logs/{id}`                         | Retrieve single audit event details                                 |
 
 ---
 
 ## 13. Enterprise Subsystem Architecture
 
 ### A. Multi-Provider Error Screenshot Storage
+
 - **Supported Providers**: Local Disk (`backend/screenshots/`), AWS S3, Azure Blob Storage, and Google Cloud Storage (GCS).
 - **Zero-Dependency Fallback**: Automatically fails over to local storage if cloud credentials fail.
 - **Operator Lightbox**: High-resolution zoom modal on `/claims/[id]` showing URL, title, attempt number, and exception diagnostics.
 - **Master Toggle**: Configurable in `/settings` to conserve storage space.
 
 ### B. Selective Error Recovery (S66)
+
 - **Portal-Level Granularity**: `POST /api/v1/claims/{id}/retry-failed` re-runs only portals in `FAILED` status.
 - **Deduplication Safeguard**: Deletes existing cases for only the retried county before re-inserting, strictly avoiding duplicate rows.
 - **Auto-Cascade**: Automatically triggers RapidFuzz matching across accumulated cases upon retry completion.
 
 ### C. Immutable Audit Log & Zero Credential Leakage (S73)
+
 - **Provenance Recording**: Logs all claims operations, settings changes, ingestion batches, and Guidewire dispatches with client IP (`x-forwarded-for`) and operator email.
 - **Zero-Leakage Sanitizer**: Recursively traverses payloads and masks sensitive keys (`password`, `token`, `secret`, `api_key`, `key`) with `[REDACTED]`.
 - **Audit Console (`/audit`)**: Full-width console with 6 KPI cards, multi-dimensional filters, payload viewer, and CSV/JSON export.
 
 ### D. 5-Step Column Mapping Ingestion Wizard (S56)
+
 - **Step-by-Step Flow**: Upload > Mapping > Validation & Preview > Import > Summary.
 - **Fuzzy Header Match**: Automatically pairs uploaded column names with internal fields with manual override dropdowns.
 - **Invalid Row Download**: Direct button to export rejected rows as CSV for user correction.
 
 ### E. 8-Portal Execution Matrix on Queue Monitor (S61)
+
 - **Expandable Matrix**: Accordion rows on `/monitor` reveal an 8-portal grid for Broward, Hillsborough, Miami, Travis, Dallas, Harris JP, Harris Clerk, and Harris District.
 - **Real-Time Visibility**: Live status pills, case counts, latency timing, and per-portal "Run Bot" triggers.
 
 ### F. Filter Preset Manager (S83)
-- **System & Custom Presets**: `<FilterPresetManager />` provides built-in filters (*All Claims*, *Needs Review*, *Failed Portals*, *Texas*, *Florida*) and saves custom user filters to `localStorage` (`uaic_filter_presets_v1`).
+
+- **System & Custom Presets**: `<FilterPresetManager />` provides built-in filters (_All Claims_, _Needs Review_, _Failed Portals_, _Texas_, _Florida_) and saves custom user filters to `localStorage` (`uaic_filter_presets_v1`).
 
 ### G. Power Platform Parity & Enterprise Notification Engine (S74)
+
 - **Power Platform Parity**: Replicates and enhances the notification capabilities of the legacy Power Automate Cloud Flow (`UAICBotCreationMainFlow-V4`).
 - **Master ON/OFF Switch**: Global toggle (`email_notifications_enabled`) immediately mutes all automatic event notification dispatches with zero Celery task or database overhead.
-- **Provider Agnostic**: Seamlessly switches between live SMTP (SSL/TLS/STARTTLS with connection testing) and local mock delivery (`local_mock`) for air-gapped development and testing.
-- **Granular Event Triggers**: Per-event rule toggles for `guidewire_activity_created`, `guidewire_activity_failed`, `scraper_failed`, and `claim_failed`.
-- **Responsive HTML Templates**: Dark-mode safe, table-based HTML email templates with dynamic variable interpolation and live preview in `/settings`.
+- **Provider Agnostic**: Seamlessly switches between Authenticated SMTP, Corporate Direct MX, Microsoft Graph API (O365 / Azure AD app-only OAuth2), Amazon SES API (AWS Cloud SDK), Local MailDev Webbox, and Local Mock sandbox (`local_mock`) for air-gapped development and testing. All secrets (passwords, client secrets, access keys) are masked in logs and APIs with interactive eye-icon visibility toggles in the UI.
+- **Granular Event Triggers & Idempotency**: Per-event rule toggles for `guidewire_activity_created`, `guidewire_activity_failed`, `court_case_matched`, `scraper_failed`, and `claim_failed`. Strict idempotency key deduplication prevents redundant email dispatches on retries.
+- **Transactional Safety & Isolation**: Notification dispatch failures are strictly isolated and never interrupt or fail the core Guidewire claim execution workflow.
+- **Responsive Dynamic Templates & Variable Validation**: Dark-mode safe HTML templates with dynamic variable interpolation (`{{claim_number}}`, `{{activity_id}}`, `{{county}}`, `{{case_number}}`, `{{case_style}}`, `{{suit_filed_date}}`, etc.) and variable placeholder validation rejecting broken tokens with HTTP 400.
 - **Non-Blocking Dedicated Queue**: Dispatches notifications over an isolated `"notifications"` Celery queue with exponential retry backoff, fully decoupled from claim execution.
-- **Interactive Operator Testing & History**: 1-click SMTP connectivity test, live interactive test email sender, and a real-time delivery history log table in `/settings`.
+- **Interactive Operator Testing & Delivery History**: 1-click provider connection latency test, live interactive test email sender, and an upgraded Outbound Notification Delivery History table with real-time search, status filter tabs (`ALL`, `SENT`, `FAILED`, `QUEUED`, `SKIPPED`), event selector, pagination, and cryptographic receipt inspection modals.
 
 ### H. Enterprise Setup & Operations Console (Options 1–9 & M)
-- **Centralized Management (`setup_local.ps1` / `setup.ps1`)**: Interactive menu backed by real Windows process management (`Get-CimInstance Win32_Process`) rather than blind script execution.
+
+- **Centralized Management (`setup_local.ps1`)**: Interactive menu backed by real Windows process management (`Get-CimInstance Win32_Process`) rather than blind script execution.
 - **[1] Start All Services**: Interactive choice of Attended GUI vs Unattended Headless, with automated pre-flight port conflict checking (`3000`, `8000`, `5555`, `6379`, `5432`, `1080`, `1025`).
 - **[2] Stop All Services**: Targeted termination of application workers (`uvicorn`, `celery`, `flower`, `maildev`, `next dev`), leaving unrelated system processes untouched. Explicitly frees MailDev ports (`1080` and `1025`).
 - **[3] Clean Run History & Enterprise Data Cleanup**: Invokes time-scoped multi-category cleanup engine with dry-run preview and cascade deletion.
@@ -558,6 +596,7 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 - **[M] MailDev**: Quick launch of MailDev Web Inspector (`http://localhost:1080`) with SMTP/HTTP health checks.
 
 ### I. Enterprise Time-Based Multi-Select Data Cleanup Engine
+
 - **9 Independent Categories**: `claims`, `queue`, `court_cases`, `matches`, `guidewire`, `notifications`, `telemetry`, `logs`, `caches`.
 - **Dynamic Time Scoping**: `current_month` (1st of current month `00:00:00` to current moment), `1_day`, `7_days`, `14_days`, `30_days`, `90_days`, `6_months`, `1_year`, `all_time`, or custom date ranges (`YYYY-MM-DD`).
 - **Dry-Run Preview & Explicit Confirmation**: Simulates deletions without writing to database; requires explicit confirmation before executing destructive operations.
@@ -566,8 +605,9 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 - **Dual Interface**: Accessible via CLI (`python -m app.scripts.clean_history`) and REST API (`POST /api/v1/claims/clean`).
 
 ### J. Attended vs. Unattended RPA 1:1 Parity Validation
+
 - **100% Behavioral Parity**: Every workflow that executes in Attended Mode (visible desktop Google Chrome GUI) executes with identical results in Unattended Mode (headless).
-- **Modern Headless Extension Loading**: Playwright initializes Chromium with `--headless=new` and extension flags (`--load-extension`, `--disable-extensions-except`), enabling Manifest v3 AntiCaptcha extension loading even in headless environments (`ExtLoaded=True`, active service workers verified).
+- **Modern Headless Extension Loading**: Playwright initializes Chromium with `--headless=new` and `context_headless=False` across `browser_manager.py`, `session_runner.py`, and `base.py`, enabling Manifest v3 AntiCaptcha extension loading even in headless environments (`ExtLoaded=True`, active service workers verified) without opening visible GUI windows.
 - **Zero Desktop Session Reliance**: Scraper automation does not rely on active desktop sessions, pre-opened browser windows, focus state, or manual clicks.
 - **Full End-to-End Equivalence**: Verified 1:1 extraction across all 8 court scrapers, pagination handling, strict schema compliance (NO `CaseType` on Harris JP and Harris Clerk), RapidFuzz 3-tier cascade, and Guidewire Cloud payload formatting.
 - **Automated Parity Test Harness**: Standalone runner `scripts/verify_attended_unattended_parity_e2e.py` and dedicated Pytest test suite `backend/tests/test_attended_unattended_parity.py`.
@@ -577,32 +617,38 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 ## 14. Critical Business Rules (Authoritative)
 
 ### State Routing Logic
+
 - **`policy_state == loss_location_state == 'FL'`**: Scrape Florida portals (`broward`, `hillsborough`, `miami`).
 - **`policy_state == loss_location_state == 'TX'`**: Scrape Texas portals (`harris_cclerk`, `dallas`, `harris_jp`, `harris_district`, `travis`).
 - **Cross-State (`policy_state != loss_location_state`)**: Scrape **all 8 court portals**.
 
 ### DOL Date Conversion
+
 Excel serial dates must use the **1899-12-30** base and be formatted as `MM/dd/yyyy` without timezone shifts.
 
 ### Guidewire Claim Number Rule
+
 If `len(claim_number) == 9`, prepend a leading `"0"` (applied only to the Guidewire outbound JSON payload).
 
 ### Fuzzy Match Cascade (RapidFuzz `partial_ratio`, threshold=0.6)
+
 1. Claimant (First + Last) > CaseStyle
 2. Insured (First + Last) > CaseStyle
 3. Driver (First + Last) > CaseStyle
-Minimum filing date: `>= 2010-01-01` (configurable in Settings).
+   Minimum filing date: `>= 2010-01-01` (configurable in Settings).
 
 ### Search Count Derivation (DualSearch / TripleSearch)
-| Scenario | DualSearch | TripleSearch |
-|---|---|---|
-| All parties same | 1 | 1 |
-| Insured = Driver, Claimant = | 1 | 3 |
-| Insured = Claimant, Driver = | 2 | 1 |
-| Driver = Claimant, Insured = | 2 | 1 |
-| All parties different | 2 | 3 |
+
+| Scenario                     | DualSearch | TripleSearch |
+| ---------------------------- | ---------- | ------------ |
+| All parties same             | 1          | 1            |
+| Insured = Driver, Claimant = | 1          | 3            |
+| Insured = Claimant, Driver = | 2          | 1            |
+| Driver = Claimant, Insured = | 2          | 1            |
+| All parties different        | 2          | 3            |
 
 ### Portal Output Schema
+
 - Broward, Hillsborough, Miami, Dallas, Travis, Harris District: `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus`, `CaseType`.
 - **Harris JP** and **Harris County Clerk**: `CaseNumber`, `CaseStyle`, `FilingDate`, `CaseStatus` (**NO `CaseType`**).
 
@@ -611,6 +657,7 @@ Minimum filing date: `>= 2010-01-01` (configurable in Settings).
 ## 15. Guidewire Integration Contract
 
 Outbound Guidewire JSON payload specification:
+
 ```json
 {
   "ClaimNumber": "0123456789",
@@ -625,6 +672,67 @@ Outbound Guidewire JSON payload specification:
   ]
 }
 ```
+
+### Persistence Layer: Guidewire Integration & Filtering Entities
+
+The database layer implements dedicated models in `backend/app/models/guidewire.py` to audit Guidewire transmissions, filter exclusions, and configuration changes:
+
+```mermaid
+erDiagram
+    AUTOMATION_SETTINGS ||--o{ SETTINGS_AUDIT_LOG : tracks
+    CLAIMS ||--o{ GUIDEWIRE_ACTIVITIES : records
+    CLAIMS ||--o{ FILTERED_OUT_CASES : audits
+
+    GUIDEWIRE_ACTIVITIES {
+        uuid id PK
+        string claim_id FK
+        uuid transaction_id UK
+        varchar claim_number
+        varchar exposure_number
+        jsonb request_payload
+        jsonb response_payload
+        int http_status
+        varchar status
+        varchar guidewire_activity_id
+        text error_details
+        timestamp created_at
+    }
+
+    FILTERED_OUT_CASES {
+        uuid id PK
+        string claim_id FK
+        varchar case_number
+        varchar case_style
+        varchar case_type
+        varchar case_status
+        timestamp filing_date
+        jsonb exclusion_reasons
+        timestamp created_at
+    }
+
+    AUTOMATION_SETTINGS {
+        string key PK
+        jsonb value
+        string category
+        timestamp updated_at
+    }
+
+    SETTINGS_AUDIT_LOG {
+        uuid id PK
+        string key
+        jsonb old_value
+        jsonb new_value
+        string updated_by
+        timestamp created_at
+    }
+```
+
+| Entity              | Table Name             | Purpose                                                                                                              |
+| ------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `GuidewireActivity` | `guidewire_activities` | Audits every outbound push payload, inbound Guidewire response, HTTP status, and activity ID                         |
+| `FilteredOutCase`   | `filtered_out_cases`   | Captures cases matched by Fuzzy Logic but excluded prior to Guidewire (e.g. whitelisted status/case type exclusions) |
+| `AutomationSetting` | `automation_settings`  | Dynamic database-persisted configuration settings                                                                    |
+| `SettingsAuditLog`  | `settings_audit_logs`  | Immutable audit trail of setting updates, recording old value, new value, and modifying user                         |
 
 ---
 
@@ -642,16 +750,16 @@ Outbound Guidewire JSON payload specification:
 
 ## 17. Court Portal Endpoints
 
-| Portal | State | Default Base URL | Deep Search Endpoint |
-|---|---|---|---|
-| **Broward County Clerk** | FL | `https://www.browardclerk.org/` | `https://www.browardclerk.org/Web2` |
-| **Hillsborough County Clerk** | FL | `https://hover.hillsclerk.com/` | `https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab` |
-| **Miami-Dade County Clerk** | FL | `https://www2.miamidadeclerk.gov/ocs` | `https://www2.miamidadeclerk.gov/ocs` |
-| **Travis County** | TX | `https://odysseyweb.traviscountytx.gov/Portal/` | `https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29` |
-| **Dallas County** | TX | `https://courtsportal.dallascounty.org/DALLASPROD/Home/` | `https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29` |
-| **Harris County JP** | TX | `https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/` | `https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29` |
-| **Harris County Clerk** | TX | `https://www.cclerk.hctx.net/Applications/WebSearch/` | `https://www.cclerk.hctx.net/Applications/WebSearch/` |
-| **Harris District Clerk** | TX | `https://www.hcdistrictclerk.com/` | `https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx` |
+| Portal                        | State | Default Base URL                                                   | Deep Search Endpoint                                                           |
+| ----------------------------- | ----- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| **Broward County Clerk**      | FL    | `https://www.browardclerk.org/`                                    | `https://www.browardclerk.org/Web2`                                            |
+| **Hillsborough County Clerk** | FL    | `https://hover.hillsclerk.com/`                                    | `https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab`         |
+| **Miami-Dade County Clerk**   | FL    | `https://www2.miamidadeclerk.gov/ocs`                              | `https://www2.miamidadeclerk.gov/ocs`                                          |
+| **Travis County**             | TX    | `https://odysseyweb.traviscountytx.gov/Portal/`                    | `https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29`               |
+| **Dallas County**             | TX    | `https://courtsportal.dallascounty.org/DALLASPROD/Home/`           | `https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29`           |
+| **Harris County JP**          | TX    | `https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/` | `https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29` |
+| **Harris County Clerk**       | TX    | `https://www.cclerk.hctx.net/Applications/WebSearch/`              | `https://www.cclerk.hctx.net/Applications/WebSearch/`                          |
+| **Harris District Clerk**     | TX    | `https://www.hcdistrictclerk.com/`                                 | `https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx`                     |
 
 ---
 
@@ -661,9 +769,12 @@ Outbound Guidewire JSON payload specification:
 # Enterprise Setup Console Full Automated Test Harness (AST, Ports, StopAll, CleanHistory, RunTests)
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\test_setup_console.ps1"
 
-# Backend Automated Unit & Integration Tests (270 tests across 27 test suites, 100% pass rate)
+# Backend Automated Unit & Integration Tests (307 tests across 31 test suites, 100% pass rate)
 cd backend
 .venv\Scripts\pytest -ra -q
+
+# Guidewire Activity & Filtered Case Pipeline Integration Test Suite (8 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_guidewire_pipeline.py tests/test_guidewire_models.py -v
 
 # Attended vs. Unattended 1:1 Parity Test Suite (6 tests, 100% pass rate)
 .venv\Scripts\pytest tests/test_attended_unattended_parity.py -v
@@ -671,10 +782,10 @@ cd backend
 # Standalone E2E Attended vs. Unattended Parity Live Verification Harness
 .venv\Scripts\python ..\scripts\verify_attended_unattended_parity_e2e.py
 
-# Setup Console Specific Process & Matrix Test Suite (11 tests, 100% pass rate)
+# Setup Console Specific Process & Matrix Test Suite (23 tests, 100% pass rate)
 .venv\Scripts\pytest tests/test_setup_console.py -v
 
-# Enterprise Time-Based Multi-Select Data Cleanup Test Suite (12 tests, 100% pass rate)
+# Enterprise Time-Based Multi-Select Data Cleanup Test Suite (13 tests, 100% pass rate)
 .venv\Scripts\pytest tests/test_enterprise_cleanup.py -v
 
 # Dynamic Browser Matrix Test Suite (10 tests, 100% pass rate)
@@ -690,7 +801,7 @@ npx tsc --noEmit
 # Frontend Production Build (All routes compile cleanly)
 npm run build
 
-# PowerShell Syntax & AST Parser Verification (0 errors across all 6 scripts)
+# PowerShell Syntax & AST Parser Verification (0 errors across all 7 scripts)
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps1"
 
 # Enterprise Cleanup CLI Syntax Examples
@@ -706,96 +817,98 @@ Complete technology reference for the UAIC Claim & RPA Orchestrator. Every techn
 
 ### Frontend
 
-| Technology | Role in This Solution | How We Use It | Official Documentation |
-|---|---|---|---|
-| **Next.js 14** | Full-stack React framework with App Router | Server-side rendering, file-based routing for all 8 app pages (`/`, `/claims/:id`, `/upload`, `/monitor`, `/health`, `/exceptions`, `/settings`, `/branding`, `/audit`) | [nextjs.org/docs](https://nextjs.org/docs) |
-| **React 18** | UI component library | Functional components, hooks (`useState`, `useEffect`, `useContext`, `useCallback`), concurrent features | [react.dev](https://react.dev) |
-| **TypeScript** | Static typing for JavaScript | All `.tsx` / `.ts` source files; strict type-checking via `tsc --noEmit` in CI | [typescriptlang.org/docs](https://www.typescriptlang.org/docs/) |
-| **Tailwind CSS 3** | Utility-first CSS framework | Layout, spacing, color, dark/light mode tokens; extends default theme in `tailwind.config.js` | [tailwindcss.com/docs](https://tailwindcss.com/docs) |
-| **Radix UI** | Accessible headless component primitives | Dialog, AlertDialog, DropdownMenu, Select, Tabs, Toast, Tooltip, Switch, Checkbox, Progress | [radix-ui.com/primitives/docs](https://www.radix-ui.com/primitives/docs/overview/introduction) |
-| **@tanstack/react-query v5** | Async server-state management | Fetching, caching, refetching claims, queue status, health checks; `useQuery` / `useMutation` | [tanstack.com/query/latest/docs](https://tanstack.com/query/latest/docs/framework/react/overview) |
-| **@tanstack/react-table v8** | Headless table engine | Claims dashboard table with column sorting, multi-row selection, pagination, and filter presets | [tanstack.com/table/latest/docs](https://tanstack.com/table/latest/docs/introduction) |
-| **Axios** | HTTP client | Typed `api.ts` client for all 45+ backend endpoints; interceptors for base URL and error handling | [axios-http.com/docs](https://axios-http.com/docs/intro) |
-| **React Hook Form** | Form state management | Settings forms, ingest column-mapping wizard, and Guidewire connection test panels | [react-hook-form.com/docs](https://react-hook-form.com/docs) |
-| **Zod** | Runtime schema validation | Validates form inputs and API response shapes via `@hookform/resolvers/zod` | [zod.dev](https://zod.dev) |
-| **Lucide React** | Icon library | Navigation icons, status indicators, action buttons across all pages | [lucide.dev](https://lucide.dev/guide/) |
-| **date-fns** | Date utility library | Formatting `FilingDate`, `created_at`, and `updated_at` timestamps in the UI | [date-fns.org/docs](https://date-fns.org/docs/Getting-Started) |
-| **react-dropzone** | File drag-and-drop | Excel/CSV import dropzone on `/upload` ingestion console | [react-dropzone.js.org](https://react-dropzone.js.org/) |
-| **tailwindcss-animate** | Tailwind animation plugin | CSS animations for dialogs, toasts, command palette, and dropdown overlays | [github: jamiebuilds/tailwindcss-animate](https://github.com/jamiebuilds/tailwindcss-animate) |
-| **class-variance-authority** | Typed variant CSS | Consistent button, badge, and input component variants | [cva.style/docs](https://cva.style/docs) |
-| **clsx** | Class name utility | Conditional CSS class merging for dynamic status badges, buttons, and theme classes | [github: lukeed/clsx](https://github.com/lukeed/clsx) |
-| **tailwind-merge** | Tailwind class deduplication | Resolves Tailwind CSS class conflicts safely in the `cn` helper utility | [github: dcastil/tailwind-merge](https://github.com/dcastil/tailwind-merge) |
+| Technology                   | Role in This Solution                      | How We Use It                                                                                                                                                           | Official Documentation                                                                            |
+| ---------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Next.js 14**               | Full-stack React framework with App Router | Server-side rendering, file-based routing for all 8 app pages (`/`, `/claims/:id`, `/upload`, `/monitor`, `/health`, `/exceptions`, `/settings`, `/branding`, `/audit`) | [nextjs.org/docs](https://nextjs.org/docs)                                                        |
+| **React 18**                 | UI component library                       | Functional components, hooks (`useState`, `useEffect`, `useContext`, `useCallback`), concurrent features                                                                | [react.dev](https://react.dev)                                                                    |
+| **TypeScript**               | Static typing for JavaScript               | All `.tsx` / `.ts` source files; strict type-checking via `tsc --noEmit` in CI                                                                                          | [typescriptlang.org/docs](https://www.typescriptlang.org/docs/)                                   |
+| **Tailwind CSS 3**           | Utility-first CSS framework                | Layout, spacing, color, dark/light mode tokens; extends default theme in `tailwind.config.js`                                                                           | [tailwindcss.com/docs](https://tailwindcss.com/docs)                                              |
+| **Radix UI**                 | Accessible headless component primitives   | Dialog, AlertDialog, DropdownMenu, Select, Tabs, Toast, Tooltip, Switch, Checkbox, Progress                                                                             | [radix-ui.com/primitives/docs](https://www.radix-ui.com/primitives/docs/overview/introduction)    |
+| **@tanstack/react-query v5** | Async server-state management              | Fetching, caching, refetching claims, queue status, health checks; `useQuery` / `useMutation`                                                                           | [tanstack.com/query/latest/docs](https://tanstack.com/query/latest/docs/framework/react/overview) |
+| **@tanstack/react-table v8** | Headless table engine                      | Claims dashboard table with column sorting, multi-row selection, pagination, and filter presets                                                                         | [tanstack.com/table/latest/docs](https://tanstack.com/table/latest/docs/introduction)             |
+| **Axios**                    | HTTP client                                | Typed `api.ts` client for all 45+ backend endpoints; interceptors for base URL and error handling                                                                       | [axios-http.com/docs](https://axios-http.com/docs/intro)                                          |
+| **React Hook Form**          | Form state management                      | Settings forms, ingest column-mapping wizard, and Guidewire connection test panels                                                                                      | [react-hook-form.com/docs](https://react-hook-form.com/docs)                                      |
+| **Zod**                      | Runtime schema validation                  | Validates form inputs and API response shapes via `@hookform/resolvers/zod`                                                                                             | [zod.dev](https://zod.dev)                                                                        |
+| **Lucide React**             | Icon library                               | Navigation icons, status indicators, action buttons across all pages                                                                                                    | [lucide.dev](https://lucide.dev/guide/)                                                           |
+| **date-fns**                 | Date utility library                       | Formatting `FilingDate`, `created_at`, and `updated_at` timestamps in the UI                                                                                            | [date-fns.org/docs](https://date-fns.org/docs/Getting-Started)                                    |
+| **react-dropzone**           | File drag-and-drop                         | Excel/CSV import dropzone on `/upload` ingestion console                                                                                                                | [react-dropzone.js.org](https://react-dropzone.js.org/)                                           |
+| **tailwindcss-animate**      | Tailwind animation plugin                  | CSS animations for dialogs, toasts, command palette, and dropdown overlays                                                                                              | [github: jamiebuilds/tailwindcss-animate](https://github.com/jamiebuilds/tailwindcss-animate)     |
+| **class-variance-authority** | Typed variant CSS                          | Consistent button, badge, and input component variants                                                                                                                  | [cva.style/docs](https://cva.style/docs)                                                          |
+| **clsx**                     | Class name utility                         | Conditional CSS class merging for dynamic status badges, buttons, and theme classes                                                                                     | [github: lukeed/clsx](https://github.com/lukeed/clsx)                                             |
+| **tailwind-merge**           | Tailwind class deduplication               | Resolves Tailwind CSS class conflicts safely in the `cn` helper utility                                                                                                 | [github: dcastil/tailwind-merge](https://github.com/dcastil/tailwind-merge)                       |
 
 ---
 
 ### Backend
 
-| Technology | Role in This Solution | How We Use It | Official Documentation |
-|---|---|---|---|
-| **Python 3.14.7** | Primary backend runtime | All backend services, scrapers, tasks, and tests run under Python 3.14.7 (`.venv` targeting `>=3.14`) | [docs.python.org/3.14](https://docs.python.org/3.14/) |
-| **FastAPI 0.141+** | Async REST API framework | 45+ REST endpoints across 7 routers (`claims`, `health`, `ingest`, `matches`, `queue`, `settings`, `audit`); lifespan-managed startup/shutdown | [fastapi.tiangolo.com](https://fastapi.tiangolo.com) |
-| **Uvicorn** | ASGI server | Serves FastAPI; `--reload` in development, `--workers` in production; standard extras (websockets, watchfiles) | [uvicorn.org](https://www.uvicorn.org) |
-| **Pydantic v2** | Data validation & serialization | Request/response schemas, settings models, environment variable parsing; strict mode for API contracts | [docs.pydantic.dev/latest](https://docs.pydantic.dev/latest/) |
-| **pydantic-settings** | Settings management | `Settings` class reads from `backend/.env` with full type validation; supports Redis-cached override layer | [docs.pydantic.dev/latest/concepts/pydantic_settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) |
-| **SQLAlchemy 2.0 (async)** | ORM & database abstraction | Async engine + session factory for all CRUD; 5 ORM models (`ClaimRecord`, `ScrapedCourtCase`, `FuzzyMatchResult`, `AuditLog`, `ErrorScreenshot`) | [docs.sqlalchemy.org/en/20](https://docs.sqlalchemy.org/en/20/) |
-| **aiosqlite** | Async SQLite driver | Default local development database (`orchestrator.db`) via `sqlite+aiosqlite:///./orchestrator.db` | [github: omnilib/aiosqlite](https://github.com/omnilib/aiosqlite) |
-| **asyncpg** | Async PostgreSQL driver | Production PostgreSQL via `postgresql+asyncpg://` URL in Docker/cloud deployments | [magicstack.github.io/asyncpg](https://magicstack.github.io/asyncpg/current/) |
-| **Alembic** | Database migrations | Schema versioning; auto-generates migration scripts from SQLAlchemy model changes | [alembic.sqlalchemy.org](https://alembic.sqlalchemy.org/en/latest/) |
-| **Celery 5.6+** | Distributed task queue | 4 named queues: `ingest`, `scrapers`, `matcher`, `notifications`; `-P solo` for Windows attended mode | [docs.celeryq.dev](https://docs.celeryq.dev/en/stable/) |
-| **Redis 5+** | Message broker & result backend | Celery broker (`/0`), Celery result backend (`/1`), Redis-cached system settings; persistent Docker volume | [redis.io/docs](https://redis.io/docs/latest/) |
-| **Celery Flower** | Task monitoring UI | Real-time Celery worker observability dashboard at `:5555`; task history, rates, and worker health | [flower.readthedocs.io](https://flower.readthedocs.io/en/latest/) |
-| **Celery Beat** | Scheduled task runner | Periodic retry of failed/stuck claims via `retry_tasks.py` | [docs.celeryq.dev/en/stable/userguide/periodic-tasks](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html) |
-| **Playwright for Python** | Browser RPA automation | Launches real Google Chrome with AntiCaptcha extension; automates 8 county court portals | [playwright.dev/python/docs](https://playwright.dev/python/docs/intro) |
-| **playwright-stealth** | Bot detection evasion | Applies stealth patches to Playwright page context to bypass portal bot-detection headers | [github: AtuboDad/playwright_stealth](https://github.com/AtuboDad/playwright_stealth) |
-| **RapidFuzz** | Fuzzy string matching | C-accelerated `partial_ratio` cascade (Claimant > Insured > Driver) against CaseStyle; threshold=0.6 | [rapidfuzz.github.io/RapidFuzz](https://rapidfuzz.github.io/RapidFuzz/) |
-| **pandas** | Data processing | Excel/CSV ingestion, column normalization, 1899-12-30 serial date conversion | [pandas.pydata.org/docs](https://pandas.pydata.org/docs/) |
-| **openpyxl** | Excel read/write | Reading uploaded `.xlsx` claim files; writing XLSX export dossiers | [openpyxl.readthedocs.io](https://openpyxl.readthedocs.io/en/stable/) |
-| **httpx** | Async HTTP client | Guidewire Insurance Cloud API calls (Bearer/ApiKey/OAuth2); portal reachability pings; async HTTP pooling | [www.python-httpx.org/docs](https://www.python-httpx.org/) |
-| **python-multipart** | Form/file upload parsing | Multipart form data parsing for Excel/CSV file uploads in FastAPI endpoints | [github: Kludex/python-multipart](https://github.com/Kludex/python-multipart) |
-| **aiofiles** | Async file I/O | Non-blocking file reads/writes for export generation, logo uploads, and scraper cache | [github: Tinche/aiofiles](https://github.com/Tinche/aiofiles) |
-| **python-dotenv** | `.env` file loading | Loads `backend/.env` environment variables into process environment on startup | [saurabh-kumar.com/python-dotenv](https://saurabh-kumar.com/python-dotenv/) |
+| Technology                 | Role in This Solution           | How We Use It                                                                                                                                                                                                                                                                           | Official Documentation                                                                                                  |
+| -------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Python 3.14.7**          | Primary backend runtime         | All backend services, scrapers, tasks, and tests run under Python 3.14.7 (`.venv` targeting `>=3.14`)                                                                                                                                                                                   | [docs.python.org/3.14](https://docs.python.org/3.14/)                                                                   |
+| **FastAPI 0.141+**         | Async REST API framework        | 45+ REST endpoints across 7 routers (`claims`, `health`, `ingest`, `matches`, `queue`, `settings`, `audit`); lifespan-managed startup/shutdown                                                                                                                                          | [fastapi.tiangolo.com](https://fastapi.tiangolo.com)                                                                    |
+| **Uvicorn**                | ASGI server                     | Serves FastAPI; `--reload` in development, `--workers` in production; standard extras (websockets, watchfiles)                                                                                                                                                                          | [uvicorn.org](https://www.uvicorn.org)                                                                                  |
+| **Pydantic v2**            | Data validation & serialization | Request/response schemas, settings models, environment variable parsing; strict mode for API contracts                                                                                                                                                                                  | [docs.pydantic.dev/latest](https://docs.pydantic.dev/latest/)                                                           |
+| **pydantic-settings**      | Settings management             | `Settings` class reads from `backend/.env` with full type validation; supports Redis-cached override layer                                                                                                                                                                              | [docs.pydantic.dev/latest/concepts/pydantic_settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)     |
+| **SQLAlchemy 2.0 (async)** | ORM & database abstraction      | Async engine + session factory for all CRUD; 10 ORM models (`ClaimRecord`, `ScrapedCourtCase`, `MatchPair`, `AuditLog`, `ErrorScreenshot`, `Notification`, `NotificationRule`, `NotificationTemplate`, `GuidewireActivity`, `FilteredOutCase`, `AutomationSetting`, `SettingsAuditLog`) | [docs.sqlalchemy.org/en/20](https://docs.sqlalchemy.org/en/20/)                                                         |
+| **aiosqlite**              | Async SQLite driver             | Default local development database (`orchestrator.db`) via `sqlite+aiosqlite:///./orchestrator.db`                                                                                                                                                                                      | [github: omnilib/aiosqlite](https://github.com/omnilib/aiosqlite)                                                       |
+| **asyncpg**                | Async PostgreSQL driver         | Production PostgreSQL via `postgresql+asyncpg://` URL in Docker/cloud deployments                                                                                                                                                                                                       | [magicstack.github.io/asyncpg](https://magicstack.github.io/asyncpg/current/)                                           |
+| **Alembic**                | Database migrations             | Schema versioning; auto-generates migration scripts from SQLAlchemy model changes                                                                                                                                                                                                       | [alembic.sqlalchemy.org](https://alembic.sqlalchemy.org/en/latest/)                                                     |
+| **Celery 5.6+**            | Distributed task queue          | 4 named queues: `ingest`, `scrapers`, `matcher`, `notifications`; `-P solo` for Windows attended mode                                                                                                                                                                                   | [docs.celeryq.dev](https://docs.celeryq.dev/en/stable/)                                                                 |
+| **Redis 5+**               | Message broker & result backend | Celery broker (`/0`), Celery result backend (`/1`), Redis-cached system settings; persistent Docker volume                                                                                                                                                                              | [redis.io/docs](https://redis.io/docs/latest/)                                                                          |
+| **Celery Flower**          | Task monitoring UI              | Real-time Celery worker observability dashboard at `:5555`; task history, rates, and worker health                                                                                                                                                                                      | [flower.readthedocs.io](https://flower.readthedocs.io/en/latest/)                                                       |
+| **Celery Beat**            | Scheduled task runner           | Periodic retry of failed/stuck claims via `retry_tasks.py`                                                                                                                                                                                                                              | [docs.celeryq.dev/en/stable/userguide/periodic-tasks](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html) |
+| **Playwright for Python**  | Browser RPA automation          | Launches real Google Chrome with AntiCaptcha extension; automates 8 county court portals                                                                                                                                                                                                | [playwright.dev/python/docs](https://playwright.dev/python/docs/intro)                                                  |
+| **playwright-stealth**     | Bot detection evasion           | Applies stealth patches to Playwright page context to bypass portal bot-detection headers                                                                                                                                                                                               | [github: AtuboDad/playwright_stealth](https://github.com/AtuboDad/playwright_stealth)                                   |
+| **RapidFuzz**              | Fuzzy string matching           | C-accelerated `partial_ratio` cascade (Claimant > Insured > Driver) against CaseStyle; threshold=0.6                                                                                                                                                                                    | [rapidfuzz.github.io/RapidFuzz](https://rapidfuzz.github.io/RapidFuzz/)                                                 |
+| **pandas**                 | Data processing                 | Excel/CSV ingestion, column normalization, 1899-12-30 serial date conversion                                                                                                                                                                                                            | [pandas.pydata.org/docs](https://pandas.pydata.org/docs/)                                                               |
+| **openpyxl**               | Excel read/write                | Reading uploaded `.xlsx` claim files; writing XLSX export dossiers                                                                                                                                                                                                                      | [openpyxl.readthedocs.io](https://openpyxl.readthedocs.io/en/stable/)                                                   |
+| **httpx**                  | Async HTTP client               | Guidewire Insurance Cloud API calls (Bearer/ApiKey/OAuth2); portal reachability pings; async HTTP pooling                                                                                                                                                                               | [www.python-httpx.org/docs](https://www.python-httpx.org/)                                                              |
+| **python-multipart**       | Form/file upload parsing        | Multipart form data parsing for Excel/CSV file uploads in FastAPI endpoints                                                                                                                                                                                                             | [github: Kludex/python-multipart](https://github.com/Kludex/python-multipart)                                           |
+| **aiofiles**               | Async file I/O                  | Non-blocking file reads/writes for export generation, logo uploads, and scraper cache                                                                                                                                                                                                   | [github: Tinche/aiofiles](https://github.com/Tinche/aiofiles)                                                           |
+| **python-dotenv**          | `.env` file loading             | Loads `backend/.env` environment variables into process environment on startup                                                                                                                                                                                                          | [saurabh-kumar.com/python-dotenv](https://saurabh-kumar.com/python-dotenv/)                                             |
 
 ---
 
 ### Testing
 
-| Technology | Role in This Solution | How We Use It | Official Documentation |
-|---|---|---|---|
-| **pytest** | Test runner & framework | 270 unit + integration tests across `backend/tests/` (27 test suites); auto-discovery, parametrize, fixtures | [docs.pytest.org](https://docs.pytest.org/en/stable/) |
-| **pytest-asyncio** | Async test support | `asyncio-mode=auto` in `pyproject.toml`; enables `async def test_*` functions and async fixtures | [pytest-asyncio.readthedocs.io](https://pytest-asyncio.readthedocs.io/en/latest/) |
-| **pytest-mock** | Mock utilities | `mocker` fixture for patching Playwright, Celery tasks, and external HTTP calls in isolation | [pytest-mock.readthedocs.io](https://pytest-mock.readthedocs.io/en/latest/) |
+| Technology         | Role in This Solution   | How We Use It                                                                                                | Official Documentation                                                            |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| **pytest**         | Test runner & framework | 307 unit + integration tests across `backend/tests/` (31 test suites); auto-discovery, parametrize, fixtures | [docs.pytest.org](https://docs.pytest.org/en/stable/)                             |
+| **pytest-asyncio** | Async test support      | `asyncio-mode=auto` in `pyproject.toml`; enables `async def test_*` functions and async fixtures             | [pytest-asyncio.readthedocs.io](https://pytest-asyncio.readthedocs.io/en/latest/) |
+| **pytest-mock**    | Mock utilities          | `mocker` fixture for patching Playwright, Celery tasks, and external HTTP calls in isolation                 | [pytest-mock.readthedocs.io](https://pytest-mock.readthedocs.io/en/latest/)       |
 
 ---
 
 ### Build & Development Tools
 
-| Technology | Role in This Solution | How We Use It | Official Documentation |
-|---|---|---|---|
-| **Ruff** | Python linter & formatter | `ruff check app tests` enforced in CI; selects E, F, W, I, UP rule sets; `0 errors` required | [docs.astral.sh/ruff](https://docs.astral.sh/ruff/) |
-| **npm** | Frontend package manager | Manages all Next.js dependencies; `npm install` / `npm run dev` / `npm run build` | [docs.npmjs.com](https://docs.npmjs.com/) |
-| **ESLint** | JavaScript/TypeScript linter | `next lint` checks all `.tsx` source files against Next.js recommended rules | [eslint.org/docs](https://eslint.org/docs/latest/) |
-| **PostCSS** | CSS transformation | Processes Tailwind CSS directives during `npm run build` | [postcss.org](https://postcss.org/) |
-| **Autoprefixer** | CSS vendor prefixing | PostCSS plugin that adds vendor prefixes for cross-browser CSS compatibility | [github: postcss/autoprefixer](https://github.com/postcss/autoprefixer) |
-| **PowerShell 5+** | Windows automation shell | `setup.ps1` / `setup_local.ps1` operations console; all 9 menu options including start/stop/test | [learn.microsoft.com/powershell](https://learn.microsoft.com/en-us/powershell/) |
+| Technology        | Role in This Solution        | How We Use It                                                                                | Official Documentation                                                          |
+| ----------------- | ---------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Ruff**          | Python linter & formatter    | `ruff check app tests` enforced in CI; selects E, F, W, I, UP rule sets; `0 errors` required | [docs.astral.sh/ruff](https://docs.astral.sh/ruff/)                             |
+| **npm**           | Frontend package manager     | Manages all Next.js dependencies; `npm install` / `npm run dev` / `npm run build`            | [docs.npmjs.com](https://docs.npmjs.com/)                                       |
+| **ESLint**        | JavaScript/TypeScript linter | `next lint` checks all `.tsx` source files against Next.js recommended rules                 | [eslint.org/docs](https://eslint.org/docs/latest/)                              |
+| **PostCSS**       | CSS transformation           | Processes Tailwind CSS directives during `npm run build`                                     | [postcss.org](https://postcss.org/)                                             |
+| **Autoprefixer**  | CSS vendor prefixing         | PostCSS plugin that adds vendor prefixes for cross-browser CSS compatibility                 | [github: postcss/autoprefixer](https://github.com/postcss/autoprefixer)         |
+| **PowerShell 5+** | Windows automation shell     | `setup_local.ps1` operations console; all 9 menu options including start/stop/test           | [learn.microsoft.com/powershell](https://learn.microsoft.com/en-us/powershell/) |
 
 ---
 
 ### Infrastructure & Deployment
 
-| Technology | Role in This Solution | How We Use It | Official Documentation |
-|---|---|---|---|
-| **Docker** | Container runtime | `docker-compose.yml` orchestrates PostgreSQL 16, Redis 7, backend API, Celery worker, Flower, Next.js frontend | [docs.docker.com](https://docs.docker.com/) |
-| **Docker Compose** | Multi-container orchestration | Hybrid dev mode: `docker compose up -d postgres redis` for infra; Windows host runs API + Celery + Next.js natively | [docs.docker.com/compose](https://docs.docker.com/compose/) |
-| **PostgreSQL 16** | Production relational database | All 5 ORM models; `postgresql+asyncpg://` connection string in production; persistent Docker volume | [postgresql.org/docs/16](https://www.postgresql.org/docs/16/) |
-| **Redis 7** | In-memory broker & cache | Celery broker (`/0`), result backend (`/1`), system settings cache; persistent Docker volume | [redis.io/docs/latest](https://redis.io/docs/latest/) |
+| Technology              | Role in This Solution             | How We Use It                                                                                                       | Official Documentation                                        |
+| ----------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **Docker**              | Container runtime                 | `docker-compose.yml` orchestrates PostgreSQL 16, Redis 7, backend API, Celery worker, Flower, Next.js frontend      | [docs.docker.com](https://docs.docker.com/)                   |
+| **Docker Compose**      | Multi-container orchestration     | Hybrid dev mode: `docker compose up -d postgres redis` for infra; Windows host runs API + Celery + Next.js natively | [docs.docker.com/compose](https://docs.docker.com/compose/)   |
+| **PostgreSQL 16**       | Production relational database    | All 5 ORM models; `postgresql+asyncpg://` connection string in production; persistent Docker volume                 | [postgresql.org/docs/16](https://www.postgresql.org/docs/16/) |
+| **Redis 7**             | In-memory broker & cache          | Celery broker (`/0`), result backend (`/1`), system settings cache; persistent Docker volume                        | [redis.io/docs/latest](https://redis.io/docs/latest/)         |
+| **Vercel / Netlify**    | Frontend Edge & Container Hosting | Cloud-agnostic Next.js 14 deployment using dynamic `NEXT_PUBLIC_API_BASE_URL`                                       | [vercel.com/docs](https://vercel.com/docs)                    |
+| **Render / PaaS / VPS** | Backend PaaS & Container Hosting  | Cloud-agnostic FastAPI deployment with dynamic `$PORT` routing and isolated dependencies                            | [render.com/docs](https://render.com/docs)                    |
 
 ---
 
 ### Integrations
 
-| Technology | Role in This Solution | How We Use It | Official Documentation |
-|---|---|---|---|
-| **Guidewire Insurance Cloud** | Downstream claim management system | `GuidewireClient` in `guidewire_client.py` pushes validated court matches via REST (`Bearer`, `ApiKey`, `Basic`, `OAuth2` auth modes) | [docs.guidewire.com](https://docs.guidewire.com/) |
-| **AntiCaptcha Extension v0.83** | CAPTCHA solver | Chrome Manifest v3 extension loaded via `--load-extension` flag; API key synced to LevelDB; solves reCAPTCHA / hCaptcha on court portals | [anti-captcha.com/apidoc](https://anti-captcha.com/apidoc) |
-| **Google Chrome** | Browser for RPA automation | Launched via Playwright in Attended (visible) or Unattended (headless) mode; required by Anti-Captcha extension architecture | [developer.chrome.com/docs](https://developer.chrome.com/docs/) |
-| **SMTP Email** | Notification delivery | `smtplib` / configurable provider (SSL/TLS/STARTTLS or `local_mock`); sends event notifications for claim failures, Guidewire dispatches, scraper errors | [docs.python.org/3/library/smtplib](https://docs.python.org/3/library/smtplib.html) |
+| Technology                      | Role in This Solution              | How We Use It                                                                                                                                            | Official Documentation                                                              |
+| ------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **Guidewire Insurance Cloud**   | Downstream claim management system | `GuidewireClient` in `guidewire_client.py` pushes validated court matches via REST (`Bearer`, `ApiKey`, `Basic`, `OAuth2` auth modes)                    | [docs.guidewire.com](https://docs.guidewire.com/)                                   |
+| **AntiCaptcha Extension v0.83** | CAPTCHA solver                     | Chrome Manifest v3 extension loaded via `--load-extension` flag; API key synced to LevelDB; solves reCAPTCHA / hCaptcha on court portals                 | [anti-captcha.com/apidoc](https://anti-captcha.com/apidoc)                          |
+| **Google Chrome**               | Browser for RPA automation         | Launched via Playwright in Attended (visible) or Unattended (headless) mode; required by Anti-Captcha extension architecture                             | [developer.chrome.com/docs](https://developer.chrome.com/docs/)                     |
+| **SMTP Email**                  | Notification delivery              | `smtplib` / configurable provider (SSL/TLS/STARTTLS or `local_mock`); sends event notifications for claim failures, Guidewire dispatches, scraper errors | [docs.python.org/3/library/smtplib](https://docs.python.org/3/library/smtplib.html) |

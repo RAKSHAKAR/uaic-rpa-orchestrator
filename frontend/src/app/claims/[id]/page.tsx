@@ -138,6 +138,31 @@ export default function ClaimDetailPage() {
     }
   };
 
+  const handleViewCaseScreenshot = (courtCase: ScrapedCourtCase) => {
+    const normCounty = (courtCase.county_name || "").toLowerCase();
+    const match = screenshots.find((s) => {
+      const pName = (s.portal_name || "").toLowerCase();
+      const pKey = (s.portal_key || "").toLowerCase();
+      return (
+        pName.includes(normCounty) ||
+        (normCounty.length > 0 && normCounty.includes(pName)) ||
+        pKey.includes(normCounty) ||
+        (normCounty.length > 0 && normCounty.includes(pKey))
+      );
+    });
+
+    if (match) {
+      setSelectedScreenshotModal(match);
+    } else if (screenshots.length > 0) {
+      setSelectedScreenshotModal(screenshots[0]);
+    } else {
+      setFeedback({
+        type: "error",
+        msg: `No browser screenshot recorded for ${courtCase.county_name || "this case"}. Screenshots are captured automatically during scraping errors or barrier encounters.`,
+      });
+    }
+  };
+
   // Telemetry interactive controls
   const [selectedPortalTelemetry, setSelectedPortalTelemetry] = useState<string>("all");
   const [inspectedStage, setInspectedStage] = useState<{ key: string; data: any } | null>(null);
@@ -218,6 +243,7 @@ export default function ClaimDetailPage() {
   const [screenshots, setScreenshots] = useState<ErrorScreenshot[]>([]);
   const [isLoadingScreenshots, setIsLoadingScreenshots] = useState(false);
   const [selectedScreenshotModal, setSelectedScreenshotModal] = useState<ErrorScreenshot | null>(null);
+  const [isScreenshotsModalOpen, setIsScreenshotsModalOpen] = useState(false);
 
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
@@ -241,7 +267,13 @@ export default function ClaimDetailPage() {
     setIsLoadingScreenshots(true);
     try {
       const data = await api.getClaimScreenshots(claimId);
-      setScreenshots(data || []);
+      if (data && Array.isArray((data as any).screenshots)) {
+        setScreenshots((data as any).screenshots);
+      } else if (Array.isArray(data)) {
+        setScreenshots(data);
+      } else {
+        setScreenshots([]);
+      }
     } catch (e) {
       console.error("Failed to load screenshots:", e);
     } finally {
@@ -469,7 +501,9 @@ export default function ClaimDetailPage() {
       return claim.action_timings.stages || {};
     }
     const portalData = claim.action_timings.portals?.[selectedPortalTelemetry];
-    return portalData?.stages || claim.action_timings.stages || {};
+    const globalStages = claim.action_timings.stages || {};
+    const localStages = portalData?.stages || {};
+    return { ...globalStages, ...localStages };
   }, [claim, selectedPortalTelemetry]);
 
   // Compute Stage Latency Waterfall & Percentages
@@ -490,7 +524,7 @@ export default function ClaimDetailPage() {
     const parsed = entries
       .map((item) => {
         const stage = rawStages[item.key];
-        const duration = stage?.duration_seconds ? Number(stage.duration_seconds) : 0;
+        const duration = stage?.duration_seconds !== undefined ? Number(stage.duration_seconds) : 0;
         return {
           ...item,
           stage,
@@ -537,7 +571,7 @@ export default function ClaimDetailPage() {
   const typeOptions = useMemo(() => {
     const counts: Record<string, number> = {};
     (claim?.court_cases || []).forEach((c) => {
-      const tp = (c.case_type || "CIVIL").toUpperCase();
+      const tp = c.case_type ? c.case_type.toUpperCase() : "—";
       counts[tp] = (counts[tp] || 0) + 1;
     });
     return Object.entries(counts).map(([tp, count]) => ({
@@ -574,7 +608,7 @@ export default function ClaimDetailPage() {
     }
 
     if (caseTypeFilters.length > 0) {
-      list = list.filter((c) => caseTypeFilters.includes((c.case_type || "CIVIL").toUpperCase()));
+      list = list.filter((c) => caseTypeFilters.includes(c.case_type ? c.case_type.toUpperCase() : "—"));
     }
 
     list.sort((a, b) => {
@@ -702,7 +736,7 @@ export default function ClaimDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col min-h-screen w-full">
+      <div className="flex-1 flex flex-col w-full">
         <Navbar />
         <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-xs flex flex-col items-center justify-center gap-3 my-auto">
           <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
@@ -714,7 +748,7 @@ export default function ClaimDetailPage() {
 
   if (notFound || !claim) {
     return (
-      <div className="flex-1 flex flex-col min-h-screen w-full">
+      <div className="flex-1 flex flex-col w-full">
         <Navbar />
         <div className="p-8 sm:p-12 text-center flex flex-col items-center justify-center gap-4 max-w-md mx-auto my-auto">
           <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 flex items-center justify-center text-rose-500">
@@ -744,7 +778,7 @@ export default function ClaimDetailPage() {
   }
 
   return (
-    <div className={`flex-1 flex flex-col min-h-screen w-full ${isPdfExport ? "bg-slate-950 text-slate-100" : ""}`}>
+    <div className={`flex-1 flex flex-col w-full ${isPdfExport ? "bg-slate-950 text-slate-100" : ""}`}>
       {!isPdfExport && <Navbar onRefresh={fetchClaim} isRefreshing={isLoading} />}
 
       <main id="claim-detail-container" className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
@@ -1086,11 +1120,24 @@ export default function ClaimDetailPage() {
               <div className="bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl px-4 py-2 flex items-center gap-2">
                 <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Total Duration:</span>
                 <span className="text-base font-bold font-mono text-indigo-900 dark:text-indigo-200">
-                  {claim.total_duration_seconds !== null && claim.total_duration_seconds !== undefined
-                    ? `${claim.total_duration_seconds}s`
-                    : claim.action_timings?.total_scraping_seconds
-                    ? `${claim.action_timings.total_scraping_seconds}s`
-                    : "Pending"}
+                  {(() => {
+                    const d = claim.total_duration_seconds;
+                    const ts = claim.action_timings?.total_scraping_seconds;
+                    if (d && d > 0) return `${d}s`;
+                    if (ts && ts > 0) return `${ts}s`;
+                    // Try summing stage durations as fallback
+                    const stageSum = Object.values(claim.action_timings?.stages || {}).reduce(
+                      (acc: number, s: any) => acc + (Number(s?.duration_seconds) || 0), 0
+                    );
+                    return stageSum > 0 ? `${stageSum.toFixed(2)}s` : "N/A";
+                  })()}
+                </span>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 flex items-center gap-1.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Stages:</span>
+                <span className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200">
+                  {Object.keys(claim.action_timings?.stages || {}).length}
+                  <span className="text-xs font-normal text-slate-400">/9</span>
                 </span>
               </div>
             </div>
@@ -1253,6 +1300,20 @@ export default function ClaimDetailPage() {
               </div>
             </div>
           )}
+          {/* Mock/Seed Mode Notice — shown when browser automation stages are absent */}
+          {(() => {
+            const browserStageKeys = ["browser_launch", "website_navigation", "data_filling", "captcha", "submit", "result_retrieval", "database_save"];
+            const hasBrowserStages = browserStageKeys.some(k => activeStages[k] !== undefined);
+            if (hasBrowserStages) return null;
+            return (
+              <div className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-200">
+                <span className="text-amber-500 dark:text-amber-400 mt-0.5 shrink-0">ℹ️</span>
+                <span>
+                  <strong>Browser automation stages not recorded</strong> — this claim was processed via <span className="font-mono">Mock / Seed</span> mode or a legacy pipeline. Stages 1–7 (Browser Launch through Database Commit) require a real-time scraper run from the Attended or Headless worker. Only <span className="font-mono">fuzzy_matching</span> and <span className="font-mono">guidewire_trigger</span> stages are available.
+                </span>
+              </div>
+            );
+          })()}
 
           {/* 9 Detailed Execution Telemetry Cards Grid (3x3 on large screens) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -1263,11 +1324,17 @@ export default function ClaimDetailPage() {
                   <Globe className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" /> 1. Browser Launch
                 </span>
                 <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
-                  {activeStages.browser_launch?.duration_seconds ? `${activeStages.browser_launch.duration_seconds}s` : "-"}
+                  {activeStages.browser_launch?.duration_seconds !== undefined ? `${activeStages.browser_launch.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                <div>Time: {activeStages.browser_launch?.start_time || "-"} - {activeStages.browser_launch?.end_time || "-"}</div>
+                <div>
+                  {activeStages.browser_launch?.start_time
+                    ? `Time: ${activeStages.browser_launch.start_time} - ${activeStages.browser_launch.end_time || "-"}`
+                    : activeStages.browser_launch?.duration_seconds
+                    ? "Time: Timestamp omitted by telemetry"
+                    : "Time: - - - -"}
+                </div>
                 <div className="truncate">{activeStages.browser_launch?.detail || "Google Chrome (Attended GUI) + AntiCaptcha"}</div>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-900 flex items-center justify-between text-[10px]">
@@ -1290,11 +1357,17 @@ export default function ClaimDetailPage() {
                   <ExternalLink className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> 2. Navigation
                 </span>
                 <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  {activeStages.website_navigation?.duration_seconds ? `${activeStages.website_navigation.duration_seconds}s` : "-"}
+                  {activeStages.website_navigation?.duration_seconds !== undefined ? `${activeStages.website_navigation.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                <div>Time: {activeStages.website_navigation?.start_time || "-"} - {activeStages.website_navigation?.end_time || "-"}</div>
+                <div>
+                  {activeStages.website_navigation?.start_time
+                    ? `Time: ${activeStages.website_navigation.start_time} - ${activeStages.website_navigation.end_time || "-"}`
+                    : activeStages.website_navigation?.duration_seconds
+                    ? "Time: Timestamp omitted by telemetry"
+                    : "Time: - - - -"}
+                </div>
                 <div className="truncate" title={activeStages.website_navigation?.url || "Portal DOM load"}>
                   {activeStages.website_navigation?.url || "Portal DOM load"}
                 </div>
@@ -1319,11 +1392,17 @@ export default function ClaimDetailPage() {
                   <Edit3 className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" /> 3. Data Entry
                 </span>
                 <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                  {activeStages.data_filling?.duration_seconds ? `${activeStages.data_filling.duration_seconds}s` : "-"}
+                  {activeStages.data_filling?.duration_seconds !== undefined ? `${activeStages.data_filling.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                <div>Time: {activeStages.data_filling?.start_time || "-"} - {activeStages.data_filling?.end_time || "-"}</div>
+                <div>
+                  {activeStages.data_filling?.start_time
+                    ? `Time: ${activeStages.data_filling.start_time} - ${activeStages.data_filling.end_time || "-"}`
+                    : activeStages.data_filling?.duration_seconds
+                    ? "Time: Timestamp omitted by telemetry"
+                    : "Time: - - - -"}
+                </div>
                 <div className="truncate">
                   {activeStages.data_filling?.party ? `Party: ${activeStages.data_filling.party}` : "Party & DOL query entered"}
                 </div>
@@ -1348,7 +1427,7 @@ export default function ClaimDetailPage() {
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> 4. CAPTCHA Defense
                 </span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  {activeStages.captcha?.duration_seconds ? `${activeStages.captcha.duration_seconds}s` : "-"}
+                  {activeStages.captcha?.duration_seconds !== undefined ? `${activeStages.captcha.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
@@ -1375,11 +1454,17 @@ export default function ClaimDetailPage() {
                   <Search className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> 5. Submit Search
                 </span>
                 <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                  {activeStages.submit?.duration_seconds ? `${activeStages.submit.duration_seconds}s` : "-"}
+                  {activeStages.submit?.duration_seconds !== undefined ? `${activeStages.submit.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                <div>Time: {activeStages.submit?.start_time || "-"} - {activeStages.submit?.end_time || "-"}</div>
+                <div>
+                  {activeStages.submit?.start_time
+                    ? `Time: ${activeStages.submit.start_time} - ${activeStages.submit.end_time || "-"}`
+                    : activeStages.submit?.duration_seconds
+                    ? "Time: Timestamp omitted by telemetry"
+                    : "Time: - - - -"}
+                </div>
                 <div>DOM Form / Button Triggered</div>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-900 flex items-center justify-between text-[10px]">
@@ -1402,7 +1487,7 @@ export default function ClaimDetailPage() {
                   <Cpu className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" /> 6. Record Retrieval
                 </span>
                 <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
-                  {activeStages.result_retrieval?.duration_seconds ? `${activeStages.result_retrieval.duration_seconds}s` : "-"}
+                  {activeStages.result_retrieval?.duration_seconds !== undefined ? `${activeStages.result_retrieval.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
@@ -1429,11 +1514,17 @@ export default function ClaimDetailPage() {
                   <Database className="w-3.5 h-3.5 text-teal-500 dark:text-teal-400" /> 7. Database Commit
                 </span>
                 <span className="font-mono font-bold text-teal-600 dark:text-teal-400">
-                  {activeStages.database_save?.duration_seconds ? `${activeStages.database_save.duration_seconds}s` : "-"}
+                  {activeStages.database_save?.duration_seconds !== undefined ? `${activeStages.database_save.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
-                <div>Time: {activeStages.database_save?.start_time || "-"} - {activeStages.database_save?.end_time || "-"}</div>
+                <div>
+                  {activeStages.database_save?.start_time
+                    ? `Time: ${activeStages.database_save.start_time} - ${activeStages.database_save.end_time || "-"}`
+                    : activeStages.database_save?.duration_seconds
+                    ? "Time: Timestamp omitted by telemetry"
+                    : "Time: - - - -"}
+                </div>
                 <div>ACID Transaction Committed to SQLite</div>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-900 flex items-center justify-between text-[10px]">
@@ -1456,7 +1547,7 @@ export default function ClaimDetailPage() {
                   <Sparkles className="w-3.5 h-3.5 text-fuchsia-500 dark:text-fuchsia-400" /> 8. RapidFuzz Matcher
                 </span>
                 <span className="font-mono font-bold text-fuchsia-600 dark:text-fuchsia-400">
-                  {activeStages.fuzzy_matching?.duration_seconds ? `${activeStages.fuzzy_matching.duration_seconds}s` : "-"}
+                  {activeStages.fuzzy_matching?.duration_seconds !== undefined ? `${activeStages.fuzzy_matching.duration_seconds}s` : "-"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
@@ -1857,12 +1948,12 @@ export default function ClaimDetailPage() {
                 return (
                   <div
                     key={bot.name}
-                    className={`bg-white dark:bg-slate-900/50 border rounded-xl p-4 space-y-3.5 shadow-sm transition-all hover:border-slate-300 dark:hover:border-slate-700 relative overflow-hidden ${
+                    className={`bg-white dark:bg-slate-900/60 border rounded-xl p-4 flex flex-col justify-between space-y-3.5 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md hover:-translate-y-0.5 relative overflow-hidden ${
                       isInProgress
-                        ? "border-amber-500/80 ring-1 ring-amber-500/30"
+                        ? "border-amber-500/80 ring-2 ring-amber-500/20 bg-amber-50/10 dark:bg-amber-950/20"
                         : isCompleted
-                        ? "border-emerald-500/40"
-                        : "border-slate-200 dark:border-slate-800"
+                        ? "border-emerald-500/50"
+                        : "border-slate-200 dark:border-slate-800/80"
                     }`}
                   >
                     {/* Subtle Top Indicator Accent */}
@@ -1878,34 +1969,51 @@ export default function ClaimDetailPage() {
                       }`}
                     />
 
-                    {/* Card Header */}
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isFL ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-900" : "bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-400 border border-teal-300 dark:border-teal-900"}`}>
-                          {isFL ? "FL" : "TX"}
-                        </span>
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                          {bot.name}
-                        </span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
-                          {clerkBadge}
-                        </span>
-                        {bot.website_url && (
-                          <a
-                            href={bot.website_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                            title={`Open ${bot.name} official portal (${bot.website_url})`}
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
+                    {/* Card Header matching StatCard layout */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className={`w-7 h-7 rounded-lg bg-gradient-to-br ${
+                            isFL
+                              ? "from-indigo-500/20 to-blue-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                              : "from-teal-500/20 to-cyan-500/20 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800"
+                          } border flex items-center justify-center shrink-0`}
+                        >
+                          <Building className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                              isFL
+                                ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-900"
+                                : "bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-400 border border-teal-300 dark:border-teal-900"
+                            }`}>
+                              {isFL ? "FL" : "TX"}
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                              {bot.name}
+                            </span>
+                            {bot.website_url && (
+                              <a
+                                href={bot.website_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                title={`Open ${bot.name} official portal (${bot.website_url})`}
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate block">
+                            {clerkBadge}
+                          </span>
+                        </div>
                       </div>
                       <span
-                        className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                        className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
                           bot.target === "Yes"
-                            ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                            ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
                             : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
                         }`}
                       >
@@ -1913,35 +2021,40 @@ export default function ClaimDetailPage() {
                       </span>
                     </div>
 
-                    {/* Status & Cases Count */}
-                    <div className="flex items-center justify-between text-xs pt-1">
+                    {/* Metric Volume & Status Pill (StatCard Style) */}
+                    <div className="flex items-baseline justify-between gap-2 pt-1">
+                      <div>
+                        <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 tracking-tight">
+                          {bot.cases_found}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1.5 font-medium">
+                          cases extracted
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <StatusBadge
                           status={bot.status === "NOT_TRIGGERED" ? (bot.target === "Yes" ? "READY" : "STANDBY") : bot.status}
                           size="sm"
                         />
                         {isInProgress && (
-                          <RefreshCw className="w-3 h-3 animate-spin text-amber-500 dark:text-amber-400" />
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500 dark:text-amber-400" />
                         )}
                       </div>
-                      <span className="text-[11px] font-mono text-slate-700 dark:text-slate-300 font-semibold">
-                        {bot.cases_found} Cases Found
-                      </span>
                     </div>
 
-                    {/* Action Time Bar */}
+                    {/* Action Time Duration */}
                     {pTiming?.duration_seconds && (
-                      <div className="pt-2 text-[10px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Action Time:
+                      <div className="pt-2 text-[10px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80">
+                        <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                          <Clock className="w-3 h-3 text-indigo-500" /> Duration:
                         </span>
                         <strong className="text-slate-800 dark:text-slate-200">{pTiming.duration_seconds}s</strong>
                       </div>
                     )}
 
-                    {/* Interactive Quick Action Buttons */}
+                    {/* Interactive Action Buttons */}
                     {!isPdfExport && (
-                      <div className="no-print pt-2 border-t border-slate-200 dark:border-slate-800/80 flex items-center gap-1.5">
+                      <div className="no-print pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-1.5">
                         <button
                           onClick={() => handleRunSingleBot(bot.name)}
                           disabled={isInProgress || !!runningBotKey}
@@ -2142,10 +2255,10 @@ export default function ClaimDetailPage() {
                           <span>View Full</span>
                         </button>
                         <button
-                          onClick={() => handleRunSingleBot(shot.portal_name)}
-                          disabled={isRunningThis || !!runningBotKey}
+                          onClick={() => handleRunSingleBot(shot.portal_name || shot.portal_key || "")}
+                          disabled={isRunningThis || !!runningBotKey || (!shot.portal_name && !shot.portal_key)}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                          title={`Retry ${shot.portal_name} scraper`}
+                          title={`Retry ${shot.portal_name || shot.portal_key || "portal"} scraper`}
                         >
                           <Play className={`w-3 h-3 ${isRunningThis ? "animate-spin" : ""}`} />
                           <span>{isRunningThis ? "Retrying..." : "Retry Portal"}</span>
@@ -2219,6 +2332,17 @@ export default function ClaimDetailPage() {
                     <Code className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                   )}
                   <span>{downloadingFormat === "json" ? "JSON..." : "JSON"}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    fetchScreenshots();
+                    setIsScreenshotsModalOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="View Bot Error Screenshots & Captures"
+                >
+                  <Camera className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+                  <span>Screenshots ({screenshots.length})</span>
                 </button>
               </div>
             )}
@@ -2428,7 +2552,17 @@ export default function ClaimDetailPage() {
                         </td>
                         <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
                           {(() => {
-                            const rawDate = courtCase.filing_date || courtCase.raw_payload?.FilingDate || courtCase.raw_payload?.filing_date || courtCase.raw_payload?.SuitFiledDate;
+                            const rawDate =
+                              courtCase.filing_date ||
+                              courtCase.raw_payload?.FilingDate ||
+                              courtCase.raw_payload?.filing_date ||
+                              courtCase.raw_payload?.["Filing Date"] ||
+                              courtCase.raw_payload?.SuitFiledDate ||
+                              courtCase.raw_payload?.suit_filed_date ||
+                              courtCase.raw_payload?.DateFiled ||
+                              courtCase.raw_payload?.date_filed ||
+                              courtCase.raw_payload?.Filed ||
+                              courtCase.raw_payload?.filed;
                             return rawDate ? formatDate(rawDate) : "-";
                           })()}
                         </td>
@@ -2439,7 +2573,7 @@ export default function ClaimDetailPage() {
                         </td>
                         <td className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                           <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            {courtCase.case_type || "CIVIL"}
+                            {courtCase.case_type || "—"}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap no-print">
@@ -2457,6 +2591,13 @@ export default function ClaimDetailPage() {
                               title="Inspect raw payload JSON"
                             >
                               <Code className="w-3 h-3" /> JSON
+                            </button>
+                            <button
+                              onClick={() => handleViewCaseScreenshot(courtCase)}
+                              className="px-2 py-1 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                              title="View browser capture or error screenshot"
+                            >
+                              <Camera className="w-3 h-3" /> Screenshot
                             </button>
                             {courtCase.source_url && (
                               <a
@@ -2615,7 +2756,17 @@ export default function ClaimDetailPage() {
                                 </td>
                                 <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {(() => {
-                                    const rawDate = courtCase.filing_date || courtCase.raw_payload?.FilingDate || courtCase.raw_payload?.filing_date || courtCase.raw_payload?.SuitFiledDate;
+                                    const rawDate =
+                                      courtCase.filing_date ||
+                                      courtCase.raw_payload?.FilingDate ||
+                                      courtCase.raw_payload?.filing_date ||
+                                      courtCase.raw_payload?.["Filing Date"] ||
+                                      courtCase.raw_payload?.SuitFiledDate ||
+                                      courtCase.raw_payload?.suit_filed_date ||
+                                      courtCase.raw_payload?.DateFiled ||
+                                      courtCase.raw_payload?.date_filed ||
+                                      courtCase.raw_payload?.Filed ||
+                                      courtCase.raw_payload?.filed;
                                     return rawDate ? formatDate(rawDate) : "-";
                                   })()}
                                 </td>
@@ -2626,7 +2777,7 @@ export default function ClaimDetailPage() {
                                 </td>
                                 <td className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                    {courtCase.case_type || "CIVIL"}
+                                    {courtCase.case_type || "—"}
                                   </span>
                                 </td>
                                 {!isPdfExport && (
@@ -2645,6 +2796,13 @@ export default function ClaimDetailPage() {
                                         title="Inspect raw payload JSON"
                                       >
                                         <Code className="w-3 h-3" /> JSON
+                                      </button>
+                                      <button
+                                        onClick={() => handleViewCaseScreenshot(courtCase)}
+                                        className="px-2 py-1 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                                        title="View browser capture or error screenshot"
+                                      >
+                                        <Camera className="w-3 h-3" /> Screenshot
                                       </button>
                                       {courtCase.source_url && (
                                         <a
@@ -3109,7 +3267,7 @@ export default function ClaimDetailPage() {
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
                   <span className="text-slate-500 block text-[11px]">Case Type / Classification</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">{selectedCaseForModal.case_type || "CIRCUIT CIVIL"}</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{selectedCaseForModal.case_type || "—"}</span>
                 </div>
               </div>
 
@@ -3129,12 +3287,20 @@ export default function ClaimDetailPage() {
             </div>
 
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <button
-                onClick={() => setRawJsonCaseForModal(selectedCaseForModal.raw_payload || selectedCaseForModal)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <Code className="w-3 h-3" /> View Raw JSON
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setRawJsonCaseForModal(selectedCaseForModal.raw_payload || selectedCaseForModal)}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Code className="w-3 h-3" /> View Raw JSON
+                </button>
+                <button
+                  onClick={() => handleViewCaseScreenshot(selectedCaseForModal)}
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Camera className="w-3 h-3" /> View Screenshot
+                </button>
+              </div>
               <button
                 onClick={() => setSelectedCaseForModal(null)}
                 className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 cursor-pointer"
@@ -3399,6 +3565,129 @@ export default function ClaimDetailPage() {
         </div>
       )}
 
+      {/* Bot Error Screenshots Gallery Modal */}
+      {isScreenshotsModalOpen && (
+        <div className="no-print fixed inset-0 z-50 bg-slate-950/70 dark:bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-4xl w-full max-h-[88vh] flex flex-col p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Camera className="w-5 h-5 text-rose-500 dark:text-rose-400" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Bot Error Screenshots & Inspection Captures
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {screenshots.length} screenshot{screenshots.length === 1 ? "" : "s"} captured for Claim {claim?.claim_number}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => fetchScreenshots()}
+                  disabled={isLoadingScreenshots}
+                  className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="Refresh screenshots"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingScreenshots ? "animate-spin text-indigo-500" : ""}`} />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  onClick={() => setIsScreenshotsModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1">
+              {isLoadingScreenshots ? (
+                <div className="py-16 flex flex-col items-center justify-center text-slate-500">
+                  <RefreshCw className="w-8 h-8 animate-spin text-rose-500 mb-2" />
+                  <p className="text-sm font-medium">Loading error screenshots...</p>
+                </div>
+              ) : screenshots.length === 0 ? (
+                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
+                  <Camera className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No Error Screenshots Recorded</p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    All bot scraper operations completed cleanly or no failure captures were logged for this claim.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {screenshots.map((sc) => {
+                    const portalTitle = sc.portal_name || sc.portal || sc.county || "Unknown Portal";
+                    return (
+                      <div
+                        key={sc.id}
+                        className="group bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col"
+                      >
+                        <div
+                          className="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer"
+                          onClick={() => setSelectedScreenshotModal(sc)}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={sc.image_url}
+                            alt={`Capture for ${portalTitle}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <span className="px-2.5 py-1 rounded bg-black/70 text-white text-xs font-semibold flex items-center gap-1">
+                              <ZoomIn className="w-3.5 h-3.5" /> Inspect
+                            </span>
+                          </div>
+                        </div>
+                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-semibold text-xs text-slate-900 dark:text-slate-100 truncate">
+                                {portalTitle}
+                              </span>
+                              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                                {sc.attempt_number ? `Att #${sc.attempt_number}` : "Error"}
+                              </span>
+                            </div>
+                            {(sc.exception_message || sc.error_message) && (
+                              <p className="text-[11px] text-rose-600 dark:text-rose-400 line-clamp-2 mt-1 font-mono">
+                                {sc.exception_message || sc.error_message}
+                              </p>
+                            )}
+                          </div>
+                          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                            <span>{sc.created_at ? new Date(sc.created_at).toLocaleTimeString() : ""}</span>
+                            <button
+                              onClick={() => setSelectedScreenshotModal(sc)}
+                              className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
+                            >
+                              View Full <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Click any capture thumbnail to open the high-resolution diagnostic lightbox.
+              </span>
+              <button
+                onClick={() => setIsScreenshotsModalOpen(false)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Full-Screen Screenshot Lightbox Modal */}
       {selectedScreenshotModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 md:p-6 animate-in fade-in duration-200">
@@ -3471,7 +3760,7 @@ export default function ClaimDetailPage() {
                 </button>
                 <button
                   onClick={() => {
-                    handleRunSingleBot(selectedScreenshotModal.portal_name);
+                    handleRunSingleBot(selectedScreenshotModal.portal_name || selectedScreenshotModal.portal_key || "");
                     setSelectedScreenshotModal(null);
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
