@@ -82,6 +82,14 @@ async def init_db() -> None:
         except Exception:
             pass
         try:
+            await conn.execute(text("ALTER TABLE claim_records ADD COLUMN created_by VARCHAR(100) DEFAULT 'system'"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE claim_records ADD COLUMN modified_by VARCHAR(100) DEFAULT 'system'"))
+        except Exception:
+            pass
+        try:
             await conn.execute(text("ALTER TABLE error_screenshots ADD COLUMN storage_provider VARCHAR(50) DEFAULT 'local'"))
         except Exception:
             pass

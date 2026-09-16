@@ -1832,7 +1832,7 @@ export default function QueueMonitorPage() {
         </div>
       )}
 
-      {/* Background Celery Streaming Export Modal (§55) */}
+      {/* Background Celery Streaming Export Modal */}
       <AsyncExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}

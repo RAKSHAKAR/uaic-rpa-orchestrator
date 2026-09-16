@@ -26,6 +26,7 @@ import {
   AuditLogListResponse,
   AuditLogStats,
   AuditLogQueryParams,
+  ClaimCombinedLogsResponse,
   FileValidationResult,
   EmailConnectionTestRequest,
   EmailConnectionTestResponse,
@@ -538,6 +539,11 @@ export const api = {
 
   getClaimAuditLogs: async (claimId: string): Promise<AuditLogEntry[]> => {
     const res = await apiClient.get(`/claims/${claimId}/audit-logs`);
+    return res.data;
+  },
+
+  getClaimCombinedLogs: async (claimId: string): Promise<ClaimCombinedLogsResponse> => {
+    const res = await apiClient.get(`/claims/${claimId}/combined-logs`);
     return res.data;
   },
 

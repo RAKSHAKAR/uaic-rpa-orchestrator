@@ -1,4 +1,4 @@
-"""Automated tests for asynchronous background claim dataset exports (§55)."""
+"""Automated tests for asynchronous background claim dataset exports."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

@@ -1616,7 +1616,13 @@ export default function DashboardPage() {
                         <StatusBadge status={claim.fuzzy_match_status} size="sm" />
                       </td>
                       <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]">
-                        {formatDate(claim.created_at)}
+                        <div className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(claim.created_at || claim.created_on)}
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 font-mono truncate max-w-[130px]" title={`Created by: ${claim.created_by || "system"}`}>
+                          <span className="text-[9px] uppercase font-semibold text-slate-400 dark:text-slate-500">by</span>
+                          <span className="truncate text-indigo-600 dark:text-indigo-400 font-semibold">{claim.created_by || "system"}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <Link
@@ -1666,6 +1672,13 @@ export default function DashboardPage() {
                       <span className="text-slate-400 dark:text-slate-500 block text-[10px]">Claimant</span>
                       <span className="font-medium truncate block">{claim.claimant_name || "-"}</span>
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                    <span>{formatDate(claim.created_at || claim.created_on)}</span>
+                    <span className="font-mono text-indigo-600 dark:text-indigo-400 truncate max-w-[120px]">
+                      by {claim.created_by || "system"}
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-xs">
@@ -1733,7 +1746,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* High-Volume Background Dataset Export Modal (§55) */}
+        {/* High-Volume Background Dataset Export Modal */}
         <AsyncExportModal
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}

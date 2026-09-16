@@ -1,4 +1,4 @@
-"""Asynchronous Celery export tasks for large claim datasets (§55).
+"""Asynchronous Celery export tasks for large claim datasets.
 
 Generates CSV, Excel (.xlsx), and JSON exports in the background, updates
 task execution progress, and persists exports for operator retrieval.

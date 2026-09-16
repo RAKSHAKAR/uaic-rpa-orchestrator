@@ -297,9 +297,18 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 remove_active_queue_item_id(claim.id)
                 if is_auto_queue_enabled():
                     celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+        if positive_matches:
+            claim.record_status = RecordStatusEnum.COMPLETED if dispatch_mode == "direct_system" else RecordStatusEnum.MATCH_FOUND
+            claim.fuzzy_match_status = FuzzyMatchStatusEnum.COMPLETED
+            claim.modified_by = "worker:fuzzy_matcher"
+            total_sec = timings.get("total_scraping_seconds", 0.0) + fuzzy_duration
+            claim.total_duration_seconds = round(total_sec, 2)
+            await session.commit()
+            logger.info(f"Claim {claim.claim_number}: {len(positive_matches)} positive matches confirmed.")
         elif borderline_matches:
             claim.record_status = RecordStatusEnum.MANUAL_REVIEW
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.PENDING_REVIEW
+            claim.modified_by = "worker:fuzzy_matcher"
             total_sec = timings.get("total_scraping_seconds", 0.0) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
@@ -307,6 +316,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
         else:
             claim.record_status = RecordStatusEnum.NO_MATCH_FOUND
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.NO_MATCH_FOUND
+            claim.modified_by = "worker:fuzzy_matcher"
             total_sec = timings.get("total_scraping_seconds", 0.0) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
@@ -404,6 +414,7 @@ async def _async_notify_guidewire(claim_id: str):
             "detail": "Dispatched to Guidewire API" if gw_res.get("success") else str(gw_res.get("error")),
         }
 
+        claim.modified_by = "worker:guidewire_sync"
         if gw_res.get("success"):
             claim.record_status = RecordStatusEnum.COMPLETED
             resp = gw_res.get("response", {})

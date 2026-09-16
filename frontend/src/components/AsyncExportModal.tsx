@@ -139,7 +139,7 @@ export function AsyncExportModal({
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                Export Claims Dataset (§55)
+                Export Claims Dataset
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 High-volume streaming export via background worker

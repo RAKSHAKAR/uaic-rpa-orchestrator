@@ -30,11 +30,14 @@ from app.schemas.claim import (
     BotStatusDetail,
     BulkActionRequest,
     BulkActionResponse,
+    ClaimCombinedLogsResponse,
     ClaimCreate,
     ClaimListResponse,
     ClaimResponse,
     ClaimUpdate,
     CleanDatabaseResponse,
+    ExceptionLogEntry,
+    ProcessingLogEntry,
 )
 from app.scripts.clean_history import clear_database_records, purge_redis_queues
 from app.services.audit_service import (
@@ -294,6 +297,10 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
         last_error=claim.last_error,
         action_timings=_normalize_action_timings(claim.action_timings),
         total_duration_seconds=claim.total_duration_seconds,
+        created_by=getattr(claim, "created_by", None) or "system",
+        modified_by=getattr(claim, "modified_by", None) or "system",
+        created_on=claim.created_at,
+        modified_on=claim.updated_at,
         created_at=claim.created_at,
         updated_at=claim.updated_at,
     )
@@ -394,6 +401,8 @@ async def create_claim(
 
     # Automatically resolve county bot targets if not explicitly set
     targets = resolve_county_bot_targets(payload.policy_state, payload.loss_location_state)
+    ctx = extract_client_context(request)
+    creator_email = payload.created_by or ctx["user_email"] or "user"
     
     claim = ClaimRecord(
         claim_number=payload.claim_number.strip(),
@@ -410,6 +419,8 @@ async def create_claim(
         policy_state=payload.policy_state,
         record_status=RecordStatusEnum.NEW,
         fuzzy_match_status=FuzzyMatchStatusEnum.NEW,
+        created_by=creator_email,
+        modified_by=creator_email,
         fl_website_broward=payload.fl_website_broward or targets["fl_broward"],
         fl_website_hillsborough=payload.fl_website_hillsborough or targets["fl_hillsborough"],
         fl_website_miami=payload.fl_website_miami or targets["fl_miami"],
@@ -422,8 +433,6 @@ async def create_claim(
     db.add(claim)
     await db.commit()
     await db.refresh(claim)
-
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="CLAIM_CREATED",
@@ -622,7 +631,7 @@ class AsyncExportRequest(BaseModel):
 
 @router.post("/export-async")
 async def trigger_async_export(payload: AsyncExportRequest):
-    """Trigger background Celery export task for large claim datasets (§55)."""
+    """Trigger background Celery export task for large claim datasets."""
     filters = {
         "status": payload.status,
         "state": payload.state,
@@ -839,15 +848,17 @@ async def bulk_update_claim_status(
     if not payload.claim_ids or not payload.status:
         raise HTTPException(status_code=400, detail="Both claim_ids and status are required.")
     
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
     query = select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
     res = await db.execute(query)
     claims_to_update = res.scalars().all()
     count = len(claims_to_update)
     for c in claims_to_update:
         c.record_status = payload.status
+        c.modified_by = modifier_email
     await db.commit()
 
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="BULK_STATUS_CHANGED",
@@ -882,6 +893,8 @@ async def bulk_start_claims(
             detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers."
         )
 
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
     query = select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
     res = await db.execute(query)
     claims = res.scalars().all()
@@ -889,6 +902,7 @@ async def bulk_start_claims(
     for c in claims:
         c.record_status = RecordStatusEnum.NEW
         c.retry_count += 1
+        c.modified_by = modifier_email
         celery_app.send_task(
             "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
             args=[c.id],
@@ -897,7 +911,6 @@ async def bulk_start_claims(
         count += 1
     await db.commit()
 
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="BULK_AUTOMATION_STARTED",
@@ -925,6 +938,8 @@ async def bulk_retry_claims(
     if not payload.claim_ids:
         return BulkActionResponse(success=True, affected_count=0, message="No claim IDs provided.")
 
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
     query = select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
     res = await db.execute(query)
     claims = res.scalars().all()
@@ -932,6 +947,7 @@ async def bulk_retry_claims(
     for c in claims:
         c.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
         c.retry_count += 1
+        c.modified_by = modifier_email
         celery_app.send_task(
             "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
             args=[c.id, None, payload.failed_portals_only],
@@ -991,15 +1007,16 @@ async def update_claim(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim record not found")
 
+    ctx = extract_client_context(request)
+    modifier_email = payload.modified_by or ctx["user_email"] or "user"
     update_data = payload.model_dump(exclude_unset=True)
     for field, val in update_data.items():
         if val is not None:
             setattr(claim, field, val)
+    claim.modified_by = modifier_email
 
     await db.commit()
     await db.refresh(claim)
-
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="CLAIM_UPDATED",
@@ -1076,11 +1093,13 @@ async def start_single_claim(
             detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scraper."
         )
 
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
     claim.record_status = RecordStatusEnum.NEW
     claim.retry_count += 1
+    claim.modified_by = modifier_email
     await db.commit()
 
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="AUTOMATION_STARTED",
@@ -1118,8 +1137,11 @@ async def stop_single_claim(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim record not found")
 
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
     claim.record_status = RecordStatusEnum.FAILED
     claim.last_error = "Cancelled by user"
+    claim.modified_by = modifier_email
     await db.commit()
 
     ctx = extract_client_context(request)
@@ -1156,6 +1178,8 @@ async def push_claim_to_guidewire(
         raise HTTPException(status_code=404, detail="Claim record not found")
 
     ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
+    claim.modified_by = modifier_email
     await log_audit_event_async(
         session=db,
         action="GUIDEWIRE_PUSHED",
@@ -1211,6 +1235,9 @@ async def run_single_bot(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim record not found")
 
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
+
     # Update individual bot status to IN_PROGRESS and mark claim
     from app.models.claim import BotStatusEnum
     if b_key == "all":
@@ -1220,9 +1247,9 @@ async def run_single_bot(
     else:
         setattr(claim, valid_bots[b_key], BotStatusEnum.IN_PROGRESS)
     claim.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
+    claim.modified_by = modifier_email
     await db.commit()
 
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="SINGLE_BOT_TRIGGERED",
@@ -1291,11 +1318,13 @@ async def retry_failed_portals(
             "retried_portals": [],
         }
 
+    ctx = extract_client_context(request)
+    modifier_email = ctx["user_email"] or "user"
     claim.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
     claim.retry_count += 1
+    claim.modified_by = modifier_email
     await db.commit()
 
-    ctx = extract_client_context(request)
     await log_audit_event_async(
         session=db,
         action="FAILED_PORTALS_RETRIED",
@@ -1441,6 +1470,226 @@ async def get_claim_portal_log(claim_id: str, portal_key: str):
         return {"claim_id": claim_id, "portal_key": portal_key, "log_text": log_text, "exists": True}
     except Exception as e:
         return {"claim_id": claim_id, "portal_key": portal_key, "log_text": f"Error reading log: {e}", "exists": False}
+
+
+@router.get("/{claim_id}/combined-logs", response_model=ClaimCombinedLogsResponse, summary="Get combined audit, processing, and exception logs for claim")
+async def get_claim_combined_logs(
+    claim_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve comprehensive unified logs for a claim including:
+    - Provenance: created_on, created_by, modified_on, modified_by
+    - Audit Trail: full history of user and system events
+    - Processing Logs: chronological timeline of automation pipeline stages, Celery tasks, and portal actions
+    - Exception Logs: detailed errors with stack traces, failing portal, failing stage, and error screenshots
+    - Portal Logs: raw terminal logs per county court portal
+    """
+    query = select(ClaimRecord).where(ClaimRecord.id == claim_id)
+    claim = (await db.execute(query)).scalar_one_or_none()
+    if not claim:
+        query = select(ClaimRecord).where(ClaimRecord.claim_number == claim_id)
+        claim = (await db.execute(query)).scalar_one_or_none()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim record not found")
+
+    # 1. Fetch Audit Logs
+    audit_query = (
+        select(AuditLog)
+        .where(
+            or_(
+                AuditLog.entity_id == claim.id,
+                AuditLog.claim_number == claim.claim_number,
+                AuditLog.entity_id == claim.claim_number,
+                AuditLog.claim_number == claim.id,
+                AuditLog.entity_id == claim_id,
+                AuditLog.claim_number == claim_id,
+            )
+        )
+        .order_by(AuditLog.timestamp.asc())
+    )
+    res_audit = await db.execute(audit_query)
+    audit_entries = res_audit.scalars().all()
+    audit_responses = [AuditLogResponse.model_validate(e) for e in audit_entries]
+
+    # 2. Fetch Screenshots for visual exception diagnostics
+    ss_query = (
+        select(ErrorScreenshot)
+        .where(ErrorScreenshot.claim_id == claim.id)
+        .order_by(ErrorScreenshot.created_at.asc())
+    )
+    res_ss = await db.execute(ss_query)
+    ss_records = res_ss.scalars().all()
+
+    # 3. Build Processing Logs from creation + audit trail + action timings
+    processing_logs: list[ProcessingLogEntry] = []
+
+    # Record registration event
+    processing_logs.append(
+        ProcessingLogEntry(
+            timestamp=claim.created_at.isoformat() if claim.created_at else None,
+            level="INFO",
+            stage="ingest",
+            portal_key=None,
+            message=f"Claim {claim.claim_number} registered in system by {claim.created_by or 'system'}",
+            actor=claim.created_by or "system",
+            details={
+                "batch_id": claim.batch_id,
+                "policy_state": claim.policy_state,
+                "loss_location_state": claim.loss_location_state,
+            },
+        )
+    )
+
+    # Process events from AuditLog entries
+    for a in audit_entries:
+        level = "ERROR" if a.status in ("FAILURE", "FAILED") else ("WARNING" if a.status in ("WARNING", "MANUAL_REVIEW") else "INFO")
+        stage = None
+        portal_key = None
+        if isinstance(a.details, dict):
+            portal_key = a.details.get("portal_key") or a.details.get("portal")
+            stage = a.details.get("stage")
+
+        if not stage:
+            act = a.action.lower()
+            if "ingest" in act or "create" in act:
+                stage = "ingest"
+            elif "scrap" in act or "bot" in act or "browser" in act:
+                stage = "scraping"
+            elif "fuzzy" in act or "match" in act:
+                stage = "fuzzy_matching"
+            elif "guidewire" in act:
+                stage = "guidewire_trigger"
+            else:
+                stage = "orchestrator"
+
+        processing_logs.append(
+            ProcessingLogEntry(
+                timestamp=a.timestamp.isoformat() if a.timestamp else None,
+                level=level,
+                stage=stage,
+                portal_key=portal_key,
+                message=a.description,
+                actor=a.user_email or a.user_id or "system",
+                details=a.details if isinstance(a.details, dict) else None,
+            )
+        )
+
+    # Add stages from claim.action_timings if available
+    if claim.action_timings and isinstance(claim.action_timings, dict):
+        stages = claim.action_timings.get("stages", {})
+        if isinstance(stages, dict):
+            for s_key, s_val in stages.items():
+                if isinstance(s_val, dict):
+                    processing_logs.append(
+                        ProcessingLogEntry(
+                            timestamp=s_val.get("start_time"),
+                            level="ERROR" if s_val.get("status") == "FAILED" else "INFO",
+                            stage=s_key,
+                            portal_key=None,
+                            message=f"Stage '{s_val.get('name', s_key)}' {s_val.get('status', 'COMPLETED')} ({s_val.get('duration_seconds', 0)}s): {s_val.get('detail', '')}",
+                            actor="worker:scrapers",
+                            details=s_val,
+                        )
+                    )
+
+    # 4. Build Exception Logs
+    exception_logs: list[ExceptionLogEntry] = []
+
+    # Exceptions from Screenshots
+    for ss in ss_records:
+        exception_logs.append(
+            ExceptionLogEntry(
+                id=ss.id,
+                timestamp=ss.created_at.isoformat() if ss.created_at else None,
+                portal_key=ss.portal_key,
+                portal_name=ss.portal_name,
+                exception_type="BrowserExecutionError",
+                message=ss.exception_message or "Scraper error captured in browser",
+                stack_trace=None,
+                page_url=ss.page_url,
+                screenshot_url=f"/api/v1/claims/{claim.id}/screenshots/{ss.id}/image",
+                attempt_number=ss.attempt_number or 1,
+            )
+        )
+
+    # Exceptions from AuditLog (FAILED / ERROR)
+    for a in audit_entries:
+        if a.status in ("FAILURE", "FAILED") or "EXCEPTION" in a.action or "FAIL" in a.action:
+            stack_trace = None
+            portal_key = None
+            portal_name = None
+            ex_type = a.action
+            if isinstance(a.details, dict):
+                stack_trace = a.details.get("traceback") or a.details.get("stack_trace")
+                portal_key = a.details.get("portal_key")
+                portal_name = a.details.get("portal_name")
+                ex_type = a.details.get("exception_type", a.action)
+
+            # Avoid exact duplicates if screenshot already captured this
+            if not any(el.portal_key == portal_key and el.message == a.description for el in exception_logs):
+                exception_logs.append(
+                    ExceptionLogEntry(
+                        id=f"audit-{a.id}",
+                        timestamp=a.timestamp.isoformat() if a.timestamp else None,
+                        portal_key=portal_key,
+                        portal_name=portal_name,
+                        exception_type=ex_type,
+                        message=(a.details.get("error_message") if isinstance(a.details, dict) and a.details.get("error_message") else a.description) or "Error logged in audit trail",
+                        stack_trace=stack_trace,
+                        page_url=None,
+                        screenshot_url=None,
+                        attempt_number=None,
+                    )
+                )
+
+    # If claim.last_error exists and no exception captured yet
+    if claim.last_error and not exception_logs:
+        exception_logs.append(
+            ExceptionLogEntry(
+                id=f"err-{claim.id}",
+                timestamp=claim.updated_at.isoformat() if claim.updated_at else None,
+                portal_key=None,
+                portal_name=None,
+                exception_type="ClaimExecutionError",
+                message=claim.last_error,
+                stack_trace=None,
+                page_url=None,
+                screenshot_url=None,
+                attempt_number=claim.retry_count,
+            )
+        )
+
+    # 5. Read all portal terminal logs
+    portal_logs: dict[str, str] = {}
+    claim_logs_dir = settings.LOGS_DIR / str(claim.id)
+    if claim_logs_dir.exists() and claim_logs_dir.is_dir():
+        for p_dir in claim_logs_dir.iterdir():
+            if p_dir.is_dir():
+                log_file = p_dir / "execution.log"
+                if log_file.exists():
+                    try:
+                        with open(log_file, encoding="utf-8", errors="replace") as lf:
+                            portal_logs[p_dir.name] = lf.read()
+                    except Exception as e:
+                        portal_logs[p_dir.name] = f"Error reading log file: {e}"
+
+    return ClaimCombinedLogsResponse(
+        claim_id=claim.id,
+        claim_number=claim.claim_number,
+        created_at=claim.created_at,
+        created_on=claim.created_at,
+        created_by=claim.created_by or "system",
+        updated_at=claim.updated_at,
+        modified_on=claim.updated_at,
+        modified_by=claim.modified_by or "system",
+        total_duration_seconds=claim.total_duration_seconds,
+        record_status=claim.record_status,
+        fuzzy_match_status=claim.fuzzy_match_status,
+        audit_logs=audit_responses,
+        processing_logs=processing_logs,
+        exception_logs=exception_logs,
+        portal_logs=portal_logs,
+    )
 
 
 @router.get("/{claim_id}/export")

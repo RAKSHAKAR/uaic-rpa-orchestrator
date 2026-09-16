@@ -251,9 +251,14 @@ async def _async_orchestrate_scrapers(
         try:
             await log_audit_event_async(
                 session=session,
-                claim_id=claim.id,
-                claim_number=claim.claim_number,
                 action="UNIQUE_NAMES_EXTRACTED",
+                entity_type="CLAIM",
+                description=f"Extracted {len(unique_name_items)} unique search target(s) for claim '{claim.claim_number}'.",
+                entity_id=claim.id,
+                claim_number=claim.claim_number,
+                user_id="celery_worker",
+                user_email="orchestrator@system.local",
+                status="SUCCESS",
                 details={
                     "claim_number": claim.claim_number,
                     "unique_count": len(unique_name_items),
@@ -338,6 +343,7 @@ async def _async_orchestrate_scrapers(
                         "cases_found": 0,
                         "status": "IN_PROGRESS",
                     })
+                claim.modified_by = "worker:scrapers"
                 await session.commit()
 
                 try:
@@ -524,9 +530,36 @@ async def _async_orchestrate_scrapers(
                             # Mark portal FAILED but continue processing other portals for this name
                             setattr(claim, status_attr, BotStatusEnum.FAILED)
                             claim.last_error = f"{name} scraping failure on '{party_label}': {e!s}"
+                            claim.modified_by = "worker:scrapers"
                             portal_timings[name]["status"] = "FAILED"
                             portal_timings[name]["error"] = str(e)
                             append_portal_execution_log(claim.id, name, f"Error during party search: {e}", level="ERROR")
+
+                            # Log structured exception audit event
+                            try:
+                                import traceback
+                                await log_audit_event_async(
+                                    session=session,
+                                    action="PORTAL_SCRAPING_EXCEPTION",
+                                    entity_type="CLAIM",
+                                    description=f"{scraper.county_name} scraper failure on party '{party_label}': {e}",
+                                    entity_id=claim.id,
+                                    claim_number=claim.claim_number,
+                                    user_id="celery_worker",
+                                    user_email="worker:scrapers",
+                                    status="FAILURE",
+                                    details={
+                                        "portal_key": name,
+                                        "portal_name": scraper.county_name,
+                                        "party": party_label,
+                                        "party_name": f"{f_name} {l_name}".strip(),
+                                        "error": str(e),
+                                        "exception_type": type(e).__name__,
+                                        "traceback": traceback.format_exc(),
+                                    },
+                                )
+                            except Exception as e_aud_p:
+                                logger.warning(f"Could not log audit exception for portal {name}: {e_aud_p}")
 
                             # Auto-capture error screenshot
                             tab = browser_session.tabs.get(name)
@@ -615,6 +648,7 @@ async def _async_orchestrate_scrapers(
                 getattr(claim, s[2]) in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED) for s in all_bot_list
             )
             claim.record_status = RecordStatusEnum.FAILED if has_failed_portals else RecordStatusEnum.SCRAPING_COMPLETED
+            claim.modified_by = "worker:scrapers"
             try:
                 await log_audit_event_async(
                     session=session,
@@ -624,7 +658,7 @@ async def _async_orchestrate_scrapers(
                     entity_id=claim.id,
                     claim_number=claim.claim_number,
                     user_id="celery_worker",
-                    user_email="orchestrator@system.local",
+                    user_email="worker:scrapers",
                     status="SUCCESS" if not has_failed_portals else "FAILED",
                     details={
                         "portals_executed": [s[0] for s in scrapers_to_run],
@@ -663,10 +697,12 @@ async def _async_orchestrate_scrapers(
             logger.error(f"Browser automation session failure for Claim {claim.claim_number}: {session_exc}", exc_info=True)
             claim.record_status = RecordStatusEnum.FAILED
             claim.last_error = f"Browser session failure: {session_exc!s}"
+            claim.modified_by = "worker:scrapers"
             for name, scraper, status_attr, json_attr in scrapers_to_run:
                 if getattr(claim, status_attr) == BotStatusEnum.IN_PROGRESS:
                     setattr(claim, status_attr, BotStatusEnum.FAILED)
             try:
+                import traceback
                 await log_audit_event_async(
                     session=session,
                     action="SCRAPING_SESSION_FAILED",
@@ -675,9 +711,13 @@ async def _async_orchestrate_scrapers(
                     entity_id=claim.id,
                     claim_number=claim.claim_number,
                     user_id="celery_worker",
-                    user_email="orchestrator@system.local",
+                    user_email="worker:scrapers",
                     status="FAILED",
-                    details={"error": str(session_exc)},
+                    details={
+                        "error": str(session_exc),
+                        "exception_type": type(session_exc).__name__,
+                        "traceback": traceback.format_exc(),
+                    },
                 )
             except Exception as e_aud:
                 logger.warning(f"Could not log audit event for scraper session failure: {e_aud}")

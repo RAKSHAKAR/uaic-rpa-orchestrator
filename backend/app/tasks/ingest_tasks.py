@@ -57,6 +57,7 @@ async def _async_parse_and_ingest(
                 batch.mapping_config = column_mapping
 
             created_claims = []
+            uploader_identity = batch.filename if batch and batch.filename else "excel_ingestion"
             for row in norm_result["records_to_insert"]:
                 targets = resolve_county_bot_targets(
                     row.get("Policy State") or row.get("policy_state"),
@@ -78,6 +79,8 @@ async def _async_parse_and_ingest(
                     loss_location_state=row.get("Loss Location State") or row.get("loss_location_state"),
                     policy_state=row.get("Policy State") or row.get("policy_state"),
                     record_status=RecordStatusEnum.NEW,
+                    created_by=uploader_identity,
+                    modified_by="system:ingestion",
                     
                     # Target flags
                     fl_website_broward=targets["fl_broward"],
@@ -114,6 +117,7 @@ async def _async_parse_and_ingest(
                     target_claim.loss_location_state = row.get("Loss Location State") or row.get("loss_location_state")
                     target_claim.policy_state = row.get("Policy State") or row.get("policy_state")
                     target_claim.record_status = RecordStatusEnum.NEW
+                    target_claim.modified_by = f"system:batch_update:{uploader_identity}"
                     target_claim.fl_website_broward = targets["fl_broward"]
                     target_claim.fl_website_hillsborough = targets["fl_hillsborough"]
                     target_claim.fl_website_miami = targets["fl_miami"]
@@ -124,6 +128,42 @@ async def _async_parse_and_ingest(
                     target_claim.te_website_hcdistrict = targets["te_hcdistrict"]
                     updated_claims.append(target_claim)
 
+            await session.commit()
+
+            # Record audit log for claims ingested
+            from app.services.audit_service import log_audit_event_async
+            for claim in created_claims:
+                try:
+                    await log_audit_event_async(
+                        session=session,
+                        action="CLAIM_CREATED",
+                        entity_type="CLAIM",
+                        description=f"Claim '{claim.claim_number}' ingested from '{uploader_identity}'.",
+                        entity_id=claim.id,
+                        claim_number=claim.claim_number,
+                        user_id=uploader_identity,
+                        user_email=f"{uploader_identity}@ingest.local",
+                        status="SUCCESS",
+                        details={"batch_id": batch_id, "source": uploader_identity},
+                    )
+                except Exception:
+                    pass
+            for claim in updated_claims:
+                try:
+                    await log_audit_event_async(
+                        session=session,
+                        action="CLAIM_MODIFIED",
+                        entity_type="CLAIM",
+                        description=f"Claim '{claim.claim_number}' updated from batch '{uploader_identity}'.",
+                        entity_id=claim.id,
+                        claim_number=claim.claim_number,
+                        user_id=uploader_identity,
+                        user_email=f"{uploader_identity}@ingest.local",
+                        status="SUCCESS",
+                        details={"batch_id": batch_id, "source": uploader_identity},
+                    )
+                except Exception:
+                    pass
             await session.commit()
 
             all_active_claims = created_claims + updated_claims

@@ -99,7 +99,11 @@ export interface Claim {
   action_timings?: Record<string, any>;
   total_duration_seconds?: number;
   created_at: string;
+  created_on?: string;
+  created_by?: string;
   updated_at: string;
+  modified_on?: string;
+  modified_by?: string;
 }
 
 export interface ClaimStats {
@@ -622,6 +626,44 @@ export interface AuditLogQueryParams {
   end_date?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
+}
+
+export interface ProcessingLogEntry {
+  timestamp?: string | null;
+  level: string;
+  stage?: string | null;
+  portal_key?: string | null;
+  message: string;
+  actor: string;
+  details?: Record<string, any> | null;
+}
+
+export interface ExceptionLogEntry {
+  id?: string | null;
+  timestamp?: string | null;
+  portal_key?: string | null;
+  portal_name?: string | null;
+  exception_type?: string | null;
+  message: string;
+  stack_trace?: string | null;
+  page_url?: string | null;
+  screenshot_url?: string | null;
+  attempt_number?: number | null;
+}
+
+export interface ClaimCombinedLogsResponse {
+  claim_id: string;
+  claim_number: string;
+  created_at?: string | null;
+  created_on?: string | null;
+  created_by: string;
+  updated_at?: string | null;
+  modified_on?: string | null;
+  modified_by: string;
+  audit_logs: AuditLogEntry[];
+  processing_logs: ProcessingLogEntry[];
+  exception_logs: ExceptionLogEntry[];
+  portal_logs: Record<string, string>;
 }
 
 export interface EmailSettings {

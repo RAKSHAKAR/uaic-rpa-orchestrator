@@ -104,6 +104,10 @@ class ClaimResponse(BaseModel):
     
     created_at: datetime
     updated_at: datetime
+    created_on: datetime | None = None
+    modified_on: datetime | None = None
+    created_by: str = "system"
+    modified_by: str = "system"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -114,6 +118,52 @@ class ClaimListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int = 1
+
+
+class ProcessingLogEntry(BaseModel):
+    timestamp: str | None = None
+    level: str = "INFO"
+    stage: str | None = None
+    portal_key: str | None = None
+    category: str | None = "orchestration"
+    message: str
+    actor: str = "system"
+    duration_seconds: float | None = None
+    details: dict[str, Any] | None = None
+
+
+class ExceptionLogEntry(BaseModel):
+    id: str | None = None
+    timestamp: str | None = None
+    stage: str | None = None
+    portal_key: str | None = None
+    portal_name: str | None = None
+    exception_type: str | None = None
+    message: str
+    exception_message: str | None = None
+    stack_trace: str | None = None
+    page_url: str | None = None
+    screenshot_id: str | None = None
+    screenshot_url: str | None = None
+    attempt_number: int | None = 1
+
+
+class ClaimCombinedLogsResponse(BaseModel):
+    claim_id: str
+    claim_number: str
+    created_at: datetime | None = None
+    created_on: datetime | None = None
+    created_by: str = "system"
+    updated_at: datetime | None = None
+    modified_on: datetime | None = None
+    modified_by: str = "system"
+    total_duration_seconds: float | None = None
+    record_status: RecordStatusEnum | None = None
+    fuzzy_match_status: FuzzyMatchStatusEnum | None = None
+    audit_logs: list[Any] = []
+    processing_logs: list[ProcessingLogEntry] = []
+    exception_logs: list[ExceptionLogEntry] = []
+    portal_logs: dict[str, str] = {}
 
 
 class ClaimCreate(BaseModel):
@@ -129,6 +179,8 @@ class ClaimCreate(BaseModel):
     dol: str | None = None
     loss_location_state: str | None = None
     policy_state: str | None = None
+    created_by: str | None = None
+    modified_by: str | None = None
     fl_website_broward: str | None = None
     fl_website_hillsborough: str | None = None
     fl_website_miami: str | None = None
@@ -154,6 +206,7 @@ class ClaimUpdate(BaseModel):
     policy_state: str | None = None
     record_status: RecordStatusEnum | None = None
     fuzzy_match_status: FuzzyMatchStatusEnum | None = None
+    modified_by: str | None = None
     fl_website_broward: str | None = None
     fl_website_hillsborough: str | None = None
     fl_website_miami: str | None = None

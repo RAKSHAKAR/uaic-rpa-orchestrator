@@ -163,6 +163,16 @@ class ClaimRecord(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_by: Mapped[str] = mapped_column(String(100), default="system", index=True)
+    modified_by: Mapped[str] = mapped_column(String(100), default="system", index=True)
+
+    @property
+    def created_on(self) -> datetime:
+        return self.created_at
+
+    @property
+    def modified_on(self) -> datetime:
+        return self.updated_at
 
     # Relationships
     batch: Mapped[IngestionBatch | None] = relationship("IngestionBatch", back_populates="claims", lazy="selectin")

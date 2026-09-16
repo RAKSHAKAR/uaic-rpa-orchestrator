@@ -151,40 +151,40 @@ def test_p4_004_exact_default_portal_urls():
     from app.schemas.settings import PortalsSettings
 
     p_schema = PortalsSettings()
-    assert settings.PORTAL_BROWARD_URL == "https://www.browardclerk.org/Web2"
-    assert p_schema.broward_url == "https://www.browardclerk.org/Web2"
+    assert settings.PORTAL_BROWARD_URL == "https://www.browardclerk.org/"
+    assert p_schema.broward_url == "https://www.browardclerk.org/"
 
-    assert settings.PORTAL_HILLSBOROUGH_URL == "https://hover.hillsclerk.com/html/caseSearch.html"
-    assert p_schema.hillsborough_url == "https://hover.hillsclerk.com/html/caseSearch.html"
+    assert settings.PORTAL_HILLSBOROUGH_URL == "https://hover.hillsclerk.com/"
+    assert p_schema.hillsborough_url == "https://hover.hillsclerk.com/"
 
-    assert settings.PORTAL_MIAMI_URL == "https://onlineservices.miami-dadeclerk.com/civil/"
-    assert p_schema.miami_url == "https://onlineservices.miami-dadeclerk.com/civil/"
+    assert settings.PORTAL_MIAMI_URL == "https://www2.miamidadeclerk.gov/ocs"
+    assert p_schema.miami_url == "https://www2.miamidadeclerk.gov/ocs"
 
-    assert settings.PORTAL_TRAVIS_URL == "https://odysseypa.traviscountytx.gov/CourtDirectorySearch/"
-    assert p_schema.travis_url == "https://odysseypa.traviscountytx.gov/CourtDirectorySearch/"
+    assert settings.PORTAL_TRAVIS_URL == "https://odysseyweb.traviscountytx.gov/Portal/"
+    assert p_schema.travis_url == "https://odysseyweb.traviscountytx.gov/Portal/"
 
-    assert settings.PORTAL_DALLAS_URL == "https://courtsportal.dallascounty.org/DALLASPROD/"
-    assert p_schema.dallas_url == "https://courtsportal.dallascounty.org/DALLASPROD/"
+    assert settings.PORTAL_DALLAS_URL == "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
+    assert p_schema.dallas_url == "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
 
-    assert settings.PORTAL_HARRIS_JP_URL == "https://jpwebsite.harriscountytx.gov/Public/CivilSearch.aspx"
-    assert p_schema.harris_jp_url == "https://jpwebsite.harriscountytx.gov/Public/CivilSearch.aspx"
+    assert settings.PORTAL_HARRIS_JP_URL == "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
+    assert p_schema.harris_jp_url == "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
 
     assert (
         settings.PORTAL_HARRIS_CCLERK_URL
-        == "https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil"
+        == "https://www.cclerk.hctx.net/Applications/WebSearch/"
     )
     assert (
         p_schema.harris_cclerk_url
-        == "https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil"
+        == "https://www.cclerk.hctx.net/Applications/WebSearch/"
     )
 
     assert (
         settings.PORTAL_HARRIS_DISTRICT_URL
-        == "https://www.hcdistrictclerk.com/edocs/public/CaseDetails.aspx"
+        == "https://www.hcdistrictclerk.com/"
     )
     assert (
         p_schema.harris_district_url
-        == "https://www.hcdistrictclerk.com/edocs/public/CaseDetails.aspx"
+        == "https://www.hcdistrictclerk.com/"
     )
 
 

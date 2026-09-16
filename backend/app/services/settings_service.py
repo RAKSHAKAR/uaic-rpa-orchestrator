@@ -52,24 +52,24 @@ def get_default_settings() -> SystemSettings:
             stealth_clicks=False,
         ),
         portals=PortalsSettings(
-            broward_url=getattr(settings, "PORTAL_BROWARD_URL", "https://www.browardclerk.org/Web2"),
+            broward_url=getattr(settings, "PORTAL_BROWARD_URL", "https://www.browardclerk.org/"),
             broward_enabled=True,
-            hillsborough_url=getattr(settings, "PORTAL_HILLSBOROUGH_URL", "https://hover.hillsclerk.com/html/caseSearch.html"),
+            hillsborough_url=getattr(settings, "PORTAL_HILLSBOROUGH_URL", "https://hover.hillsclerk.com/"),
             hillsborough_enabled=True,
-            miami_url=getattr(settings, "PORTAL_MIAMI_URL", "https://onlineservices.miami-dadeclerk.com/civil/"),
+            miami_url=getattr(settings, "PORTAL_MIAMI_URL", "https://www2.miamidadeclerk.gov/ocs"),
             miami_enabled=True,
             miami_username="apoorvnigam07@gmail.com",
             miami_password="Apoorv@12345",
             miami_requires_login=True,
-            travis_url=getattr(settings, "PORTAL_TRAVIS_URL", "https://odysseypa.traviscountytx.gov/CourtDirectorySearch/"),
+            travis_url=getattr(settings, "PORTAL_TRAVIS_URL", "https://odysseyweb.traviscountytx.gov/Portal/"),
             travis_enabled=True,
-            dallas_url=getattr(settings, "PORTAL_DALLAS_URL", "https://courtsportal.dallascounty.org/DALLASPROD/"),
+            dallas_url=getattr(settings, "PORTAL_DALLAS_URL", "https://courtsportal.dallascounty.org/DALLASPROD/Home/"),
             dallas_enabled=True,
-            harris_jp_url=getattr(settings, "PORTAL_HARRIS_JP_URL", "https://jpwebsite.harriscountytx.gov/Public/CivilSearch.aspx"),
+            harris_jp_url=getattr(settings, "PORTAL_HARRIS_JP_URL", "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"),
             harris_jp_enabled=True,
-            harris_cclerk_url=getattr(settings, "PORTAL_HARRIS_CCLERK_URL", "https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil"),
+            harris_cclerk_url=getattr(settings, "PORTAL_HARRIS_CCLERK_URL", "https://www.cclerk.hctx.net/Applications/WebSearch/"),
             harris_cclerk_enabled=True,
-            harris_district_url=getattr(settings, "PORTAL_HARRIS_DISTRICT_URL", "https://www.hcdistrictclerk.com/edocs/public/CaseDetails.aspx"),
+            harris_district_url=getattr(settings, "PORTAL_HARRIS_DISTRICT_URL", "https://www.hcdistrictclerk.com/"),
             harris_district_enabled=True,
         ),
         matcher=FuzzyMatcherSettings(
@@ -137,6 +137,27 @@ def get_default_settings() -> SystemSettings:
     )
 
 
+def _normalize_portals_data(data: dict) -> bool:
+    """Migrate legacy portal URLs to the required defaults (Requirement #33). Returns True if mutated."""
+    portals = data.setdefault("portals", {})
+    legacy_url_map = {
+        "broward_url": ("https://www.browardclerk.org/Web2", "https://www.browardclerk.org/"),
+        "hillsborough_url": ("https://hover.hillsclerk.com/html/caseSearch.html", "https://hover.hillsclerk.com/"),
+        "miami_url": ("https://onlineservices.miami-dadeclerk.com/civil/", "https://www2.miamidadeclerk.gov/ocs"),
+        "travis_url": ("https://odysseypa.traviscountytx.gov/CourtDirectorySearch/", "https://odysseyweb.traviscountytx.gov/Portal/"),
+        "dallas_url": ("https://courtsportal.dallascounty.org/DALLASPROD/", "https://courtsportal.dallascounty.org/DALLASPROD/Home/"),
+        "harris_jp_url": ("https://jpwebsite.harriscountytx.gov/Public/CivilSearch.aspx", "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"),
+        "harris_cclerk_url": ("https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil", "https://www.cclerk.hctx.net/Applications/WebSearch/"),
+        "harris_district_url": ("https://www.hcdistrictclerk.com/edocs/public/CaseDetails.aspx", "https://www.hcdistrictclerk.com/"),
+    }
+    changed = False
+    for field, (old_val, new_val) in legacy_url_map.items():
+        if portals.get(field) == old_val or not portals.get(field):
+            portals[field] = new_val
+            changed = True
+    return changed
+
+
 _local_settings_cache: SystemSettings | None = None
 
 
@@ -146,7 +167,6 @@ async def get_system_settings_async() -> SystemSettings:
     try:
         r = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0)
         raw = await r.get(SETTINGS_REDIS_KEY)
-        await r.aclose()
         if raw:
             data = json.loads(raw)
             auto_data = data.setdefault("automation", {})
@@ -160,7 +180,16 @@ async def get_system_settings_async() -> SystemSettings:
                 auto_data["chrome_extension_dir"] = get_default_extension_dir()
             data.setdefault("branding", {})
             data.setdefault("email", {})
-            return SystemSettings.model_validate(data)
+            portals_updated = _normalize_portals_data(data)
+            validated = SystemSettings.model_validate(data)
+            if portals_updated:
+                try:
+                    await r.set(SETTINGS_REDIS_KEY, validated.model_dump_json())
+                except Exception as write_err:
+                    logger.debug(f"Could not write back normalized settings to Redis: {write_err}")
+            await r.aclose()
+            return validated
+        await r.aclose()
     except Exception as e:
         logger.warning(f"Failed to fetch settings from Redis: {e}. Using in-memory fallback.")
 
@@ -186,7 +215,14 @@ def get_system_settings_sync() -> SystemSettings:
                 auto_data["chrome_extension_dir"] = get_default_extension_dir()
             data.setdefault("branding", {})
             data.setdefault("email", {})
-            return SystemSettings.model_validate(data)
+            portals_updated = _normalize_portals_data(data)
+            validated = SystemSettings.model_validate(data)
+            if portals_updated:
+                try:
+                    r.set(SETTINGS_REDIS_KEY, validated.model_dump_json())
+                except Exception as write_err:
+                    logger.debug(f"Could not write back normalized settings to Redis: {write_err}")
+            return validated
     except Exception as e:
         logger.warning(f"Failed to fetch settings from Redis (sync): {e}. Using in-memory fallback.")
 

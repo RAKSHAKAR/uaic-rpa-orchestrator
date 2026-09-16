@@ -48,13 +48,27 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Terminal,
+  Bug,
+  ShieldAlert,
+  Fingerprint,
+  Server,
+  FileCode,
 } from "lucide-react";
 import { Navbar } from "../../../components/Navbar";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatCard } from "../../../components/StatCard";
 import { MultiSelectDropdown } from "../../../components/MultiSelectDropdown";
 import { api } from "../../../lib/api";
-import { Claim, ErrorScreenshot, ScrapedCourtCase, AuditLogEntry } from "../../../types";
+import {
+  Claim,
+  ErrorScreenshot,
+  ScrapedCourtCase,
+  AuditLogEntry,
+  ProcessingLogEntry,
+  ExceptionLogEntry,
+  ClaimCombinedLogsResponse,
+} from "../../../types";
 
 export default function ClaimDetailPage() {
   const params = useParams();
@@ -263,18 +277,43 @@ export default function ClaimDetailPage() {
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [selectedAuditLogModal, setSelectedAuditLogModal] = useState<AuditLogEntry | null>(null);
 
+  // Unified Claim Logs & Provenance Diagnostic Center
+  const [claimLogsTab, setClaimLogsTab] = useState<"audit" | "processing" | "exceptions" | "terminal">("audit");
+  const [combinedLogs, setCombinedLogs] = useState<ClaimCombinedLogsResponse | null>(null);
+  const [isLoadingCombinedLogs, setIsLoadingCombinedLogs] = useState(false);
+  const [selectedTerminalPortal, setSelectedTerminalPortal] = useState<string>("broward");
+  const [selectedExceptionModal, setSelectedExceptionModal] = useState<ExceptionLogEntry | null>(null);
+
+  const fetchClaimCombinedLogs = useCallback(async () => {
+    if (!claimId) return;
+    setIsLoadingCombinedLogs(true);
+    try {
+      const data = await api.getClaimCombinedLogs(claimId);
+      setCombinedLogs(data);
+      if (data?.audit_logs) {
+        setAuditLogs(data.audit_logs);
+      }
+    } catch (err) {
+      console.error("Failed to load claim combined logs:", err);
+    } finally {
+      setIsLoadingCombinedLogs(false);
+    }
+  }, [claimId]);
+
   const fetchClaimAuditLogs = useCallback(async () => {
     if (!claimId) return;
     setIsLoadingAudit(true);
     try {
       const logs = await api.getClaimAuditLogs(claimId);
       setAuditLogs(logs || []);
+      // Also sync combined logs in background
+      fetchClaimCombinedLogs();
     } catch (err) {
       console.error("Failed to load claim audit logs:", err);
     } finally {
       setIsLoadingAudit(false);
     }
-  }, [claimId]);
+  }, [claimId, fetchClaimCombinedLogs]);
 
   const fetchScreenshots = useCallback(async () => {
     if (!claimId) return;
@@ -1172,24 +1211,52 @@ export default function ClaimDetailPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-200 dark:border-slate-800 pt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div className="border-t border-slate-200 dark:border-slate-800 pt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 text-xs">
             <div>
-              <span className="text-slate-500">Loss Location:</span>
+              <span className="text-slate-500 block text-[11px]">Loss Location:</span>
               <p className="font-medium text-slate-800 dark:text-slate-300 mt-0.5">
                 {[claim.loss_location_state].filter(Boolean).join(", ") || "-"}
               </p>
             </div>
             <div>
-              <span className="text-slate-500">Policy State:</span>
+              <span className="text-slate-500 block text-[11px]">Policy State:</span>
               <p className="font-medium text-slate-800 dark:text-slate-300 mt-0.5">{claim.policy_state || "-"}</p>
             </div>
             <div>
-              <span className="text-slate-500">Created At:</span>
-              <p className="font-medium text-slate-800 dark:text-slate-300 mt-0.5">{formatDate(claim.created_at)}</p>
+              <span className="text-slate-500 block text-[11px] flex items-center gap-1">
+                <Clock className="w-3 h-3 text-indigo-500" /> Created On:
+              </span>
+              <p className="font-medium font-mono text-slate-800 dark:text-slate-300 mt-0.5">
+                {formatDate(claim.created_on || claim.created_at)}
+              </p>
             </div>
             <div>
-              <span className="text-slate-500">Guidewire Activity ID:</span>
-              <p className="font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{claim.activity_id || "None (Standby)"}</p>
+              <span className="text-slate-500 block text-[11px] flex items-center gap-1">
+                <User className="w-3 h-3 text-indigo-500" /> Created By:
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 mt-0.5 rounded text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 max-w-full truncate" title={claim.created_by || "system"}>
+                {claim.created_by || "system"}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[11px] flex items-center gap-1">
+                <Clock className="w-3 h-3 text-emerald-500" /> Modified On:
+              </span>
+              <p className="font-medium font-mono text-slate-800 dark:text-slate-300 mt-0.5">
+                {formatDate(claim.modified_on || claim.updated_at)}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[11px] flex items-center gap-1">
+                <Fingerprint className="w-3 h-3 text-emerald-500" /> Modified By:
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 mt-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 max-w-full truncate" title={claim.modified_by || "system"}>
+                {claim.modified_by || "system"}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[11px]">Guidewire Activity:</span>
+              <p className="font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">{claim.activity_id || "None (Standby)"}</p>
             </div>
           </div>
         </div>
@@ -3054,35 +3121,42 @@ export default function ClaimDetailPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* AUDIT TRAIL & PROVENANCE TIMELINE (§73) */}
+        {/* UNIFIED LOGS & DIAGNOSTIC CENTER (§73) */}
         {/* ========================================================================= */}
-        <div className="bg-white dark:bg-slate-950 p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+        <div className="bg-white dark:bg-slate-950 p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+          {/* Header & Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 shadow-xs">
                 <ScrollText className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  Claim Audit Trail & Provenance
-                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                    {auditLogs.length} events
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Claim Logs & Diagnostic Center
+                  </h3>
+                  <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                    {auditLogs.length + (combinedLogs?.processing_logs?.length || 0) + (combinedLogs?.exception_logs?.length || 0)} Total Log Entries
                   </span>
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Immutable chronological audit record of operations and dispatches for Claim #{claim?.claim_number}.
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Immutable chronological audit trail, pipeline stage execution logs, failure stack traces, and real-time county court portal terminals for Claim #{claim?.claim_number}.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={fetchClaimAuditLogs}
-                disabled={isLoadingAudit}
+                onClick={() => {
+                  fetchClaimAuditLogs();
+                  fetchClaimCombinedLogs();
+                  fetchScreenshots();
+                }}
+                disabled={isLoadingAudit || isLoadingCombinedLogs}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAudit ? "animate-spin text-indigo-500" : ""}`} />
-                <span>Refresh Trail</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAudit || isLoadingCombinedLogs ? "animate-spin text-indigo-500" : ""}`} />
+                <span>Refresh Logs</span>
               </button>
               {claim && (
                 <Link
@@ -3096,82 +3170,354 @@ export default function ClaimDetailPage() {
             </div>
           </div>
 
-          {isLoadingAudit ? (
-            <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
-              <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
-              <span className="text-xs">Loading audit events...</span>
-            </div>
-          ) : auditLogs.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
-              <ScrollText className="w-6 h-6 text-slate-300 dark:text-slate-600" />
-              <span className="text-xs font-medium">No audit events recorded yet for this claim.</span>
-            </div>
-          ) : (
-            <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-              {auditLogs.map((log) => {
-                const isFailed = log.status === "FAILED" || log.status === "ERROR";
-                return (
-                  <div key={log.id} className="relative group">
-                    {/* Timeline Node Dot */}
-                    <div
-                      className={`absolute -left-6 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-950 ${
-                        isFailed ? "bg-rose-500" : "bg-indigo-500"
-                      }`}
-                    />
+          {/* 4-Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto">
+            <button
+              onClick={() => setClaimLogsTab("audit")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                claimLogsTab === "audit"
+                  ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
+                  : "bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <ScrollText className="w-3.5 h-3.5" />
+              <span>Audit Trail</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${claimLogsTab === "audit" ? "bg-indigo-700 text-indigo-100" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                {auditLogs.length}
+              </span>
+            </button>
 
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border ${
-                              isFailed
-                                ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-800"
-                                : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                            }`}
-                          >
-                            {log.action}
-                          </span>
-                          <span
-                            className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                              isFailed
-                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            }`}
-                          >
-                            {log.status}
-                          </span>
+            <button
+              onClick={() => setClaimLogsTab("processing")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                claimLogsTab === "processing"
+                  ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
+                  : "bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Processing Logs</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${claimLogsTab === "processing" ? "bg-indigo-700 text-indigo-100" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                {combinedLogs?.processing_logs?.length || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setClaimLogsTab("exceptions")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                claimLogsTab === "exceptions"
+                  ? "bg-rose-600 text-white shadow-sm shadow-rose-600/30"
+                  : (combinedLogs?.exception_logs?.length || 0) > 0
+                  ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50"
+                  : "bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <Bug className="w-3.5 h-3.5" />
+              <span>Exceptions & Errors</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${claimLogsTab === "exceptions" ? "bg-rose-700 text-rose-100" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                {combinedLogs?.exception_logs?.length || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setClaimLogsTab("terminal")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                claimLogsTab === "terminal"
+                  ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
+                  : "bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span>Portal Console Terminal</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${claimLogsTab === "terminal" ? "bg-indigo-700 text-indigo-100" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                {Object.keys(combinedLogs?.portal_logs || {}).length} Portals
+              </span>
+            </button>
+          </div>
+
+          {/* TAB 1: AUDIT TRAIL */}
+          {claimLogsTab === "audit" && (
+            <div className="space-y-4">
+              {isLoadingAudit ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+                  <span className="text-xs">Loading audit events...</span>
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <ScrollText className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+                  <span className="text-xs font-medium">No audit events recorded yet for this claim.</span>
+                </div>
+              ) : (
+                <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                  {auditLogs.map((log) => {
+                    const isFailed = log.status === "FAILED" || log.status === "ERROR";
+                    return (
+                      <div key={log.id} className="relative group">
+                        <div
+                          className={`absolute -left-6 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-950 ${
+                            isFailed ? "bg-rose-500" : "bg-indigo-500"
+                          }`}
+                        />
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border ${
+                                  isFailed
+                                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-800"
+                                    : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                                }`}
+                              >
+                                {log.action}
+                              </span>
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                  isFailed
+                                    ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                }`}
+                              >
+                                {log.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                              <span>{new Date(log.timestamp).toLocaleString()}</span>
+                              {log.details && (
+                                <button
+                                  onClick={() => setSelectedAuditLogModal(log)}
+                                  className="text-indigo-600 dark:text-indigo-400 hover:underline font-sans font-medium flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3" /> Inspect
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-800 dark:text-slate-200 font-medium">
+                            {log.description}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3 text-slate-400" />
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">{log.user_id}</span>
+                            </span>
+                            {log.ip_address && (
+                              <span className="font-mono text-[10px]">IP: {log.ip_address}</span>
+                            )}
+                          </div>
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-                          <span>{new Date(log.timestamp).toLocaleString()}</span>
-                          {log.details && (
-                            <button
-                              onClick={() => setSelectedAuditLogModal(log)}
-                              className="text-indigo-600 dark:text-indigo-400 hover:underline font-sans font-medium flex items-center gap-1 cursor-pointer"
-                            >
-                              <Eye className="w-3 h-3" /> Inspect
-                            </button>
+          {/* TAB 2: PROCESSING LOGS */}
+          {claimLogsTab === "processing" && (
+            <div className="space-y-4">
+              {!combinedLogs || isLoadingCombinedLogs ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+                  <span className="text-xs">Loading processing timeline...</span>
+                </div>
+              ) : (combinedLogs.processing_logs || []).length === 0 ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <Activity className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+                  <span className="text-xs font-medium">No processing events recorded yet.</span>
+                </div>
+              ) : (
+                <div className="relative pl-6 space-y-3 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                  {combinedLogs.processing_logs.map((plog, pidx) => {
+                    const isErr = plog.level === "ERROR";
+                    const isWarn = plog.level === "WARNING";
+                    return (
+                      <div key={pidx} className="relative group">
+                        <div
+                          className={`absolute -left-6 top-2 w-3 h-3 rounded-full border-2 border-white dark:border-slate-950 ${
+                            isErr ? "bg-rose-500" : isWarn ? "bg-amber-500" : "bg-emerald-500"
+                          }`}
+                        />
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {plog.stage && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/70">
+                                  {plog.stage}
+                                </span>
+                              )}
+                              {plog.portal_key && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200 dark:border-sky-800/70">
+                                  {plog.portal_key}
+                                </span>
+                              )}
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                  isErr
+                                    ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                                    : isWarn
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                }`}
+                              >
+                                {plog.level}
+                              </span>
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-400">
+                              {plog.timestamp ? new Date(plog.timestamp).toLocaleString() : "-"}
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-800 dark:text-slate-200 font-medium mt-1">
+                            {plog.message}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                            <User className="w-3 h-3 text-slate-400" />
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Actor: {plog.actor}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: EXCEPTIONS & ERRORS */}
+          {claimLogsTab === "exceptions" && (
+            <div className="space-y-4">
+              {!combinedLogs || isLoadingCombinedLogs ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-rose-500" />
+                  <span className="text-xs">Loading exception logs...</span>
+                </div>
+              ) : (combinedLogs.exception_logs || []).length === 0 ? (
+                <div className="p-8 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-center flex flex-col items-center justify-center gap-2">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                  <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-200">Zero Exceptions Recorded</h4>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 max-w-md">
+                    All scraping stages, party searches, RapidFuzz deduplication, and Guidewire sync operations completed without unhandled exceptions.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {combinedLogs.exception_logs.map((ex, eidx) => (
+                    <div
+                      key={ex.id || eidx}
+                      className="p-4 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300">
+                            {ex.exception_type || "Exception"}
+                          </span>
+                          {ex.portal_name && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {ex.portal_name}
+                            </span>
                           )}
                         </div>
-                      </div>
-
-                      <p className="text-xs text-slate-800 dark:text-slate-200 font-medium">
-                        {log.description}
-                      </p>
-
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-400" />
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">{log.user_id}</span>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          {ex.timestamp ? new Date(ex.timestamp).toLocaleString() : "-"}
                         </span>
-                        {log.ip_address && (
-                          <span className="font-mono text-[10px]">IP: {log.ip_address}</span>
-                        )}
                       </div>
+
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/50 text-xs font-mono text-rose-800 dark:text-rose-300 whitespace-pre-wrap break-words">
+                        {ex.message}
+                      </div>
+
+                      {ex.screenshot_url && (
+                        <div className="flex items-center gap-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={ex.screenshot_url}
+                            alt="Error screenshot"
+                            className="w-16 h-12 object-cover rounded border border-rose-300 dark:border-rose-800 cursor-pointer hover:opacity-80"
+                            onClick={() => setSelectedExceptionModal(ex)}
+                          />
+                          <button
+                            onClick={() => setSelectedExceptionModal(ex)}
+                            className="text-xs text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                          >
+                            <Camera className="w-3.5 h-3.5" /> View Captured Viewport
+                          </button>
+                        </div>
+                      )}
+
+                      {ex.stack_trace && (
+                        <details className="text-[11px] font-mono text-slate-600 dark:text-slate-400">
+                          <summary className="cursor-pointer text-indigo-600 dark:text-indigo-400 hover:underline">
+                            View Python Traceback
+                          </summary>
+                          <pre className="mt-2 p-2.5 bg-slate-900 text-slate-200 rounded border border-slate-800 overflow-x-auto max-h-48 text-[10px]">
+                            {ex.stack_trace}
+                          </pre>
+                        </details>
+                      )}
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: PORTAL CONSOLE TERMINAL */}
+          {claimLogsTab === "terminal" && (
+            <div className="space-y-3">
+              {/* County Portal Switcher Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { key: "broward", label: "Broward County (FL)" },
+                  { key: "hillsborough", label: "Hillsborough County (FL)" },
+                  { key: "miami", label: "Miami-Dade County (FL)" },
+                  { key: "travis", label: "Travis County (TX)" },
+                  { key: "dallas", label: "Dallas County (TX)" },
+                  { key: "harris_jp", label: "Harris County JP (TX)" },
+                  { key: "harris_cclerk", label: "Harris County Clerk (TX)" },
+                  { key: "harris_district", label: "Harris District Clerk (TX)" },
+                ].map((p) => {
+                  const hasLog = !!combinedLogs?.portal_logs?.[p.key];
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => setSelectedTerminalPortal(p.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        selectedTerminalPortal === p.key
+                          ? "bg-slate-900 text-emerald-400 border border-emerald-500/50 shadow-xs"
+                          : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${hasLog ? "bg-emerald-500" : "bg-slate-400"}`} />
+                      <span>{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Terminal Screen */}
+              <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950 font-mono text-xs shadow-xl">
+                <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+                    <span className="ml-2 font-bold text-slate-300">
+                      terminal://{claim?.claim_number}/{selectedTerminalPortal}/execution.log
+                    </span>
                   </div>
-                );
-              })}
+                  <span className="text-[10px] text-slate-500">Live Execution Log</span>
+                </div>
+                <div className="p-4 max-h-96 overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre-wrap selection:bg-indigo-900">
+                  {combinedLogs?.portal_logs?.[selectedTerminalPortal] ? (
+                    combinedLogs.portal_logs[selectedTerminalPortal]
+                  ) : (
+                    <span className="text-slate-600 italic">
+                      {`// No log generated for ${selectedTerminalPortal} yet.\n// Logs appear automatically once scraping automation executes for this portal.`}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -4114,6 +4460,126 @@ export default function ClaimDetailPage() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. EXCEPTION & STACK TRACE INSPECTOR MODAL */}
+      {selectedExceptionModal && (
+        <div className="no-print fixed inset-0 z-50 bg-slate-950/70 dark:bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 md:p-6 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-900 flex items-center justify-center text-rose-600 dark:text-rose-400">
+                  <Bug className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <span>{selectedExceptionModal.exception_type || "Runtime Exception"}</span>
+                    {selectedExceptionModal.portal_name && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-normal">
+                        {selectedExceptionModal.portal_name}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Logged at {selectedExceptionModal.timestamp ? new Date(selectedExceptionModal.timestamp).toLocaleString() : "Unknown"}
+                    {selectedExceptionModal.attempt_number ? ` • Attempt #${selectedExceptionModal.attempt_number}` : ""}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedExceptionModal(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
+              {/* Error Message */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                  Error Message
+                </label>
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-xs font-mono text-rose-800 dark:text-rose-300 whitespace-pre-wrap break-words select-all">
+                  {selectedExceptionModal.message}
+                </div>
+              </div>
+
+              {/* Viewport Error Capture if available */}
+              {selectedExceptionModal.screenshot_url && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
+                      Captured Browser Viewport at Failure
+                    </label>
+                    <a
+                      href={selectedExceptionModal.screenshot_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open Full Image
+                    </a>
+                  </div>
+                  <div className="relative aspect-video max-h-[320px] bg-slate-950 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedExceptionModal.screenshot_url}
+                      alt="Captured browser state at failure"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Python Stack Trace if available */}
+              {selectedExceptionModal.stack_trace && (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                    Full Python Traceback
+                  </label>
+                  <pre className="p-3 bg-slate-900 text-slate-200 border border-slate-800 rounded-xl text-[11px] font-mono overflow-x-auto max-h-64 whitespace-pre-wrap select-all">
+                    {selectedExceptionModal.stack_trace}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  const traceText = `${selectedExceptionModal.exception_type || "Exception"}: ${selectedExceptionModal.message}\n\n${selectedExceptionModal.stack_trace || ""}`;
+                  navigator.clipboard.writeText(traceText);
+                  setFeedback({ type: "success", msg: "Stack trace and exception message copied to clipboard." });
+                }}
+                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-300 text-xs font-medium rounded-lg flex items-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy Traceback
+              </button>
+
+              <div className="flex items-center gap-2">
+                {selectedExceptionModal.portal_name && (
+                  <button
+                    onClick={() => {
+                      handleRunSingleBot(selectedExceptionModal.portal_name || "");
+                      setSelectedExceptionModal(null);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Retry {selectedExceptionModal.portal_name}
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedExceptionModal(null)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
