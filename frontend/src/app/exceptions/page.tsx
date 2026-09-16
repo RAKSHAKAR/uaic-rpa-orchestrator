@@ -6,6 +6,7 @@ import { Navbar } from "../../components/Navbar";
 import { StatCard } from "../../components/StatCard";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
 import { AsyncExportModal } from "../../components/AsyncExportModal";
+import { ExportActionToolbar } from "../../components/ExportActionToolbar";
 import { api } from "../../lib/api";
 import { MatchPair } from "../../types";
 import { formatPercent, formatDate } from "../../lib/utils";
@@ -386,42 +387,16 @@ export default function ExceptionReviewPage() {
               </button>
             </div>
 
-            {/* Export Buttons */}
-            <button
-              onClick={() => handleExport("xlsx")}
-              disabled={isExporting !== null}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{isExporting === "xlsx" ? "Exporting..." : "Excel"}</span>
-            </button>
-
-            <button
-              onClick={() => handleExport("csv")}
-              disabled={isExporting !== null}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-              <span>{isExporting === "csv" ? "Exporting..." : "CSV"}</span>
-            </button>
-
-            <button
-              onClick={() => handleExport("json")}
-              disabled={isExporting !== null}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-            >
-              <FileJson className="w-3.5 h-3.5" />
-              <span>{isExporting === "json" ? "Exporting..." : "JSON"}</span>
-            </button>
-
-            <button
-              onClick={() => setIsExportModalOpen(true)}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
-              title="Export complete high-volume dataset via background streaming worker"
-            >
-              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Async Export</span>
-            </button>
+            {/* Reusable Universal Export Toolbar */}
+            <ExportActionToolbar
+              label="Export"
+              onExport={(fmt) => handleExport(fmt as any)}
+              onOpenAsyncModal={() => setIsExportModalOpen(true)}
+              isExporting={Boolean(isExporting)}
+              showPdf={false}
+              showAsyncButton={true}
+              compact={true}
+            />
 
             <div className="text-xs text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-3 py-1.5 rounded-lg font-medium shadow-xs w-fit">
               {pendingMatches.length} Items Awaiting Review

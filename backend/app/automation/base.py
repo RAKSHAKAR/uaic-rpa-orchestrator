@@ -92,6 +92,25 @@ def log_security_block_event(
         logger.debug(f"Could not append to security_blocks.log: {e}")
 
 
+def append_portal_execution_log(
+    claim_id: str,
+    portal_key: str,
+    message: str,
+    level: str = "INFO",
+) -> None:
+    """Appends a structured timestamped log entry to backend/logs/{claim_id}/{portal_key}/execution.log."""
+    try:
+        backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        portal_log_dir = os.path.join(backend_dir, "logs", str(claim_id), str(portal_key))
+        os.makedirs(portal_log_dir, exist_ok=True)
+        log_file = os.path.join(portal_log_dir, "execution.log")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [{level.upper()}] {message}\n")
+    except Exception as e:
+        logger.debug(f"Could not append to portal execution log for {claim_id}/{portal_key}: {e}")
+
+
 async def _safe_eval(page: Any, script: str) -> Any:
     """Safely execute evaluate script on page or mock without throwing unawaited mock errors."""
     try:
@@ -246,19 +265,46 @@ class BaseCourtScraper(ABC):
         self.user_data_dir = user_data_dir
         self.anticaptcha_api_key = anticaptcha_api_key
         self.user_agent = user_agent
+        self.typing_speed_mode = kwargs.get("typing_speed_mode", "turbo")
+        self.typing_delay_ms = int(kwargs.get("typing_delay_ms", 0))
+        self.action_pacing_ms = int(kwargs.get("action_pacing_ms", 100))
+        self.stealth_clicks = bool(kwargs.get("stealth_clicks", False))
         self.stage_timings: dict[str, Any] = {}
 
+    async def pace_action(self, page: Page | None = None) -> None:
+        """Applies configured action_pacing_ms between scraper steps."""
+        import asyncio
+        pacing = getattr(self, "action_pacing_ms", 0)
+        if pacing > 0:
+            if page and hasattr(page, "wait_for_timeout"):
+                try:
+                    await page.wait_for_timeout(pacing)
+                    return
+                except Exception:
+                    pass
+            await asyncio.sleep(pacing / 1000.0)
+
     async def biometric_fill(self, locator: Any, text: str) -> None:
-        """Implement biometric pacing for input fields to evade anti-bot detection."""
+        """
+        Fills input fields respecting configured typing_speed_mode and typing_delay_ms.
+        - Turbo / Instant (0ms): Uses direct DOM locator.fill(text) for ~2ms execution (700x faster).
+        - Fast / Balanced / Cautious (>0ms): Single native press_sequentially(text, delay=N) call without character loops.
+        """
         import inspect
-        import random
         try:
             # Handle AsyncMocks in testing vs real Playwright locators
             clear_res = locator.clear()
             if inspect.isawaitable(clear_res):
                 await clear_res
-            for char in text:
-                seq_res = locator.press_sequentially(char, delay=random.randint(50, 150))
+            
+            # If instant / turbo mode or delay is 0: use instant fill
+            if self.typing_delay_ms == 0 or self.typing_speed_mode in ("turbo", "instant"):
+                fill_res = locator.fill(text)
+                if inspect.isawaitable(fill_res):
+                    await fill_res
+            else:
+                # Single native Playwright call instead of character-by-character python loop
+                seq_res = locator.press_sequentially(text, delay=self.typing_delay_ms)
                 if inspect.isawaitable(seq_res):
                     await seq_res
         except TypeError:
@@ -271,23 +317,29 @@ class BaseCourtScraper(ABC):
                 await fill_res
 
     async def biometric_click(self, page: Page, locator: Any) -> None:
-        """Implement human-like anti-bot metrics (biometric mouse pacing & jitter scaling)."""
+        """Clicks element with mouse pacing and optional stealth jitter scaling."""
         import asyncio
         import inspect
         import random
+
         try:
-            # Jitter scaling: random wait before interaction
-            await asyncio.sleep(random.uniform(0.1, 0.4))
+            # Jitter scaling only if stealth_clicks is enabled
+            if getattr(self, "stealth_clicks", False):
+                await asyncio.sleep(random.uniform(0.05, 0.2))
+
             box = await locator.bounding_box()
             if box:
-                # Biometric mouse pacing: hover with steps
+                # Mouse pacing
                 x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-                jitter_x = x + random.uniform(-box["width"]/3, box["width"]/3)
-                jitter_y = y + random.uniform(-box["height"]/3, box["height"]/3)
-                await page.mouse.move(jitter_x, jitter_y, steps=random.randint(5, 10))
-                await asyncio.sleep(random.uniform(0.05, 0.15))
+                jitter_x = x + random.uniform(-box["width"]/4, box["width"]/4) if getattr(self, "stealth_clicks", False) else x
+                jitter_y = y + random.uniform(-box["height"]/4, box["height"]/4) if getattr(self, "stealth_clicks", False) else y
+                steps = random.randint(3, 6) if getattr(self, "stealth_clicks", False) else 1
+                await page.mouse.move(jitter_x, jitter_y, steps=steps)
+                if getattr(self, "stealth_clicks", False):
+                    await asyncio.sleep(random.uniform(0.02, 0.08))
                 await page.mouse.down()
-                await asyncio.sleep(random.uniform(0.02, 0.08))
+                if getattr(self, "stealth_clicks", False):
+                    await asyncio.sleep(random.uniform(0.01, 0.04))
                 await page.mouse.up()
             else:
                 clk_res = locator.click()
@@ -810,9 +862,21 @@ class BaseCourtScraper(ABC):
                 return None
 
             # Delegate storage to StorageService (Local disk, S3, Azure Blob, GCS)
-            storage_res = await StorageService.save_screenshot_bytes(filename, image_bytes, storage_cfg)
+            storage_res = await StorageService.save_screenshot_bytes(
+                filename,
+                image_bytes,
+                storage_cfg,
+                claim_id=claim_id,
+                portal_key=portal_key,
+            )
             err_msg = str(error) if error else "Portal scraping failure"
             logger.info(f"[{self.county_name}] Error screenshot saved via {storage_res.get('stored_provider')}: {filename}")
+            append_portal_execution_log(
+                claim_id=claim_id,
+                portal_key=portal_key,
+                message=f"Error screenshot captured: {filename}. Error: {err_msg}",
+                level="ERROR",
+            )
 
             return {
                 "claim_id": claim_id,

@@ -294,8 +294,8 @@ _____
                 j) Close All the tabs encloding Browser
 
     Note: 
-    1) This must be repeated until all the unique names one by one received from 3>i>a>1 api so pls do this activity before launching the brower tabs.
-    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>a>1.
+    1) This must be repeated until all the unique names one by one received from 3>i>b>1 api so pls do this activity before launching the brower tabs.
+    2) All the above activity must be happen for one unique name at a time and once it is finish at all the site(s) then pick the 2/3/4 etc unique names given by that api from 3>i>b>1.
     3) Close the broser completly and start the work on next queue that we don't know the next item is realted to Florida or something else. Depend on this you can proceed.   
     
 _________

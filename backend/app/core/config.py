@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     FUZZY_MATCH_BORDERLINE_THRESHOLD: float = 0.40
 
     # Downstream Guidewire Integration
+    GUIDEWIRE_MOCK_MODE: bool = True
     GUIDEWIRE_API_URL: str = "https://uaic-gwcp-prod-igoauthproxy.api.delta4-andromeda.guidewire.net/api/powerapps/caseupdate"
     GUIDEWIRE_API_KEY: str = ""
 
@@ -66,16 +67,17 @@ class Settings(BaseSettings):
     PLAYWRIGHT_VIEWPORT_WIDTH: int = 1280
     PLAYWRIGHT_VIEWPORT_HEIGHT: int = 800
     SCREENSHOTS_DIR: Path = (_BACKEND_DIR / "screenshots").resolve()
+    LOGS_DIR: Path = (_BACKEND_DIR / "logs").resolve()
 
     # Portals
-    PORTAL_BROWARD_URL: str = "https://www.browardclerk.org/"
-    PORTAL_HILLSBOROUGH_URL: str = "https://hover.hillsclerk.com/"
-    PORTAL_MIAMI_URL: str = "https://www2.miamidadeclerk.gov/ocs"
-    PORTAL_TRAVIS_URL: str = "https://odysseyweb.traviscountytx.gov/Portal/"
-    PORTAL_DALLAS_URL: str = "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
-    PORTAL_HARRIS_JP_URL: str = "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
-    PORTAL_HARRIS_CCLERK_URL: str = "https://www.cclerk.hctx.net/Applications/WebSearch/"
-    PORTAL_HARRIS_DISTRICT_URL: str = "https://www.hcdistrictclerk.com/"
+    PORTAL_BROWARD_URL: str = "https://www.browardclerk.org/Web2"
+    PORTAL_HILLSBOROUGH_URL: str = "https://hover.hillsclerk.com/html/caseSearch.html"
+    PORTAL_MIAMI_URL: str = "https://onlineservices.miami-dadeclerk.com/civil/"
+    PORTAL_TRAVIS_URL: str = "https://odysseypa.traviscountytx.gov/CourtDirectorySearch/"
+    PORTAL_DALLAS_URL: str = "https://courtsportal.dallascounty.org/DALLASPROD/"
+    PORTAL_HARRIS_JP_URL: str = "https://jpwebsite.harriscountytx.gov/Public/CivilSearch.aspx"
+    PORTAL_HARRIS_CCLERK_URL: str = "https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil"
+    PORTAL_HARRIS_DISTRICT_URL: str = "https://www.hcdistrictclerk.com/edocs/public/CaseDetails.aspx"
 
     # Whitelisted Legacy Case Types & Statuses
     ALLOWED_CASE_STATUSES: list[str] = [

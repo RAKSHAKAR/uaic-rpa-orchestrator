@@ -443,6 +443,80 @@ class ChromeSession:
             return candidate.resolve()
         return None
 
+    @classmethod
+    def get_persistent_profile_dir(cls) -> Path:
+        """Returns the canonical persistent browser profile directory path."""
+        base_data = Path(__file__).resolve().parent.parent.parent / "data" / "browser_profile"
+        base_data.mkdir(parents=True, exist_ok=True)
+        return base_data
+
+    @classmethod
+    def configure_and_pin_profile(
+        cls,
+        profile_dir: Path | None = None,
+        api_key: str | None = None,
+        extension_path: Path | None = None,
+    ) -> Path:
+        """Configures a persistent browser profile with AntiCaptcha extension and modern toolbar pinning."""
+        target_dir = profile_dir or cls.get_persistent_profile_dir()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        resolved_ext = ExtensionManager.resolve_extension_path(extension_path)
+
+        # 1. Sync API Key to extension directory if provided
+        if resolved_ext and resolved_ext.is_dir() and api_key:
+            ExtensionManager.sync_api_key(resolved_ext, api_key)
+
+        # 2. Seed host Chrome Local State & Secure Preferences if available
+        host_user_data = cls.find_default_chrome_user_data_dir()
+        default_profile_dir = target_dir / "Default"
+        default_profile_dir.mkdir(parents=True, exist_ok=True)
+
+        if host_user_data and host_user_data.is_dir():
+            try:
+                local_state_src = host_user_data / "Local State"
+                if local_state_src.is_file() and not (target_dir / "Local State").exists():
+                    shutil.copy2(local_state_src, target_dir / "Local State")
+                for fname in ["Secure Preferences"]:
+                    src = host_user_data / "Default" / fname
+                    dst = default_profile_dir / fname
+                    if src.is_file() and not dst.exists():
+                        shutil.copy2(src, dst)
+            except Exception as e:
+                logger.debug(f"Note copying host Chrome profile files: {e}")
+
+        # 3. Write Preferences with modern toolbar pinning
+        pref_file = default_profile_dir / "Preferences"
+        prefs: dict[str, Any] = {}
+        if pref_file.is_file():
+            try:
+                prefs = json.loads(pref_file.read_text(encoding="utf-8"))
+            except Exception:
+                prefs = {}
+
+        ext_id = "gcpdbjbmekkdlkpldjgffhmapgpdlcpj"
+        ext_prefs = prefs.setdefault("extensions", {})
+        ext_prefs["developer_mode"] = True
+        pinned = ext_prefs.setdefault("pinned_extensions", [])
+        if ext_id not in pinned:
+            pinned.append(ext_id)
+        ext_prefs["pinned_extension_migration"] = True
+
+        toolbar_prefs = prefs.setdefault("toolbar", {})
+        pinned_actions = toolbar_prefs.setdefault("pinned_actions", [])
+        action_id = f"kActionExtensionId:{ext_id}"
+        if action_id not in pinned_actions:
+            pinned_actions.append(action_id)
+        if ext_id not in pinned_actions:
+            pinned_actions.append(ext_id)
+
+        browser_prefs = prefs.setdefault("browser", {})
+        browser_prefs["show_extensions_toolbar_menu"] = True
+
+        pref_file.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+        logger.info(f"Persistent browser profile configured & pinned at {target_dir}")
+        return target_dir
+
+
     async def start(self) -> BrowserContext:
         """Launches Google Chrome or Chromium persistent context with extension loading."""
         cache_dir = Path(__file__).resolve().parent.parent.parent / "data" / "browser_cache"
@@ -454,7 +528,8 @@ class ChromeSession:
             "--disable-blink-features=AutomationControlled",
             "--start-maximized",
             "--window-position=50,50",
-            f"--disk-cache-dir={cache_dir}",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-features=msFirstRunExperience,msEdgeWelcomePage",
@@ -469,11 +544,14 @@ class ChromeSession:
         if target_dir and target_dir.is_dir() and "Default" not in str(target_dir):
             self.profile_to_use = target_dir
             self.is_temp_profile = False
+            launch_args.append(f"--disk-cache-dir={cache_dir}")
         else:
             temp_path = Path(tempfile.mkdtemp(prefix="uaic_chrome_profile_"))
             self.profile_to_use = temp_path
             self.is_temp_profile = True
 
+        # When running Google Chrome or Edge with a temp profile, seed with user's profile preferences if available
+        # so Developer Mode and installed unpacked extensions load seamlessly with pinned toolbar
         # When running Google Chrome or Edge with a temp profile, seed with user's profile preferences if available
         # so Developer Mode and installed unpacked extensions load seamlessly with pinned toolbar
         if engine in ("chrome", "msedge") and self.is_temp_profile:
@@ -482,17 +560,18 @@ class ChromeSession:
             )
             if source_user_data and source_user_data.is_dir():
                 try:
+                    # Seed Local State in root user data directory
+                    local_state_src = source_user_data / "Local State"
+                    if local_state_src.is_file():
+                        shutil.copy2(local_state_src, self.profile_to_use / "Local State")
+
                     default_target = self.profile_to_use / "Default"
                     default_target.mkdir(parents=True, exist_ok=True)
-                    for fname in ["Local State"]:
-                        src = source_user_data / fname
-                        if src.is_file():
-                            shutil.copy2(src, self.profile_to_use / fname)
                     for fname in ["Preferences", "Secure Preferences"]:
                         src = source_user_data / "Default" / fname
                         if src.is_file():
                             shutil.copy2(src, default_target / fname)
-                    logger.info(f"Pre-seeded {engine.upper()} temporary profile from {source_user_data} for Developer Mode & pinned toolbar support.")
+                    logger.info(f"Pre-seeded {engine.upper()} temporary profile preferences from {source_user_data}.")
                 except Exception as e:
                     logger.debug(f"Failed to seed {engine.upper()} session profile from {source_user_data}: {e}")
 
@@ -524,6 +603,15 @@ class ChromeSession:
             if ext_id_to_pin not in pinned:
                 pinned.append(ext_id_to_pin)
             ext_prefs["pinned_extension_migration"] = True
+
+            # Modern Chromium (v115+) toolbar pinned actions
+            toolbar_prefs = prefs.setdefault("toolbar", {})
+            pinned_actions = toolbar_prefs.setdefault("pinned_actions", [])
+            action_id = f"kActionExtensionId:{ext_id_to_pin}"
+            if action_id not in pinned_actions:
+                pinned_actions.append(action_id)
+            if ext_id_to_pin not in pinned_actions:
+                pinned_actions.append(ext_id_to_pin)
 
             # Ensure Edge / Chromium toolbar button visibility
             browser_prefs = prefs.setdefault("browser", {})

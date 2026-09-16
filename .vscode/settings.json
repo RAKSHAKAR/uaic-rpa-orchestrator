@@ -6,5 +6,11 @@
   ],
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
-  "less.lint.unknownAtRules": "ignore"
+  "less.lint.unknownAtRules": "ignore",
+  "python.testing.pytestArgs": [
+    "backend"
+  ],
+  "python.testing.cwd": "${workspaceFolder}/backend",
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }

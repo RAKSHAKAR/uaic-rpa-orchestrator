@@ -5,7 +5,7 @@ Audit, verify, and validate all options [1] through [9] in the setup_local.ps1 E
 
 ## 2. Plan
 - Review setup_local.ps1 implementation of Options 1, 2, 4, 5, 6, 7, 8, 9, M.
-- Review pp/scripts/clean_history.py implementation of Option 3.
+- Review app/scripts/clean_history.py implementation of Option 3.
 - Confirm MailDev handling on ports 1080 and 1025.
 - Run complete automated diagnostic suite (Pytest, Ruff, TSC) to verify system stability.
 - Produce confirmation and final record.

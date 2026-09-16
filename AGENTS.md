@@ -167,6 +167,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 | POST | /api/v1/ingest/preview | Preview file before import |
 | GET | /api/v1/matches/pending | Get pending fuzzy match reviews |
 | POST | /api/v1/matches/{id}/review | Approve/reject match |
+| POST | /api/v1/matches/unique-names | Deduplicate party names across 3 columns with 60% RapidFuzz matching |
 | GET | /api/v1/queue/status | Queue health |
 | POST | /api/v1/queue/start-all | Start queue runner |
 | POST | /api/v1/queue/pause | Pause queue |
@@ -179,6 +180,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 | POST | /api/v1/settings/test-guidewire | Test Guidewire connection |
 | POST | /api/v1/settings/test-portal | Test portal reachability |
 | POST | /api/v1/settings/test-browser | Test Chrome launch (Attended GUI vs. Headless) |
+| POST | /api/v1/settings/setup-extension | One-time AntiCaptcha extension configuration & toolbar pinning |
 | POST | /api/v1/settings/email/test-connection | Test SMTP/Mock email provider connectivity & latency |
 | POST | /api/v1/settings/email/test-send | Send interactive live test email |
 | GET | /api/v1/notifications | Paginated notification delivery history log |
@@ -208,7 +210,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 ## 7. Test Commands
 
 ```bash
-# Backend tests (281 tests across 28 test suites)
+# Backend tests (438 tests across 32 test suites)
 cd backend
 .venv\Scripts\pytest --tb=short -q
 
@@ -247,7 +249,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 - ✅ Ensure dynamic automated verification: upon completing work and running the full automated testing suite (pytest, ruff, tsc, ps1) with visual/video evidence, document status must be finalized as Complete with: `**AI Verification:** Complete (100% Automated Testing Suite)`
 - ✅ Create a final implementation record (plan + change log + test report + validation) in `implementation_plan/` after every substantial task
 - ✅ Save all browser subagent recordings (.webp) into `implementation_plan/Recording/` and all visual verification screenshots (.png) into `implementation_plan/Images/` (strictly separated, never leave them exclusively in the transient IDE brain directory)
-- ✅ Run `pytest` after any backend change (281 tests across 28 test suites)
+- ✅ Run `pytest` after any backend change (416 tests across 31 test suites)
 - ✅ Run `ruff check` after any Python change (0 errors)
 - ✅ Run `tsc --noEmit` after any TypeScript change (0 errors)
 - ✅ Run `scripts\check_ps1_syntax.ps1` after any `.ps1` change (0 errors)

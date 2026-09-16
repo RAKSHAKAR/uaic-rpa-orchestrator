@@ -76,6 +76,8 @@ class BrowardScraper(BaseCourtScraper):
             return []
 
         # Double check that AntiCaptcha extension is not in the middle of injecting
+        # GAP-007: Initial 500ms settling delay before polling to avoid false-negative on fast machines
+        await page.wait_for_timeout(500)
         for _ in range(10):
             still_solving = await page.evaluate('''() => {
                 const s = document.querySelector('.antigate_solver, [class*="antigate"]');
@@ -135,7 +137,9 @@ class BrowardScraper(BaseCourtScraper):
                     filing_date = cells[3].strip() if len(cells) > 3 else ""
                     case_status = cells[4].strip() if len(cells) > 4 else "OPEN"
 
-                    if case_num and case_num not in seen_case_numbers:
+                    # GAP-001: Skip header rows that got included in tbody
+                    _HEADER_LABELS = {"CASE NUMBER", "CASE NO.", "CASE NO", "CASE #", ""}
+                    if case_num and case_num.upper() not in _HEADER_LABELS and case_num not in seen_case_numbers:
                         seen_case_numbers.add(case_num)
                         results.append({
                             "CaseNumber": case_num,

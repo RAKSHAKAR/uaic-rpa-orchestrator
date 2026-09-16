@@ -256,7 +256,7 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                         or sc.raw_payload.get("filed_date")
                         if isinstance(sc.raw_payload, dict)
                         else None
-                    ),
+                    ) or claim.dol,
                     case_status=sc.case_status,
                     case_type=sc.case_type,
                     raw_payload=sc.raw_payload,
@@ -1333,6 +1333,10 @@ async def get_claim_audit_logs(
     query = select(ClaimRecord).where(ClaimRecord.id == claim_id)
     claim = (await db.execute(query)).scalar_one_or_none()
     if not claim:
+        query = select(ClaimRecord).where(ClaimRecord.claim_number == claim_id)
+        claim = (await db.execute(query)).scalar_one_or_none()
+
+    if not claim:
         raise HTTPException(status_code=404, detail="Claim record not found")
 
     audit_query = (
@@ -1341,6 +1345,10 @@ async def get_claim_audit_logs(
             or_(
                 AuditLog.entity_id == claim.id,
                 AuditLog.claim_number == claim.claim_number,
+                AuditLog.entity_id == claim.claim_number,
+                AuditLog.claim_number == claim.id,
+                AuditLog.entity_id == claim_id,
+                AuditLog.claim_number == claim_id,
             )
         )
         .order_by(AuditLog.timestamp.desc())
@@ -1393,18 +1401,46 @@ async def get_claim_screenshot_image(claim_id: str, screenshot_id: str, db: Asyn
         raise HTTPException(status_code=404, detail="Screenshot record not found")
 
     file_path = record.file_path
-    if not file_path or not os.path.exists(file_path):
-        local_path = settings.SCREENSHOTS_DIR / Path(file_path).name
-        if local_path.exists():
-            file_path = str(local_path)
-        else:
-            raise HTTPException(status_code=404, detail="Screenshot image file not found on disk")
+    resolved_path = None
+    if file_path and os.path.exists(file_path):
+        resolved_path = Path(file_path)
+    else:
+        # Check hierarchical directory: screenshots/{claim_id}/{portal_key}/{filename}
+        if record.claim_id and record.portal_key and file_path:
+            hierarchical_path = settings.SCREENSHOTS_DIR / str(record.claim_id) / str(record.portal_key) / Path(file_path).name
+            if hierarchical_path.exists():
+                resolved_path = hierarchical_path
+        if not resolved_path and file_path:
+            local_path = settings.SCREENSHOTS_DIR / Path(file_path).name
+            if local_path.exists():
+                resolved_path = local_path
+        if not resolved_path and file_path:
+            matches = list(settings.SCREENSHOTS_DIR.glob(f"**/{Path(file_path).name}"))
+            if matches:
+                resolved_path = matches[0]
+
+    if not resolved_path or not resolved_path.exists():
+        raise HTTPException(status_code=404, detail="Screenshot image file not found on disk")
 
     return FileResponse(
-        path=str(file_path),
+        path=str(resolved_path),
         media_type="image/png",
-        filename=os.path.basename(file_path),
+        filename=resolved_path.name,
     )
+
+
+@router.get("/{claim_id}/logs/{portal_key}", summary="Get portal execution log for claim")
+async def get_claim_portal_log(claim_id: str, portal_key: str):
+    """Retrieve execution log for a specific portal run of a claim."""
+    log_file = settings.LOGS_DIR / str(claim_id) / str(portal_key) / "execution.log"
+    if not log_file.exists():
+        return {"claim_id": claim_id, "portal_key": portal_key, "log_text": "", "exists": False}
+    try:
+        with open(log_file, encoding="utf-8") as f:
+            log_text = f.read()
+        return {"claim_id": claim_id, "portal_key": portal_key, "log_text": log_text, "exists": True}
+    except Exception as e:
+        return {"claim_id": claim_id, "portal_key": portal_key, "log_text": f"Error reading log: {e}", "exists": False}
 
 
 @router.get("/{claim_id}/export")
@@ -1437,7 +1473,7 @@ async def export_single_claim(
             headers={"Content-Disposition": f"attachment; filename=claim_{c_num}_{timestamp}.json"},
         )
 
-    # 2. CSV Export (Scraped Court Cases with complete claim metadata)
+    # 2. CSV Export (Scraped Court Cases with complete claim metadata & lossless JSON parity)
     case_rows = []
     insured = f"{claim.insured_first_name or ''} {claim.insured_last_name or ''}".strip()
     claimant = f"{claim.claimant_first_name or ''} {claim.claimant_last_name or ''}".strip()
@@ -1445,9 +1481,41 @@ async def export_single_claim(
     rec_status = claim.record_status.value if hasattr(claim.record_status, "value") else str(claim.record_status)
     fuzzy_status = claim.fuzzy_match_status.value if hasattr(claim.fuzzy_match_status, "value") else str(claim.fuzzy_match_status)
     loss_loc = f"{claim.loss_location_state or ''}".strip(", ")
+    gw_pushed = "Yes" if getattr(claim, "guidewire_pushed", False) else "No"
+    duration_str = str(claim.total_duration_seconds or "")
+    created_at_str = claim.created_at.strftime("%Y-%m-%d %H:%M:%S") if claim.created_at else ""
+
+    bot_broward = str(claim.fl_botstatus_broward.value if hasattr(claim.fl_botstatus_broward, "value") else claim.fl_botstatus_broward)
+    bot_hills = str(claim.fl_botstatus_hillsborough.value if hasattr(claim.fl_botstatus_hillsborough, "value") else claim.fl_botstatus_hillsborough)
+    bot_miami = str(claim.fl_botstatus_miami.value if hasattr(claim.fl_botstatus_miami, "value") else claim.fl_botstatus_miami)
+    bot_travis = str(claim.te_botstatus_travis.value if hasattr(claim.te_botstatus_travis, "value") else claim.te_botstatus_travis)
+    bot_dallas = str(claim.te_botstatus_dallas.value if hasattr(claim.te_botstatus_dallas, "value") else claim.te_botstatus_dallas)
+    bot_harris = str(claim.te_botstatus_harris.value if hasattr(claim.te_botstatus_harris, "value") else claim.te_botstatus_harris)
+    bot_cclerk = str(claim.te_botstatus_cclerk.value if hasattr(claim.te_botstatus_cclerk, "value") else claim.te_botstatus_cclerk)
+    bot_hcdistrict = str(getattr(claim, "te_botstatus_hcdistrict", "") or "")
 
     if claim.scraped_cases:
         for c in claim.scraped_cases:
+            f_date = c.filing_date or (
+                c.raw_payload.get("FilingDate")
+                or c.raw_payload.get("filing_date")
+                or c.raw_payload.get("Filing Date")
+                or c.raw_payload.get("SuitFiledDate")
+                or c.raw_payload.get("suit_filed_date")
+                or c.raw_payload.get("DateFiled")
+                or c.raw_payload.get("date_filed")
+                or c.raw_payload.get("Filed")
+                or c.raw_payload.get("filed")
+                or c.raw_payload.get("filed_date")
+                if isinstance(c.raw_payload, dict)
+                else None
+            ) or ""
+            best_match = next(
+                (m for m in (claim.match_pairs or []) if (hasattr(m, "court_case_id") and m.court_case_id == c.id) or (getattr(m, "case_style", "") == c.case_style)),
+                None
+            )
+            raw_json_str = json.dumps(c.raw_payload or {}, default=str)
+
             case_rows.append({
                 "Claim Number": claim.claim_number,
                 "Exposure Number": claim.exposure_number or "1",
@@ -1455,20 +1523,41 @@ async def export_single_claim(
                 "Date of Loss (DOL)": claim.dol or "",
                 "Policy State": claim.policy_state or "",
                 "Loss Location": loss_loc,
+                "Insured First Name": claim.insured_first_name or "",
+                "Insured Last Name": claim.insured_last_name or "",
                 "Insured Party": insured or "N/A",
+                "Claimant First Name": claim.claimant_first_name or "",
+                "Claimant Last Name": claim.claimant_last_name or "",
                 "Claimant Party": claimant or "N/A",
-                "Driver (Insured Vehicle)": driver or "N/A",
+                "Driver First Name": claim.driver_first_name or "",
+                "Driver Last Name": claim.driver_last_name or "",
+                "Driver Party": driver or "N/A",
                 "Record Status": rec_status,
                 "Fuzzy Match Status": fuzzy_status,
+                "Total Duration (Seconds)": duration_str,
+                "Guidewire Pushed": gw_pushed,
                 "Guidewire Activity ID": claim.activity_id or "None",
                 "Case Number": c.case_number,
                 "Case Style": c.case_style,
                 "County": c.county_name,
                 "Website URL": c.county_website,
-                "Filing Date": c.filing_date or "",
+                "Filing Date": f_date,
                 "Case Status": c.case_status or "",
                 "Case Type": c.case_type or "",
+                "Best Match Party": getattr(best_match, "party_name", "") if best_match else "",
+                "Best Match Score": getattr(best_match, "similarity_score", "") if best_match else "",
+                "Match Review Status": (best_match.review_status.value if hasattr(best_match.review_status, "value") else str(best_match.review_status)) if best_match else "",
+                "Bot Broward": bot_broward,
+                "Bot Hillsborough": bot_hills,
+                "Bot Miami": bot_miami,
+                "Bot Travis": bot_travis,
+                "Bot Dallas": bot_dallas,
+                "Bot Harris JP": bot_harris,
+                "Bot Harris Clerk": bot_cclerk,
+                "Bot Harris District": bot_hcdistrict,
+                "Created At": created_at_str,
                 "Scraped At": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else "",
+                "Raw Case Payload (JSON)": raw_json_str,
             })
     else:
         case_rows.append({
@@ -1478,11 +1567,19 @@ async def export_single_claim(
             "Date of Loss (DOL)": claim.dol or "",
             "Policy State": claim.policy_state or "",
             "Loss Location": loss_loc,
+            "Insured First Name": claim.insured_first_name or "",
+            "Insured Last Name": claim.insured_last_name or "",
             "Insured Party": insured or "N/A",
+            "Claimant First Name": claim.claimant_first_name or "",
+            "Claimant Last Name": claim.claimant_last_name or "",
             "Claimant Party": claimant or "N/A",
-            "Driver (Insured Vehicle)": driver or "N/A",
+            "Driver First Name": claim.driver_first_name or "",
+            "Driver Last Name": claim.driver_last_name or "",
+            "Driver Party": driver or "N/A",
             "Record Status": rec_status,
             "Fuzzy Match Status": fuzzy_status,
+            "Total Duration (Seconds)": duration_str,
+            "Guidewire Pushed": gw_pushed,
             "Guidewire Activity ID": claim.activity_id or "None",
             "Case Number": "NO_CASES_FOUND",
             "Case Style": "",
@@ -1491,7 +1588,20 @@ async def export_single_claim(
             "Filing Date": "",
             "Case Status": "",
             "Case Type": "",
+            "Best Match Party": "",
+            "Best Match Score": "",
+            "Match Review Status": "",
+            "Bot Broward": bot_broward,
+            "Bot Hillsborough": bot_hills,
+            "Bot Miami": bot_miami,
+            "Bot Travis": bot_travis,
+            "Bot Dallas": bot_dallas,
+            "Bot Harris JP": bot_harris,
+            "Bot Harris Clerk": bot_cclerk,
+            "Bot Harris District": bot_hcdistrict,
+            "Created At": created_at_str,
             "Scraped At": "",
+            "Raw Case Payload (JSON)": "{}",
         })
 
     df_cases = pd.DataFrame(case_rows)
@@ -1504,9 +1614,12 @@ async def export_single_claim(
             headers={"Content-Disposition": f"attachment; filename=claim_{c_num}_cases_{timestamp}.csv"},
         )
 
-    # 3. XLSX Export (Multi-sheet: Overview, Scraped Cases, Matches, Telemetry, 8 Bots Status)
+    # 3. XLSX Export (Multi-sheet: Overview, Scraped Cases, Matches, Telemetry, 8 Bots Status, Raw JSON)
     if format == "xlsx":
         out = io.BytesIO()
+        claim_dict = _map_claim_to_response(claim).model_dump()
+        full_json_str = json.dumps(claim_dict, default=str, indent=2)
+
         with pd.ExcelWriter(out, engine="openpyxl") as writer:
             # Sheet 1: Claim Overview
             overview_data = [
@@ -1521,14 +1634,23 @@ async def export_single_claim(
                 {"Field": "Driver (Insured Vehicle)", "Value": driver or "N/A"},
                 {"Field": "Record Status", "Value": rec_status},
                 {"Field": "Fuzzy Match Status", "Value": fuzzy_status},
-                {"Field": "Total Duration (seconds)", "Value": str(claim.total_duration_seconds or "")},
+                {"Field": "Total Duration (seconds)", "Value": duration_str},
+                {"Field": "Guidewire Pushed", "Value": gw_pushed},
                 {"Field": "Guidewire Activity ID", "Value": claim.activity_id or "None"},
                 {"Field": "Total Cases Scraped", "Value": len(claim.scraped_cases)},
-                {"Field": "Created At", "Value": claim.created_at.strftime("%Y-%m-%d %H:%M:%S") if claim.created_at else ""},
+                {"Field": "Created At", "Value": created_at_str},
+                {"Field": "Bot Broward", "Value": bot_broward},
+                {"Field": "Bot Hillsborough", "Value": bot_hills},
+                {"Field": "Bot Miami", "Value": bot_miami},
+                {"Field": "Bot Travis", "Value": bot_travis},
+                {"Field": "Bot Dallas", "Value": bot_dallas},
+                {"Field": "Bot Harris JP", "Value": bot_harris},
+                {"Field": "Bot Harris Clerk", "Value": bot_cclerk},
+                {"Field": "Bot Harris District", "Value": bot_hcdistrict},
             ]
             pd.DataFrame(overview_data).to_excel(writer, index=False, sheet_name="Claim Overview")
 
-            # Sheet 2: Scraped Cases
+            # Sheet 2: Scraped Cases (All Columns)
             df_cases.to_excel(writer, index=False, sheet_name="Scraped Court Cases")
 
             # Sheet 3: Matches
@@ -1603,6 +1725,9 @@ async def export_single_claim(
                 for b in bots_list
             ]
             pd.DataFrame(bots_data).to_excel(writer, index=False, sheet_name="8 Bots Status")
+
+            # Sheet 6: Full Raw JSON
+            pd.DataFrame([{"Raw JSON Payload": full_json_str}]).to_excel(writer, index=False, sheet_name="Complete Raw JSON")
 
         out.seek(0)
         return Response(

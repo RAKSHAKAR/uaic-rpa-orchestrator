@@ -537,9 +537,11 @@ function Invoke-CheckServiceHealth {
         if (Get-NetTCPConnection -LocalPort $Port -ErrorAction Ignore) { $portOpen = $true }
     } catch {}
 
+    $cleanName = $ServiceName.Trim().PadRight(27)
+
     if (-not $portOpen) {
         Write-Host " [STOPPED] " -NoNewline -ForegroundColor DarkGray
-        Write-Host "$ServiceName (Port $Port)" -ForegroundColor Gray
+        Write-Host "$cleanName (Port $Port - Offline)" -ForegroundColor Gray
         return
     }
 
@@ -547,16 +549,16 @@ function Invoke-CheckServiceHealth {
         try {
             $resp = Invoke-WebRequest -Uri $HttpUrl -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
             if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) {
-                Write-Host " [HEALTHY]  " -NoNewline -ForegroundColor Green
-                Write-Host "$ServiceName (Port $Port - HTTP $($resp.StatusCode))" -ForegroundColor White
+                Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+                Write-Host "$cleanName (Port $Port - HTTP $($resp.StatusCode))" -ForegroundColor White
                 return
             }
         } catch {}
-        Write-Host " [RUNNING]  " -NoNewline -ForegroundColor Yellow
-        Write-Host "$ServiceName (Port $Port - port open, HTTP initializing)" -ForegroundColor DarkYellow
+        Write-Host " [RUNNING] " -NoNewline -ForegroundColor Yellow
+        Write-Host "$cleanName (Port $Port - port open, HTTP initializing)" -ForegroundColor DarkYellow
     } else {
-        Write-Host " [RUNNING]  " -NoNewline -ForegroundColor Green
-        Write-Host "$ServiceName (Port $Port)" -ForegroundColor White
+        Write-Host " [RUNNING] " -NoNewline -ForegroundColor Green
+        Write-Host "$cleanName (Port $Port)" -ForegroundColor White
     }
 }
 
@@ -670,19 +672,18 @@ function Invoke-RunTestSuite {
 }
 
 function Show-LiveStatusMonitor {
-    # Move cursor to top-left instead of clearing to eliminate screen flicker
-    [Console]::SetCursorPosition(0,0)
+    Clear-Host
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host "          UAIC Orchestrator - Live Service Health Monitor              " -ForegroundColor Cyan
     Write-Host "  [HEALTHY]=HTTP 200  [RUNNING]=Port open  [STOPPED]=Offline          " -ForegroundColor DarkGray
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Invoke-CheckServiceHealth "Frontend Web Application" 3000 "http://localhost:3000"
-    Invoke-CheckServiceHealth "FastAPI Backend & API   " 8000 "http://localhost:8000/api/v1/health"
-    Invoke-CheckServiceHealth "Celery Flower Monitor   " 5555 "http://localhost:5555"
-    Invoke-CheckServiceHealth "MailDev Web Inspector   " 1080 "http://localhost:1080"
-    Invoke-CheckServiceHealth "MailDev SMTP Server     " 1025
-    Invoke-CheckServiceHealth "Redis Queue Broker      " 6379
-    Invoke-CheckServiceHealth "PostgreSQL Database     " 5432
+    Invoke-CheckServiceHealth "FastAPI Backend & API" 8000 "http://localhost:8000/api/v1/health"
+    Invoke-CheckServiceHealth "Celery Flower Monitor" 5555 "http://localhost:5555"
+    Invoke-CheckServiceHealth "MailDev Web Inspector" 1080 "http://localhost:1080"
+    Invoke-CheckServiceHealth "MailDev SMTP Server" 1025
+    Invoke-CheckServiceHealth "Redis Queue Broker" 6379
+    Invoke-CheckServiceHealth "PostgreSQL Database" 5432
     Write-Host ""
     Write-Host "Quick Controls:" -ForegroundColor DarkCyan
     Write-Host " [R] Refresh Status  |  [K] Stop Services  |  [M] Main Menu  |  [Q] Exit" -ForegroundColor Yellow

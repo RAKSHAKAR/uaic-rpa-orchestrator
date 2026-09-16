@@ -197,20 +197,39 @@ export default function OperationalHealthPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Auto Refresh selector */}
-            <div className="flex items-center space-x-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-lg shadow-sm">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-slate-500 dark:text-slate-400">Auto Refresh:</span>
-              <select
-                value={autoRefreshInterval}
-                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-                className="bg-transparent font-medium text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-              >
-                <option value={0}>Off</option>
-                <option value={5}>Every 5s</option>
-                <option value={15}>Every 15s</option>
-                <option value={30}>Every 30s</option>
-              </select>
+            {/* Auto Refresh Active Badge */}
+            <div className="flex items-center gap-2">
+              {autoRefreshInterval > 0 ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold shadow-xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>Auto Refresh: ON ({autoRefreshInterval}s)</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-medium">
+                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                  <span>Auto Refresh: OFF</span>
+                </div>
+              )}
+
+              {/* Auto Refresh selector */}
+              <div className="flex items-center space-x-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-lg shadow-xs">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-slate-500 dark:text-slate-400">Interval:</span>
+                <select
+                  value={autoRefreshInterval}
+                  onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                  className="bg-transparent font-medium text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  <option value={0}>Off</option>
+                  <option value={5}>5s</option>
+                  <option value={15}>15s (Default)</option>
+                  <option value={30}>30s</option>
+                  <option value={60}>60s</option>
+                </select>
+              </div>
             </div>
 
             {/* Manual Refresh button */}

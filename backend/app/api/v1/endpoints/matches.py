@@ -4,6 +4,7 @@ import io
 import json
 import time
 from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -32,7 +33,10 @@ from app.schemas.match import (
     UniqueNamesResponse,
 )
 from app.services.audit_service import extract_client_context, log_audit_event_async
-from app.services.fuzzy_engine import derive_search_counts_fuzzy, generate_unique_names_for_claim
+from app.services.fuzzy_engine import (
+    generate_unique_names_for_claim,
+    is_case_eligible,
+)
 
 router = APIRouter()
 
@@ -397,24 +401,163 @@ async def export_match_reviews(
 @router.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse)
 def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResponse:
     """
-    Direct legacy Power Automate Desktop fuzzy match endpoint parity.
-    Evaluates a reference string against an array of target strings.
+    Direct legacy Power Automate Desktop fuzzy match endpoint parity (PowerAutomateSolutions/fuzzy-match-api).
+    Supports:
+    1. Canonical text1 vs text2 with RapidFuzz partial_ratio scoring and threshold comparison.
+    2. Optional Minimum Case Filing Date filtering (filing_date vs min_filing_date) for Guidewire eligibility.
+    3. Court cases batch evaluation (cases array) filtered strictly by Minimum Case Filing Date.
+    4. Array target_strings evaluation (backward compatibility).
     """
-    norm_ref = payload.reference_string.strip().lower()
-    threshold_scaled = payload.threshold * 100.0 if payload.threshold <= 1.0 else payload.threshold
+    thresh = float(payload.threshold if payload.threshold is not None else 0.60)
+    threshold_scaled = thresh * 100.0 if thresh <= 1.0 else thresh
+    min_date_str = payload.min_filing_date or "2010-01-01"
 
-    matches = []
-    for target in payload.target_strings:
-        norm_target = target.strip().lower()
-        score = float(fuzz.partial_ratio(norm_ref, norm_target))
-        result = "Match Found" if score >= threshold_scaled else "No Match Found"
-        matches.append(FuzzyMatchScore(target_string=target, result=result, score=score))
+    # Case 1: Backward compatibility with array evaluator (target_strings)
+    if payload.target_strings is not None and len(payload.target_strings) > 0:
+        norm_ref = (payload.reference_string or payload.text1 or "").strip().lower()
+        matches = []
+        for target in payload.target_strings:
+            norm_target = target.strip().lower()
+            score = float(fuzz.partial_ratio(norm_ref, norm_target))
+            result = "Match Found" if score >= threshold_scaled else "No Match Found"
+            matches.append(
+                FuzzyMatchScore(
+                    target_string=target,
+                    result=result,
+                    score=score,
+                    guidewire_eligible=(result == "Match Found"),
+                )
+            )
+        return DirectFuzzyMatchResponse(
+            result="Match Found" if any(m.result == "Match Found" for m in matches) else "No Match Found",
+            score=max((m.score for m in matches), default=0.0),
+            reference_string=payload.reference_string or payload.text1,
+            text1=payload.text1 or payload.reference_string,
+            threshold_applied=threshold_scaled,
+            matches=matches,
+        )
+
+    # Case 2: Batch court cases evaluation (cases array)
+    if payload.cases is not None and len(payload.cases) > 0:
+        t1 = (payload.text1 or payload.reference_string or "").strip()
+        cases_results = []
+        best_score = 0.0
+        best_match_found = False
+
+        for c in payload.cases:
+            c_style = str(c.get("CaseStyle") or c.get("case_style") or c.get("text2") or "").strip()
+            c_num = str(c.get("CaseNumber") or c.get("case_number") or "").strip()
+            c_date = str(c.get("FilingDate") or c.get("filing_date") or "").strip()
+
+            date_eligible = True
+            filter_reason = None
+            if c_date:
+                date_eligible = is_case_eligible(c_date, case_status=None, case_type=None, min_filing_date=min_date_str)
+                if not date_eligible:
+                    filter_reason = f"Filing date '{c_date}' is prior to Minimum Case Filing Date '{min_date_str}'"
+
+            case_score = float(fuzz.partial_ratio(t1.lower(), c_style.lower())) if t1 and c_style else 0.0
+            text_matched = case_score >= threshold_scaled
+
+            if not date_eligible:
+                c_result = f"Filtered Out (Filing Date < {min_date_str})"
+                gw_eligible = False
+            elif text_matched:
+                c_result = "Match Found"
+                gw_eligible = True
+                best_match_found = True
+            else:
+                c_result = "No Match Found"
+                gw_eligible = False
+
+            if case_score > best_score and date_eligible:
+                best_score = case_score
+
+            cases_results.append({
+                "case_number": c_num,
+                "case_style": c_style,
+                "filing_date": c_date,
+                "score": case_score,
+                "result": c_result,
+                "guidewire_eligible": gw_eligible,
+                "filter_reason": filter_reason,
+            })
+
+        overall_result = "Match Found" if best_match_found else "No Match Found"
+        eligible_count = sum(1 for c in cases_results if c.get("guidewire_eligible"))
+        return DirectFuzzyMatchResponse(
+            result=overall_result,
+            score=best_score,
+            text1=t1,
+            threshold_applied=threshold_scaled,
+            min_filing_date=min_date_str,
+            guidewire_eligible=best_match_found,
+            cases=cases_results,
+            cases_results=cases_results,
+            cases_evaluated=len(cases_results),
+            eligible_for_guidewire=eligible_count,
+        )
+
+    # Case 3: Canonical text1 vs text2 parity (exact PowerAutomateSolutions/fuzzy-match-api)
+    t1 = (payload.text1 or payload.reference_string or "").strip()
+    t2 = (payload.text2 or "").strip()
+    score = float(fuzz.partial_ratio(t1.lower(), t2.lower())) if t1 and t2 else 0.0
+    text_matched = score >= threshold_scaled
+    result = "Match Found" if text_matched else "No Match Found"
+    guidewire_eligible = text_matched
+    filter_reason = None
+
+    # Apply Minimum Case Filing Date filter if filing_date is provided
+    if payload.filing_date:
+        date_eligible = is_case_eligible(payload.filing_date, case_status=None, case_type=None, min_filing_date=min_date_str)
+        if not date_eligible:
+            guidewire_eligible = False
+            result = f"Filtered Out (Filing Date < {min_date_str})"
+            filter_reason = f"Filing date '{payload.filing_date}' is prior to Minimum Case Filing Date '{min_date_str}'"
 
     return DirectFuzzyMatchResponse(
-        reference_string=payload.reference_string,
+        result=result,
+        score=score,
+        text1=t1,
+        text2=t2,
         threshold_applied=threshold_scaled,
-        matches=matches
+        filing_date=payload.filing_date,
+        min_filing_date=min_date_str,
+        guidewire_eligible=guidewire_eligible,
+        filter_reason=filter_reason,
     )
+
+
+def _extract_party_name(party_input: Any) -> tuple[str, str]:
+    """Extracts (first_name, last_name) from string or dictionary."""
+    if not party_input:
+        return "", ""
+    if isinstance(party_input, str):
+        parts = party_input.strip().split()
+        if not parts:
+            return "", ""
+        if len(parts) == 1:
+            return parts[0], parts[0]
+        return parts[0], " ".join(parts[1:])
+    if isinstance(party_input, dict):
+        fn = (
+            party_input.get("FirstName")
+            or party_input.get("first_name")
+            or party_input.get("fn")
+            or party_input.get("First")
+            or ""
+        )
+        ln = (
+            party_input.get("LastName")
+            or party_input.get("last_name")
+            or party_input.get("ln")
+            or party_input.get("Last")
+            or ""
+        )
+        if not fn and not ln and party_input.get("name"):
+            return _extract_party_name(party_input["name"])
+        return str(fn).strip(), str(ln).strip()
+    return "", ""
 
 
 @router.post("/unique-names", response_model=UniqueNamesResponse)
@@ -425,29 +568,53 @@ async def generate_claim_unique_names(
     """
     Generates the deduplicated list of unique search names (Insured, Driver, Claimant)
     to be searched sequentially across all open county court portals.
-    Supports either passing a claim_id (queries DB) or supplying raw party names directly.
+    Supports either passing a claim_id (queries DB), 3-array JSON, or flat party names.
     """
     claim_record = None
-    claim_num = None
     if payload.claim_id:
         res = await db.execute(select(ClaimRecord).where(ClaimRecord.id == payload.claim_id))
         claim_record = res.scalar_one_or_none()
         if not claim_record:
             raise HTTPException(status_code=404, detail=f"Claim record '{payload.claim_id}' not found")
-        claim_num = claim_record.claim_number
         source_data = claim_record
     else:
+        ins_f = payload.insured_first_name or ""
+        ins_l = payload.insured_last_name or ""
+        drv_f = payload.driver_first_name or ""
+        drv_l = payload.driver_last_name or ""
+        clm_f = payload.claimant_first_name or ""
+        clm_l = payload.claimant_last_name or ""
+
+        # Check array formats (Claimants, Insureds, Drivers)
+        insureds_list = payload.Insureds or payload.insureds or []
+        drivers_list = payload.Drivers or payload.drivers or []
+        claimants_list = payload.Claimants or payload.claimants or []
+
+        if not ins_l and insureds_list:
+            ins_f, ins_l = _extract_party_name(insureds_list[0])
+        if not drv_l and drivers_list:
+            drv_f, drv_l = _extract_party_name(drivers_list[0])
+        if not clm_l and claimants_list:
+            clm_f, clm_l = _extract_party_name(claimants_list[0])
+
+        # If driver was not specified at all, driver defaults to insured
+        if not drv_l and ins_l:
+            drv_f, drv_l = ins_f, ins_l
+
         source_data = {
-            "insured_first_name": payload.insured_first_name,
-            "insured_last_name": payload.insured_last_name,
-            "driver_first_name": payload.driver_first_name,
-            "driver_last_name": payload.driver_last_name,
-            "claimant_first_name": payload.claimant_first_name,
-            "claimant_last_name": payload.claimant_last_name,
+            "insured_first_name": ins_f,
+            "insured_last_name": ins_l,
+            "driver_first_name": drv_f,
+            "driver_last_name": drv_l,
+            "claimant_first_name": clm_f,
+            "claimant_last_name": clm_l,
         }
 
-    unique_list = generate_unique_names_for_claim(source_data, fuzzy_threshold=payload.threshold)
-    dual_s, triple_s = derive_search_counts_fuzzy(source_data, fuzzy_threshold=payload.threshold)
+    unique_list = generate_unique_names_for_claim(
+        source_data,
+        fuzzy_threshold=payload.threshold,
+        noise_patterns=payload.noise_patterns,
+    )
 
     items = [
         UniqueNameItem(
@@ -455,7 +622,9 @@ async def generate_claim_unique_names(
             first_name=p.get("first_name"),
             last_name=p.get("last_name"),
             full_name=p["full_name"],
+            name=p.get("name") or p["full_name"],
             search_order=p["search_order"],
+            target_number=p.get("target_number") or p["search_order"],
         )
         for p in unique_list
     ]
@@ -464,16 +633,13 @@ async def generate_claim_unique_names(
         unique_names=items,
         total_unique_names=len(items),
         count=len(items),
-        dual_search=dual_s,
-        triple_search=triple_s,
-        claim_number=claim_num,
     )
 
 
 @router.get("/claims/{claim_id}/unique-names", response_model=UniqueNamesResponse)
 async def get_claim_unique_names_get(
     claim_id: str,
-    threshold: float = Query(0.85, ge=0.0, le=1.0),
+    threshold: float = Query(0.60, ge=0.0, le=1.0),
     db: AsyncSession = Depends(get_db),
 ) -> UniqueNamesResponse:
     """Convenience GET endpoint to extract unique search names for a specific claim record."""

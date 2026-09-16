@@ -208,6 +208,22 @@ export interface AutomationSettings {
   anticaptcha_api_key?: string | null;
   chrome_user_data_dir?: string | null;
   user_agent?: string;
+  extension_setup_verified?: boolean;
+  extension_setup_timestamp?: string | null;
+  typing_speed_mode?: "turbo" | "fast" | "balanced" | "cautious" | string;
+  typing_delay_ms?: number;
+  action_pacing_ms?: number;
+  stealth_clicks?: boolean;
+}
+
+export interface ExtensionSetupResponse {
+  status: string;
+  extension_id: string;
+  pinned_to_toolbar: boolean;
+  persistent_profile_path: string;
+  verified: boolean;
+  timestamp: string;
+  message: string;
 }
 
 export interface PortalsSettings {
@@ -237,7 +253,9 @@ export interface FuzzyMatcherSettings {
   manual_review_threshold: number;
   scorer_algorithm: string;
   min_filing_date: string;
+  unique_names_threshold?: number;
   clean_party_name_patterns: string[];
+  clean_case_style_patterns?: string[];
   whitelisted_statuses: string[];
   whitelisted_case_types: string[];
 }
@@ -807,24 +825,42 @@ export interface UniqueNameItem {
   search_order: number;
 }
 
+export interface UniqueNamesPartyItem {
+  FirstName?: string;
+  LastName?: string;
+  MiddleName?: string;
+  Suffix?: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+  [key: string]: any;
+}
+
 export interface UniqueNamesRequest {
   claim_id?: string;
+  claim_number?: string | null;
+  threshold?: number;
+  noise_patterns?: string[];
   insured_first_name?: string | null;
   insured_last_name?: string | null;
   driver_first_name?: string | null;
   driver_last_name?: string | null;
   claimant_first_name?: string | null;
   claimant_last_name?: string | null;
-  threshold?: number;
+  Claimants?: (UniqueNamesPartyItem | string)[];
+  claimants?: (UniqueNamesPartyItem | string)[];
+  Insureds?: (UniqueNamesPartyItem | string)[];
+  insureds?: (UniqueNamesPartyItem | string)[];
+  Drivers?: (UniqueNamesPartyItem | string)[];
+  drivers?: (UniqueNamesPartyItem | string)[];
+  parties?: (UniqueNamesPartyItem | string)[];
+  [key: string]: any;
 }
 
 export interface UniqueNamesResponse {
   unique_names: UniqueNameItem[];
   total_unique_names: number;
   count: number;
-  dual_search: number;
-  triple_search: number;
-  claim_number?: string | null;
 }
 
 export interface FuzzyMatchScore {
@@ -834,15 +870,47 @@ export interface FuzzyMatchScore {
 }
 
 export interface DirectFuzzyMatchRequest {
-  reference_string: string;
-  target_strings: string[];
+  text1?: string;
+  text2?: string;
   threshold?: number;
+  filing_date?: string;
+  min_filing_date?: string;
+  cases?: Array<{
+    CaseNumber?: string;
+    case_number?: string;
+    CaseStyle?: string;
+    case_style?: string;
+    FilingDate?: string;
+    filing_date?: string;
+    [key: string]: any;
+  }>;
+  reference_string?: string;
+  target_strings?: string[];
+}
+
+export interface FuzzyMatchCaseResult {
+  case_number: string;
+  case_style: string;
+  filing_date: string;
+  score: number;
+  result: string;
+  guidewire_eligible: boolean;
+  filter_reason?: string | null;
 }
 
 export interface DirectFuzzyMatchResponse {
-  reference_string: string;
-  threshold_applied: number;
-  matches: FuzzyMatchScore[];
+  result: string;
+  score: number;
+  text1?: string;
+  text2?: string;
+  threshold_applied?: number;
+  filing_date?: string;
+  min_filing_date?: string;
+  guidewire_eligible?: boolean;
+  filter_reason?: string | null;
+  reference_string?: string;
+  matches?: FuzzyMatchScore[];
+  cases_results?: FuzzyMatchCaseResult[];
 }
 
 // --- New: Extract Unique Party Names ---

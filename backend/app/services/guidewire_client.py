@@ -1,7 +1,9 @@
 """Guidewire Activity Creation, Live Test Connection, and Portal Ping Client."""
 
+import asyncio
 import base64
 import logging
+import random
 import time
 import uuid
 from typing import Any
@@ -85,7 +87,14 @@ class GuidewireClient:
                 "CaseNumber": case.get("CaseNumber") or case.get("case_number") or "",
                 "CaseStyle": case.get("CaseStyle") or case.get("case_style") or "",
                 "CountyWebsite": case.get("CountyWebsite") or case.get("county_website") or "",
-                "SuitFiledDate": case.get("SuitFiledDate") or case.get("filing_date") or "",
+                "SuitFiledDate": (
+                    case.get("SuitFiledDate")
+                    or case.get("FilingDate")
+                    or case.get("filing_date")
+                    or case.get("date_of_loss")
+                    or case.get("dol")
+                    or ""
+                ),
             })
 
         payload = {
@@ -192,7 +201,10 @@ class GuidewireClient:
         start_time = time.perf_counter()
 
         if mock_mode:
-            duration_ms = round((time.perf_counter() - start_time) * 1000 + 35.2, 2)
+            # Simulate realistic mock network roundtrip latency with natural variation (28ms - 62ms)
+            simulated_latency = random.uniform(0.028, 0.062)
+            await asyncio.sleep(simulated_latency)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
             mock_body = {
                 "status": "success",
                 "mode": "MOCK_SIMULATION",

@@ -243,12 +243,12 @@ def _get_claim_field(obj: Any, *keys: str) -> str:
 
 def derive_search_counts_fuzzy(
     claim: Any,
-    fuzzy_threshold: float = 0.85,
+    fuzzy_threshold: float = 0.60,
     noise_patterns: list[str] | None = None,
 ) -> tuple[int, int]:
     """
     Derives DualSearch and TripleSearch count configuration using fuzzy party matching (Power Automate V4 parity).
-    - Insured == Driver == Claimant: (1, 1) -> 1 search (Insured)
+    - Insured == Driver == Claimant (or 1 unique party): (1, 1) -> 1 search (Insured)
     - Insured == Driver, Claimant !=: (1, 3) -> 2 searches (Insured, Claimant)
     - Insured == Claimant, Driver !=: (2, 1) -> 2 searches (Insured, Driver)
     - Driver == Claimant, Insured !=: (2, 1) -> 2 searches (Insured, Driver)
@@ -261,22 +261,35 @@ def derive_search_counts_fuzzy(
     clm_f = _get_claim_field(claim, "claimant_first_name", "Claimant First Name", "claimant_fn")
     clm_l = _get_claim_field(claim, "claimant_last_name", "Claimant Last Name", "claimant_ln")
 
+    # If driver is not specified, vehicle driver defaults to the insured
+    if not drv_l and ins_l:
+        drv_f, drv_l = ins_f, ins_l
+
     ins_name = clean_party_name(ins_f, ins_l, noise_patterns=noise_patterns).lower()
     drv_name = clean_party_name(drv_f, drv_l, noise_patterns=noise_patterns).lower()
     clm_name = clean_party_name(clm_f, clm_l, noise_patterns=noise_patterns).lower()
 
+    # If all parties are empty / unspecified
+    if not ins_name and not drv_name and not clm_name:
+        return 1, 1
+
     rf_thresh = fuzzy_threshold * 100.0
 
-    def _is_same(n1: str, n2: str) -> bool:
+    def _is_same(n1: str, n2: str, f1: str = "", f2: str = "") -> bool:
         if not n1 or not n2:
             return False
         if n1 == n2:
             return True
+        # If both distinct first names exist (>2 chars) and do not match, they are different individuals
+        if f1 and f2 and len(f1) > 2 and len(f2) > 2:
+            f1_l, f2_l = f1.lower().strip(), f2.lower().strip()
+            if fuzz.ratio(f1_l, f2_l) < rf_thresh and fuzz.token_sort_ratio(f1_l, f2_l) < rf_thresh:
+                return False
         return fuzz.token_sort_ratio(n1, n2) >= rf_thresh or fuzz.ratio(n1, n2) >= rf_thresh
 
-    ins_eq_drv = _is_same(ins_name, drv_name)
-    ins_eq_clm = _is_same(ins_name, clm_name)
-    drv_eq_clm = _is_same(drv_name, clm_name)
+    ins_eq_drv = _is_same(ins_name, drv_name, ins_f, drv_f)
+    ins_eq_clm = _is_same(ins_name, clm_name, ins_f, clm_f)
+    drv_eq_clm = _is_same(drv_name, clm_name, drv_f, clm_f)
 
     if ins_eq_drv and ins_eq_clm:
         return 1, 1
@@ -290,18 +303,14 @@ def derive_search_counts_fuzzy(
 
 def generate_unique_names_for_claim(
     claim: Any,
-    fuzzy_threshold: float = 0.85,
+    fuzzy_threshold: float = 0.60,
     noise_patterns: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Generates the ordered, deduplicated list of unique search names for a claim
     (Insured, Driver, Claimant) to be searched sequentially across county court portals.
-    Preserves DualSearch and TripleSearch rules while deduplicating near-identical names.
+    Directly applies fuzzy deduplication across the 3 columns (threshold=0.60 default).
     """
-    dual_search, triple_search = derive_search_counts_fuzzy(
-        claim, fuzzy_threshold=fuzzy_threshold, noise_patterns=noise_patterns
-    )
-
     ins_f = _get_claim_field(claim, "insured_first_name", "Insured First Name", "insured_fn")
     ins_l = _get_claim_field(claim, "insured_last_name", "Insured Last Name", "insured_ln")
     drv_f = _get_claim_field(claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn")
@@ -309,39 +318,59 @@ def generate_unique_names_for_claim(
     clm_f = _get_claim_field(claim, "claimant_first_name", "Claimant First Name", "claimant_fn")
     clm_l = _get_claim_field(claim, "claimant_last_name", "Claimant Last Name", "claimant_ln")
 
+    # If driver is not specified, vehicle driver defaults to the insured
+    if not drv_l and ins_l:
+        drv_f, drv_l = ins_f, ins_l
+
     unique_parties: list[dict[str, Any]] = []
-    seen_names: set[str] = set()
+    rf_thresh = fuzzy_threshold * 100.0
+
+    def _is_duplicate(candidate_norm: str, cand_f: str = "") -> bool:
+        if not candidate_norm:
+            return True
+        for p in unique_parties:
+            existing_norm = p["full_name"].lower().strip()
+            if candidate_norm == existing_norm:
+                return True
+            existing_f = p.get("first_name") or ""
+            # If both first names exist (>2 chars) and do not match, they are different individuals
+            if cand_f and existing_f and len(cand_f) > 2 and len(existing_f) > 2:
+                cf_l, ef_l = cand_f.lower().strip(), existing_f.lower().strip()
+                if fuzz.ratio(cf_l, ef_l) < rf_thresh and fuzz.token_sort_ratio(cf_l, ef_l) < rf_thresh:
+                    continue
+            if fuzz.token_sort_ratio(candidate_norm, existing_norm) >= rf_thresh or fuzz.ratio(candidate_norm, existing_norm) >= rf_thresh:
+                return True
+        return False
 
     def _add_party(ptype: str, f: str, l: str):
         full = clean_party_name(f, l, noise_patterns=noise_patterns)
         norm = full.lower().strip()
         if not l or not str(l).strip() or not norm:
             return
-        # Avoid duplicate addition
-        if norm in seen_names:
+        if _is_duplicate(norm, f or ""):
             return
-        seen_names.add(norm)
+        order = len(unique_parties) + 1
         unique_parties.append({
             "party_type": ptype,
             "first_name": f or None,
             "last_name": l or None,
             "full_name": full,
-            "search_order": len(unique_parties) + 1,
+            "name": full,
+            "search_order": order,
+            "target_number": order,
         })
 
-    # 1. Primary: Insured
-    if ins_l:
+    # Add parties sequentially: Insured -> Driver -> Claimant
+    if ins_l and str(ins_l).strip():
         _add_party("Insured", ins_f, ins_l)
 
-    # 2. Dual Search: Driver (if dual_search == 2)
-    if dual_search == 2 and drv_l:
+    if drv_l and str(drv_l).strip():
         _add_party("Driver", drv_f, drv_l)
 
-    # 3. Triple Search: Claimant (if triple_search == 3)
-    if triple_search == 3 and clm_l:
+    if clm_l and str(clm_l).strip():
         _add_party("Claimant", clm_f, clm_l)
 
-    # Fallback if no party met the criteria
+    # Fallback if no party met the criteria but partial values exist
     if not unique_parties:
         for p_label, f_val, l_val in [
             ("Claimant", clm_f, clm_l),

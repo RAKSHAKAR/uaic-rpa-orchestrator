@@ -301,7 +301,7 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
 
     enabled = is_auto_queue_enabled()
     settings_obj = await get_system_settings_async()
-    max_concurrency = getattr(settings_obj.automation, "max_concurrent_claims", None) or getattr(settings_obj.queue, "max_concurrent_claims", 3)
+    max_concurrency = getattr(settings_obj.automation, "max_concurrent_claims", None) or getattr(settings_obj.queue, "max_concurrent_claims", 1) or 1
     max_concurrency = max(1, min(10, int(max_concurrency)))
 
     # Fetch all claims currently scraping (parallel worker fleet)

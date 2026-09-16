@@ -297,9 +297,11 @@ async def test_api_v1_unique_names_endpoint():
         assert res.status_code == 200
         data = res.json()
         assert data["count"] == 2
+        assert data["total_unique_names"] == 2
         assert len(data["unique_names"]) == 2
-        assert data["dual_search"] == 1
-        assert data["triple_search"] == 3
+        assert "dual_search" not in data
+        assert "triple_search" not in data
+        assert "claim_number" not in data
 
 
 # ── 6. Deprecated Fields Absence Verification ─────────────────────────────────

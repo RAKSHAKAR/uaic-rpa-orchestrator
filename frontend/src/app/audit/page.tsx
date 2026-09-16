@@ -29,6 +29,8 @@ import {
 import { Navbar } from "../../components/Navbar";
 import { StatCard } from "../../components/StatCard";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
+import { ExportActionToolbar } from "../../components/ExportActionToolbar";
+import { AsyncExportModal } from "../../components/AsyncExportModal";
 import { api } from "../../lib/api";
 import { AuditLogEntry, AuditLogStats, AuditLogQueryParams } from "../../types";
 
@@ -59,10 +61,12 @@ const ENTITY_OPTIONS = [
   { value: "CLAIM", label: "Claim" },
   { value: "SETTINGS", label: "Settings" },
   { value: "BRANDING", label: "Branding" },
+  { value: "MATCH", label: "Match Reviews" },
   { value: "MATCH_PAIR", label: "Match Pair" },
   { value: "QUEUE", label: "Queue" },
   { value: "BATCH", label: "Batch Ingestion" },
   { value: "DATABASE", label: "Database" },
+  { value: "SYSTEM", label: "System Operations" },
 ];
 
 const STATUS_OPTIONS = [
@@ -98,6 +102,7 @@ export default function AuditPage() {
 
   // Export states
   const [isExporting, setIsExporting] = useState<string | null>(null);
+  const [isAsyncModalOpen, setIsAsyncModalOpen] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Debounce search input
@@ -170,11 +175,11 @@ export default function AuditPage() {
     setPage(1);
   };
 
-  // Export handler
-  const handleExport = async (format: "csv" | "json" | "xlsx") => {
+  // Export handler supporting CSV, JSON, XLSX, and PDF
+  const handleExport = async (format: "csv" | "json" | "xlsx" | "pdf") => {
     setIsExporting(format);
     try {
-      const params: AuditLogQueryParams & { format: "csv" | "json" | "xlsx" } = {
+      const params: AuditLogQueryParams & { format: "csv" | "json" | "xlsx" | "pdf" } = {
         format,
         sort_by: sortBy,
         sort_dir: sortDir,
@@ -330,7 +335,7 @@ export default function AuditPage() {
             </p>
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons & Universal Export Toolbar */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={refreshAll}
@@ -341,32 +346,13 @@ export default function AuditPage() {
               <span>Refresh</span>
             </button>
 
-            <button
-              onClick={() => handleExport("xlsx")}
-              disabled={isExporting !== null}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 shadow-2xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{isExporting === "xlsx" ? "Exporting..." : "Export Excel"}</span>
-            </button>
-
-            <button
-              onClick={() => handleExport("csv")}
-              disabled={isExporting !== null}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-              <span>{isExporting === "csv" ? "Exporting..." : "Export CSV"}</span>
-            </button>
-
-            <button
-              onClick={() => handleExport("json")}
-              disabled={isExporting !== null}
-              className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-            >
-              <FileJson className="w-3.5 h-3.5" />
-              <span>{isExporting === "json" ? "Exporting..." : "Export JSON"}</span>
-            </button>
+            <ExportActionToolbar
+              onExport={handleExport}
+              onOpenAsyncModal={() => setIsAsyncModalOpen(true)}
+              isExporting={Boolean(isExporting)}
+              showPdf={true}
+              showAsyncButton={true}
+            />
           </div>
         </div>
 
@@ -411,10 +397,10 @@ export default function AuditPage() {
             subtext="Settings & Brand edits"
             icon={Sliders}
             gradient="amber"
-            selected={selectedEntityTypes.includes("SETTINGS") && selectedEntityTypes.length === 1}
+            selected={(selectedEntityTypes.includes("SETTINGS") || selectedEntityTypes.includes("BRANDING")) && selectedEntityTypes.length <= 2}
             onClick={() => {
               setSelectedEntityTypes((prev) =>
-                prev.length === 1 && prev[0] === "SETTINGS" ? [] : ["SETTINGS"]
+                prev.includes("SETTINGS") || prev.includes("BRANDING") ? [] : ["SETTINGS", "BRANDING"]
               );
               setPage(1);
             }}
@@ -426,10 +412,10 @@ export default function AuditPage() {
             subtext="Approvals / Rejections"
             icon={Activity}
             gradient="emerald"
-            selected={selectedEntityTypes.includes("MATCH_PAIR") && selectedEntityTypes.length === 1}
+            selected={(selectedEntityTypes.includes("MATCH") || selectedEntityTypes.includes("MATCH_PAIR")) && selectedEntityTypes.length <= 2}
             onClick={() => {
               setSelectedEntityTypes((prev) =>
-                prev.length === 1 && prev[0] === "MATCH_PAIR" ? [] : ["MATCH_PAIR"]
+                prev.includes("MATCH") || prev.includes("MATCH_PAIR") ? [] : ["MATCH", "MATCH_PAIR"]
               );
               setPage(1);
             }}
@@ -441,21 +427,23 @@ export default function AuditPage() {
             subtext="Errors / Abort events"
             icon={AlertCircle}
             gradient="rose"
-            selected={selectedStatuses.includes("FAILED") && selectedStatuses.length === 1}
+            selected={(selectedStatuses.includes("FAILED") || selectedStatuses.includes("FAILURE") || selectedStatuses.includes("ERROR")) && selectedStatuses.length <= 3}
             onClick={() => {
               setSelectedStatuses((prev) =>
-                prev.length === 1 && prev[0] === "FAILED" ? [] : ["FAILED"]
+                prev.includes("FAILED") || prev.includes("FAILURE") || prev.includes("ERROR")
+                  ? []
+                  : ["FAILED", "FAILURE", "ERROR"]
               );
               setPage(1);
             }}
           />
         </div>
 
-        {/* Filter & Search Bar with Universal MultiSelect Dropdowns */}
+        {/* Filter & Search Bar with Universal MultiSelect Dropdowns & Explicit Sort Controls */}
         <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
             {/* Search Input */}
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -475,7 +463,7 @@ export default function AuditPage() {
             </div>
 
             {/* Actions Multi-Select */}
-            <div className="w-full sm:w-56">
+            <div className="w-full sm:w-52">
               <MultiSelectDropdown
                 label="Actions"
                 options={ACTION_OPTIONS}
@@ -489,7 +477,7 @@ export default function AuditPage() {
             </div>
 
             {/* Entity Types Multi-Select */}
-            <div className="w-full sm:w-48">
+            <div className="w-full sm:w-44">
               <MultiSelectDropdown
                 label="Entities"
                 options={ENTITY_OPTIONS}
@@ -503,7 +491,7 @@ export default function AuditPage() {
             </div>
 
             {/* Statuses Multi-Select */}
-            <div className="w-full sm:w-44">
+            <div className="w-full sm:w-40">
               <MultiSelectDropdown
                 label="Statuses"
                 options={STATUS_OPTIONS}
@@ -514,6 +502,38 @@ export default function AuditPage() {
                 }}
                 placeholder="All Statuses"
               />
+            </div>
+
+            {/* Explicit Sort Select */}
+            <div className="flex items-center gap-1.5 min-w-[190px]">
+              <span className="text-slate-400 text-xs font-medium whitespace-nowrap">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="timestamp">Timestamp</option>
+                <option value="action">Action</option>
+                <option value="entity_type">Entity</option>
+                <option value="user_id">Operator</option>
+                <option value="status">Status</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setSortDir((prev) => (prev === "asc" ? "desc" : "asc"))}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+                title={`Sort ${sortDir === "asc" ? "Descending" : "Ascending"}`}
+              >
+                {sortDir === "asc" ? (
+                  <ArrowUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                ) : (
+                  <ArrowDown className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                )}
+              </button>
             </div>
 
             {/* Reset Button */}
@@ -897,6 +917,14 @@ export default function AuditPage() {
           </div>
         </div>
       )}
+
+      {/* Background Async Export Modal */}
+      <AsyncExportModal
+        isOpen={isAsyncModalOpen}
+        onClose={() => setIsAsyncModalOpen(false)}
+        searchTerm={debouncedSearch}
+        totalRecordsCount={totalCount}
+      />
     </div>
   );
 }

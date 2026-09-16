@@ -143,59 +143,94 @@ class MiamiDadeScraper(BaseCourtScraper):
         t_sub_end = datetime.now()
         self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
 
-        # 6. Extract Card View Results matching V4
+        # 6. Extract Card View Results matching V4 — with pagination (GAP-016)
         t_ext_start = datetime.now()
-        cards = page.locator(".card-body, .case-card, div.card, div[class*='result']")
-        card_count = await cards.count()
+        seen_case_numbers_miami: set = set()
 
-        for i in range(card_count):
-            card = cards.nth(i)
-            card_text = await card.inner_text()
-            if not card_text.strip():
-                continue
+        # GAP-003: Explicit ordered label_map to fix Python operator-precedence issues
+        _LABEL_MAP = [
+            ("LOCAL CASE NUMBER", "case_number"),
+            ("STATE CASE NUMBER", "case_number_alt"),
+            ("CASE STYLE", "case_style"),
+            ("STYLE", "case_style"),
+            ("FILING DATE", "filing_date"),
+            ("FILED DATE", "filing_date"),
+            ("CASE STATUS", "case_status"),
+            ("STATUS", "case_status"),
+            ("CASE TYPE", "case_type"),
+            ("TYPE", "case_type"),
+            ("SECTION", "court"),
+            ("COURT", "court"),
+        ]
 
-            lines = [line.strip() for line in card_text.split("\n") if line.strip()]
-            case_number = ""
-            case_style = ""
-            filing_date = ""
-            case_status = "OPEN"
-            case_type = "CIVIL"
-            court = ""
-
+        def _parse_card(card_text: str) -> dict:
+            lines = [ln.strip() for ln in card_text.split("\n") if ln.strip()]
+            parsed: dict = {
+                "case_number": "",
+                "case_number_alt": "",
+                "case_style": "",
+                "filing_date": "",
+                "case_status": "",
+                "case_type": "",
+                "court": "",
+            }
             for idx, line in enumerate(lines):
                 line_upper = line.upper()
-                if "LOCAL CASE NUMBER" in line_upper or ("CASE NUMBER" in line_upper or "CASE #" in line_upper) and "STATE" not in line_upper and not case_number or "STATE CASE NUMBER" in line_upper and not case_number:
-                    if idx + 1 < len(lines):
-                        case_number = lines[idx + 1]
-                elif "CASE STYLE" in line_upper or "STYLE" in line_upper:
-                    if idx + 1 < len(lines):
-                        case_style = lines[idx + 1]
-                elif "FILING DATE" in line_upper or "FILED DATE" in line_upper:
-                    if idx + 1 < len(lines):
-                        filing_date = lines[idx + 1]
-                elif "CASE STATUS" in line_upper or "STATUS" in line_upper:
-                    if idx + 1 < len(lines):
-                        case_status = lines[idx + 1]
-                elif "CASE TYPE" in line_upper or "TYPE" in line_upper:
-                    if idx + 1 < len(lines):
-                        case_type = lines[idx + 1]
-                elif "SECTION" in line_upper or "COURT" in line_upper:
-                    if idx + 1 < len(lines):
-                        court = lines[idx + 1]
+                for label_key, field_key in _LABEL_MAP:
+                    if label_key in line_upper and not parsed.get(field_key):
+                        if idx + 1 < len(lines):
+                            parsed[field_key] = lines[idx + 1]
+                        break
+            # Use STATE CASE NUMBER as fallback if LOCAL CASE NUMBER not found
+            if not parsed["case_number"] and parsed["case_number_alt"]:
+                parsed["case_number"] = parsed["case_number_alt"]
+            if not parsed["case_style"] and lines:
+                parsed["case_style"] = lines[0]
+            return parsed
 
-            if not case_style and lines:
-                case_style = lines[0]
+        # GAP-016: Paginate via Load More button or Next pagination control
+        page_num_miami = 1
+        while True:
+            cards = page.locator(".card-body, .case-card, div.card, div[class*='result']")
+            card_count = await cards.count()
+            logger.info(f"[{self.county_name}] Page {page_num_miami}: Found {card_count} result cards")
 
-            if case_number:
-                results.append({
-                    "CaseNumber": case_number,
-                    "CaseStyle": case_style or f"{l_name}, {f_name}",
-                    "CountyWebsite": self.base_url,
-                    "FilingDate": filing_date or datetime.now().strftime("%m/%d/%Y"),
-                    "CaseStatus": case_status,
-                    "CaseType": case_type,
-                    "Court": court,
-                })
+            for i in range(card_count):
+                card = cards.nth(i)
+                card_text = await card.inner_text()
+                if not card_text.strip():
+                    continue
+                parsed = _parse_card(card_text)
+                case_number = parsed["case_number"]
+                if case_number and case_number not in seen_case_numbers_miami:
+                    seen_case_numbers_miami.add(case_number)
+                    # GAP-002: FilingDate fallback is "" — never fabricate today's date
+                    results.append({
+                        "CaseNumber": case_number,
+                        "CaseStyle": parsed["case_style"] or f"{l_name}, {f_name}",
+                        "CountyWebsite": self.base_url,
+                        "FilingDate": parsed["filing_date"] or "",
+                        "CaseStatus": parsed["case_status"] or "OPEN",
+                        "CaseType": parsed["case_type"] or "CIVIL",
+                        "Court": parsed["court"],
+                    })
+
+            # Check for Load More or Next pagination control
+            load_more = page.locator(
+                "button:has-text('Load More'), a:has-text('Load More'), "
+                "button:has-text('Next'), .pagination a:has-text('Next'):not(.disabled)"
+            )
+            if await load_more.count() > 0 and await load_more.first.is_visible():
+                try:
+                    await load_more.first.click()
+                    await page.wait_for_timeout(2500)
+                    page_num_miami += 1
+                    if page_num_miami > 10:
+                        break
+                except Exception:
+                    break
+            else:
+                break
 
         t_ext_end = datetime.now()
         self.record_stage(

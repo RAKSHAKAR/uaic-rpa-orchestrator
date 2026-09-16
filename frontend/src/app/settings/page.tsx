@@ -72,11 +72,14 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Columns,
   Smartphone,
   Laptop,
   AlignLeft,
   Network,
+  Pin,
 } from "lucide-react";
 import { useBranding, DEFAULT_BRANDING } from "../../components/BrandingContext";
 
@@ -175,6 +178,18 @@ export default function SettingsPage() {
   const [isValidatingExtension, setIsValidatingExtension] = useState(false);
   const [extensionValidationResult, setExtensionValidationResult] = useState<any | null>(null);
 
+  // One-time Extension Setup & Pinning states
+  const [isSettingUpExtension, setIsSettingUpExtension] = useState(false);
+  const [extensionSetupResult, setExtensionSetupResult] = useState<{
+    status: string;
+    extension_id: string;
+    pinned_to_toolbar: boolean;
+    persistent_profile_path: string;
+    verified: boolean;
+    timestamp: string;
+    message: string;
+  } | null>(null);
+
   // AntiCaptcha API key balance test state (new /test-anticaptcha endpoint)
   const [isTestingAntiCaptchaBalance, setIsTestingAntiCaptchaBalance] = useState(false);
   const [antiCaptchaBalanceResult, setAntiCaptchaBalanceResult] = useState<{
@@ -191,46 +206,168 @@ export default function SettingsPage() {
   const [testUniqueNamesPayload, setTestUniqueNamesPayload] = useState<string>(
     JSON.stringify(
       {
-        Claimants: [{ FirstName: "John", LastName: "Doe", MiddleName: "A", Suffix: "Jr" }],
-        Insureds: [{ FirstName: "Jane", LastName: "Doe", MiddleName: "", Suffix: "" }],
-        Drivers: [{ FirstName: "John", LastName: "Doe", MiddleName: "", Suffix: "" }]
+        Claimants: [
+          {
+            FirstName: "CORNELIUS",
+            LastName: "BRIGHT",
+            MiddleName: "",
+            Suffix: "",
+          },
+        ],
+        Insureds: [
+          {
+            FirstName: "Aquaria",
+            LastName: "Mitchell",
+            MiddleName: "",
+            Suffix: "",
+          },
+        ],
+        Drivers: [
+          {
+            FirstName: "Felicia",
+            LastName: "Mcmiller",
+            MiddleName: "",
+            Suffix: "",
+          },
+        ],
       },
       null,
       2
     )
   );
 
+  // Separate Noise Words Input States for Unique Names and Fuzzy Match Engines
+  const [newPartyNoiseWord, setNewPartyNoiseWord] = useState("");
+  const [newCaseNoiseWord, setNewCaseNoiseWord] = useState("");
+
+  // Presets for Fuzzy Match API Tester (PowerAutomateSolutions/fuzzy-match-api parity)
+  const FUZZY_PRESET_EXACT_API = JSON.stringify(
+    {
+      text1: "Miami Dade Police Department",
+      text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
+      threshold: 0.6,
+    },
+    null,
+    2
+  );
+
+  const FUZZY_PRESET_WITH_DATE_FILTER = JSON.stringify(
+    {
+      text1: "Miami Dade Police Department",
+      text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
+      threshold: 0.6,
+      filing_date: "2023-05-14",
+      min_filing_date: "2010-01-01",
+    },
+    null,
+    2
+  );
+
+  const FUZZY_PRESET_COURT_CASES_BATCH = JSON.stringify(
+    {
+      text1: "JOHN DOE",
+      threshold: 0.6,
+      min_filing_date: "2010-01-01",
+      cases: [
+        {
+          CaseNumber: "COCE-23-019482",
+          CaseStyle: "JOHN DOE VS JANE SMITH",
+          FilingDate: "2023-05-14",
+        },
+        {
+          CaseNumber: "COCE-09-001234",
+          CaseStyle: "JOHN DOE VS ACME CORP",
+          FilingDate: "2009-02-10",
+        },
+      ],
+    },
+    null,
+    2
+  );
+
   // Fuzzy Match Tester State
   const [isTestingFuzzyMatch, setIsTestingFuzzyMatch] = useState(false);
   const [fuzzyMatchResult, setFuzzyMatchResult] = useState<DirectFuzzyMatchResponse | null>(null);
-  const [testFuzzyMatchPayload, setTestFuzzyMatchPayload] = useState<string>(
-    JSON.stringify(
-      {
-        UniqueNames: ["JOHN DOE", "JANE DOE"],
-        Threshold: 0.60,
-        Cases: [
-          {
-            CaseNumber: "COCE-23-019482",
-            CaseStyle: "JOHN DOE VS JANE SMITH",
-            FilingDate: "2023-05-14"
-          }
-        ]
-      },
-      null,
-      2
-    )
-  );
+  const [testFuzzyMatchPayload, setTestFuzzyMatchPayload] = useState<string>(FUZZY_PRESET_WITH_DATE_FILTER);
+  const [selectedFuzzyPreset, setSelectedFuzzyPreset] = useState<"exact" | "date_filter" | "cases_batch">("date_filter");
+
+  // CC & BCC Accordion State
+  const [isCcBccOpen, setIsCcBccOpen] = useState(false);
+
+  // Template Live Preview Gating Toggle
+  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState(true);
+
+  // Storage Retention & Cleanup State
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [isCalculatingPreview, setIsCalculatingPreview] = useState(false);
+  const [cleanupPreview, setCleanupPreview] = useState<any | null>(null);
+  const [cleanupResult, setCleanupResult] = useState<any | null>(null);
+  const [isCleanupConfirmOpen, setIsCleanupConfirmOpen] = useState(false);
+  const [cleanupScope, setCleanupScope] = useState<"OLDER_THAN_30_DAYS" | "OLDER_THAN_7_DAYS" | "ALL_TIME">("OLDER_THAN_30_DAYS");
+  const [cleanupCategories, setCleanupCategories] = useState<string[]>([
+    "ERROR_SCREENSHOTS",
+    "SCRAPER_PAGE_CACHE",
+    "EXPORT_GENERATIONS",
+  ]);
+
+  const handleCalculateCleanupPreview = async () => {
+    setIsCalculatingPreview(true);
+    try {
+      const res = await api.previewCleanup({
+        categories: cleanupCategories,
+        time_scope: cleanupScope,
+      });
+      setCleanupPreview(res);
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to calculate storage cleanup preview.",
+      });
+    } finally {
+      setIsCalculatingPreview(false);
+    }
+  };
+
+  const handleExecuteCleanup = async () => {
+    setIsCleaningUp(true);
+    try {
+      const res = await api.executeCleanup({
+        categories: cleanupCategories,
+        time_scope: cleanupScope,
+        confirmed: true,
+      });
+      setCleanupResult(res);
+      setFeedback({
+        type: "success",
+        msg: res.message || `Cleanup completed successfully: ${res.total_records_deleted} records and ${res.files_deleted} files removed.`,
+      });
+      setIsCleanupConfirmOpen(false);
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to execute cleanup.",
+      });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
 
   const handleTestUniqueNames = async () => {
     setIsTestingUniqueNames(true);
     setUniqueNamesResult(null);
     try {
       const payload: UniqueNamesRequest = JSON.parse(testUniqueNamesPayload);
+      if (payload.threshold === undefined && settings?.matcher?.unique_names_threshold !== undefined) {
+        payload.threshold = settings.matcher.unique_names_threshold;
+      }
+      if (!payload.noise_patterns && settings?.matcher?.clean_party_name_patterns) {
+        payload.noise_patterns = settings.matcher.clean_party_name_patterns;
+      }
       const res = await api.generateUniqueNames(payload);
       setUniqueNamesResult(res);
       setFeedback({
         type: "success",
-        msg: `Generated ${res.unique_names.length} unique names successfully.`,
+        msg: `Generated ${res.unique_names.length} unique names successfully (threshold: ${Math.round((payload.threshold ?? settings?.matcher?.unique_names_threshold ?? 0.60) * 100)}%).`,
       });
     } catch (err: any) {
       setFeedback({ type: "error", msg: err?.response?.data?.detail || err.message || "Failed to generate unique names." });
@@ -305,6 +442,41 @@ export default function SettingsPage() {
       });
     } finally {
       setIsValidatingExtension(false);
+    }
+  };
+
+  const handleSetupExtension = async () => {
+    if (!settings) return;
+    setIsSettingUpExtension(true);
+    try {
+      const res = await api.setupExtension({ force_reconfigure: true });
+      setExtensionSetupResult(res);
+      if (res.verified) {
+        setSettings({
+          ...settings,
+          automation: {
+            ...settings.automation,
+            extension_setup_verified: true,
+            extension_setup_timestamp: res.timestamp,
+          },
+        });
+        setFeedback({
+          type: "success",
+          msg: `Anti-Captcha extension pinned to toolbar & persistent profile configured! (${res.persistent_profile_path})`,
+        });
+      } else {
+        setFeedback({
+          type: "error",
+          msg: `Extension setup failed: ${res.message}`,
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to configure and pin extension.",
+      });
+    } finally {
+      setIsSettingUpExtension(false);
     }
   };
 
@@ -440,7 +612,7 @@ export default function SettingsPage() {
   const [selectedTemplateEvent, setSelectedTemplateEvent] = useState<string>("COURT_CASE_MATCHED");
   const [selectedTemplate, setSelectedTemplate] = useState<NotificationTemplate | null>(null);
   const [tokensCatalog, setTokensCatalog] = useState<TemplateParameter[]>([]);
-  const [activeEditorTab, setActiveEditorTab] = useState<"split" | "edit" | "preview">("split");
+  const [activeEditorTab, setActiveEditorTab] = useState<"split" | "edit" | "preview">("edit");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [isTokensPaletteOpen, setIsTokensPaletteOpen] = useState<boolean>(true);
   const [copiedTemplateCode, setCopiedTemplateCode] = useState<boolean>(false);
@@ -973,7 +1145,7 @@ export default function SettingsPage() {
         api_key: settings.integration.guidewire_api_key,
         client_id: settings.integration.guidewire_client_id,
         client_secret: settings.integration.guidewire_client_secret,
-        mock_mode: settings.integration.guidewire_mock_mode,
+        mock_mode: settings.integration.guidewire_mock_mode ?? true,
         timeout_seconds: settings.integration.guidewire_timeout_seconds,
         custom_payload: parsedPayload,
       };
@@ -1024,9 +1196,9 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedResponse(false), 2000);
   };
 
-  const handleAddNoiseWord = () => {
-    if (!newNoiseWord.trim() || !settings) return;
-    const word = newNoiseWord.trim().toUpperCase();
+  const handleAddPartyNoiseWord = () => {
+    if (!newPartyNoiseWord.trim() || !settings) return;
+    const word = newPartyNoiseWord.trim().toUpperCase();
     if (!settings.matcher.clean_party_name_patterns.includes(word)) {
       setSettings({
         ...settings,
@@ -1039,10 +1211,10 @@ export default function SettingsPage() {
         },
       });
     }
-    setNewNoiseWord("");
+    setNewPartyNoiseWord("");
   };
 
-  const handleRemoveNoiseWord = (word: string) => {
+  const handleRemovePartyNoiseWord = (word: string) => {
     if (!settings) return;
     setSettings({
       ...settings,
@@ -1051,6 +1223,48 @@ export default function SettingsPage() {
         clean_party_name_patterns: settings.matcher.clean_party_name_patterns.filter(
           (w) => w !== word
         ),
+      },
+    });
+  };
+
+  const handleAddCaseNoiseWord = () => {
+    if (!newCaseNoiseWord.trim() || !settings) return;
+    const word = newCaseNoiseWord.trim().toUpperCase();
+    const current = settings.matcher.clean_case_style_patterns || [
+      "ET AL",
+      "INDIVIDUALLY",
+      "AS PARENT",
+      "NATURAL GUARDIAN",
+      "A MINOR",
+      "ESTATE OF",
+    ];
+    if (!current.includes(word)) {
+      setSettings({
+        ...settings,
+        matcher: {
+          ...settings.matcher,
+          clean_case_style_patterns: [...current, word],
+        },
+      });
+    }
+    setNewCaseNoiseWord("");
+  };
+
+  const handleRemoveCaseNoiseWord = (word: string) => {
+    if (!settings) return;
+    const current = settings.matcher.clean_case_style_patterns || [
+      "ET AL",
+      "INDIVIDUALLY",
+      "AS PARENT",
+      "NATURAL GUARDIAN",
+      "A MINOR",
+      "ESTATE OF",
+    ];
+    setSettings({
+      ...settings,
+      matcher: {
+        ...settings.matcher,
+        clean_case_style_patterns: current.filter((w) => w !== word),
       },
     });
   };
@@ -1089,15 +1303,14 @@ export default function SettingsPage() {
   }
 
   const tabs = [
-    { id: "guidewire", label: "Guidewire API & Live Tester", icon: Zap },
+    { id: "guidewire", label: "APIs & Matching Engine", icon: Zap },
     { id: "portals", label: "County Court Portals", icon: Globe },
-    { id: "automation", label: "Browser & CAPTCHA", icon: ShieldCheck },
-    { id: "proxy", label: "Proxy Settings", icon: Network },
-    { id: "extension", label: "AntiCaptcha Extension", icon: Plug },
+    { id: "automation", label: "Browser Automation & Fleet", icon: ShieldCheck },
+    { id: "extension", label: "CAPTCHA Solver & Extension", icon: Plug },
+    { id: "proxy", label: "Proxy Network", icon: Network },
     { id: "email", label: "Email & Notifications", icon: Mail },
-    { id: "storage", label: "Storage & Error Screenshots", icon: HardDrive },
-    { id: "matcher", label: "RapidFuzz & Filters", icon: Sparkles },
-    { id: "queue", label: "Task Queue & Alerts", icon: Layers },
+    { id: "storage", label: "Storage & Retention", icon: HardDrive },
+    { id: "queue", label: "Task Queue & Telemetry", icon: Layers },
   ];
 
   return (
@@ -1462,7 +1675,7 @@ export default function SettingsPage() {
                   {settings.integration.guidewire_api_url}
                 </span>
                 <span className="ml-auto text-[10px] text-slate-400 whitespace-nowrap">
-                  Mode: {settings.integration.guidewire_mock_mode ? "MOCK" : "LIVE"}
+                  Mode: {settings.integration.guidewire_mock_mode ?? true ? "MOCK" : "LIVE"}
                 </span>
               </div>
 
@@ -1530,6 +1743,501 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* ========================================================= */}
+            {/* 2. UNIQUE NAMES DEDUPLICATION ENGINE & API TESTER        */}
+            {/* ========================================================= */}
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+                <Terminal className="w-5 h-5 text-indigo-500" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                    Unique Names Party Deduplication & Noise Cleaning Engine
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Configure party name noise patterns, deduplication thresholds, and test permutation derivations before scraping county portals.
+                  </p>
+                </div>
+              </div>
+
+              {/* Deduplication Controls Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
+                {/* Unique Names Deduplication Threshold */}
+                <div className="sm:col-span-2 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Party Deduplication Threshold
+                    </label>
+                    <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 px-2 py-0.5 rounded-md">
+                      {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.50"
+                    max="1.0"
+                    step="0.05"
+                    value={settings.matcher.unique_names_threshold ?? 0.60}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        matcher: {
+                          ...settings.matcher,
+                          unique_names_threshold: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-indigo-500 cursor-pointer"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Party names across Claimants, Insureds, and Drivers with fuzzy similarity &ge; {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}% are merged into a single unique target. The robot processes the exact <code>unique_names</code> list returned.
+                  </p>
+                </div>
+
+                {/* Party Noise Patterns Tag Chips */}
+                <div className="sm:col-span-2 space-y-2">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                    Corporate & Business Suffix Noise Words Stripped from Party Names
+                  </label>
+                  <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[50px] items-center">
+                    {settings.matcher.clean_party_name_patterns.map((word) => (
+                      <span
+                        key={word}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
+                      >
+                        {word}
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePartyNoiseWord(word)}
+                          className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newPartyNoiseWord}
+                      onChange={(e) => setNewPartyNoiseWord(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddPartyNoiseWord();
+                        }
+                      }}
+                      placeholder="Add party noise pattern (e.g. D/B/A, LLC, INC)..."
+                      className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 uppercase font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddPartyNoiseWord}
+                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                    >
+                      Add Word
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Unique Names API Tester Sub-Console */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-indigo-500" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200">
+                      Unique Names API Live Tester (<code>/api/v1/matches/unique-names</code>)
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Deduplicates <code>Claimants</code>, <code>Insureds</code>, and <code>Drivers</code> arrays with dynamic {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}% RapidFuzz matching.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      JSON Request Payload (UniqueNamesRequest)
+                    </label>
+                    <textarea
+                      value={testUniqueNamesPayload}
+                      onChange={(e) => setTestUniqueNamesPayload(e.target.value)}
+                      className="w-full h-64 p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-lg border border-slate-800 focus:ring-2 focus:ring-indigo-500/50 resize-y"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTestUniqueNames}
+                      disabled={isTestingUniqueNames}
+                      className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isTestingUniqueNames ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                      {isTestingUniqueNames ? "Generating..." : "Generate Unique Names"}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Deduplication Response
+                    </label>
+                    <div className="w-full h-64 p-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto">
+                      {uniqueNamesResult ? (
+                        <pre className="text-[11px] font-mono text-slate-800 dark:text-slate-300 break-all whitespace-pre-wrap">
+                          {JSON.stringify(uniqueNamesResult, null, 2)}
+                        </pre>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
+                          Click Generate Unique Names to test deduplication
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* 3. RAPIDFUZZ CASE MATCHING & GUIDEWIRER FILTER ENGINE    */}
+            {/* ========================================================= */}
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+                <Sparkles className="w-5 h-5 text-indigo-500" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                    RapidFuzz Case Matching & Guidewire Filter Engine
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Configure RapidFuzz algorithms, confidence thresholds, legal noise patterns, and Minimum Case Filing Date filtering for Guidewire dispatch.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
+                {/* Auto Match Threshold */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Auto-Match Approval Threshold
+                    </label>
+                    <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
+                      {(settings.matcher.auto_match_threshold * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.40"
+                    max="1.0"
+                    step="0.05"
+                    value={settings.matcher.auto_match_threshold}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        matcher: {
+                          ...settings.matcher,
+                          auto_match_threshold: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Scores &ge; {(settings.matcher.auto_match_threshold * 100).toFixed(0)}% automatically qualify for Guidewire push.
+                  </p>
+                </div>
+
+                {/* Manual Review Threshold */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Manual Review Lower Threshold
+                    </label>
+                    <span className="font-mono text-xs font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded-md">
+                      {(settings.matcher.manual_review_threshold * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.20"
+                    max="0.80"
+                    step="0.05"
+                    value={settings.matcher.manual_review_threshold}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        matcher: {
+                          ...settings.matcher,
+                          manual_review_threshold: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-purple-500 cursor-pointer"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Scores between {(settings.matcher.manual_review_threshold * 100).toFixed(0)}% and {(settings.matcher.auto_match_threshold * 100).toFixed(0)}% are queued for adjuster review.
+                  </p>
+                </div>
+
+                {/* RapidFuzz Algorithm */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                    RapidFuzz Scorer Algorithm
+                  </label>
+                  <select
+                    value={settings.matcher.scorer_algorithm}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        matcher: {
+                          ...settings.matcher,
+                          scorer_algorithm: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
+                  >
+                    <option value="partial_ratio">partial_ratio (PowerAutomateSolutions/fuzzy-match-api Default)</option>
+                    <option value="token_sort_ratio">token_sort_ratio (Recommended for Reordered Legal Names)</option>
+                    <option value="token_set_ratio">token_set_ratio (Best for Subset/Prefix Matches)</option>
+                    <option value="ratio">ratio (Exact Levenshtein Distance)</option>
+                  </select>
+                </div>
+
+                {/* Minimum Case Filing Date Filter */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Minimum Case Filing Date (YYYY-MM-DD)
+                    </label>
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.5 rounded">
+                      Guidewire Filter Gate
+                    </span>
+                  </div>
+                  <input
+                    type="date"
+                    value={settings.matcher.min_filing_date}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        matcher: {
+                          ...settings.matcher,
+                          min_filing_date: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                  />
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Only cases filed on or after this date qualify as final data sent to Guidewire.
+                  </p>
+                </div>
+
+                {/* Legal & Case Style Noise Patterns Tag Chips */}
+                <div className="sm:col-span-2 space-y-2">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                    Legal & Case Style Noise Words Stripped from Scraped Court Records
+                  </label>
+                  <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[50px] items-center">
+                    {(settings.matcher.clean_case_style_patterns || [
+                      "ET AL",
+                      "INDIVIDUALLY",
+                      "AS PARENT",
+                      "NATURAL GUARDIAN",
+                      "A MINOR",
+                      "ESTATE OF",
+                      "A/A/O",
+                      "AS ASSIGNEE OF",
+                    ]).map((word) => (
+                      <span
+                        key={word}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
+                      >
+                        {word}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCaseNoiseWord(word)}
+                          className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newCaseNoiseWord}
+                      onChange={(e) => setNewCaseNoiseWord(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddCaseNoiseWord();
+                        }
+                      }}
+                      placeholder="Add legal noise pattern (e.g. ET AL, INDIVIDUALLY, A MINOR)..."
+                      className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 uppercase font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCaseNoiseWord}
+                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                    >
+                      Add Word
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fuzzy Match API Tester Sub-Console */}
+              <div className="pt-6 border-t border-slate-200 dark:border-slate-800/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-5 h-5 text-indigo-500" />
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
+                        <span>Fuzzy Match API Tester (<code>/fuzzymatchapi</code>)</span>
+                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded text-[10px] font-mono">
+                          Exact fuzzy-match-api Parity
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Evaluates <code>text1</code> against <code>text2</code> with RapidFuzz. Only Minimum Case Filing Date (YYYY-MM-DD) is filtered as final data sent to Guidewire.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Preset Buttons */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFuzzyPreset("exact");
+                        setTestFuzzyMatchPayload(FUZZY_PRESET_EXACT_API);
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedFuzzyPreset === "exact"
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Exact API Sample
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFuzzyPreset("date_filter");
+                        setTestFuzzyMatchPayload(FUZZY_PRESET_WITH_DATE_FILTER);
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedFuzzyPreset === "date_filter"
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      With Date Filter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFuzzyPreset("cases_batch");
+                        setTestFuzzyMatchPayload(FUZZY_PRESET_COURT_CASES_BATCH);
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedFuzzyPreset === "cases_batch"
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Batch Cases Evaluation
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                        JSON Request Payload (<code>POST /fuzzymatchapi</code>)
+                      </label>
+                    </div>
+                    <textarea
+                      value={testFuzzyMatchPayload}
+                      onChange={(e) => setTestFuzzyMatchPayload(e.target.value)}
+                      className="w-full h-72 p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-lg border border-slate-800 focus:ring-2 focus:ring-indigo-500/50 resize-y"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTestFuzzyMatch}
+                      disabled={isTestingFuzzyMatch}
+                      className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isTestingFuzzyMatch ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                      {isTestingFuzzyMatch ? "Evaluating..." : "Evaluate Fuzzy Match"}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                        Response & Guidewire Eligibility
+                      </label>
+                      {fuzzyMatchResult && (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                              fuzzyMatchResult.result === "Match Found"
+                                ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                : "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800"
+                            }`}
+                          >
+                            {fuzzyMatchResult.result}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500 font-bold">
+                            Score: {fuzzyMatchResult.score}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="w-full h-72 p-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto">
+                      {fuzzyMatchResult ? (
+                        <div className="space-y-3">
+                          {/* Live Eligibility Pill */}
+                          <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                              Guidewire Dispatch Eligibility:
+                            </span>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-xs font-bold font-mono ${
+                                fuzzyMatchResult.guidewire_eligible
+                                  ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                                  : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+                              }`}
+                            >
+                              {fuzzyMatchResult.guidewire_eligible
+                                ? "Eligible for Guidewire"
+                                : fuzzyMatchResult.filter_reason || "Ineligible"}
+                            </span>
+                          </div>
+
+                          <pre className="text-[11px] font-mono text-slate-800 dark:text-slate-300 break-all whitespace-pre-wrap">
+                            {JSON.stringify(fuzzyMatchResult, null, 2)}
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs italic gap-1">
+                          <Search className="w-6 h-6 text-slate-300 dark:text-slate-700" />
+                          <span>Click Evaluate Fuzzy Match to see exact response</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1776,76 +2484,324 @@ export default function SettingsPage() {
         {activeTab === "automation" && (
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-              <ShieldCheck className="w-5 h-5 text-amber-500" />
+              <ShieldCheck className="w-5 h-5 text-indigo-500" />
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                  CAPTCHA Auto-Click & 5-Attempt Refresh Loop Controls
+                  Browser Automation &amp; RPA Execution Fleet
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Control multi-vendor challenge auto-detection, page refresh retries, and browser execution mode.
+                  Configure parallel worker concurrency fleet, navigation timeouts, browser engine, and live launch testing.
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-              {/* Max CAPTCHA Attempts */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
-                    Max Retry & Refresh Attempts
-                  </label>
-                  <span className="font-mono text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md">
-                    {settings.automation.max_captcha_attempts} Attempts
-                  </span>
+              {/* Concurrent RPA Claim Executions (1 to 10 Parallel Claims) */}
+              <div className="sm:col-span-2 space-y-3 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/60 via-purple-50/40 to-slate-50 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-slate-900">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs">
+                        Parallel RPA Concurrency
+                      </span>
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        Concurrent Scraper Worker Fleet (1 – 10 Parallel Claims)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Controls how many court portal scrapers and claims execute concurrently in parallel. 1 = Sequential FIFO execution, 10 = Maximum high-throughput parallel fleet.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Current Fleet:</span>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
+                      {settings.automation.max_concurrent_claims ?? 1}x Parallel Workers
+                    </span>
+                  </div>
                 </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="20"
-                  step="1"
-                  value={settings.automation.max_captcha_attempts}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        max_captcha_attempts: parseInt(e.target.value) || 1,
-                      },
-                    })
-                  }
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Attempts to click CAPTCHA checkbox, wait for token resolution, reload page on error, before gracefully skipping the portal.
-                </p>
+
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">1 Worker (Sequential Default)</span>
+                    <span className="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+                      {settings.automation.max_concurrent_claims ?? 1} Parallel Workers
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">10 Workers (Max Concurrency)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={settings.automation.max_concurrent_claims ?? 1}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        automation: {
+                          ...settings.automation,
+                          max_concurrent_claims: parseInt(e.target.value, 10) || 1,
+                        },
+                      })
+                    }
+                    className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono px-0.5">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              max_concurrent_claims: n,
+                            },
+                          })
+                        }
+                        className={`hover:text-indigo-600 cursor-pointer transition-colors ${
+                          (settings.automation.max_concurrent_claims ?? 1) === n
+                            ? "font-bold text-indigo-600 dark:text-indigo-400"
+                            : ""
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preset quick buttons */}
+                <div className="flex items-center gap-2 pt-1 border-t border-indigo-100 dark:border-indigo-900/60 flex-wrap text-xs">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Quick Presets:</span>
+                  {[
+                    { label: "Sequential Default (1)", val: 1 },
+                    { label: "Conservative (2)", val: 2 },
+                    { label: "Multi-Worker (3)", val: 3 },
+                    { label: "Balanced (5)", val: 5 },
+                    { label: "High Throughput (8)", val: 8 },
+                    { label: "Max Speed (10)", val: 10 },
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            max_concurrent_claims: p.val,
+                          },
+                        })
+                      }
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all ${
+                        (settings.automation.max_concurrent_claims ?? 1) === p.val
+                          ? "bg-indigo-600 text-white shadow-2xs"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-400"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* CAPTCHA Wait Duration */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
-                    CAPTCHA Resolution Wait (Seconds)
-                  </label>
-                  <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
-                    {settings.automation.captcha_wait_seconds}s
-                  </span>
+              {/* Execution Speed & Keystroke Dynamics Card */}
+              <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-r from-amber-50/50 via-indigo-50/30 to-slate-50 dark:from-amber-950/20 dark:via-indigo-950/20 dark:to-slate-900 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/70 dark:border-amber-900/40">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                        Execution Speed &amp; Keystroke Dynamics
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold border border-amber-500/20">
+                        Form Typing Speed
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Controls data entry speed for party search fields (First Name, Last Name, Dates). Instant mode eliminates character delays for 700x faster execution.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Current Mode:</span>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold text-white shadow-xs ${
+                      (settings.automation.typing_speed_mode || "turbo") === "turbo"
+                        ? "bg-emerald-600"
+                        : (settings.automation.typing_speed_mode === "fast"
+                          ? "bg-indigo-600"
+                          : "bg-amber-600")
+                    }`}>
+                      {settings.automation.typing_delay_ms === 0
+                        ? "Turbo / Instant (0ms)"
+                        : `${settings.automation.typing_speed_mode?.toUpperCase()} (${settings.automation.typing_delay_ms}ms/char)`}
+                    </span>
+                  </div>
                 </div>
-                <input
-                  type="number"
-                  min="3"
-                  max="60"
-                  value={settings.automation.captcha_wait_seconds}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        captcha_wait_seconds: parseInt(e.target.value) || 5,
+
+                {/* Quick Presets */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Speed Presets:</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Click to auto-calibrate Keystroke Delay &amp; Action Pacing
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      {
+                        mode: "turbo",
+                        label: "Turbo / Instant",
+                        delay: 0,
+                        pacing: 50,
+                        desc: "0ms delay (Direct DOM fill, ~700x faster)",
+                        badge: "Recommended",
                       },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
-                />
+                      {
+                        mode: "fast",
+                        label: "Fast",
+                        delay: 15,
+                        pacing: 100,
+                        desc: "15ms/char (Snappy typing)",
+                        badge: "Snappy",
+                      },
+                      {
+                        mode: "balanced",
+                        label: "Balanced",
+                        delay: 50,
+                        pacing: 250,
+                        desc: "50ms/char (Natural human cadence)",
+                        badge: "Human",
+                      },
+                      {
+                        mode: "cautious",
+                        label: "Cautious",
+                        delay: 100,
+                        pacing: 500,
+                        desc: "100ms/char (Stealth bot evasion)",
+                        badge: "Stealth",
+                      },
+                    ].map((p) => {
+                      const isActive = (settings.automation.typing_speed_mode || "turbo") === p.mode && (settings.automation.typing_delay_ms ?? 0) === p.delay;
+                      return (
+                        <button
+                          key={p.mode}
+                          type="button"
+                          onClick={() =>
+                            setSettings({
+                              ...settings,
+                              automation: {
+                                ...settings.automation,
+                                typing_speed_mode: p.mode,
+                                typing_delay_ms: p.delay,
+                                action_pacing_ms: p.pacing,
+                              },
+                            })
+                          }
+                          className={`p-2.5 rounded-lg text-left border transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-white dark:bg-slate-800 border-amber-500 ring-2 ring-amber-500/20 shadow-xs"
+                              : "bg-white/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-amber-300"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{p.label}</span>
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                              isActive ? "bg-amber-500 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}>
+                              {p.badge}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{p.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Fine-Tuning Sliders */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Keystroke Delay Slider */}
+                  <div className="space-y-2 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                        Keystroke Input Delay
+                      </label>
+                      <span className="font-mono text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900">
+                        {settings.automation.typing_delay_ms ?? 0} ms/char
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="150"
+                      step="5"
+                      value={settings.automation.typing_delay_ms ?? 0}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 0;
+                        const mode = val === 0 ? "turbo" : val <= 25 ? "fast" : val <= 60 ? "balanced" : "cautious";
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            typing_delay_ms: val,
+                            typing_speed_mode: mode,
+                          },
+                        });
+                      }}
+                      className="w-full accent-amber-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <span>0ms (Instant Fill)</span>
+                      <span>50ms (Human)</span>
+                      <span>150ms (Slow)</span>
+                    </div>
+                  </div>
+
+                  {/* Action Pacing Delay Slider */}
+                  <div className="space-y-2 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                        Action Pacing Interval
+                      </label>
+                      <span className="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-900">
+                        {settings.automation.action_pacing_ms ?? 100} ms
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1000"
+                      step="50"
+                      value={settings.automation.action_pacing_ms ?? 100}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 0;
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            action_pacing_ms: val,
+                          },
+                        });
+                      }}
+                      className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <span>0ms (No Delay)</span>
+                      <span>250ms (Balanced)</span>
+                      <span>1000ms (Generous)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Anti-Captcha Decoupled Notice Banner */}
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-xs">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                  <div className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                    <strong className="text-slate-900 dark:text-slate-100 font-semibold">Anti-Captcha Isolation Guaranteed:</strong>{" "}
+                    Execution speed controls govern form typing and DOM navigation only. Anti-Captcha challenge solving runs on an independent dedicated timeout (<code className="text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded text-[10px]">captcha_wait_seconds = {settings.automation.captcha_wait_seconds}s</code>) to ensure 100% CAPTCHA solving accuracy.
+                  </div>
+                </div>
               </div>
 
               {/* Page Timeout */}
@@ -1861,19 +2817,22 @@ export default function SettingsPage() {
                 <input
                   type="number"
                   min="5"
-                  max="180"
+                  max="120"
                   value={settings.automation.page_timeout_seconds}
                   onChange={(e) =>
                     setSettings({
                       ...settings,
                       automation: {
                         ...settings.automation,
-                        page_timeout_seconds: parseInt(e.target.value) || 10,
+                        page_timeout_seconds: parseInt(e.target.value) || 30,
                       },
                     })
                   }
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
                 />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Maximum network idle wait time before scraper fails over or attempts recovery.
+                </p>
               </div>
 
               {/* Page Reload Backoff Delay */}
@@ -1888,7 +2847,7 @@ export default function SettingsPage() {
                 </div>
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   max="30"
                   value={settings.automation.reload_backoff_seconds}
                   onChange={(e) =>
@@ -1896,187 +2855,20 @@ export default function SettingsPage() {
                       ...settings,
                       automation: {
                         ...settings.automation,
-                        reload_backoff_seconds: parseInt(e.target.value) || 0,
+                        reload_backoff_seconds: parseInt(e.target.value) || 2,
                       },
                     })
                   }
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
                 />
-              </div>
-
-              {/* Concurrent RPA Claim Executions (1 to 10 Parallel Claims) */}
-              <div className="sm:col-span-2 p-4 rounded-xl border border-indigo-200/60 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
-                        Parallel RPA Concurrency
-                      </span>
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                        Concurrent Scraper Worker Fleet (1 – 10 Parallel Claims)
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Controls how many court portal scrapers and claims execute concurrently in parallel. 1 = Sequential FIFO execution; 2–10 = High-throughput multi-worker fleet.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400">Current Fleet:</span>
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
-                      {settings.automation.max_concurrent_claims || 3}x Parallel Workers
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center pt-1">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                      <span>1 (Sequential)</span>
-                      <span>3 (Standard)</span>
-                      <span>5 (Turbo)</span>
-                      <span>10 (Max Parallel)</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      step="1"
-                      value={settings.automation.max_concurrent_claims || 3}
-                      onChange={(e) => {
-                        const val = Math.max(1, Math.min(10, parseInt(e.target.value) || 3));
-                        setSettings({
-                          ...settings,
-                          automation: {
-                            ...settings.automation,
-                            max_concurrent_claims: val,
-                          },
-                          queue: {
-                            ...settings.queue,
-                            max_concurrent_claims: val,
-                          },
-                        });
-                      }}
-                      className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
-                    />
-                  </div>
-
-                  {/* Preset quick buttons */}
-                  <div className="flex flex-wrap items-center gap-1.5 justify-start sm:justify-end">
-                    {[
-                      { label: "1x (FIFO)", val: 1 },
-                      { label: "2x (Dual)", val: 2 },
-                      { label: "3x (Standard)", val: 3 },
-                      { label: "5x (Turbo)", val: 5 },
-                      { label: "10x (Max)", val: 10 },
-                    ].map((preset) => {
-                      const isActive = (settings.automation.max_concurrent_claims || 3) === preset.val;
-                      return (
-                        <button
-                          key={preset.val}
-                          type="button"
-                          onClick={() => {
-                            setSettings({
-                              ...settings,
-                              automation: {
-                                ...settings.automation,
-                                max_concurrent_claims: preset.val,
-                              },
-                              queue: {
-                                ...settings.queue,
-                                max_concurrent_claims: preset.val,
-                              },
-                            });
-                          }}
-                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-all cursor-pointer ${
-                            isActive
-                              ? "bg-indigo-600 text-white border-indigo-600 shadow-xs ring-1 ring-indigo-500"
-                              : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* User Agent */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                    Browser User-Agent String
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const eng = (settings.automation.browser_engine || "chromium") as keyof typeof ENGINE_USER_AGENTS;
-                      const targetUa = ENGINE_USER_AGENTS[eng] || ENGINE_USER_AGENTS.chromium;
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          user_agent: targetUa,
-                        },
-                      });
-                      setFeedback({
-                        type: "success",
-                        msg: `Synchronized User-Agent to ${eng.toUpperCase()} default string.`,
-                      });
-                    }}
-                    className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Auto-Sync to {(settings.automation.browser_engine || "chromium").toUpperCase()}
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={settings.automation.user_agent || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        user_agent: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                />
-              </div>
-
-              {/* Always Use Google Chrome Browser */}
-              <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-200 block">
-                    Always Launch in Google Chrome Browser
-                  </span>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Launches installed Google Chrome with support for Chrome extensions (e.g. AntiCaptcha solver).
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settings.automation.use_chrome_browser !== false}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          use_chrome_browser: e.target.checked,
-                        },
-                      })
-                    }
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-300 dark:bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </label>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Delay before retrying or re-navigating after CAPTCHA timeout or network reset.
+                </p>
               </div>
 
               {/* Browser Automation Engine Selector */}
-              <div className="sm:col-span-2 space-y-2 p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div className="sm:col-span-2 space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center justify-between">
                   <label className="font-semibold text-slate-800 dark:text-slate-200 text-xs block">
                     Browser Automation Engine
                   </label>
@@ -2084,11 +2876,7 @@ export default function SettingsPage() {
                     Extension Compatibility Core
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Select which browser runtime powers court portal automation and anti-captcha solving.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Option 1: Chromium */}
                   <label
                     className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
@@ -2103,30 +2891,29 @@ export default function SettingsPage() {
                       value="chromium"
                       checked={(settings.automation.browser_engine || "chromium") === "chromium"}
                       onChange={() => {
-                        const currentUa = settings.automation.user_agent || "";
-                        const isDefaultUa = Object.values(ENGINE_USER_AGENTS).includes(currentUa) || !currentUa;
+                        const engine = "chromium";
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
-                            browser_engine: "chromium",
-                            user_agent: isDefaultUa ? ENGINE_USER_AGENTS.chromium : currentUa,
+                            browser_engine: engine,
+                            user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
                           },
                         });
                       }}
                       className="sr-only"
                     />
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                        Chromium
+                        <Laptop className="w-3.5 h-3.5 text-indigo-500" />
+                        Chromium (Bundled)
                       </span>
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                        Recommended
+                        Default
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
-                      Full visible GUI or Headless. 100% AntiCaptcha extension & service worker support with no enterprise restrictions.
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                      Playwright bundled Chromium. Highest reliability, seamless unpacked extension loading, zero policy interference.
                     </p>
                   </label>
 
@@ -2144,29 +2931,26 @@ export default function SettingsPage() {
                       value="chrome"
                       checked={settings.automation.browser_engine === "chrome"}
                       onChange={() => {
-                        const currentUa = settings.automation.user_agent || "";
-                        const isDefaultUa = Object.values(ENGINE_USER_AGENTS).includes(currentUa) || !currentUa;
+                        const engine = "chrome";
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
-                            browser_engine: "chrome",
-                            user_agent: isDefaultUa ? ENGINE_USER_AGENTS.chrome : currentUa,
+                            browser_engine: engine,
+                            user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
                           },
                         });
                       }}
                       className="sr-only"
                     />
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                        Google Chrome
-                      </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Google Chrome</span>
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                        Host Binary (Dev Mode)
+                        Installed
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
-                      Uses installed Google Chrome with your Developer Mode profile & AntiCaptcha extension.
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                      System installed Google Chrome. Note: Enterprise-managed Chrome will automatically fall back to Chromium if extensions are blocked.
                     </p>
                   </label>
 
@@ -2184,29 +2968,26 @@ export default function SettingsPage() {
                       value="msedge"
                       checked={settings.automation.browser_engine === "msedge"}
                       onChange={() => {
-                        const currentUa = settings.automation.user_agent || "";
-                        const isDefaultUa = Object.values(ENGINE_USER_AGENTS).includes(currentUa) || !currentUa;
+                        const engine = "msedge";
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
-                            browser_engine: "msedge",
-                            user_agent: isDefaultUa ? ENGINE_USER_AGENTS.msedge : currentUa,
+                            browser_engine: engine,
+                            user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
                           },
                         });
                       }}
                       className="sr-only"
                     />
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                        Microsoft Edge
-                      </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Microsoft Edge</span>
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                        Edge Channel
+                        Supported
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
-                      Uses installed Microsoft Edge. Compatible with Chromium extension flags and background workers.
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                      System Microsoft Edge via Chromium channel. Full extension support with active service worker lifecycle.
                     </p>
                   </label>
                 </div>
@@ -2224,7 +3005,7 @@ export default function SettingsPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="e.g. C:\Program Files\Google\Chrome\Application\chrome.exe"
+                  placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe"
                   value={settings.automation.chrome_binary_path || ""}
                   onChange={(e) =>
                     setSettings({
@@ -2242,120 +3023,7 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              {/* AntiCaptcha Extension Directory Path */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                    AntiCaptcha / Chrome Extension Path
-                  </label>
-                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                    Default: .\anticaptcha-plugin_v0.83\
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  placeholder=".\anticaptcha-plugin_v0.83\"
-                  value={settings.automation.chrome_extension_dir || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        chrome_extension_dir: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Default relative path: <code className="text-slate-700 dark:text-slate-300 font-mono">.\anticaptcha-plugin_v0.83\</code> automatically adapts to solution folder renames or moves. Complete path only required for custom external directories.
-                </p>
-              </div>
-
-              {/* AntiCaptcha API Key */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                  AntiCaptcha API Key (For Auto-Solving)
-                </label>
-                <div className="relative w-full">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    placeholder="Enter your AntiCaptcha Client Key"
-                    value={settings.automation.anticaptcha_api_key || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          anticaptcha_api_key: e.target.value,
-                        },
-                      })
-                    }
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-10 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* AntiCaptcha API Key Balance Test */}
-              <div className="sm:col-span-2 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-                      Test API Key — Verify Balance &amp; Connectivity
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Validates the AntiCaptcha API key by calling the live getBalance endpoint. Shows account credit balance and latency.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleTestAntiCaptchaBalance}
-                    disabled={isTestingAntiCaptchaBalance}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    {isTestingAntiCaptchaBalance ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                    )}
-                    Test API Key Balance
-                  </button>
-                </div>
-                {antiCaptchaBalanceResult && (
-                  <div className={`rounded-xl p-3 text-xs border space-y-1 ${
-                    antiCaptchaBalanceResult.status === "ok"
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-                      : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
-                  }`}>
-                    <div className="flex items-center gap-2 font-bold">
-                      {antiCaptchaBalanceResult.status === "ok" ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5" />
-                      )}
-                      {antiCaptchaBalanceResult.message}
-                    </div>
-                    {antiCaptchaBalanceResult.status === "ok" && antiCaptchaBalanceResult.balance != null && (
-                      <div className="font-mono text-emerald-700 dark:text-emerald-400">
-                        Account Balance: <strong>${antiCaptchaBalanceResult.balance.toFixed(4)}</strong>
-                      </div>
-                    )}
-                    <div className="text-[10px] opacity-70 font-mono">
-                      Latency: {antiCaptchaBalanceResult.latency_ms.toFixed(0)}ms
-                      {antiCaptchaBalanceResult.error_code && ` • Error: ${antiCaptchaBalanceResult.error_code}`}
-                    </div>
-                  </div>
-                )}
-              </div>
-
+              {/* Chrome User Profile Directory (Optional) */}
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
                   Chrome User Profile Directory (Optional)
@@ -2375,137 +3043,48 @@ export default function SettingsPage() {
                   }
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
                 />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Path to persistent user profile for cookie persistence or single sign-on.
+                </p>
               </div>
 
-              {/* AntiCaptcha Extension Diagnostics Card */}
-              <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                      Anti-Captcha Browser Extension Diagnostics &amp; Engine Status
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Inspect extension directory integrity, runtime credentials sync, and browser engine compatibility.
-                    </p>
-                  </div>
+              {/* User Agent */}
+              <div className="sm:col-span-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                    Browser User-Agent String
+                  </label>
                   <button
                     type="button"
-                    onClick={handleValidateExtension}
-                    disabled={isValidatingExtension}
-                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    onClick={() => {
+                      const engine = settings.automation.browser_engine || "chromium";
+                      setSettings({
+                        ...settings,
+                        automation: {
+                          ...settings.automation,
+                          user_agent: ENGINE_USER_AGENTS[engine] || ENGINE_USER_AGENTS.chromium,
+                        },
+                      });
+                    }}
+                    className="text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 font-medium cursor-pointer"
                   >
-                    {isValidatingExtension ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    )}
-                    Check Extension Health
+                    Reset to Default for Selected Engine
                   </button>
                 </div>
-
-                {/* Validation Results Grid */}
-                {extensionValidationResult ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Plugin Directory</span>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          {extensionValidationResult.directory_exists ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Found on Disk
-                            </span>
-                          ) : (
-                            <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                              <AlertCircle className="w-3.5 h-3.5" /> Directory Missing
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] font-mono text-slate-400 truncate" title={extensionValidationResult.extension_dir}>
-                          {extensionValidationResult.extension_dir}
-                        </p>
-                      </div>
-
-                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Manifest &amp; Version</span>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          {extensionValidationResult.manifest_valid ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Manifest V3 Valid
-                            </span>
-                          ) : (
-                            <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                              <AlertCircle className="w-3.5 h-3.5" /> Missing manifest.json
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400">
-                          v0.83 (Turnstile &amp; reCAPTCHA)
-                        </p>
-                      </div>
-
-                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Credentials State</span>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          {extensionValidationResult.api_key_synced ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> API Key Synchronized
-                            </span>
-                          ) : (
-                            <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                              <AlertTriangle className="w-3.5 h-3.5" /> Not Synchronized
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400">
-                          config_ac_api_key.js configured
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Engine Support Breakdown */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2">
-                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Browser Engine Extension Support &amp; Policy Status:
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                        <div className="p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-emerald-800 dark:text-emerald-300">Chromium</span>
-                            <span className="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded">Active</span>
-                          </div>
-                          <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                            Playwright bundled engine. Full unpacked extension support without enterprise policy restrictions.
-                          </p>
-                        </div>
-
-                        <div className="p-2.5 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/20 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-blue-800 dark:text-blue-300">Microsoft Edge</span>
-                            <span className="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded">Verified</span>
-                          </div>
-                          <p className="text-[10px] text-blue-700 dark:text-blue-400">
-                            Edge browser channel. Loads extension with verified active service workers.
-                          </p>
-                        </div>
-
-                        <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-amber-800 dark:text-amber-300">Google Chrome</span>
-                            <span className="text-[10px] bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded">Managed</span>
-                          </div>
-                          <p className="text-[10px] text-amber-700 dark:text-amber-400">
-                            Enterprise-managed Chrome blocks command-line sideloading. Orchestrator auto-falls back to Chromium.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Click &ldquo;Check Extension Health&rdquo; to test local plugin paths, check API key synchronization, and verify browser engine extension policies.
-                  </p>
-                )}
+                <input
+                  type="text"
+                  value={settings.automation.user_agent}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      automation: {
+                        ...settings.automation,
+                        user_agent: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 font-mono focus:outline-hidden focus:border-indigo-500"
+                />
               </div>
 
               {/* Browser Execution Mode Interactive Card & Live Tester */}
@@ -2514,7 +3093,7 @@ export default function SettingsPage() {
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
                       <Monitor className="w-4 h-4 text-indigo-500" />
-                      Browser Execution Mode & Runtime Environment
+                      Browser Execution Mode &amp; Runtime Environment
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Select how Google Chrome executes county court portal scrapers and automated CAPTCHA workflows.
@@ -2534,25 +3113,28 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Dual Mode Selector Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Option 1: Attended Mode */}
                   <div
                     onClick={() =>
                       setSettings({
                         ...settings,
-                        automation: { ...settings.automation, headless_mode: false },
+                        automation: {
+                          ...settings.automation,
+                          headless_mode: false,
+                        },
                       })
                     }
-                    className={`relative p-4 rounded-xl border cursor-pointer transition-all ${
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       !settings.automation.headless_mode
-                        ? "border-purple-500/60 bg-purple-50/50 dark:bg-purple-950/20 shadow-xs ring-1 ring-purple-500/30"
-                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/40"
+                        ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 ring-2 ring-purple-600/20"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
                     }`}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 mb-2">
                         <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center ${
                             !settings.automation.headless_mode
                               ? "bg-purple-600 text-white"
                               : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
@@ -2581,28 +3163,14 @@ export default function SettingsPage() {
                             : "border-slate-300 dark:border-slate-700"
                         }`}
                       >
-                        {!settings.automation.headless_mode && <Check className="w-2.5 h-2.5 stroke-3" />}
+                        {!settings.automation.headless_mode && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
                       </div>
                     </div>
-                    <p className="mt-2.5 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                      Google Chrome opens visibly on your desktop maximized. Operators can observe portal queries in real-time, inspect page structures, and manually solve or oversee CAPTCHA challenges when required.
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
+                      Spawns real Chrome windows on your Windows desktop. You see tabs open, fields fill, and the AntiCaptcha extension solve challenges in real time.
                     </p>
-                    {!settings.automation.headless_mode && (
-                      <div className="mt-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-[10px] text-amber-800 dark:text-amber-300 leading-relaxed space-y-1">
-                        <div className="font-bold flex items-center gap-1.5">
-                          <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                          </svg>
-                          ⚠️ Windows Desktop Session Required
-                        </div>
-                        <p>The Celery worker <strong>must be started from your own desktop terminal</strong> (not an IDE or background service) for Chrome windows to appear on screen.</p>
-                        <p>Open a new <strong>PowerShell/CMD window on your desktop</strong>, navigate to the <code className="bg-amber-100 dark:bg-amber-900/60 px-1 rounded font-mono">backend/</code> folder and run:</p>
-                        <code className="block mt-1 p-1.5 bg-amber-100 dark:bg-amber-900/60 rounded font-mono text-[9px] break-all">
-                          .\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app worker -E --loglevel=info -Q ingest,scrapers,matcher,notifications,default -P solo
-                        </code>
-                        <p className="text-[9px] text-amber-700 dark:text-amber-400">This ensures the browser runs in your interactive desktop session (WinSta0) where windows are rendered.</p>
-                      </div>
-                    )}
                   </div>
 
                   {/* Option 2: Headless Mode */}
@@ -2610,19 +3178,22 @@ export default function SettingsPage() {
                     onClick={() =>
                       setSettings({
                         ...settings,
-                        automation: { ...settings.automation, headless_mode: true },
+                        automation: {
+                          ...settings.automation,
+                          headless_mode: true,
+                        },
                       })
                     }
-                    className={`relative p-4 rounded-xl border cursor-pointer transition-all ${
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       settings.automation.headless_mode
-                        ? "border-sky-500/60 bg-sky-50/50 dark:bg-sky-950/20 shadow-xs ring-1 ring-sky-500/30"
-                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/40"
+                        ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-sky-600/20"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
                     }`}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 mb-2">
                         <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center ${
                             settings.automation.headless_mode
                               ? "bg-sky-600 text-white"
                               : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
@@ -2651,49 +3222,40 @@ export default function SettingsPage() {
                             : "border-slate-300 dark:border-slate-700"
                         }`}
                       >
-                        {settings.automation.headless_mode && <Check className="w-2.5 h-2.5 stroke-3" />}
+                        {settings.automation.headless_mode && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
                       </div>
                     </div>
-                    <p className="mt-2.5 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                      Chromium executes silently in the background with modern <code className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded font-mono">--headless=new</code> and the AntiCaptcha extension active. No browser windows steal desktop focus.
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
+                      Runs Chrome silently without displaying a browser window. Consumes less RAM/CPU, optimal for Docker containers and server deployments.
                     </p>
                   </div>
                 </div>
 
                 {/* Live Browser Test Actions */}
-                <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800/60">
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span className="leading-snug">
-                      Validate browser launch, AntiCaptcha extension, and portal navigation in{" "}
-                      <strong className="text-slate-700 dark:text-slate-300">
-                        {!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}
-                      </strong>{" "}
-                      mode:
-                    </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800/80">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Test launch Chrome right now to verify display, AntiCaptcha extension, and browser profile:
                   </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                     <button
                       type="button"
                       disabled={isTestingBrowser}
-                      onClick={() => handleTestBrowser(settings.automation.headless_mode)}
-                      className={`w-full sm:w-auto px-4 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
-                        !settings.automation.headless_mode
-                          ? "bg-purple-600 hover:bg-purple-500 text-white disabled:bg-purple-800 shadow-purple-600/20"
-                          : "bg-sky-600 hover:bg-sky-500 text-white disabled:bg-sky-800 shadow-sky-600/20"
-                      }`}
+                      onClick={() => handleTestBrowser(false)}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
                     >
-                      {isTestingBrowser ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Testing {!settings.automation.headless_mode ? "Attended GUI" : "Headless Mode"}...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                          <span>Test {!settings.automation.headless_mode ? "Attended GUI Window" : "Headless Launch"}</span>
-                        </>
-                      )}
+                      {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                      Test Attended (Visible GUI)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isTestingBrowser}
+                      onClick={() => handleTestBrowser(true)}
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <EyeOff className="w-3.5 h-3.5" />}
+                      Test Headless
                     </button>
                   </div>
                 </div>
@@ -2701,118 +3263,46 @@ export default function SettingsPage() {
                 {/* Browser Test Results Banner */}
                 {browserTestResult && (
                   <div
-                    className={`mt-3 p-3.5 sm:p-4 rounded-xl border transition-all w-full max-w-full overflow-hidden ${
+                    className={`rounded-xl p-3.5 text-xs border space-y-2 transition-all ${
                       browserTestResult.success
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
-                        : "bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                        : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
                     }`}
                   >
-                    {/* Header Row: Status, Title, Duration Badge, & Top-Right Dismiss */}
                     <div className="flex items-start justify-between gap-2.5 min-w-0 pb-2 border-b border-black/5 dark:border-white/5">
-                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 font-bold min-w-0">
                         {browserTestResult.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                         )}
-                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                          <span className="text-xs font-bold shrink-0">
-                            {browserTestResult.success ? "Browser Launch Test Verified" : "Browser Launch Test Failed"}
-                          </span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/10 dark:bg-white/10 shrink-0 whitespace-nowrap">
-                            {browserTestResult.browser_engine ? browserTestResult.browser_engine.toUpperCase() : "ENGINE"} • {browserTestResult.mode} • {browserTestResult.duration_ms}ms
-                          </span>
-                        </div>
+                        <span className="truncate">
+                          {browserTestResult.success
+                            ? "Chrome Launch Test Passed Successfully"
+                            : "Chrome Launch Test Failed"}
+                        </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setBrowserTestResult(null)}
-                        className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors shrink-0 cursor-pointer ${
-                          browserTestResult.success
-                            ? "text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 bg-emerald-500/15 hover:bg-emerald-500/25"
-                            : "text-rose-700 dark:text-rose-300 hover:text-rose-900 dark:hover:text-rose-100 bg-rose-500/15 hover:bg-rose-500/25"
-                        }`}
-                      >
-                        Dismiss
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono text-[10px] opacity-70 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded">
+                          {browserTestResult.duration_ms.toFixed(0)} ms
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setBrowserTestResult(null)}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Body Content */}
-                    <div className="pt-2.5 space-y-2 min-w-0">
-                      <p className="text-[11px] leading-relaxed opacity-90 break-words min-w-0">
-                        {browserTestResult.message}
-                      </p>
+                    <p className="text-[11px] leading-relaxed">{browserTestResult.message}</p>
 
-                      {/* Extension Runtime Verification Badges */}
-                      {browserTestResult.extension_found && (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                          {browserTestResult.extension_loaded ? (
-                            <span className="inline-flex flex-wrap items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 max-w-full">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                              <span className="break-words">
-                                AntiCaptcha Active • Service Worker Running{" "}
-                                {browserTestResult.extension_id && (
-                                  <span className="font-mono break-all">({browserTestResult.extension_id})</span>
-                                )}
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 max-w-full">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              <span>Extension Not Loaded by Browser</span>
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Warning callout if any */}
-                      {browserTestResult.warning && (
-                        <div className="mt-2 p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] space-y-1.5">
-                          <div className="font-semibold flex items-center gap-1.5 text-xs">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            Extension Execution Warning
-                          </div>
-                          <p className="opacity-95 leading-normal break-words">{browserTestResult.warning}</p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!settings) return;
-                              setSettings({
-                                ...settings,
-                                automation: {
-                                  ...settings.automation,
-                                  browser_engine: "chromium",
-                                  user_agent: ENGINE_USER_AGENTS.chromium,
-                                },
-                              });
-                              setFeedback({
-                                type: "success",
-                                msg: "Switched Browser Engine to Chromium (Recommended). Re-test or click Save Settings to apply.",
-                              });
-                            }}
-                            className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[10px] cursor-pointer inline-flex items-center gap-1 transition-colors shadow-xs"
-                          >
-                            <Sparkles className="w-3 h-3" /> Switch to Chromium Engine (Recommended)
-                          </button>
-                        </div>
-                      )}
-
-                      {browserTestResult.chrome_executable && (
-                        <div className="text-[10px] font-mono opacity-80 pt-0.5 break-all min-w-0">
-                          Binary: {browserTestResult.chrome_executable}
-                        </div>
-                      )}
-                      {browserTestResult.extension_path && (
-                        <div className="text-[10px] font-mono opacity-80 break-all min-w-0">
-                          Extension Directory: {browserTestResult.extension_path}
-                        </div>
-                      )}
-                      {browserTestResult.error_detail && (
-                        <div className="text-[10px] font-mono text-rose-600 dark:text-rose-400 pt-1 break-all min-w-0">
-                          Error: {browserTestResult.error_detail}
-                        </div>
-                      )}
-                    </div>
+                    {browserTestResult.extension_path && (
+                      <div className="text-[10px] font-mono opacity-80 bg-black/5 dark:bg-white/5 p-2 rounded-lg break-all">
+                        Extension Path: {browserTestResult.extension_path}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2820,235 +3310,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* TAB: AUTOMATION (Unique Names Tester)                       */}
-        {/* ========================================================= */}
-        {activeTab === "automation" && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors mt-6">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-              <Terminal className="w-5 h-5 text-indigo-500" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                  Unique Names API Tester
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Test the name permutations generator used before scraping county portals.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  JSON Request Payload (UniqueNamesRequest)
-                </label>
-                <textarea
-                  value={testUniqueNamesPayload}
-                  onChange={(e) => setTestUniqueNamesPayload(e.target.value)}
-                  className="w-full h-64 p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-lg border border-slate-800 focus:ring-2 focus:ring-indigo-500/50 resize-y"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={handleTestUniqueNames}
-                  disabled={isTestingUniqueNames}
-                  className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
-                >
-                  {isTestingUniqueNames ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  {isTestingUniqueNames ? "Generating..." : "Generate Unique Names"}
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Response
-                </label>
-                <div className="w-full h-64 p-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto">
-                  {uniqueNamesResult ? (
-                    <pre className="text-[11px] font-mono text-slate-800 dark:text-slate-300 break-all whitespace-pre-wrap">
-                      {JSON.stringify(uniqueNamesResult, null, 2)}
-                    </pre>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
-                      Run test to see results
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* TAB: AUTOMATION (Fuzzy Match API Tester)                    */}
-        {/* ========================================================= */}
-        {activeTab === "automation" && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors mt-6">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-              <Search className="w-5 h-5 text-indigo-500" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                  Fuzzy Match API Tester
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Test the rapidfuzz cascade matching algorithm for claims evaluation.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  JSON Request Payload (DirectFuzzyMatchRequest)
-                </label>
-                <textarea
-                  value={testFuzzyMatchPayload}
-                  onChange={(e) => setTestFuzzyMatchPayload(e.target.value)}
-                  className="w-full h-64 p-3 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-lg border border-slate-800 focus:ring-2 focus:ring-indigo-500/50 resize-y"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={handleTestFuzzyMatch}
-                  disabled={isTestingFuzzyMatch}
-                  className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
-                >
-                  {isTestingFuzzyMatch ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  {isTestingFuzzyMatch ? "Evaluating..." : "Evaluate Fuzzy Match"}
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Match Result
-                </label>
-                <div className="w-full h-64 p-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg overflow-auto">
-                  {fuzzyMatchResult ? (
-                    <pre className="text-[11px] font-mono text-slate-800 dark:text-slate-300 break-all whitespace-pre-wrap">
-                      {JSON.stringify(fuzzyMatchResult, null, 2)}
-                    </pre>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
-                      Run test to see matching results
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* TAB: PROXY SETTINGS                                       */}
-        {/* ========================================================= */}
-        {activeTab === "proxy" && (
-          <div className="space-y-6 w-full">
-            <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg shadow-slate-900/20">
-              <div className="flex items-center gap-3 mb-2">
-                <Network className="w-6 h-6 text-slate-300" />
-                <h3 className="text-xl font-bold">Proxy Pool Settings</h3>
-              </div>
-              <p className="text-sm text-slate-300 max-w-2xl">
-                Configure a dedicated proxy server to route all automation traffic through. 
-                This helps distribute requests and avoid IP bans from county court portals.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm w-full">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                <Network className="w-4 h-4 text-slate-400" />
-                Proxy Connection Details
-              </h4>
-              <div className="space-y-6 w-full">
-                <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full">
-                  <input
-                    type="checkbox"
-                    checked={settings?.proxy?.enabled ?? false}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        proxy: { ...(settings?.proxy || { host: "", port: 8080 }), enabled: e.target.checked },
-                      } as SystemSettings)
-                    }
-                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                  />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Enable Proxy Server</div>
-                    <div className="text-xs text-slate-500">Route all scraping traffic through this proxy</div>
-                  </div>
-                </label>
-
-                {settings?.proxy?.enabled && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                    <div className="w-full">
-                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Proxy Host / IP</label>
-                      <input
-                        type="text"
-                        value={settings?.proxy?.host || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            proxy: { ...(settings?.proxy || {}), host: e.target.value },
-                          } as SystemSettings)
-                        }
-                        placeholder="e.g. 192.168.1.50 or proxy.example.com"
-                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Port</label>
-                      <input
-                        type="number"
-                        value={settings?.proxy?.port || 8080}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            proxy: { ...(settings?.proxy || {}), port: parseInt(e.target.value) || 8080 },
-                          } as SystemSettings)
-                        }
-                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Username (Optional)</label>
-                      <input
-                        type="text"
-                        value={settings?.proxy?.username || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            proxy: { ...(settings?.proxy || {}), username: e.target.value },
-                          } as SystemSettings)
-                        }
-                        placeholder="Proxy Username"
-                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password (Optional)</label>
-                      <input
-                        type="password"
-                        value={settings?.proxy?.password || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            proxy: { ...(settings?.proxy || {}), password: e.target.value },
-                          } as SystemSettings)
-                        }
-                        placeholder="Proxy Password"
-                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* TAB: ANTICAPTCHA EXTENSION                                 */}
-        {/* ========================================================= */}
         {activeTab === "extension" && (
           <div className="space-y-6 w-full">
             {/* Header Banner */}
@@ -3066,6 +3327,86 @@ export default function SettingsPage() {
                 {["1. Set Extension Path", "2. Enter API Key", "3. Test Balance", "4. Verify Health", "5. Run Browser Test"].map((step, i) => (
                   <span key={i} className="px-2.5 py-1 bg-white/20 rounded-full font-semibold">{step}</span>
                 ))}
+              </div>
+            </div>
+
+            {/* CAPTCHA Auto-Click & Refresh Loop Parameters */}
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-xs">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+                <ShieldCheck className="w-5 h-5 text-amber-500" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                    CAPTCHA Challenge Detection &amp; Auto-Retry Parameters
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Control challenge detection timeouts, page refresh retries, and token wait durations across all court scrapers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
+                {/* Max CAPTCHA Attempts */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Max Retry &amp; Refresh Attempts
+                    </label>
+                    <span className="font-mono text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md">
+                      {settings.automation.max_captcha_attempts} Attempts
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={settings.automation.max_captcha_attempts}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        automation: {
+                          ...settings.automation,
+                          max_captcha_attempts: parseInt(e.target.value) || 1,
+                        },
+                      })
+                    }
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Attempts to click CAPTCHA checkbox, wait for token resolution, reload page on error, before gracefully skipping the portal.
+                  </p>
+                </div>
+
+                {/* CAPTCHA Wait Duration */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      CAPTCHA Resolution Wait (Seconds)
+                    </label>
+                    <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                      {settings.automation.captcha_wait_seconds}s
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="3"
+                    max="180"
+                    value={settings.automation.captcha_wait_seconds}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        automation: {
+                          ...settings.automation,
+                          captcha_wait_seconds: parseInt(e.target.value) || 5,
+                        },
+                      })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Maximum time to wait for the AntiCaptcha extension to solve reCAPTCHA or Turnstile before refreshing.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -3269,16 +3610,208 @@ export default function SettingsPage() {
                 </p>
               )}
             </div>
+          
+
+            {/* One-Time Extension Toolbar Pinning & Persistent Profile Card */}
+            <div className="bg-gradient-to-r from-slate-50 to-indigo-50/40 dark:from-slate-950/60 dark:to-indigo-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
+                    <Pin className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    One-Time Extension Toolbar Pinning &amp; Persistent Profile Setup
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Configures Anti-Captcha once into persistent profile (<code>data/browser_profile/</code>) and pins it to the modern Chromium toolbar (<code>toolbar.pinned_actions</code>). Subsequent scraper runs reuse this profile without repeated overhead.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSetupExtension}
+                  disabled={isSettingUpExtension}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {isSettingUpExtension ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Pin className="w-3.5 h-3.5" />
+                  )}
+                  Configure &amp; Pin Extension
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Toolbar Pinning Status</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      settings.automation.extension_setup_verified
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                    }`}>
+                      {settings.automation.extension_setup_verified ? "Pinned & Verified" : "Pending Setup"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                    {settings.automation.extension_setup_verified
+                      ? "Anti-Captcha is pinned to the Chromium browser toolbar and ready for instant automated CAPTCHA solving."
+                      : "Click 'Configure & Pin Extension' to initialize toolbar action pinning in Preferences."}
+                  </p>
+                  {settings.automation.extension_setup_timestamp && (
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      Last Configured: {settings.automation.extension_setup_timestamp}
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Persistent Profile Target</span>
+                  <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300">
+                    backend/data/browser_profile/
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Action ID: <code className="text-indigo-600 dark:text-indigo-400 font-mono">kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj</code>
+                  </p>
+                </div>
+              </div>
+
+              {extensionSetupResult && (
+                <div className={`rounded-xl p-3 text-xs border space-y-1 ${
+                  extensionSetupResult.verified
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                    : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+                }`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {extensionSetupResult.verified ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5" />
+                    )}
+                    {extensionSetupResult.message}
+                  </div>
+                  <div className="text-[10px] opacity-70 font-mono">
+                    Target: {extensionSetupResult.persistent_profile_path} • Pinned: {String(extensionSetupResult.pinned_to_toolbar)}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* ========================================================= */}
         {/* TAB: EMAIL & ENTERPRISE NOTIFICATIONS                     */}
         {/* ========================================================= */}
+        {activeTab === "proxy" && (
+          <div className="space-y-6 w-full">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg shadow-slate-900/20">
+              <div className="flex items-center gap-3 mb-2">
+                <Network className="w-6 h-6 text-slate-300" />
+                <h3 className="text-xl font-bold">Proxy Pool Settings</h3>
+              </div>
+              <p className="text-sm text-slate-300 max-w-2xl">
+                Configure a dedicated proxy server to route all automation traffic through. 
+                This helps distribute requests and avoid IP bans from county court portals.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm w-full">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                <Network className="w-4 h-4 text-slate-400" />
+                Proxy Connection Details
+              </h4>
+              <div className="space-y-6 w-full">
+                <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full">
+                  <input
+                    type="checkbox"
+                    checked={settings?.proxy?.enabled ?? false}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        proxy: { ...(settings?.proxy || { host: "", port: 8080 }), enabled: e.target.checked },
+                      } as SystemSettings)
+                    }
+                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Enable Proxy Server</div>
+                    <div className="text-xs text-slate-500">Route all scraping traffic through this proxy</div>
+                  </div>
+                </label>
+
+                {settings?.proxy?.enabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Proxy Host / IP</label>
+                      <input
+                        type="text"
+                        value={settings?.proxy?.host || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), host: e.target.value },
+                          } as SystemSettings)
+                        }
+                        placeholder="e.g. 192.168.1.50 or proxy.example.com"
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Port</label>
+                      <input
+                        type="number"
+                        value={settings?.proxy?.port || 8080}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), port: parseInt(e.target.value) || 8080 },
+                          } as SystemSettings)
+                        }
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Username (Optional)</label>
+                      <input
+                        type="text"
+                        value={settings?.proxy?.username || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), username: e.target.value },
+                          } as SystemSettings)
+                        }
+                        placeholder="Proxy Username"
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password (Optional)</label>
+                      <input
+                        type="password"
+                        value={settings?.proxy?.password || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            proxy: { ...(settings?.proxy || {}), password: e.target.value },
+                          } as SystemSettings)
+                        }
+                        placeholder="Proxy Password"
+                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 6: EMAIL & ENTERPRISE NOTIFICATIONS                   */}
+        {/* ========================================================= */}
         {activeTab === "email" && (() => {
           const emailCfg: EmailSettings = settings.email || DEFAULT_EMAIL_SETTINGS;
           return (
-          <div className="space-y-8 w-full pb-[600px]">
+          <div className="space-y-8 w-full">
             {/* 1. MASTER ON/OFF TOGGLE & ENGINE STATUS */}
             <div
               className={`p-6 rounded-2xl border transition-all shadow-xs ${
@@ -3932,111 +4465,136 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* CC & BCC RECIPIENTS SIDE-BY-SIDE */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* CC RECIPIENTS */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                        Carbon Copy Recipients (CC)
-                      </label>
-                      <span className="text-[10px] text-slate-400">
-                        {emailCfg.cc_recipients.length} configured
+                {/* COLLAPSIBLE CC & BCC RECIPIENTS ACCORDION */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/30">
+                  <button
+                    type="button"
+                    onClick={() => setIsCcBccOpen(!isCcBccOpen)}
+                    className="w-full p-3.5 flex items-center justify-between hover:bg-slate-100/60 dark:hover:bg-slate-900/50 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Advanced: CC & BCC Recipients
                       </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[42px] focus-within:border-indigo-500 transition-colors">
-                      {emailCfg.cc_recipients.map((email, idx) => (
-                        <span
-                          key={email}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
-                        >
-                          {email}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveRecipient("cc", idx)}
-                            className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
-                          >
-                            &times;
-                          </button>
+                      {(emailCfg.cc_recipients.length > 0 || emailCfg.bcc_recipients.length > 0) && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-semibold">
+                          {emailCfg.cc_recipients.length} CC, {emailCfg.bcc_recipients.length} BCC
                         </span>
-                      ))}
-                      <div className="flex items-center gap-1 flex-1 min-w-[180px]">
-                        <input
-                          type="email"
-                          value={newCcRecipient}
-                          onChange={(e) => setNewCcRecipient(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAddRecipient("cc");
-                            }
-                          }}
-                          placeholder={emailCfg.cc_recipients.length === 0 ? "Add CC recipient..." : "Add another CC..."}
-                          className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleAddRecipient("cc")}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
-                          title="Add CC recipient"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      )}
                     </div>
-                  </div>
+                    <div className="flex items-center gap-1 text-slate-400 text-xs">
+                      <span>{isCcBccOpen ? "Collapse" : "Expand"}</span>
+                      {isCcBccOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </button>
 
-                  {/* BCC RECIPIENTS */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                        Blind Carbon Copy (BCC)
-                      </label>
-                      <span className="text-[10px] text-slate-400">
-                        {emailCfg.bcc_recipients.length} configured
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[42px] focus-within:border-indigo-500 transition-colors">
-                      {emailCfg.bcc_recipients.map((email, idx) => (
-                        <span
-                          key={email}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
-                        >
-                          {email}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveRecipient("bcc", idx)}
-                            className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      ))}
-                      <div className="flex items-center gap-1 flex-1 min-w-[180px]">
-                        <input
-                          type="email"
-                          value={newBccRecipient}
-                          onChange={(e) => setNewBccRecipient(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAddRecipient("bcc");
-                            }
-                          }}
-                          placeholder={emailCfg.bcc_recipients.length === 0 ? "Add BCC recipient..." : "Add another BCC..."}
-                          className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleAddRecipient("bcc")}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
-                          title="Add BCC recipient"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+                  {isCcBccOpen && (
+                    <div className="p-4 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* CC RECIPIENTS */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                            Carbon Copy Recipients (CC)
+                          </label>
+                          <span className="text-[10px] text-slate-400">
+                            {emailCfg.cc_recipients.length} configured
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl min-h-[42px] focus-within:border-indigo-500 transition-colors">
+                          {emailCfg.cc_recipients.map((email, idx) => (
+                            <span
+                              key={email}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
+                            >
+                              {email}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRecipient("cc", idx)}
+                                className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                          <div className="flex items-center gap-1 flex-1 min-w-[180px]">
+                            <input
+                              type="email"
+                              value={newCcRecipient}
+                              onChange={(e) => setNewCcRecipient(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddRecipient("cc");
+                                }
+                              }}
+                              placeholder={emailCfg.cc_recipients.length === 0 ? "Add CC recipient..." : "Add another CC..."}
+                              className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleAddRecipient("cc")}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
+                              title="Add CC recipient"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* BCC RECIPIENTS */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                            Blind Carbon Copy (BCC)
+                          </label>
+                          <span className="text-[10px] text-slate-400">
+                            {emailCfg.bcc_recipients.length} configured
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl min-h-[42px] focus-within:border-indigo-500 transition-colors">
+                          {emailCfg.bcc_recipients.map((email, idx) => (
+                            <span
+                              key={email}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
+                            >
+                              {email}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRecipient("bcc", idx)}
+                                className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                          <div className="flex items-center gap-1 flex-1 min-w-[180px]">
+                            <input
+                              type="email"
+                              value={newBccRecipient}
+                              onChange={(e) => setNewBccRecipient(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddRecipient("bcc");
+                                }
+                              }}
+                              placeholder={emailCfg.bcc_recipients.length === 0 ? "Add BCC recipient..." : "Add another BCC..."}
+                              className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleAddRecipient("bcc")}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
+                              title="Add BCC recipient"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -4817,12 +5375,40 @@ export default function SettingsPage() {
                         Live Synchronized Render Preview
                       </span>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsLivePreviewEnabled(!isLivePreviewEnabled)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isLivePreviewEnabled
+                              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700"
+                          }`}
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>{isLivePreviewEnabled ? "Live Preview: ON" : "Live Preview: PAUSED"}</span>
+                        </button>
                         <span className="text-[10px] text-slate-400">
-                          {isLoadingTemplatePreview ? "Rendering..." : "Synchronized with Editor"}
+                          {isLoadingTemplatePreview ? "Rendering..." : isLivePreviewEnabled ? "Synchronized with Editor" : "Paused"}
                         </span>
                       </div>
                     </div>
 
+                    {!isLivePreviewEnabled ? (
+                      <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center bg-slate-50/50 dark:bg-slate-950/20 space-y-3">
+                        <EyeOff className="w-8 h-8 mx-auto text-slate-400" />
+                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Live Preview Paused</h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          Synchronized live rendering is currently paused to optimize editing performance. Click below to resume real-time DOM rendering.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setIsLivePreviewEnabled(true)}
+                          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                        >
+                          Enable Live Preview
+                        </button>
+                      </div>
+                    ) : (
                     <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-inner">
                       {/* Subject Banner */}
                       <div className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2">
@@ -4890,7 +5476,8 @@ export default function SettingsPage() {
                         <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">Matches: 2 case(s)</span>
                       </div>
                     </div>
-                  </div>
+                  )}
+                </div>
                 );
 
                 if (activeEditorTab === "split") {
@@ -5573,183 +6160,191 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+
+            {/* 5. DATA RETENTION & ENTERPRISE STORAGE CLEANUP POLICY */}
+            <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-indigo-500" />
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      Data Retention & Enterprise Storage Cleanup Policy
+                    </h4>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                      Retention Active
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-2xl">
+                    Configure automated purging of aged error screenshots, transient scraper cache files, and bulk export archives to maintain optimal database performance and minimize disk usage.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCalculateCleanupPreview}
+                    disabled={isCalculatingPreview}
+                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isCalculatingPreview ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>Preview Cleanup Impact</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCleanupConfirmOpen(true)}
+                    disabled={isCleaningUp}
+                    className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isCleaningUp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    <span>Execute Cleanup Now</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scope & Categories Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block text-[11px]">
+                    Retention Time Scope
+                  </label>
+                  <select
+                    value={cleanupScope}
+                    onChange={(e: any) => setCleanupScope(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:outline-hidden"
+                  >
+                    <option value="OLDER_THAN_30_DAYS">Older than 30 Days (Recommended)</option>
+                    <option value="OLDER_THAN_7_DAYS">Older than 7 Days</option>
+                    <option value="ALL_TIME">All Time (Purge All Historical Artifacts)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block text-[11px]">
+                    Target Artifacts
+                  </label>
+                  <div className="space-y-1.5 p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px]">
+                    {[
+                      { id: "ERROR_SCREENSHOTS", label: "Error Screenshots (.png)" },
+                      { id: "SCRAPER_PAGE_CACHE", label: "Scraper HTML Page Cache" },
+                      { id: "EXPORT_GENERATIONS", label: "Export Files (.xlsx, .csv)" },
+                    ].map((cat) => (
+                      <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cleanupCategories.includes(cat.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setCleanupCategories([...cleanupCategories, cat.id]);
+                            } else {
+                              setCleanupCategories(cleanupCategories.filter((c) => c !== cat.id));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-slate-700 dark:text-slate-300">{cat.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Safety Guarantee:</span>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mt-1">
+                    Transactional rollback and automatic database backup. Claim records, policy numbers, and primary docket data are <strong>never</strong> pruned.
+                  </p>
+                </div>
+              </div>
+
+              {/* Cleanup Preview Stats */}
+              {cleanupPreview && (
+                <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-semibold text-indigo-900 dark:text-indigo-200">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      Cleanup Preview Calculated: {cleanupPreview.scope}
+                    </span>
+                    <span className="font-mono text-[11px]">
+                      Est. Space Recoverable: {cleanupPreview.estimated_space_freed_human || "N/A"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
+                      <span className="text-slate-500 block text-[10px]">Records to Delete</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{cleanupPreview.total_records_to_delete ?? 0}</span>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
+                      <span className="text-slate-500 block text-[10px]">Files to Delete</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{cleanupPreview.total_files_to_delete ?? 0}</span>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
+                      <span className="text-slate-500 block text-[10px]">Database Rows</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{cleanupPreview.db_records_to_delete ?? 0}</span>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
+                      <span className="text-slate-500 block text-[10px]">Estimated Duration</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">~{cleanupPreview.estimated_duration_seconds || 1}s</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Cleanup Execution Result */}
+              {cleanupResult && (
+                <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/80 space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-semibold text-emerald-900 dark:text-emerald-200">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      Cleanup Operation Completed
+                    </span>
+                    <span className="font-mono text-[11px]">Cleanup ID: {cleanupResult.cleanup_id}</span>
+                  </div>
+                  <p className="text-emerald-800 dark:text-emerald-300">{cleanupResult.message}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Confirm Cleanup Modal */}
+            {isCleanupConfirmOpen && (
+              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                  <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
+                    <AlertTriangle className="w-5 h-5" />
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      Confirm Enterprise Storage Cleanup
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    You are about to purge artifacts matching scope: <strong>{cleanupScope.replace(/_/g, " ")}</strong> across selected categories ({cleanupCategories.join(", ")}).
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    A snapshot backup of the database will be created automatically before deletion begins.
+                  </p>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsCleanupConfirmOpen(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteCleanup}
+                      disabled={isCleaningUp}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded-lg cursor-pointer transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isCleaningUp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
+                      <span>Confirm & Execute Cleanup</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ========================================================= */}
         {/* TAB 4: RAPIDFUZZ & NOISE CLEANUP ENGINE                   */}
-        {/* ========================================================= */}
-        {activeTab === "matcher" && (
-          <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-              <Sparkles className="w-5 h-5 text-indigo-500" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                  RapidFuzz String Deduplication & Noise Cleaning Engine
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Configure string similarity algorithms, confidence thresholds, and corporate noise strip words.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-              {/* Auto Match Threshold */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
-                    Auto-Match Approval Threshold
-                  </label>
-                  <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
-                    {(settings.matcher.auto_match_threshold * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.40"
-                  max="1.0"
-                  step="0.05"
-                  value={settings.matcher.auto_match_threshold}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      matcher: {
-                        ...settings.matcher,
-                        auto_match_threshold: parseFloat(e.target.value),
-                      },
-                    })
-                  }
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
-              </div>
-
-              {/* Manual Review Threshold */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
-                    Manual Review Lower Threshold
-                  </label>
-                  <span className="font-mono text-xs font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded-md">
-                    {(settings.matcher.manual_review_threshold * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.20"
-                  max="0.80"
-                  step="0.05"
-                  value={settings.matcher.manual_review_threshold}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      matcher: {
-                        ...settings.matcher,
-                        manual_review_threshold: parseFloat(e.target.value),
-                      },
-                    })
-                  }
-                  className="w-full accent-purple-500 cursor-pointer"
-                />
-              </div>
-
-              {/* Algorithm */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                  RapidFuzz Scorer Algorithm
-                </label>
-                <select
-                  value={settings.matcher.scorer_algorithm}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      matcher: {
-                        ...settings.matcher,
-                        scorer_algorithm: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
-                >
-                  <option value="token_sort_ratio">token_sort_ratio (Recommended for Legal Names)</option>
-                  <option value="token_set_ratio">token_set_ratio (Best for Subset/Prefix Matches)</option>
-                  <option value="partial_ratio">partial_ratio (Best for Substring Matches)</option>
-                  <option value="ratio">ratio (Exact Levenshtein Distance)</option>
-                </select>
-              </div>
-
-              {/* Min Filing Date */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                  Minimum Case Filing Date (YYYY-MM-DD)
-                </label>
-                <input
-                  type="date"
-                  value={settings.matcher.min_filing_date}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      matcher: {
-                        ...settings.matcher,
-                        min_filing_date: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              {/* Clean Noise Words Tag Chips */}
-              <div className="sm:col-span-2 space-y-2">
-                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                  Corporate & Legal Noise Words Stripped During Matching
-                </label>
-                <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[50px] items-center">
-                  {settings.matcher.clean_party_name_patterns.map((word) => (
-                    <span
-                      key={word}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
-                    >
-                      {word}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveNoiseWord(word)}
-                        className="text-slate-400 hover:text-rose-500 cursor-pointer text-xs"
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newNoiseWord}
-                    onChange={(e) => setNewNoiseWord(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddNoiseWord();
-                      }
-                    }}
-                    placeholder="Add new noise word (e.g. D/B/A)..."
-                    className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 uppercase font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddNoiseWord}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
-                  >
-                    Add Word
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* TAB 5: QUEUE & ALERT NOTIFICATIONS                       */}
         {/* ========================================================= */}
         {activeTab === "queue" && (
           <div className="space-y-6 w-full">

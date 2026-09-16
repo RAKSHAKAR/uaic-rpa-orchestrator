@@ -108,6 +108,11 @@ class SingleSessionBrowserRunner:
         proxy_server: str | None = None,
         proxy_username: str | None = None,
         proxy_password: str | None = None,
+        typing_speed_mode: str = "turbo",
+        typing_delay_ms: int = 0,
+        action_pacing_ms: int = 100,
+        stealth_clicks: bool = False,
+        **kwargs: Any,
     ):
         self.headless = headless
         self.timeout_ms = timeout_ms
@@ -119,6 +124,10 @@ class SingleSessionBrowserRunner:
         self.proxy_server = proxy_server
         self.proxy_username = proxy_username
         self.proxy_password = proxy_password
+        self.typing_speed_mode = typing_speed_mode
+        self.typing_delay_ms = typing_delay_ms
+        self.action_pacing_ms = action_pacing_ms
+        self.stealth_clicks = stealth_clicks
         self.playwright = None
         self.context: BrowserContext | None = None
         self.tabs: dict[str, Page] = {}
@@ -134,7 +143,8 @@ class SingleSessionBrowserRunner:
             "--disable-blink-features=AutomationControlled",
             "--start-maximized",
             "--window-position=50,50",
-            f"--disk-cache-dir={cache_dir}",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
         ]
 
         ext_dir = self.extension_dir
@@ -156,8 +166,11 @@ class SingleSessionBrowserRunner:
         if "Users\\Default" in target_user_dir:
             target_user_dir = ""
 
+        persistent_default = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "browser_profile"))
         if target_user_dir and os.path.exists(target_user_dir):
             self.profile_to_use = target_user_dir
+        elif os.path.exists(persistent_default) and os.path.isdir(persistent_default):
+            self.profile_to_use = persistent_default
         else:
             self.profile_to_use = tempfile.mkdtemp(prefix="uaic_chrome_profile_")
             self.is_temp_profile = True

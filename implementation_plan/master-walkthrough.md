@@ -326,3 +326,55 @@ Status: Complete
 AI Verification: Complete (100% Automated Testing Suite)
 Next Action: Production Ready — All System Flows Verified
 ```
+
+
+---
+
+## 15. V4 Parity Audit — IMP-2026-0914-001 (2026-09-15)
+
+This section records the V4 parity audit and scraping engine validation completed on 2026-09-15.
+
+### 15.1 Scraping Engine Fixes (GAPs 001–007, 016)
+
+| Portal | Fix | Detail |
+|--------|-----|--------|
+| Broward | GAP-001 + GAP-007 | Header row filter + 500ms AntiCaptcha settling delay |
+| Miami-Dade | GAP-002 + GAP-003 + GAP-016 | FilingDate empty fallback, label_map card parser, pagination |
+| Hillsborough | GAP-004 | DataTables pagination loop (10-page ceiling) |
+| Harris District | GAP-005 | ASP.NET GridView pagination |
+| Harris Clerk | GAP-006 | WebSearch pagination (CaseType strictly excluded) |
+
+### 15.2 Settings & Frontend Fixes (GAPs 008–015)
+
+| GAP | Component | Fix |
+|-----|-----------|-----|
+| GAP-008 | settings_service.py | Verified: captcha=120s, retries=2, timeout=60s |
+| GAP-009 | monitor/page.tsx | autoQueueEnabled defaults to true |
+| GAP-010 | claims/[id]/page.tsx | View Stages wired to telemetry modal |
+| GAP-011 | claims/[id]/page.tsx | Audit log auto-refresh on all action handlers |
+| GAP-012 | page.tsx | Page size: 10/20/50/100/250/500 |
+| GAP-013 | claims.py | FilingDate fallback chain in export |
+| GAP-014 | health/page.tsx | autoRefreshInterval=15 (always active) |
+| GAP-015 | monitor/page.tsx | StatCard component for metric cards |
+
+### 15.3 V4 Defects Corrected
+
+Seven V4 behavioral defects corrected rather than reproduced:
+1. Broward: No header row filter → garbage records prevented
+2. Miami-Dade: Fabricated FilingDate (today's date) → empty string
+3. Miami-Dade: Python operator precedence bug in card parser → ordered label_map
+4. Hillsborough: Single-page extraction only → full DataTables pagination
+5. Harris District: Single-page extraction only → GridView pagination
+6. Harris Clerk: Single-page extraction only → WebSearch pagination
+7. Broward: AntiCaptcha settlement race condition → 500ms initial delay
+
+### 15.4 Automated Test Results
+
+```text
+pytest:   280 passed, 0 failed
+ruff:     All checks passed (0 errors)
+tsc:      0 errors
+ps1:      0 syntax errors (9 files)
+```
+
+**Status:** Complete — AI Verification: Complete (100% Automated Testing Suite)

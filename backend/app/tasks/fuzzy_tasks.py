@@ -70,16 +70,14 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
         seen_borderline_case_numbers = set()
 
         for court_case in claim.scraped_cases:
-            # Check eligibility against date, status, and type whitelists from settings
+            # Check eligibility: ONLY Minimum Case Filing Date (YYYY-MM-DD) is filtered as final data sent to Guidewire
             if not is_case_eligible(
                 court_case.filing_date,
-                court_case.case_status,
-                court_case.case_type,
+                case_status=None,
+                case_type=None,
                 min_filing_date=matcher_cfg.min_filing_date,
-                allowed_statuses=matcher_cfg.whitelisted_statuses,
-                allowed_types=matcher_cfg.whitelisted_case_types,
             ):
-                logger.info(f"Skipping ineligible case {court_case.case_number} (status: {court_case.case_status}, type: {court_case.case_type})")
+                logger.info(f"Skipping ineligible case {court_case.case_number} (Filing Date {court_case.filing_date} < minimum {matcher_cfg.min_filing_date})")
                 filtered_case = FilteredOutCase(
                     id=uuid.uuid4(),
                     claim_id=claim.id,
@@ -93,7 +91,8 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                         "status": court_case.case_status,
                         "type": court_case.case_type,
                         "filing_date": court_case.filing_date,
-                        "reason": "Excluded by eligibility whitelist or date policy",
+                        "min_filing_date": matcher_cfg.min_filing_date,
+                        "reason": f"Filing date {court_case.filing_date} is prior to Minimum Case Filing Date {matcher_cfg.min_filing_date}",
                     },
                 )
                 session.add(filtered_case)

@@ -146,39 +146,59 @@ class HillsboroughScraper(BaseCourtScraper):
             self.record_stage("result_retrieval", "Result Retrieval", t_ext_start, t_ext_end, cases_found=0, result_category="No Record Found")
             return []
 
-        # 6. Extract Table Rows matching V4
-        rows = page.locator("#partyResultsTable tbody tr, table.dataTable tbody tr")
-        row_count = await rows.count()
+        # 6. Extract Table Rows matching V4 — with DataTables pagination (GAP-004)
+        seen_case_numbers: set = set()
+        _HEADER_LABELS = {"CASE NUMBER", "CASE NO.", "CASE NO", "CASE #", ""}
+        page_num = 1
 
-        for i in range(row_count):
-            row = rows.nth(i)
-            cells = await row.locator("td").all_inner_texts()
-            if len(cells) <= 1:
-                continue
+        while True:
+            rows = page.locator("#partyResultsTable tbody tr, table.dataTable tbody tr")
+            row_count = await rows.count()
 
-            if len(cells) >= 8:
-                # Column mapping matching V4:
-                # td:eq(2) -> CaseNumber
-                # td:eq(4) -> CaseStyle
-                # td:eq(5) -> CaseStatus
-                # td:eq(6) -> FilingDate
-                # td:eq(7) -> CaseType
-                case_num = cells[2].strip()
-                case_style = cells[4].strip()
-                case_status = cells[5].strip().upper()
-                filing_date = cells[6].strip()
-                case_type = cells[7].strip()
+            for i in range(row_count):
+                row = rows.nth(i)
+                cells = await row.locator("td").all_inner_texts()
+                if len(cells) <= 1:
+                    continue
 
-                if case_num:
-                    results.append({
-                        "CaseNumber": case_num,
-                        "Citation": cells[3].strip() if len(cells) > 3 else "",
-                        "CaseStyle": case_style,
-                        "CountyWebsite": self.base_url,
-                        "FilingDate": filing_date,
-                        "CaseStatus": case_status,
-                        "CaseType": case_type,
-                    })
+                if len(cells) >= 8:
+                    # Column mapping matching V4:
+                    # td:eq(2) -> CaseNumber
+                    # td:eq(4) -> CaseStyle
+                    # td:eq(5) -> CaseStatus
+                    # td:eq(6) -> FilingDate
+                    # td:eq(7) -> CaseType
+                    case_num = cells[2].strip()
+                    case_style = cells[4].strip()
+                    case_status = cells[5].strip().upper()
+                    filing_date = cells[6].strip()
+                    case_type = cells[7].strip()
+
+                    if case_num and case_num.upper() not in _HEADER_LABELS and case_num not in seen_case_numbers:
+                        seen_case_numbers.add(case_num)
+                        results.append({
+                            "CaseNumber": case_num,
+                            "Citation": cells[3].strip() if len(cells) > 3 else "",
+                            "CaseStyle": case_style,
+                            "CountyWebsite": self.base_url,
+                            "FilingDate": filing_date,
+                            "CaseStatus": case_status,
+                            "CaseType": case_type,
+                        })
+
+            # Check next page button in DataTables
+            next_btn = page.locator("#partyResultsTable_next:not(.disabled) a, li.paginate_button.next:not(.disabled) a, .paginate_button.next:not(.disabled)")
+            if await next_btn.count() > 0 and await next_btn.first.is_visible():
+                try:
+                    await next_btn.first.click()
+                    await page.wait_for_timeout(2000)
+                    page_num += 1
+                    if page_num > 10:
+                        break
+                except Exception:
+                    break
+            else:
+                break
 
         t_ext_end = datetime.now()
         self.record_stage(

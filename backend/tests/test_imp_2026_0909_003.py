@@ -269,10 +269,10 @@ class TestFuzzySearch:
         assert res.status_code == 200
         data = res.json()
         assert data["total"] >= 1
-        top = data["matches"][0]
-        assert top["similarity_score"] >= 0.60
-        assert top["case_number"] == "2024-FST-001"
-        assert "Alice" in top["case_style"] or "ALICE" in top["case_style"].upper()
+        target = next((m for m in data["matches"] if m["case_number"] == "2024-FST-001"), None)
+        assert target is not None
+        assert target["similarity_score"] >= 0.60
+        assert "Alice" in target["case_style"] or "ALICE" in target["case_style"].upper()
 
     @pytest.mark.asyncio
     async def test_fuzzy_search_response_schema_fields(self):

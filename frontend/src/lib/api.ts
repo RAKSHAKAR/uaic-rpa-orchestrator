@@ -484,6 +484,21 @@ export const api = {
     return res.data;
   },
 
+  setupExtension: async (payload?: {
+    force_reconfigure?: boolean;
+  }): Promise<{
+    status: string;
+    extension_id: string;
+    pinned_to_toolbar: boolean;
+    persistent_profile_path: string;
+    verified: boolean;
+    timestamp: string;
+    message: string;
+  }> => {
+    const res = await apiClient.post("/settings/setup-extension", payload || {});
+    return res.data;
+  },
+
   testStorageConnection: async (payload: StorageTestRequest): Promise<StorageTestResponse> => {
     const res = await apiClient.post("/settings/test-storage", payload);
     return res.data;
@@ -526,7 +541,7 @@ export const api = {
     return res.data;
   },
 
-  exportAuditLogs: async (params?: AuditLogQueryParams & { format?: 'csv' | 'json' | 'xlsx' }): Promise<Blob> => {
+  exportAuditLogs: async (params?: AuditLogQueryParams & { format?: 'csv' | 'json' | 'xlsx' | 'pdf' }): Promise<Blob> => {
     const res = await apiClient.get("/audit-logs/export", {
       params,
       responseType: "blob",

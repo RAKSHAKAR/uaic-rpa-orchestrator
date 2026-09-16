@@ -96,33 +96,58 @@ class HarrisDistrictClerkScraper(BaseCourtScraper):
         # td:eq(1) > a > strong -> CaseStyle
         # td:eq(5) -> FilingDate
         # td:eq(6) -> CaseType
+        # 5. Extract table rows matching V4 — with GridView pagination (GAP-005)
         t_ext_start = datetime.now()
-        rows = page.locator("table[id*='dgSearchResults'] tbody tr, .grid-results tr, table.grid tbody tr, table tbody tr")
-        row_count = await rows.count()
-        logger.info(f"[{self.county_name}] Found {row_count} potential result rows")
+        seen_case_numbers: set = set()
+        page_num = 1
 
-        for i in range(row_count):
-            row = rows.nth(i)
-            cells = await row.locator("td").all_inner_texts()
-            if len(cells) >= 3:
-                case_num = cells[0].strip()
-                case_style = cells[1].strip() if len(cells) > 1 else ""
-                filing_date = cells[5].strip() if len(cells) > 5 else (cells[2].strip() if len(cells) > 2 else "")
-                case_type = cells[6].strip() if len(cells) > 6 else (cells[4].strip() if len(cells) > 4 else "DISTRICT COURTS – CIVIL")
+        while True:
+            rows = page.locator("table[id*='dgSearchResults'] tbody tr, .grid-results tr, table.grid tbody tr, table tbody tr")
+            row_count = await rows.count()
+            logger.info(f"[{self.county_name}] Page {page_num}: Found {row_count} potential result rows")
 
-                # Derive status from case number or status cell matching V4
-                raw_status = cells[3].strip() if len(cells) > 3 else "ACTIVE"
-                case_status = re.sub(r"(?i)^status\s*[:\s]*", "", raw_status).strip() or "ACTIVE"
+            for i in range(row_count):
+                row = rows.nth(i)
+                cells = await row.locator("td").all_inner_texts()
+                if len(cells) >= 3:
+                    case_num = cells[0].strip()
+                    case_style = cells[1].strip() if len(cells) > 1 else ""
+                    filing_date = cells[5].strip() if len(cells) > 5 else (cells[2].strip() if len(cells) > 2 else "")
+                    case_type = cells[6].strip() if len(cells) > 6 else (cells[4].strip() if len(cells) > 4 else "DISTRICT COURTS – CIVIL")
 
-                if case_num and case_num.upper() != "CASE NUMBER":
-                    results.append({
-                        "CaseNumber": case_num,
-                        "CaseStyle": case_style or f"{l_name}, {f_name}",
-                        "CountyWebsite": self.base_url,
-                        "FilingDate": filing_date,
-                        "CaseStatus": case_status,
-                        "CaseType": case_type,
-                    })
+                    # Derive status from case number or status cell matching V4
+                    raw_status = cells[3].strip() if len(cells) > 3 else "ACTIVE"
+                    case_status = re.sub(r"(?i)^status\s*[:\s]*", "", raw_status).strip() or "ACTIVE"
+
+                    _HEADER_LABELS = {"CASE NUMBER", "CASE NO.", "CASE NO", "CASE #", ""}
+                    if case_num and case_num.upper() not in _HEADER_LABELS and case_num not in seen_case_numbers:
+                        seen_case_numbers.add(case_num)
+                        results.append({
+                            "CaseNumber": case_num,
+                            "CaseStyle": case_style or f"{l_name}, {f_name}",
+                            "CountyWebsite": self.base_url,
+                            "FilingDate": filing_date,
+                            "CaseStatus": case_status,
+                            "CaseType": case_type,
+                        })
+
+            # Check next page link (ASP.NET GridView pager)
+            next_link = page.locator(
+                "table[id*='dgSearchResults'] tr.pager a:has-text('Next'), "
+                "table[id*='dgSearchResults'] tr.pager a:has-text('>'), "
+                "a[id*='btnNext'], a[href*='__doPostBack']:has-text('Next')"
+            )
+            if await next_link.count() > 0 and await next_link.first.is_visible():
+                try:
+                    await next_link.first.click()
+                    await page.wait_for_timeout(2500)
+                    page_num += 1
+                    if page_num > 10:
+                        break
+                except Exception:
+                    break
+            else:
+                break
 
         t_ext_end = datetime.now()
         self.record_stage(

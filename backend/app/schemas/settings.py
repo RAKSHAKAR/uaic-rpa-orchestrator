@@ -61,42 +61,70 @@ class AutomationSettings(BaseModel):
         description="Browser User-Agent header string",
     )
     max_concurrent_claims: int = Field(
-        default=3,
+        default=1,
         ge=1,
         le=10,
         description="Concurrent claims scraped in parallel (1 = sequential FIFO, 2-10 = parallel multi-worker)",
+    )
+    extension_setup_verified: bool = Field(
+        default=False,
+        description="One-time AntiCaptcha extension and toolbar pinning verification state",
+    )
+    extension_setup_timestamp: str | None = Field(
+        default=None,
+        description="ISO timestamp of last extension setup verification",
+    )
+    typing_speed_mode: str = Field(
+        default="turbo",
+        description="Browser input entry speed mode: turbo (instant DOM fill, 0ms), fast (15ms/char), balanced (50ms/char), cautious (100ms/char)",
+    )
+    typing_delay_ms: int = Field(
+        default=0,
+        ge=0,
+        le=200,
+        description="Keystroke input delay in milliseconds (0 = instant .fill(), >0 = press_sequentially with delay)",
+    )
+    action_pacing_ms: int = Field(
+        default=100,
+        ge=0,
+        le=1500,
+        description="Pacing delay between consecutive browser actions in milliseconds (0 = no delay)",
+    )
+    stealth_clicks: bool = Field(
+        default=False,
+        description="Enable biometric jitter mouse movements vs direct snappy clicks",
     )
 
 
 class PortalsSettings(BaseModel):
     """Court scraper portal endpoints and activation toggles."""
     # Florida
-    broward_url: str = Field(default="https://www.browardclerk.org/", description="Broward County Clerk Portal URL")
+    broward_url: str = Field(default="https://www.browardclerk.org/Web2", description="Broward County Clerk Portal URL")
     broward_enabled: bool = Field(default=True, description="Enable Broward County Scraper")
 
-    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/", description="Hillsborough County Clerk Portal URL")
+    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/html/caseSearch.html", description="Hillsborough County Clerk Portal URL")
     hillsborough_enabled: bool = Field(default=True, description="Enable Hillsborough County Scraper")
 
-    miami_url: str = Field(default="https://www2.miamidadeclerk.gov/ocs", description="Miami-Dade County Clerk Portal URL")
+    miami_url: str = Field(default="https://onlineservices.miami-dadeclerk.com/civil/", description="Miami-Dade County Clerk Portal URL")
     miami_enabled: bool = Field(default=True, description="Enable Miami-Dade County Scraper")
     miami_username: str = Field(default="apoorvnigam07@gmail.com", description="Miami-Dade OCS Portal Login Username/Email")
     miami_password: str = Field(default="Apoorv@12345", description="Miami-Dade OCS Portal Login Password")
     miami_requires_login: bool = Field(default=True, description="Requires authentication to scrape Miami-Dade OCS portal")
 
     # Texas
-    travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/", description="Travis County Odyssey Portal URL")
+    travis_url: str = Field(default="https://odysseypa.traviscountytx.gov/CourtDirectorySearch/", description="Travis County Odyssey Portal URL")
     travis_enabled: bool = Field(default=True, description="Enable Travis County Scraper")
 
-    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/", description="Dallas County Courts Portal URL")
+    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/", description="Dallas County Courts Portal URL")
     dallas_enabled: bool = Field(default=True, description="Enable Dallas County Scraper")
 
-    harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/", description="Harris County JP Courts Portal URL")
+    harris_jp_url: str = Field(default="https://jpwebsite.harriscountytx.gov/Public/CivilSearch.aspx", description="Harris County JP Courts Portal URL")
     harris_jp_enabled: bool = Field(default=True, description="Enable Harris County JP Scraper")
 
-    harris_cclerk_url: str = Field(default="https://www.cclerk.hctx.net/Applications/WebSearch/", description="Harris County Clerk Portal URL")
+    harris_cclerk_url: str = Field(default="https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil", description="Harris County Clerk Portal URL")
     harris_cclerk_enabled: bool = Field(default=True, description="Enable Harris County Clerk Scraper")
 
-    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/", description="Harris District Clerk Portal URL")
+    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/edocs/public/CaseDetails.aspx", description="Harris County District Clerk Portal URL")
     harris_district_enabled: bool = Field(default=True, description="Enable Harris District Clerk Scraper")
 
 
@@ -109,6 +137,9 @@ class FuzzyMatcherSettings(BaseModel):
         description="Fuzzy matching algorithm (token_sort_ratio, token_set_ratio, partial_ratio, ratio)",
     )
     min_filing_date: str = Field(default="2010-01-01", description="Minimum court case filing date (YYYY-MM-DD)")
+    unique_names_threshold: float = Field(
+        default=0.85, ge=0.0, le=1.0, description="Deduplication threshold for unique search names generation"
+    )
     clean_party_name_patterns: list[str] = Field(
         default_factory=lambda: [
             "LLC",
@@ -117,16 +148,25 @@ class FuzzyMatcherSettings(BaseModel):
             "CORPORATION",
             "CO.",
             "COMPANY",
-            "ET AL",
-            "INDIVIDUALLY",
-            "A/A/O",
-            "AS ASSIGNEE OF",
             "D/B/A",
             "PA",
             "P.A.",
             "L.L.C.",
         ],
         description="Corporate noise and suffix words to strip during party name normalization",
+    )
+    clean_case_style_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "ET AL",
+            "INDIVIDUALLY",
+            "AS PARENT",
+            "NATURAL GUARDIAN",
+            "A MINOR",
+            "ESTATE OF",
+            "A/A/O",
+            "AS ASSIGNEE OF",
+        ],
+        description="Legal noise patterns stripped from scraped court case styles",
     )
     whitelisted_statuses: list[str] = Field(
         default_factory=lambda: ["OPEN", "PENDING", "ACTIVE", "FILED", "REOPENED"],
@@ -177,7 +217,7 @@ class TaskQueueSettings(BaseModel):
     batch_chunk_size: int = Field(default=25, ge=5, le=100, description="Number of claims to process per Celery worker chunk")
     auto_retry_failed_scrapes: bool = Field(default=True, description="Automatically retrigger failed scraping tasks via Celery Beat")
     max_concurrent_claims: int = Field(
-        default=3,
+        default=1,
         ge=1,
         le=10,
         description="Concurrent claims scraped in parallel (1 = sequential FIFO, 2-10 = parallel multi-worker)",
@@ -524,4 +564,16 @@ class NotificationTemplateSchema(BaseModel):
     body_template_html: str
     body_template_text: str | None = None
     is_active: bool = True
+
+
+class ExtensionSetupResponse(BaseModel):
+    """Result of one-time browser extension configuration and toolbar pinning."""
+    success: bool
+    message: str
+    extension_id: str | None = None
+    toolbar_action_verified: bool = False
+    service_worker_active: bool = False
+    profile_dir: str
+    verified_at: str
+    latency_ms: float
 

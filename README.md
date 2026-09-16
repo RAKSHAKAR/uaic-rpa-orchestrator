@@ -239,7 +239,7 @@ The following 5 folders are strictly protected. No cleanup script, purge routine
 
 | Technology | Purpose in This Solution | How We Use It                    | Official Documentation                                        |
 | ---------- | ------------------------ | -------------------------------- | ------------------------------------------------------------- |
-| Pytest     | Unit testing framework   | Executing 307 backend test cases | [Pytest](https://docs.pytest.org/en/9.1.x/)                   |
+| Pytest     | Unit testing framework   | Executing 394 backend test cases | [Pytest](https://docs.pytest.org/en/9.1.x/)                   |
 | Playwright | Browser automation       | Headless Chrome court scraping   | [Playwright Python](https://playwright.dev/python/docs/intro) |
 
 ### Build & Development
@@ -502,6 +502,7 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 | `GET`      | `/api/v1/ingest/sample/csv`                       | Download sample CSV template                                        |
 | `GET`      | `/api/v1/matches/pending`                         | Get pending fuzzy match reviews                                     |
 | `POST`     | `/api/v1/matches/{id}/review`                     | Approve or reject a fuzzy match candidate                           |
+| `POST`     | `/api/v1/matches/unique-names`                    | Deduplicate party names across 3 columns with 60% RapidFuzz matching |
 | `GET`      | `/api/v1/queue/status`                            | Real-time queue metrics and worker health                           |
 | `POST`     | `/api/v1/queue/start-all`                         | Start sequential queue processor                                    |
 | `POST`     | `/api/v1/queue/pause`                             | Pause queue processing                                              |
@@ -514,6 +515,7 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 | `POST`     | `/api/v1/settings/test-portal`                    | Test portal reachability                                            |
 | `POST`     | `/api/v1/settings/test-browser`                   | Launch live Chrome test (Attended GUI vs Headless)                  |
 | `POST`     | `/api/v1/settings/validate-extension`             | Validate AntiCaptcha extension directory, manifest, and engine      |
+| `POST`     | `/api/v1/settings/setup-extension`                | Configure AntiCaptcha in persistent profile & pin to toolbar        |
 | `POST`     | `/api/v1/settings/test-storage`                   | Test storage provider connectivity (Local, S3, Azure, GCS)          |
 | `POST`     | `/api/v1/settings/email/test-connection`          | Test SMTP/Mock email provider connectivity & latency                |
 | `POST`     | `/api/v1/settings/email/test-send`                | Send interactive live test email                                    |
@@ -872,7 +874,7 @@ Complete technology reference for the UAIC Claim & RPA Orchestrator. Every techn
 
 | Technology         | Role in This Solution   | How We Use It                                                                                                | Official Documentation                                                            |
 | ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| **pytest**         | Test runner & framework | 307 unit + integration tests across `backend/tests/` (31 test suites); auto-discovery, parametrize, fixtures | [docs.pytest.org](https://docs.pytest.org/en/stable/)                             |
+| **pytest**         | Test runner & framework | 394 unit + integration tests across `backend/tests/` (30 test suites); auto-discovery, parametrize, fixtures | [docs.pytest.org](https://docs.pytest.org/en/stable/)                             |
 | **pytest-asyncio** | Async test support      | `asyncio-mode=auto` in `pyproject.toml`; enables `async def test_*` functions and async fixtures             | [pytest-asyncio.readthedocs.io](https://pytest-asyncio.readthedocs.io/en/latest/) |
 | **pytest-mock**    | Mock utilities          | `mocker` fixture for patching Playwright, Celery tasks, and external HTTP calls in isolation                 | [pytest-mock.readthedocs.io](https://pytest-mock.readthedocs.io/en/latest/)       |
 

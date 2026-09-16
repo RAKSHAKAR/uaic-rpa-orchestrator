@@ -20,6 +20,21 @@ export interface StatCardProps {
   className?: string;
 }
 
+const COLOR_TOKEN_MAP: Record<string, string> = {
+  emerald: "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+  green: "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+  rose: "from-rose-500/20 to-red-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800",
+  red: "from-rose-500/20 to-red-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800",
+  amber: "from-amber-500/20 to-orange-500/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+  yellow: "from-amber-500/20 to-yellow-500/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+  orange: "from-amber-500/20 to-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+  sky: "from-sky-500/20 to-blue-500/20 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800",
+  cyan: "from-cyan-500/20 to-blue-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800",
+  blue: "from-blue-500/20 to-indigo-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  purple: "from-purple-500/20 to-pink-500/20 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+  indigo: "from-indigo-500/20 to-purple-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+};
+
 export function StatCard({
   title,
   label,
@@ -42,20 +57,12 @@ export function StatCard({
   const displaySubtitle = subtitle || subtext;
   const isSelectedCard = isSelected ?? selected ?? false;
 
+  const rawToken = gradient || colorGradient || color || "indigo";
   const resolvedGradient =
-    gradient ||
-    colorGradient ||
-    (color === "emerald"
-      ? "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-      : color === "rose"
-      ? "from-rose-500/20 to-red-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800"
-      : color === "amber"
-      ? "from-amber-500/20 to-yellow-500/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-      : color === "sky"
-      ? "from-sky-500/20 to-blue-500/20 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800"
-      : color === "purple"
-      ? "from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"
-      : "from-indigo-500/20 to-blue-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800");
+    COLOR_TOKEN_MAP[rawToken.toLowerCase()] ||
+    (rawToken.includes("from-")
+      ? `${rawToken} border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400`
+      : COLOR_TOKEN_MAP.indigo);
 
   return (
     <div

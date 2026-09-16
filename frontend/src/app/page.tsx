@@ -49,6 +49,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { StatCard } from "../components/StatCard";
 import { FilterPresetManager } from "../components/FilterPresetManager";
 import { AsyncExportModal } from "../components/AsyncExportModal";
+import { ExportActionToolbar } from "../components/ExportActionToolbar";
 import { api } from "../lib/api";
 import { Claim, ClaimStats, LiveQueueState } from "../types";
 import { formatDate } from "../lib/utils";
@@ -234,7 +235,7 @@ export default function DashboardPage() {
       await api.seedDemoClaims(10);
       await fetchLiveQueue();
       await loadData();
-      setLastTransitionMessage(`Seeded 10 realistic Florida & Texas claims. Dispatched across ${liveQueue?.max_concurrency || 3} parallel workers!`);
+      setLastTransitionMessage(`Seeded 10 realistic Florida & Texas claims. Dispatched across ${liveQueue?.max_concurrency || 1} parallel workers!`);
     } catch (e) {
       console.error("Error seeding demo claims:", e);
     } finally {
@@ -537,7 +538,7 @@ export default function DashboardPage() {
           const activeItems = liveQueue?.active_items && liveQueue.active_items.length > 0
             ? liveQueue.active_items
             : (liveQueue?.active_item ? [liveQueue.active_item] : []);
-          const maxConcurrency = liveQueue?.max_concurrency || 3;
+          const maxConcurrency = liveQueue?.max_concurrency || 1;
           const availableSlots = liveQueue?.available_slots !== undefined ? liveQueue.available_slots : Math.max(0, maxConcurrency - activeItems.length);
           const allPendingItems = liveQueue?.pending_items || [];
           const filteredPendingItems = allPendingItems.filter((item) => {
@@ -1334,15 +1335,40 @@ export default function DashboardPage() {
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 {totalFilteredCount} {totalFilteredCount === 1 ? "claim" : "claims"} found
               </span>
-              <button
-                type="button"
-                onClick={() => setIsExportModalOpen(true)}
-                className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                title="Export claims dataset (Excel/CSV/JSON)"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Export Dataset</span>
-              </button>
+              <ExportActionToolbar
+                label="Export"
+                onExportXlsx={() => {
+                  const url = api.getExportUrl({
+                    format: "xlsx",
+                    status: statusFilter === "all" ? undefined : statusFilter,
+                    state: stateFilter === "all" ? undefined : stateFilter,
+                    search: searchTerm || undefined,
+                  });
+                  window.open(url, "_blank");
+                }}
+                onExportCsv={() => {
+                  const url = api.getExportUrl({
+                    format: "csv",
+                    status: statusFilter === "all" ? undefined : statusFilter,
+                    state: stateFilter === "all" ? undefined : stateFilter,
+                    search: searchTerm || undefined,
+                  });
+                  window.open(url, "_blank");
+                }}
+                onExportJson={() => {
+                  const url = api.getExportUrl({
+                    format: "json",
+                    status: statusFilter === "all" ? undefined : statusFilter,
+                    state: stateFilter === "all" ? undefined : stateFilter,
+                    search: searchTerm || undefined,
+                  });
+                  window.open(url, "_blank");
+                }}
+                onOpenAsyncModal={() => setIsExportModalOpen(true)}
+                showPdf={false}
+                showAsyncButton={true}
+                compact={true}
+              />
               <Link
                 href="/monitor"
                 className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60"
@@ -1671,6 +1697,9 @@ export default function DashboardPage() {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
                 <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+                <option value={500}>500</option>
               </select>
               <span>
                 Showing {totalFilteredCount === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}

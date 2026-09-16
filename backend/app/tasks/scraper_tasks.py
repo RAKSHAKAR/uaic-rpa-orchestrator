@@ -8,7 +8,10 @@ from datetime import datetime, timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm.exc import StaleDataError
 
-from app.automation.base import SecurityBlockException
+from app.automation.base import (
+    SecurityBlockException,
+    append_portal_execution_log,
+)
 from app.automation.florida import (
     BrowardScraper,
     HillsboroughScraper,
@@ -32,12 +35,46 @@ from app.services.cooldown_service import (
     set_portal_cooldown,
 )
 from app.services.fuzzy_engine import (
-    derive_search_counts_fuzzy,
     generate_unique_names_for_claim,
 )
 from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.tasks.scrapers")
+
+
+def normalize_court_date(val: str | None) -> str | None:
+    """Normalize court filing date to standard MM/dd/yyyy format."""
+    if val is None:
+        return None
+    val_str = str(val).strip()
+    if not val_str or val_str.lower() in ["null", "none", "nan", "n/a", "-", "--"]:
+        return ""
+    import re
+    # 1. First try regex extraction for ISO dates YYYY-MM-DD
+    iso_match = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", val_str)
+    if iso_match:
+        y, m, d = iso_match.groups()
+        return f"{int(m):02d}/{int(d):02d}/{y}"
+    # 2. Try regex extraction for US dates MM/DD/YYYY or DD/MM/YYYY or MM/DD/YY
+    us_match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", val_str)
+    if us_match:
+        m, d, y = us_match.groups()
+        m_int, d_int = int(m), int(d)
+        if m_int > 12 and d_int <= 12:
+            # DD/MM/YYYY detected (e.g. 15/01/2025)
+            m_int, d_int = d_int, m_int
+        if len(y) == 2:
+            y = f"20{y}" if int(y) < 50 else f"19{y}"
+        return f"{m_int:02d}/{d_int:02d}/{y}"
+    # Strip time part if present (e.g. '2023-05-12 00:00:00' or '2023-05-12T00:00:00')
+    cleaned = val_str.split("T")[0].split()[0] if (" " in val_str or "T" in val_str) else val_str
+    for fmt in ["%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d", "%m-%d-%Y", "%d/%m/%Y", "%m/%d/%y"]:
+        try:
+            dt = datetime.strptime(cleaned, fmt)
+            return dt.strftime("%m/%d/%Y")
+        except ValueError:
+            pass
+    return val_str
 
 
 @celery_app.task(name="app.tasks.scraper_tasks.health_ping_task")
@@ -80,6 +117,10 @@ async def _async_orchestrate_scrapers(
             "user_data_dir": auto_cfg.chrome_user_data_dir,
             "anticaptcha_api_key": auto_cfg.anticaptcha_api_key,
             "user_agent": auto_cfg.user_agent,
+            "typing_speed_mode": getattr(auto_cfg, "typing_speed_mode", "turbo"),
+            "typing_delay_ms": getattr(auto_cfg, "typing_delay_ms", 0),
+            "action_pacing_ms": getattr(auto_cfg, "action_pacing_ms", 100),
+            "stealth_clicks": getattr(auto_cfg, "stealth_clicks", False),
         }
 
         # Map active county scrapers based on routing flags and portal toggles
@@ -182,18 +223,53 @@ async def _async_orchestrate_scrapers(
                 pass
             return
 
-        # Derive deduplicated unique names and search counts via Fuzzy Engine (DualSearch / TripleSearch)
-        unique_name_items = generate_unique_names_for_claim(claim)
-        dual_search, triple_search = derive_search_counts_fuzzy(claim)
+        # ── FIRST ACTION: Extract & Deduplicate Unique Names from the 3 Columns ──
+        unique_name_items = generate_unique_names_for_claim(claim, fuzzy_threshold=0.60)
         party_pairs = [
             (p["party_type"], p.get("first_name"), p.get("last_name"))
             for p in unique_name_items
         ]
+
+        targets_preview = "\n".join([f"  -> Target {p['search_order']}: [{p['party_type']}] '{p['full_name']}'" for p in unique_name_items])
         logger.info(
-            f"Claim {claim.claim_number}: Unique Names generated={len(party_pairs)}, "
-            f"DualSearch={dual_search}, TripleSearch={triple_search}, "
-            f"Parties to search: {party_pairs}"
+            f"Claim {claim.claim_number}: [UNIQUE_NAMES_EXTRACTION] Extracted {len(unique_name_items)} unique search target(s):\n"
+            f"{targets_preview}\n"
+            f"  Source Columns: Insured='{claim.insured_first_name} {claim.insured_last_name}', "
+            f"Driver='{claim.driver_first_name} {claim.driver_last_name}', "
+            f"Claimant='{claim.claimant_first_name} {claim.claimant_last_name}'"
         )
+
+        named_targets_summary = ", ".join([f"Target {p['search_order']}: [{p['party_type']}] '{p['full_name']}'" for p in unique_name_items])
+        append_portal_execution_log(
+            claim.id, "orchestrator",
+            f"[PIPELINE START - FIRST ACTION] Extracted {len(unique_name_items)} unique search target(s): {named_targets_summary}. "
+            f"Columns: Insured='{claim.insured_first_name} {claim.insured_last_name}', "
+            f"Driver='{claim.driver_first_name} {claim.driver_last_name}', "
+            f"Claimant='{claim.claimant_first_name} {claim.claimant_last_name}'"
+        )
+
+        try:
+            await log_audit_event_async(
+                session=session,
+                claim_id=claim.id,
+                claim_number=claim.claim_number,
+                action="UNIQUE_NAMES_EXTRACTED",
+                details={
+                    "claim_number": claim.claim_number,
+                    "unique_count": len(unique_name_items),
+                    "unique_targets": [
+                        {"search_order": p["search_order"], "party_type": p["party_type"], "full_name": p["full_name"]}
+                        for p in unique_name_items
+                    ],
+                    "source_insured": f"{claim.insured_first_name} {claim.insured_last_name}".strip(),
+                    "source_driver": f"{claim.driver_first_name} {claim.driver_last_name}".strip(),
+                    "source_claimant": f"{claim.claimant_first_name} {claim.claimant_last_name}".strip(),
+                    "fuzzy_threshold": 0.60,
+                },
+            )
+            await session.commit()
+        except Exception as e_audit_names:
+            logger.warning(f"Could not log audit event for unique names: {e_audit_names}")
 
         total_scraped_cases = []
         timings = dict(claim.action_timings or {})
@@ -223,6 +299,10 @@ async def _async_orchestrate_scrapers(
                 proxy_server=proxy_server,
                 proxy_username=proxy_username,
                 proxy_password=proxy_password,
+                typing_speed_mode=getattr(auto_cfg, "typing_speed_mode", "turbo"),
+                typing_delay_ms=getattr(auto_cfg, "typing_delay_ms", 0),
+                action_pacing_ms=getattr(auto_cfg, "action_pacing_ms", 100),
+                stealth_clicks=getattr(auto_cfg, "stealth_clicks", False),
             )
 
             async with browser_session_runner as browser_session:
@@ -249,6 +329,7 @@ async def _async_orchestrate_scrapers(
                         continue
 
                     await browser_session.get_or_create_tab(portal_key=name, url=scraper.base_url)
+                    append_portal_execution_log(claim.id, name, f"Initialized portal tab for {scraper.county_name} ({scraper.base_url})")
                     setattr(claim, status_attr, BotStatusEnum.IN_PROGRESS)
                     portal_timings.setdefault(name, {
                         "portal_name": scraper.county_name,
@@ -258,6 +339,26 @@ async def _async_orchestrate_scrapers(
                         "status": "IN_PROGRESS",
                     })
                 await session.commit()
+
+                try:
+                    await log_audit_event_async(
+                        session=session,
+                        action="SCRAPING_STARTED",
+                        entity_type="CLAIM",
+                        description=f"Automated browser scraping initiated across {len(scrapers_to_run)} portal tabs for claim '{claim.claim_number}'.",
+                        entity_id=claim.id,
+                        claim_number=claim.claim_number,
+                        user_id="celery_worker",
+                        user_email="orchestrator@system.local",
+                        status="SUCCESS",
+                        details={
+                            "portals": [s[0] for s in scrapers_to_run],
+                            "party_pairs_count": len(party_pairs),
+                        },
+                    )
+                    await session.commit()
+                except Exception as e_audit_start:
+                    logger.warning(f"Could not log audit event for scraping start: {e_audit_start}")
 
                 # Accumulate results per portal across all names
                 portal_results: dict[str, list[dict]] = {name: [] for name, *_ in scrapers_to_run}
@@ -305,23 +406,24 @@ async def _async_orchestrate_scrapers(
                             portal_timings[name]["error"] = f"Cooldown active ({int(remaining_seconds)}s)"
                             continue
 
+                        # Enforce 10-year lookback
+                        search_dol = claim.dol
+                        if search_dol:
+                            try:
+                                dt = datetime.strptime(search_dol, "%m/%d/%Y")
+                                ten_years_ago = datetime.now() - timedelta(days=365*10)
+                                if dt < ten_years_ago:
+                                    search_dol = ten_years_ago.strftime("%m/%d/%Y")
+                                    logger.info(f"Claim {claim.claim_number}: Capped DOL {claim.dol} to {search_dol} (10-year lookback)")
+                            except Exception:
+                                pass
+
                         logger.info(
                             f"Claim {claim.claim_number}: [{party_label}: {f_name} {l_name}] → {scraper.county_name}"
                         )
+                        append_portal_execution_log(claim.id, name, f"Searching party [{party_label}] '{f_name} {l_name}' (DOL: {search_dol or 'None'})")
                         try:
                             tab = await browser_session.get_or_create_tab(portal_key=name, url=scraper.base_url)
-                            
-                            # Enforce 10-year lookback
-                            search_dol = claim.dol
-                            if search_dol:
-                                try:
-                                    dt = datetime.strptime(search_dol, "%m/%d/%Y")
-                                    ten_years_ago = datetime.now() - timedelta(days=365*10)
-                                    if dt < ten_years_ago:
-                                        search_dol = ten_years_ago.strftime("%m/%d/%Y")
-                                        logger.info(f"Claim {claim.claim_number}: Capped DOL {claim.dol} to {search_dol} (10-year lookback)")
-                                except Exception:
-                                    pass
 
                             cases = await scraper.search_on_page(
                                 page=tab,
@@ -329,13 +431,14 @@ async def _async_orchestrate_scrapers(
                                 last_name=l_name,
                                 date_of_loss=search_dol,
                             )
+                            append_portal_execution_log(claim.id, name, f"Party search [{party_label}] returned {len(cases)} case(s)")
                             # Incremental store: save freshly extracted cases for this party/tab immediately
                             for c in cases:
                                 c_num = c.get("CaseNumber") or c.get("case_number") or ""
                                 if c_num and c_num not in portal_seen[name]:
                                     portal_seen[name].add(c_num)
                                     portal_results[name].append(c)
-                                    f_date = (
+                                    raw_f_date = (
                                         c.get("FilingDate")
                                         or c.get("filing_date")
                                         or c.get("Filing Date")
@@ -347,8 +450,9 @@ async def _async_orchestrate_scrapers(
                                         or c.get("Filed")
                                         or c.get("filed")
                                     )
-                                    if f_date and not c.get("FilingDate"):
-                                        c["FilingDate"] = f_date
+                                    f_date = normalize_court_date(raw_f_date) or (claim.dol if claim and claim.dol else "")
+                                    c["FilingDate"] = f_date or ""
+                                    c["PartyNameSearched"] = f"{f_name} {l_name}".strip() if (f_name or l_name) else party_label
                                     scraped_case = ScrapedCourtCase(
                                         claim_id=claim.id,
                                         county_name=scraper.county_name,
@@ -383,6 +487,7 @@ async def _async_orchestrate_scrapers(
                             portal_timings[name]["status"] = "BLOCKED"
                             portal_timings[name]["error"] = sbe.message
                             set_portal_cooldown(name, sbe.cooldown_seconds, sbe.message)
+                            append_portal_execution_log(claim.id, name, f"Security block detected: {sbe.message}", level="ERROR")
 
                             # Auto-capture error screenshot for security block
                             tab = browser_session.tabs.get(name)
@@ -421,6 +526,7 @@ async def _async_orchestrate_scrapers(
                             claim.last_error = f"{name} scraping failure on '{party_label}': {e!s}"
                             portal_timings[name]["status"] = "FAILED"
                             portal_timings[name]["error"] = str(e)
+                            append_portal_execution_log(claim.id, name, f"Error during party search: {e}", level="ERROR")
 
                             # Auto-capture error screenshot
                             tab = browser_session.tabs.get(name)
@@ -467,6 +573,7 @@ async def _async_orchestrate_scrapers(
                         "cases_found": len(cases),
                         "status": final_status_str,
                     })
+                    append_portal_execution_log(claim.id, name, f"Completed portal scraping with status {final_status_str}. Total cases found: {len(cases)}. Duration: {duration}s")
 
                     setattr(claim, json_attr, cases)
                     t_db_start = datetime.now()

@@ -28,16 +28,34 @@ class StorageService:
         filename: str,
         image_bytes: bytes,
         storage_cfg: StorageSettings | None = None,
+        claim_id: str | None = None,
+        portal_key: str | None = None,
     ) -> dict[str, Any]:
         """
         Saves screenshot image bytes to the configured storage provider (Local / S3 / Azure / GCS).
+        Hierarchically stores under backend/screenshots/{claim_id}/{portal}/ as well as root.
         Falls back seamlessly to local disk if cloud upload is unconfigured or encounters an error.
         """
         provider = (storage_cfg.storage_provider if storage_cfg else "local").lower()
         local_dir = cls.get_local_dir()
         local_path = local_dir / filename
 
-        # 1. Always write locally first as guaranteed failover & fast cache
+        # Infer claim_id and portal_key if not explicitly passed
+        if (not claim_id or not portal_key) and "_" in filename:
+            parts = filename.split("_")
+            if len(parts) >= 2:
+                claim_id = claim_id or parts[0]
+                portal_key = portal_key or parts[1]
+
+        # 1. Save hierarchical path if claim_id and portal_key are known
+        if claim_id and portal_key:
+            portal_dir = local_dir / str(claim_id) / str(portal_key)
+            portal_dir.mkdir(parents=True, exist_ok=True)
+            hierarchical_path = portal_dir / filename
+            with open(hierarchical_path, "wb") as f:
+                f.write(image_bytes)
+
+        # 2. Always write to flat root dir as failover & instant lookup
         with open(local_path, "wb") as f:
             f.write(image_bytes)
 

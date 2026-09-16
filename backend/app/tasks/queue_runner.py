@@ -128,7 +128,7 @@ async def _async_advance_auto_queue():
     runtime_settings = await get_system_settings_async()
     queue_cfg = runtime_settings.queue
     auto_cfg = runtime_settings.automation
-    max_concurrency = getattr(auto_cfg, "max_concurrent_claims", None) or getattr(queue_cfg, "max_concurrent_claims", 3)
+    max_concurrency = getattr(auto_cfg, "max_concurrent_claims", None) or getattr(queue_cfg, "max_concurrent_claims", 1) or 1
     max_concurrency = max(1, min(10, int(max_concurrency)))
 
     async with TaskAsyncSessionLocal() as session:

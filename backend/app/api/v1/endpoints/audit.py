@@ -45,10 +45,20 @@ def _build_audit_filter_query(
 
     if entity_type:
         types = [t.strip().upper() for t in entity_type.split(",") if t.strip()]
-        if len(types) == 1:
-            filters.append(AuditLog.entity_type == types[0])
-        elif len(types) > 1:
-            filters.append(AuditLog.entity_type.in_(types))
+        expanded_types = set()
+        for t in types:
+            if t in ("MATCH_PAIR", "MATCH"):
+                expanded_types.add("MATCH")
+                expanded_types.add("MATCH_PAIR")
+            elif t == "SETTINGS":
+                expanded_types.add("SETTINGS")
+                expanded_types.add("BRANDING")
+            else:
+                expanded_types.add(t)
+        if len(expanded_types) == 1:
+            filters.append(AuditLog.entity_type == list(expanded_types)[0])
+        elif len(expanded_types) > 1:
+            filters.append(AuditLog.entity_type.in_(list(expanded_types)))
 
     if entity_id:
         filters.append(AuditLog.entity_id == entity_id)
@@ -63,10 +73,18 @@ def _build_audit_filter_query(
         )
     if status_filter:
         statuses = [s.strip().upper() for s in status_filter.split(",") if s.strip()]
-        if len(statuses) == 1:
-            filters.append(AuditLog.status == statuses[0])
-        elif len(statuses) > 1:
-            filters.append(AuditLog.status.in_(statuses))
+        expanded_statuses = set()
+        for s in statuses:
+            if s in ("FAILED", "FAILURE", "ERROR"):
+                expanded_statuses.add("FAILED")
+                expanded_statuses.add("FAILURE")
+                expanded_statuses.add("ERROR")
+            else:
+                expanded_statuses.add(s)
+        if len(expanded_statuses) == 1:
+            filters.append(AuditLog.status == list(expanded_statuses)[0])
+        elif len(expanded_statuses) > 1:
+            filters.append(AuditLog.status.in_(list(expanded_statuses)))
 
     if date_from:
         try:
@@ -220,7 +238,7 @@ async def get_audit_log_stats(
 
 @router.get("/export")
 async def export_audit_logs(
-    format: str = Query("csv", pattern="^(csv|json|xlsx)$", description="Export format: csv, json, or xlsx"),
+    format: str = Query("csv", pattern="^(csv|json|xlsx|pdf)$", description="Export format: csv, json, xlsx, or pdf"),
     action: str | None = Query(None),
     entity_type: str | None = Query(None),
     entity_id: str | None = Query(None),
@@ -297,6 +315,25 @@ async def export_audit_logs(
             },
         )
 
+    if format == "pdf":
+        import asyncio
+        try:
+            pdf_bytes = await asyncio.to_thread(_render_audit_pdf_sync, items)
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="audit_logs_{filename_ts}.pdf"',
+                    "Content-Length": str(len(pdf_bytes)),
+                },
+            )
+        except Exception as e:
+            logger.error(f"Error generating audit PDF: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate audit PDF report: {e}",
+            )
+
     # Default CSV
     output = io.StringIO()
     writer = csv.writer(output)
@@ -345,6 +382,73 @@ async def export_audit_logs(
             "Content-Disposition": f'attachment; filename="audit_logs_{filename_ts}.csv"'
         },
     )
+
+
+def _render_audit_pdf_sync(items: list) -> bytes:
+    """Render authentic PDF document from audit items using Playwright."""
+    from playwright.sync_api import sync_playwright
+
+    rows_html = "".join(
+        f"<tr>"
+        f"<td style='white-space:nowrap;font-family:monospace;'>{item.timestamp.strftime('%Y-%m-%d %H:%M:%S') if item.timestamp else '-'}</td>"
+        f"<td><span style='background:#e0e7ff;color:#3730a3;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:9px;font-weight:600;'>{item.action}</span></td>"
+        f"<td><strong>{item.entity_type}</strong></td>"
+        f"<td style='font-family:monospace;'>{item.claim_number or item.entity_id or '-'}</td>"
+        f"<td>{item.user_email or item.user_id}</td>"
+        f"<td style='font-weight:600;color:{'#15803d' if item.status == 'SUCCESS' else '#b91c1c'};'>{item.status}</td>"
+        f"<td>{item.description or ''}</td>"
+        f"</tr>"
+        for item in items
+    )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>UAIC Audit Trail & Compliance Ledger</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 15px; font-size: 10px; color: #1e293b; line-height: 1.4; }}
+  h1 {{ font-size: 16px; margin: 0 0 4px 0; color: #0f172a; }}
+  .meta {{ font-size: 9px; color: #64748b; margin-bottom: 12px; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 8px; }}
+  th {{ background: #f1f5f9; text-align: left; padding: 5px 6px; font-weight: 600; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #cbd5e1; }}
+  td {{ padding: 5px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }}
+</style>
+</head>
+<body>
+  <h1>UAIC Claim & RPA Orchestrator — Audit Trail & Provenance Ledger</h1>
+  <div class="meta">Generated on {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')} • Total Filtered Records: {len(items)} • Compliance & Governance Standard §73</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp (UTC)</th>
+        <th>Action</th>
+        <th>Entity</th>
+        <th>Target</th>
+        <th>Operator</th>
+        <th>Status</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {rows_html if rows_html else "<tr><td colspan='7' style='text-align:center;padding:20px;color:#94a3b8;'>No audit records found</td></tr>"}
+    </tbody>
+  </table>
+</body>
+</html>"""
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        page = browser.new_page()
+        page.set_content(html, wait_until="load")
+        pdf_bytes = page.pdf(
+            format="A4",
+            landscape=True,
+            print_background=True,
+            margin={"top": "8mm", "bottom": "8mm", "left": "8mm", "right": "8mm"},
+        )
+        browser.close()
+        return pdf_bytes
 
 
 @router.get("/{id}", response_model=AuditLogResponse)
