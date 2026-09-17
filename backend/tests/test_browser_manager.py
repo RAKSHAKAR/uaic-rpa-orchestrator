@@ -247,6 +247,7 @@ async def test_chrome_profile_seeding_and_args(tmp_path, mocker):
     (mock_source_default / "Secure Preferences").write_text('{"secure": true}', encoding="utf-8")
 
     mocker.patch.object(ChromeSession, "find_default_chrome_user_data_dir", return_value=mock_source)
+    mocker.patch.object(ChromeSession, "find_chrome_executable", return_value=mock_source / "chrome.exe")
 
     captured_kwargs = {}
 

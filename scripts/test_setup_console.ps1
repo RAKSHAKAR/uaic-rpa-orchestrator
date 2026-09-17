@@ -50,11 +50,11 @@ Write-Host "`n[TEST 3/5] Testing Safe Process Termination & MailDev Stop (-StopA
 $proc = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$setupLocal`"", "-StopAll" -NoNewWindow -Wait -PassThru
 if ($proc.ExitCode -eq 0) {
     Write-Host "  -> setup_local.ps1 -StopAll exited with code: 0 (SUCCESS)" -ForegroundColor Green
-    # Verify ports 1080 and 1025 are free
+    # Verify ports 1080 and 1025 are not actively listening
     $p1080 = $null
     $p1025 = $null
-    try { $p1080 = Get-NetTCPConnection -LocalPort 1080 -ErrorAction SilentlyContinue } catch {}
-    try { $p1025 = Get-NetTCPConnection -LocalPort 1025 -ErrorAction SilentlyContinue } catch {}
+    try { $p1080 = Get-NetTCPConnection -LocalPort 1080 -State Listen -ErrorAction SilentlyContinue } catch {}
+    try { $p1025 = Get-NetTCPConnection -LocalPort 1025 -State Listen -ErrorAction SilentlyContinue } catch {}
     if (-not $p1080 -and -not $p1025) {
         Write-Host "  -> Verified Ports 1080 and 1025 are free." -ForegroundColor Green
     } else {

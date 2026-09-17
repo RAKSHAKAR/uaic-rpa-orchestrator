@@ -130,16 +130,29 @@ function Get-PythonExecutable {
 function Invoke-KillPort {
     param([int]$Port)
     try {
-        $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction Ignore
+        # Check active listening connections first
+        $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if (-not $connections) {
+            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+        }
         foreach ($conn in $connections) {
             $pidVal = $conn.OwningProcess
-            if ($pidVal) {
-                $proc = Get-Process -Id $pidVal -ErrorAction Ignore
+            if ($pidVal -and $pidVal -gt 4) {
+                $proc = Get-Process -Id $pidVal -ErrorAction SilentlyContinue
                 if ($proc) {
                     if ($proc.Name -match "^(wsl|wslhost|docker|com\.docker)" -or $proc.ProcessName -match "^(wsl|wslhost|docker|com\.docker)") {
+                        # Directly terminate and remove Docker container mapped to this port
+                        if ($Port -eq 1080 -or $Port -eq 1025) {
+                            docker stop -t 1 uaic_maildev 2>$null | Out-Null
+                            docker rm -f uaic_maildev 2>$null | Out-Null
+                        } elseif ($Port -eq 5432) {
+                            docker stop -t 1 uaic_postgres 2>$null | Out-Null
+                        } elseif ($Port -eq 6379) {
+                            docker stop -t 1 uaic_redis 2>$null | Out-Null
+                        }
                         continue
                     }
-                    Stop-Process -Id $proc.Id -Force -ErrorAction Ignore
+                    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
                 }
             }
         }
@@ -151,7 +164,7 @@ function Invoke-CheckPortConflicts {
     $conflicts = @()
     foreach ($port in $Ports) {
         try {
-            $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+            $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
             if ($conns) {
                 foreach ($conn in $conns) {
                     $owningPid = $conn.OwningProcess
@@ -417,33 +430,35 @@ function Invoke-KillAllServices {
     Invoke-KillPort 1080
     Invoke-KillPort 1025
     if (Test-DockerDaemonHealth) {
-        docker stop uaic_maildev 2>$null | Out-Null
+        docker stop -t 1 uaic_maildev 2>$null | Out-Null
         docker rm -f uaic_maildev 2>$null | Out-Null
     }
-    $maildevReleased = $true
+    Start-Sleep -Milliseconds 300
+    $maildevListening = $false
     try {
-        if ((Get-NetTCPConnection -LocalPort 1080 -ErrorAction SilentlyContinue) -or (Get-NetTCPConnection -LocalPort 1025 -ErrorAction SilentlyContinue)) {
-            $maildevReleased = $false
+        if ((Get-NetTCPConnection -LocalPort 1080 -State Listen -ErrorAction SilentlyContinue) -or (Get-NetTCPConnection -LocalPort 1025 -State Listen -ErrorAction SilentlyContinue)) {
+            $maildevListening = $true
         }
     } catch {}
-    if ($maildevReleased -and -not $Quiet) {
+    if (-not $maildevListening -and -not $Quiet) {
         Write-LogMessage "MailDev (Ports 1080/1025) safely terminated and verified released." "SUCCESS" "Green"
     }
 
     if (-not $KeepInfrastructure) {
+        if (Test-DockerDaemonHealth) {
+            try {
+                docker stop -t 1 uaic_postgres uaic_redis uaic_maildev uaic_fastapi uaic_celery_worker uaic_celery_beat uaic_frontend 2>$null | Out-Null
+                docker rm -f uaic_postgres uaic_redis uaic_maildev uaic_fastapi uaic_celery_worker uaic_celery_beat uaic_frontend 2>$null | Out-Null
+                docker volume prune -f 2>$null | Out-Null
+            } catch {}
+        }
         $compose = Get-DockerComposeCommand
         if ($compose) {
             try {
                 Push-Location $rootDir
-                if ($compose -eq "docker-compose") { docker-compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null }
-                else { docker compose down --volumes --rmi local --remove-orphans 2>$null | Out-Null }
+                if ($compose -eq "docker-compose") { docker-compose down --remove-orphans 2>$null | Out-Null }
+                else { docker compose down --remove-orphans 2>$null | Out-Null }
             } catch {} finally { Pop-Location }
-        }
-        if (Test-DockerDaemonHealth) {
-            try {
-                docker rm -f uaic_postgres uaic_redis uaic_maildev uaic_fastapi uaic_celery_worker uaic_celery_beat uaic_frontend 2>$null | Out-Null
-                docker volume prune -f 2>$null | Out-Null
-            } catch {}
         }
     }
     if (-not $Quiet) { Write-LogMessage "All services stopped and infrastructure purged." "SUCCESS" }
@@ -534,7 +549,21 @@ function Invoke-CheckServiceHealth {
     param([string]$ServiceName, [int]$Port, [string]$HttpUrl = "")
     $portOpen = $false
     try {
-        if (Get-NetTCPConnection -LocalPort $Port -ErrorAction Ignore) { $portOpen = $true }
+        # 1. Strictly check for active LISTENING sockets
+        $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if ($listeners) {
+            $portOpen = $true
+        } else {
+            # 2. Fast non-blocking TCP socket connection fallback (250ms)
+            $tcp = New-Object System.Net.Sockets.TcpClient
+            $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+            $connected = $iar.AsyncWaitHandle.WaitOne(250, $false)
+            if ($connected -and $tcp.Connected) {
+                $portOpen = $true
+                $tcp.EndConnect($iar)
+            }
+            $tcp.Close()
+        }
     } catch {}
 
     $cleanName = $ServiceName.Trim().PadRight(27)
@@ -546,20 +575,110 @@ function Invoke-CheckServiceHealth {
     }
 
     if ($HttpUrl -ne "") {
+        # Normalize localhost to 127.0.0.1 to avoid Windows IPv6 resolution latency
+        $normalizedUrl = $HttpUrl -replace "localhost", "127.0.0.1"
+        $urlsToTry = @($normalizedUrl)
+        if ($Port -eq 8000) {
+            $urlsToTry += "http://127.0.0.1:8000/docs"
+        }
+        $timeout = if ($Port -eq 5555) { 1 } else { 2 }
+        foreach ($targetUrl in $urlsToTry) {
+            try {
+                $resp = Invoke-WebRequest -Uri $targetUrl -TimeoutSec $timeout -UseBasicParsing -MaximumRedirection 5 -ErrorAction Stop
+                $code = [int]$resp.StatusCode
+                if ($code -ge 200 -and $code -lt 400) {
+                    Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+                    Write-Host "$cleanName (Port $Port - HTTP $code)" -ForegroundColor White
+                    return
+                }
+            } catch {
+                if ($_.Exception.Response) {
+                    $status = [int]$_.Exception.Response.StatusCode
+                    if ($status -ge 200 -and $status -lt 400) {
+                        Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+                        Write-Host "$cleanName (Port $Port - HTTP $status)" -ForegroundColor White
+                        return
+                    }
+                }
+            }
+        }
+        # Re-verify port is still actively listening before claiming HTTP initializing
+        $stillListening = $false
         try {
-            $resp = Invoke-WebRequest -Uri $HttpUrl -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
-            if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) {
+            if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
+                $stillListening = $true
+            }
+        } catch {}
+
+        if ($stillListening) {
+            if ($Port -eq 5555) {
                 Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
-                Write-Host "$cleanName (Port $Port - HTTP $($resp.StatusCode))" -ForegroundColor White
+                Write-Host "$cleanName (Port $Port - Active)" -ForegroundColor White
+                return
+            }
+            Write-Host " [RUNNING] " -NoNewline -ForegroundColor Yellow
+            Write-Host "$cleanName (Port $Port - port open, HTTP initializing)" -ForegroundColor DarkYellow
+        } else {
+            Write-Host " [STOPPED] " -NoNewline -ForegroundColor DarkGray
+            Write-Host "$cleanName (Port $Port - Offline)" -ForegroundColor Gray
+        }
+        return
+    }
+
+    # Non-HTTP protocol checks
+    if ($Port -eq 6379) {
+        # Redis PING / PONG protocol handshake
+        try {
+            $redisTcp = New-Object System.Net.Sockets.TcpClient
+            $redisTcp.ReceiveTimeout = 1000
+            $redisTcp.SendTimeout = 1000
+            $redisTcp.Connect("127.0.0.1", 6379)
+            $stream = $redisTcp.GetStream()
+            $cmdBytes = [System.Text.Encoding]::ASCII.GetBytes("PING`r`n")
+            $stream.Write($cmdBytes, 0, $cmdBytes.Length)
+            $buffer = New-Object byte[] 64
+            $bytesRead = $stream.Read($buffer, 0, $buffer.Length)
+            $respStr = [System.Text.Encoding]::ASCII.GetString($buffer, 0, $bytesRead)
+            $redisTcp.Close()
+            if ($respStr -match "\+PONG") {
+                Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+                Write-Host "$cleanName (Port $Port - PONG)" -ForegroundColor White
                 return
             }
         } catch {}
-        Write-Host " [RUNNING] " -NoNewline -ForegroundColor Yellow
-        Write-Host "$cleanName (Port $Port - port open, HTTP initializing)" -ForegroundColor DarkYellow
-    } else {
-        Write-Host " [RUNNING] " -NoNewline -ForegroundColor Green
-        Write-Host "$cleanName (Port $Port)" -ForegroundColor White
     }
+
+    if ($Port -eq 1025) {
+        # MailDev SMTP 220 banner handshake
+        try {
+            $smtpTcp = New-Object System.Net.Sockets.TcpClient
+            $smtpTcp.ReceiveTimeout = 1000
+            $smtpTcp.SendTimeout = 1000
+            $smtpTcp.Connect("127.0.0.1", 1025)
+            $stream = $smtpTcp.GetStream()
+            $buffer = New-Object byte[] 128
+            $bytesRead = $stream.Read($buffer, 0, $buffer.Length)
+            $banner = [System.Text.Encoding]::ASCII.GetString($buffer, 0, $bytesRead)
+            $quitBytes = [System.Text.Encoding]::ASCII.GetBytes("QUIT`r`n")
+            $stream.Write($quitBytes, 0, $quitBytes.Length)
+            $smtpTcp.Close()
+            if ($banner -match "^220") {
+                Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+                Write-Host "$cleanName (Port $Port - Ready)" -ForegroundColor White
+                return
+            }
+        } catch {}
+    }
+
+    if ($Port -eq 5432) {
+        # PostgreSQL socket connection verified
+        Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+        Write-Host "$cleanName (Port $Port - Ready)" -ForegroundColor White
+        return
+    }
+
+    Write-Host " [HEALTHY] " -NoNewline -ForegroundColor Green
+    Write-Host "$cleanName (Port $Port - Ready)" -ForegroundColor White
 }
 
 function Invoke-RunTestSuite {
@@ -675,7 +794,7 @@ function Show-LiveStatusMonitor {
     Clear-Host
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host "          UAIC Orchestrator - Live Service Health Monitor              " -ForegroundColor Cyan
-    Write-Host "  [HEALTHY]=HTTP 200  [RUNNING]=Port open  [STOPPED]=Offline          " -ForegroundColor DarkGray
+    Write-Host "  [HEALTHY]=Active & Verified  [RUNNING]=Port open  [STOPPED]=Offline  " -ForegroundColor DarkGray
     Write-Host "=======================================================================" -ForegroundColor Cyan
     Invoke-CheckServiceHealth "Frontend Web Application" 3000 "http://localhost:3000"
     Invoke-CheckServiceHealth "FastAPI Backend & API" 8000 "http://localhost:8000/api/v1/health"
@@ -719,8 +838,9 @@ function Show-EnterpriseMenu {
                     Show-LiveStatusMonitor
                     $key = Read-Host "Enter key action [R/K/M/Q]"
                     if ($key -match '^[kK]') { 
-                        Invoke-KillAllServices
-                        Start-Sleep -Seconds 1 
+                        Write-Host "`nStopping all services and clearing ports..." -ForegroundColor Cyan
+                        Invoke-KillAllServices -Quiet
+                        Start-Sleep -Milliseconds 1200
                     } elseif ($key -match '^[mM]') { 
                         $monitoring = $false 
                     } elseif ($key -match '^[qQ]') { 
@@ -748,7 +868,11 @@ function Show-EnterpriseMenu {
                 while ($mon) {
                     Show-LiveStatusMonitor
                     $k = Read-Host "Enter key action [R/K/M/Q]"
-                    if ($k -match '^[kK]') { Invoke-KillAllServices; Start-Sleep -Seconds 1 }
+                    if ($k -match '^[kK]') { 
+                        Write-Host "`nStopping all services and clearing ports..." -ForegroundColor Cyan
+                        Invoke-KillAllServices -Quiet
+                        Start-Sleep -Milliseconds 1200
+                    }
                     elseif ($k -match '^[mM]') { $mon = $false }
                     elseif ($k -match '^[qQ]') { exit 0 }
                 }

@@ -101,6 +101,10 @@ async def test_browser_test_endpoint_mocked_success(browser_engine, headless, mo
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not ChromeSession.find_chrome_executable(None),
+    reason="Google Chrome executable not found on this host — skipping live integration test",
+)
 async def test_live_chrome_attended_integration():
     """Live integration test verifying that Google Chrome Attended Mode succeeds via HTTP API."""
     transport = ASGITransport(app=app)
@@ -120,6 +124,10 @@ async def test_live_chrome_attended_integration():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not ChromeSession.find_chrome_executable(None),
+    reason="Google Chrome executable not found on this host — skipping live integration test",
+)
 async def test_live_chrome_headless_integration():
     """Live integration test verifying that Google Chrome Headless Mode succeeds via HTTP API."""
     transport = ASGITransport(app=app)

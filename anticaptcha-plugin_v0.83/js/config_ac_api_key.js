@@ -1,5 +1,5 @@
 // Auto-synchronized runtime Anti-Captcha key and settings (Python 3.14)
-var antiCapApiKey = 'test_api_key_456';
+var antiCapApiKey = '28b486b8f31f74c6bf4453735815aa53';
 var antiCapAutoSubmitForm = false;
 
 (function initAntiCaptchaStorage() {

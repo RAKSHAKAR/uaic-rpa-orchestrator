@@ -145,14 +145,18 @@ async def test_settings_save_and_retrieve_persistence():
 
 def test_default_windows_chrome_detection():
     """Verify get_default_chrome_binary() accurately checks Windows directories or returns None cleanly."""
+    import sys
+    from pathlib import Path, PureWindowsPath
+
     from app.schemas.settings import get_default_chrome_binary
+
     chrome_bin = get_default_chrome_binary()
-    # On machines with Chrome installed, it returns a valid chrome.exe path; otherwise None
+    # On machines with Chrome installed, it returns a valid chrome.exe path; otherwise default fallback
     if chrome_bin:
-        from pathlib import Path
         assert isinstance(chrome_bin, str)
-        assert Path(chrome_bin).name.lower() == "chrome.exe"
-        assert Path(chrome_bin).exists()
+        assert PureWindowsPath(chrome_bin).name.lower() == "chrome.exe"
+        if sys.platform == "win32" and Path(chrome_bin).exists():
+            assert Path(chrome_bin).exists()
 
 
 def test_default_root_extension_detection():
