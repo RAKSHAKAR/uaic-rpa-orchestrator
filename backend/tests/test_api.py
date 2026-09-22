@@ -221,3 +221,35 @@ async def test_browser_test_endpoint_live_extension_verification(monkeypatch):
         assert data["service_worker_active"] is False
         assert "ignored --load-extension" in data["warning"]
 
+
+@pytest.mark.asyncio
+async def test_favicon_endpoint():
+    """Verify /favicon.ico returns 200 with image/x-icon content-type."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/favicon.ico")
+        assert res.status_code == 200
+        assert "image/x-icon" in res.headers.get("content-type", "")
+        assert len(res.content) > 0
+
+
+@pytest.mark.asyncio
+async def test_static_icon_endpoint():
+    """Verify /static/icon.png returns 200 with image/png content-type."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/static/icon.png")
+        assert res.status_code == 200
+        assert "image/png" in res.headers.get("content-type", "")
+        assert len(res.content) > 0
+
+
+@pytest.mark.asyncio
+async def test_browser_test_page_favicon_links():
+    """Verify browser test page HTML includes explicit favicon link tags."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/v1/settings/browser-test-page")
+        assert res.status_code == 200
+        assert '<link rel="icon" type="image/x-icon" href="/favicon.ico">' in res.text
+

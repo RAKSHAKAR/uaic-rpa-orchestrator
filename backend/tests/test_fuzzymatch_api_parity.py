@@ -23,6 +23,13 @@ async def test_fuzzymatchapi_root_parity_match_found():
     assert data["result"] == "Match Found"
     assert data["score"] >= 60.0
     assert data["guidewire_eligible"] is True
+    # Ensure zero null field pollution
+    assert "filing_date" not in data
+    assert "min_filing_date" not in data
+    assert "cases" not in data
+    assert "cases_results" not in data
+    assert "matches" not in data
+    assert "reference_string" not in data
 
 
 @pytest.mark.asyncio
@@ -128,21 +135,53 @@ async def test_fuzzymatchapi_batch_cases_guidewire_filtering():
     assert data["cases_evaluated"] == 3
     assert data["eligible_for_guidewire"] == 1
     assert len(data["cases"]) == 3
+    assert "cases_results" not in data
+    assert "matches" not in data
+    assert "reference_string" not in data
 
     c1 = data["cases"][0]
     assert c1["case_number"] == "CASE-2021-001"
+    assert c1["CaseNumber"] == "CASE-2021-001"
+    assert c1["CaseStyle"] == "ALICE WALKER VS PROGRESSIVE"
+    assert c1["SuitFiledDate"] == "2021-03-12"
     assert c1["result"] == "Match Found"
     assert c1["guidewire_eligible"] is True
 
     c2 = data["cases"][1]
     assert c2["case_number"] == "CASE-2005-999"
+    assert c2["CaseNumber"] == "CASE-2005-999"
     assert "Filtered Out" in c2["result"]
     assert c2["guidewire_eligible"] is False
 
     c3 = data["cases"][2]
     assert c3["case_number"] == "CASE-2023-042"
+    assert c3["CaseNumber"] == "CASE-2023-042"
     assert c3["result"] == "No Match Found"
     assert c3["guidewire_eligible"] is False
+
+
+@pytest.mark.asyncio
+async def test_fuzzymatchapi_multi_format_date_filtering():
+    """Verify /fuzzymatchapi accepts MM/DD/YYYY, YYYY/MM/DD, and ISO date strings without error."""
+    payload = {
+        "text1": "JASMINE PHILLIPS",
+        "text2": "JASMINE PHILLIPS VS MIAMI DADE POLICE DEPARTMENT",
+        "threshold": 0.6,
+        "filing_date": "05/14/2023",
+        "min_filing_date": "10/01/2020",
+    }
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/api/v1/matches/fuzzymatchapi", json=payload)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["result"] == "Match Found"
+    assert data["guidewire_eligible"] is True
+    assert data["filing_date"] == "05/14/2023"
+    assert data["min_filing_date"] == "10/01/2020"
+    assert "cases" not in data
+    assert "matches" not in data
 
 
 def test_is_case_eligible_pure_date_filter():

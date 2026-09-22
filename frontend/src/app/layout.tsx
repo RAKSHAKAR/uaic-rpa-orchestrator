@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${inter.className} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen flex w-full overflow-x-hidden antialiased transition-colors duration-200`}
+        className={`${inter.className} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 h-screen overflow-hidden flex w-full antialiased transition-colors duration-200`}
       >
         <ThemeProvider>
           <ResponsiveShell>{children}</ResponsiveShell>

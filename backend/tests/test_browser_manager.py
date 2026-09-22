@@ -114,7 +114,7 @@ def test_chrome_session_executable_discovery():
 def test_chrome_session_engine_arguments():
     """Verify ChromeSession initializes browser engines (chromium, msedge, chrome) properly."""
     session_default = ChromeSession()
-    assert session_default.browser_engine == "chromium"
+    assert session_default.browser_engine == "chrome"
 
     session_edge = ChromeSession(browser_engine="msedge")
     assert session_edge.browser_engine == "msedge"
@@ -280,9 +280,10 @@ async def test_chrome_profile_seeding_and_args(tmp_path, mocker):
     )
     await session.start()
 
-    # Verify profile was seeded with user data files
+    # Verify profile was seeded with user data files (Secure Preferences explicitly omitted to prevent HMAC corruption)
     assert (session.profile_to_use / "Local State").exists()
-    assert (session.profile_to_use / "Default" / "Secure Preferences").exists()
+    assert (session.profile_to_use / "Default" / "Preferences").exists()
+    assert not (session.profile_to_use / "Default" / "Secure Preferences").exists()
 
     # Verify --load-extension WAS passed in args when extension is configured
     passed_args = captured_kwargs.get("args", [])

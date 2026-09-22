@@ -63,6 +63,7 @@ async def test_setup_extension_endpoint_success(mocker, tmp_path):
     mock_profile.mkdir(parents=True, exist_ok=True)
 
     mock_session_cls = MagicMock()
+    mock_session_cls.get_persistent_profile_dir.return_value = mock_profile
     mock_session_cls.configure_and_pin_profile.return_value = mock_profile
     mock_session_cls.return_value = mock_session
     mocker.patch("app.api.v1.endpoints.settings.ChromeSession", mock_session_cls)

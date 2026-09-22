@@ -388,10 +388,10 @@ export default function QueueMonitorPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col w-full">
+    <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={fetchData} isRefreshing={isLoading} />
 
-      <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Title & Queue Actions */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
           <div>
@@ -823,13 +823,14 @@ export default function QueueMonitorPage() {
                   <th className="py-3 px-3 cursor-pointer select-none" onClick={() => handleSort("total_duration_seconds")}>
                     Duration {renderSortIcon("total_duration_seconds")}
                   </th>
+                  <th className="py-3 px-3 text-center">Cases Extracted</th>
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {claims.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                    <td colSpan={10} className="py-12 text-center text-slate-400 dark:text-slate-500">
                       No claims found matching current search and filters.
                     </td>
                   </tr>
@@ -980,6 +981,25 @@ export default function QueueMonitorPage() {
                             )}
                           </td>
 
+                          {/* Cases Extracted */}
+                          <td className="py-3 px-3 text-center">
+                            {(() => {
+                              const totalCases = claim.bots.reduce((sum, b) => sum + (b.cases_found || 0), 0);
+                              if (totalCases > 0) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400 font-mono font-bold text-[11px]">
+                                    {totalCases}
+                                  </span>
+                                );
+                              }
+                              const anyCompleted = claim.bots.some(b => b.status === "COMPLETED" || b.status === "NO_MATCH_FOUND");
+                              if (anyCompleted) {
+                                return <span className="text-[11px] text-slate-400 font-mono">0</span>;
+                              }
+                              return <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>;
+                            })()}
+                          </td>
+
                           {/* Row Actions */}
                           <td className="py-3 px-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -1044,7 +1064,7 @@ export default function QueueMonitorPage() {
                         {/* Expandable 8-Portal Execution Matrix (§61) */}
                         {isExpanded && (
                           <tr className="bg-slate-50/70 dark:bg-slate-900/60 border-b border-indigo-100 dark:border-indigo-950/60">
-                            <td colSpan={9} className="p-3.5 sm:p-5">
+                            <td colSpan={10} className="p-3.5 sm:p-5">
                               <div className="bg-white dark:bg-slate-950 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-inner space-y-3">
                                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800 text-xs">
                                   <div className="flex items-center gap-2">

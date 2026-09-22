@@ -128,6 +128,19 @@ export interface MatchPair {
   case_number?: string;
   filing_date?: string;
   county_website?: string;
+  case_status?: string;
+  case_type?: string;
+  cleaned_case_style?: string;
+  raw_payload?: Record<string, any>;
+  claim_number?: string;
+  exposure_number?: string;
+  dol?: string;
+  policy_state?: string;
+  loss_location_state?: string;
+  insured_name?: string;
+  claimant_name?: string;
+  driver_name?: string;
+  claim_status?: string;
   similarity_score: number;
   threshold_applied: number;
   is_match: boolean;
@@ -205,7 +218,7 @@ export interface AutomationSettings {
   reload_backoff_seconds: number;
   headless_mode: boolean;
   max_concurrent_claims?: number;
-  browser_engine?: "chromium" | "chrome" | "msedge";
+  browser_engine?: "chrome" | "chromium" | "msedge";
   use_chrome_browser?: boolean;
   chrome_binary_path?: string | null;
   chrome_extension_dir?: string | null;
@@ -218,16 +231,34 @@ export interface AutomationSettings {
   typing_delay_ms?: number;
   action_pacing_ms?: number;
   stealth_clicks?: boolean;
+  // AntiCaptcha Plugin Behavior Toggles
+  anticaptcha_enabled?: boolean;
+  anticaptcha_auto_submit?: boolean;
+  anticaptcha_play_sounds?: boolean;
+  anticaptcha_solve_recaptcha2?: boolean;
+  anticaptcha_solve_invisible?: boolean;
+  anticaptcha_solve_recaptcha3?: boolean;
+  anticaptcha_recaptcha3_score?: number;
+  anticaptcha_solve_hcaptcha?: boolean;
+  anticaptcha_solve_turnstile?: boolean;
+  anticaptcha_solve_funcaptcha?: boolean;
+  anticaptcha_solve_geetest?: boolean;
 }
 
 export interface ExtensionSetupResponse {
-  status: string;
-  extension_id: string;
-  pinned_to_toolbar: boolean;
-  persistent_profile_path: string;
-  verified: boolean;
-  timestamp: string;
+  status?: string;
+  success?: boolean;
+  extension_id?: string;
+  pinned_to_toolbar?: boolean;
+  toolbar_action_verified?: boolean;
+  service_worker_active?: boolean;
+  persistent_profile_path?: string;
+  profile_dir?: string;
+  verified?: boolean;
+  timestamp?: string;
+  verified_at?: string;
   message: string;
+  latency_ms?: number;
 }
 
 export interface PortalsSettings {
@@ -380,6 +411,27 @@ export interface StorageTestResponse {
   error_detail?: string;
 }
 
+export interface ProxyTestRequest {
+  host: string;
+  port: number;
+  username?: string | null;
+  password?: string | null;
+  test_url?: string;
+  timeout_seconds?: number;
+}
+
+export interface ProxyTestResponse {
+  success: boolean;
+  host: string;
+  port: number;
+  authenticated: boolean;
+  test_url: string;
+  http_status?: number | null;
+  duration_ms: number;
+  message: string;
+  error_detail?: string | null;
+}
+
 export interface GuidewireTestRequest {
   api_url?: string;
   auth_type?: string;
@@ -423,7 +475,7 @@ export interface PortalTestResponse {
 
 export interface BrowserTestRequest {
   headless?: boolean;
-  browser_engine?: "chromium" | "chrome" | "msedge";
+  browser_engine?: "chrome" | "chromium" | "msedge";
   test_url?: string;
   timeout_seconds?: number;
   chrome_binary_path?: string | null;
@@ -448,6 +500,40 @@ export interface BrowserTestResponse {
   message: string;
   error_detail?: string | null;
 }
+
+export interface FleetWorkerResult {
+  worker_id: number;
+  browser_engine: string;
+  mode: string;
+  status: "success" | "failed";
+  duration_ms: number;
+  message: string;
+  extension_loaded: boolean;
+  window_title?: string | null;
+  proxy_egress?: string | null;
+}
+
+export interface FleetTestRequest {
+  concurrency?: number;
+  headless?: boolean;
+  browser_engine?: "chrome" | "chromium" | "msedge";
+  test_url?: string;
+  timeout_seconds?: number;
+}
+
+export interface FleetTestResponse {
+  success: boolean;
+  concurrency_requested: number;
+  concurrency_succeeded: number;
+  browser_engine: string;
+  mode: string;
+  total_fleet_duration_ms: number;
+  workers: FleetWorkerResult[];
+  message: string;
+  proxy_enabled?: boolean;
+  proxy_server?: string | null;
+}
+
 
 export interface FilePreviewRecord {
   row_number: number;
@@ -931,9 +1017,13 @@ export interface DirectFuzzyMatchRequest {
 }
 
 export interface FuzzyMatchCaseResult {
-  case_number: string;
-  case_style: string;
-  filing_date: string;
+  CaseNumber?: string;
+  CaseStyle?: string;
+  CountyWebsite?: string;
+  SuitFiledDate?: string;
+  case_number?: string;
+  case_style?: string;
+  filing_date?: string;
   score: number;
   result: string;
   guidewire_eligible: boolean;
@@ -950,6 +1040,9 @@ export interface DirectFuzzyMatchResponse {
   min_filing_date?: string;
   guidewire_eligible?: boolean;
   filter_reason?: string | null;
+  cases?: FuzzyMatchCaseResult[];
+  cases_evaluated?: number;
+  eligible_for_guidewire?: number;
   reference_string?: string;
   matches?: FuzzyMatchScore[];
   cases_results?: FuzzyMatchCaseResult[];

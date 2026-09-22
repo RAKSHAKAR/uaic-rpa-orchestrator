@@ -169,10 +169,21 @@ async def _async_parse_and_ingest(
             all_active_claims = created_claims + updated_claims
             for claim in all_active_claims:
                 await session.refresh(claim)
-                celery_app.send_task(
-                    "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
-                    args=[claim.id],
-                    queue="scrapers",
+
+            # Respect auto-queue setting: only auto-dispatch scrapers if auto-queue is ON.
+            # When auto-queue is OFF, claims remain as NEW in DB for manual or queue-runner start.
+            from app.tasks.queue_runner import is_auto_queue_enabled
+            if is_auto_queue_enabled():
+                for claim in all_active_claims:
+                    celery_app.send_task(
+                        "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
+                        args=[claim.id],
+                        queue="scrapers",
+                    )
+            else:
+                logger.info(
+                    f"Auto-queue is DISABLED. Ingested {len(all_active_claims)} claims as NEW status. "
+                    "Scrapers will NOT be auto-started. Use Queue > Start-All or manual Start per claim."
                 )
 
             batch.status = "COMPLETED"

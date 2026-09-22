@@ -210,7 +210,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 ## 7. Test Commands
 
 ```bash
-# Backend tests (438 tests across 32 test suites)
+# Backend tests (453 tests across 33 test suites)
 cd backend
 .venv\Scripts\pytest --tb=short -q
 
@@ -249,7 +249,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 - ✅ Ensure dynamic automated verification: upon completing work and running the full automated testing suite (pytest, ruff, tsc, ps1) with visual/video evidence, document status must be finalized as Complete with: `**AI Verification:** Complete (100% Automated Testing Suite)`
 - ✅ Create a final implementation record (plan + change log + test report + validation) in `implementation_plan/` after every substantial task
 - ✅ Save all browser subagent recordings (.webp) into `implementation_plan/Recording/` and all visual verification screenshots (.png) into `implementation_plan/Images/` (strictly separated, never leave them exclusively in the transient IDE brain directory)
-- ✅ Run `pytest` after any backend change (416 tests across 31 test suites)
+- ✅ Run `pytest` after any backend change (453 tests across 33 test suites)
 - ✅ Run `ruff check` after any Python change (0 errors)
 - ✅ Run `tsc --noEmit` after any TypeScript change (0 errors)
 - ✅ Run `scripts\check_ps1_syntax.ps1` after any `.ps1` change (0 errors)

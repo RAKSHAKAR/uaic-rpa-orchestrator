@@ -49,7 +49,7 @@ class AutomationSettings(BaseModel):
     headless_mode: bool = Field(default=False, description="Run browser in headless background mode (False for visible Chrome)")
     browser_engine: str = Field(
         default="chrome",
-        description="Browser engine: chrome (System installed Google Chrome, recommended), chromium (Playwright default), or msedge",
+        description="Browser engine: chrome (Google Chrome, default), chromium (Playwright bundled), or msedge (Microsoft Edge)",
     )
     use_chrome_browser: bool = Field(default=True, description="Always launch Google Chrome browser (supports Chrome extensions like AntiCaptcha)")
     chrome_binary_path: str | None = Field(default_factory=get_default_chrome_binary, description="Google Chrome executable path (default: Windows Program Files)")
@@ -93,6 +93,54 @@ class AutomationSettings(BaseModel):
     stealth_clicks: bool = Field(
         default=False,
         description="Enable biometric jitter mouse movements vs direct snappy clicks",
+    )
+
+    # ── AntiCaptcha Plugin Behavior Toggles ─────────────────────────────────
+    anticaptcha_enabled: bool = Field(
+        default=True,
+        description="Master AntiCaptcha enable/disable toggle. When False, the extension is loaded but solving is skipped.",
+    )
+    anticaptcha_auto_submit: bool = Field(
+        default=False,
+        description="Automatically submit the form after CAPTCHA is solved by the extension.",
+    )
+    anticaptcha_play_sounds: bool = Field(
+        default=False,
+        description="Play audio notification when CAPTCHA is solved.",
+    )
+    anticaptcha_solve_recaptcha2: bool = Field(
+        default=True,
+        description="Solve reCAPTCHA v2 image-challenge widgets automatically.",
+    )
+    anticaptcha_solve_invisible: bool = Field(
+        default=True,
+        description="Solve invisible reCAPTCHA v2 (no checkbox shown, score-based).",
+    )
+    anticaptcha_solve_recaptcha3: bool = Field(
+        default=True,
+        description="Solve reCAPTCHA v3 (score-based, no visual challenge).",
+    )
+    anticaptcha_recaptcha3_score: float = Field(
+        default=0.3,
+        ge=0.1,
+        le=0.9,
+        description="Target reCAPTCHA v3 score (0.1 = most lenient, 0.9 = strictest). Default 0.3 matches Power Automate V4.",
+    )
+    anticaptcha_solve_hcaptcha: bool = Field(
+        default=True,
+        description="Solve hCaptcha challenges (used on some Harris County portals).",
+    )
+    anticaptcha_solve_turnstile: bool = Field(
+        default=True,
+        description="Solve Cloudflare Turnstile challenges.",
+    )
+    anticaptcha_solve_funcaptcha: bool = Field(
+        default=True,
+        description="Solve FunCaptcha / Arkose Labs challenges.",
+    )
+    anticaptcha_solve_geetest: bool = Field(
+        default=True,
+        description="Solve GeeTest slider / puzzle CAPTCHA challenges.",
     )
 
 
@@ -486,6 +534,35 @@ class StorageTestResponse(BaseModel):
     error_detail: str | None = None
 
 
+# Proxy Server Connectivity Test DTOs
+class ProxyTestRequest(BaseModel):
+    """Request to test proxy server connectivity."""
+
+    host: str = Field(description="Proxy server hostname or IP address")
+    port: int = Field(default=3128, description="Proxy server port number")
+    username: str | None = Field(default=None, description="Proxy authentication username (optional)")
+    password: str | None = Field(default=None, description="Proxy authentication password (optional)")
+    test_url: str = Field(
+        default="https://www.browardclerk.org/",
+        description="Target URL to reach through the proxy (default: Broward county court portal)",
+    )
+    timeout_seconds: float = Field(default=15.0, description="Request timeout in seconds")
+
+
+class ProxyTestResponse(BaseModel):
+    """Result of proxy server connectivity test."""
+
+    success: bool = Field(description="True if proxy is reachable and returned HTTP response")
+    host: str = Field(description="Proxy host that was tested")
+    port: int = Field(description="Proxy port that was tested")
+    authenticated: bool = Field(description="True if authentication credentials were provided")
+    test_url: str = Field(description="URL that was requested through the proxy")
+    http_status: int | None = Field(default=None, description="HTTP status code returned through proxy")
+    duration_ms: float = Field(description="Round-trip latency in milliseconds")
+    message: str = Field(description="Human-readable result summary")
+    error_detail: str | None = Field(default=None, description="Error message if test failed")
+
+
 # Email Notification Test DTOs
 class EmailConnectionTestRequest(BaseModel):
     """Payload to test email provider connectivity and authentication."""
@@ -568,12 +645,52 @@ class NotificationTemplateSchema(BaseModel):
 
 class ExtensionSetupResponse(BaseModel):
     """Result of one-time browser extension configuration and toolbar pinning."""
-    success: bool
+    success: bool = True
     message: str
     extension_id: str | None = None
     toolbar_action_verified: bool = False
     service_worker_active: bool = False
     profile_dir: str
     verified_at: str
-    latency_ms: float
+    latency_ms: float = 0.0
+
+    timestamp: str | None = None
+
+
+class FleetWorkerResult(BaseModel):
+    """Result of an individual parallel browser worker in fleet test."""
+    worker_id: int
+    browser_engine: str
+    mode: str
+    status: str
+    duration_ms: float
+    message: str
+    extension_loaded: bool = True
+    window_title: str | None = None
+    proxy_egress: str | None = None
+
+
+class FleetTestRequest(BaseModel):
+    """Request payload for parallel fleet concurrency browser launch test."""
+    concurrency: int = Field(default=2, ge=1, le=10, description="Number of parallel browser instances to spawn concurrently (1-10)")
+    headless: bool | None = Field(default=None, description="Override headless mode; defaults to runtime settings if null")
+    browser_engine: str | None = Field(default="chrome", description="Browser engine override (chrome, chromium, msedge)")
+    test_url: str = Field(default="https://example.com", description="Lightweight test target URL")
+    timeout_seconds: int = Field(default=45, ge=5, le=300, description="Timeout in seconds per worker")
+
+
+class FleetTestResponse(BaseModel):
+    """Aggregated response for parallel fleet concurrency browser launch test."""
+    success: bool
+    concurrency_requested: int
+    concurrency_succeeded: int
+    browser_engine: str
+    mode: str
+    total_fleet_duration_ms: float
+    workers: list[FleetWorkerResult]
+    message: str
+    proxy_enabled: bool = False
+    proxy_server: str | None = None
+
+
 

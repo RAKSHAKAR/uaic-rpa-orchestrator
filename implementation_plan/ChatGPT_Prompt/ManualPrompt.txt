@@ -165,7 +165,7 @@ _____
                 iii) Paramenter to test must be real type senerios with all kind of positive/negetive matches (Give some sample parameter to test). 
             Important Note: Rest of the below Workflows only starts when all of the above things setisfied, activated, and working fine else we must have to show the popup to the user when he started workflow by uploading the document or creating record from Queue Monitor page with correct instuctions as it is the entry gate to start the application or use the services. 
     ii) For Florida (Broward, Hillsborough, Miami-Dade):
-        i) Lauch the default set broser (Which already set in Automation Settings Page)
+        i) Lauch the default set browser (Which already set in Automation Settings Page)
         ii) Navigate/Open to all Florida site(s) in Browser tabs parallely in one go as you must have to just navigate from one tab to another defined as follows:
             For Broward (https://www.browardclerk.org/): 
                 a) Go to the Broward tab and wait for the page fully loads, if not loading then refresh again.

@@ -474,10 +474,10 @@ export default function DashboardPage() {
   }, [claims]);
 
   return (
-    <div className="flex-1 flex flex-col w-full">
+    <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={loadData} isRefreshing={isLoading} />
 
-      <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Page Title & Quick Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div>

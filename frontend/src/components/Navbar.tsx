@@ -26,7 +26,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="no-print h-16 w-full border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 sm:px-6 md:px-8 flex items-center justify-between z-20 shrink-0 transition-colors">
+    <header className="no-print h-16 w-full border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 sm:px-6 md:px-8 flex items-center justify-between z-20 shrink-0 overflow-x-hidden transition-colors">
       {/* Left: Mobile Menu Trigger & Brand + Responsive Search */}
       <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 mr-3">
         {/* Mobile Hamburger Menu (visible on mobile < md) */}

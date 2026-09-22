@@ -6,6 +6,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from playwright.async_api import BrowserContext, Page, async_playwright
@@ -13,12 +14,20 @@ from playwright.async_api import BrowserContext, Page, async_playwright
 from app.automation.base import (
     BaseCourtScraper,
     find_chrome_executable,
-    resolve_extension_dir,
-    sync_anticaptcha_api_key,
 )
+from app.automation.browser_manager import ExtensionManager
 from app.core.config import settings
 
 logger = logging.getLogger("uaic_orchestrator.automation.session_runner")
+
+
+# ── Backward-compatibility shim ───────────────────────────────────────────────
+# Tests and legacy code may import resolve_extension_dir from this module.
+# Delegate to ExtensionManager which now owns the canonical implementation.
+def resolve_extension_dir(ext_dir: str | None = None) -> str | None:
+    """Compatibility shim: use ExtensionManager.resolve_extension_path instead."""
+    result = ExtensionManager.resolve_extension_path(ext_dir)
+    return str(result) if result else None
 
 
 def derive_search_counts(claim: Any) -> tuple[int, int]:
@@ -103,6 +112,7 @@ class SingleSessionBrowserRunner:
         use_chrome: bool = True,
         extension_dir: str | None = None,
         anticaptcha_api_key: str | None = None,
+        anticaptcha_settings: Any = None,
         user_data_dir: str | None = None,
         user_agent: str | None = None,
         proxy_server: str | None = None,
@@ -112,13 +122,18 @@ class SingleSessionBrowserRunner:
         typing_delay_ms: int = 0,
         action_pacing_ms: int = 100,
         stealth_clicks: bool = False,
+        browser_engine: str | None = None,
         **kwargs: Any,
     ):
         self.headless = headless
         self.timeout_ms = timeout_ms
         self.use_chrome = use_chrome
-        self.extension_dir = resolve_extension_dir(extension_dir)
+        self.browser_engine = (browser_engine or "chrome").lower()
+        # Use ExtensionManager for robust absolute-path resolution (works in any CWD/Celery context)
+        resolved_ext = ExtensionManager.resolve_extension_path(extension_dir)
+        self.extension_dir = str(resolved_ext) if resolved_ext else None
         self.anticaptcha_api_key = anticaptcha_api_key
+        self.anticaptcha_settings = anticaptcha_settings  # AutomationSettings for plugin toggles
         self.user_data_dir = user_data_dir
         self.user_agent = user_agent
         self.proxy_server = proxy_server
@@ -148,14 +163,20 @@ class SingleSessionBrowserRunner:
         ]
 
         ext_dir = self.extension_dir
-        has_extension = bool(ext_dir and os.path.exists(ext_dir))
-        ext_norm = os.path.normpath(str(ext_dir)) if has_extension else None
+        has_extension = bool(ext_dir and os.path.isdir(ext_dir) and os.path.isfile(os.path.join(ext_dir, "manifest.json")))
+        ext_norm = os.path.normpath(os.path.abspath(str(ext_dir))) if has_extension else None
 
-        if self.anticaptcha_api_key and has_extension:
-            if getattr(SingleSessionBrowserRunner, "_last_synced_api_key", None) != self.anticaptcha_api_key:
-                sync_anticaptcha_api_key(ext_norm, self.anticaptcha_api_key)
-                SingleSessionBrowserRunner._last_synced_api_key = self.anticaptcha_api_key
+        if has_extension:
+            logger.info(f"AntiCaptcha extension resolved at: {ext_norm}")
+        else:
+            logger.warning(
+                f"AntiCaptcha extension NOT found at configured path: {ext_dir!r}. "
+                "CAPTCHAs will not be solved automatically. Check Settings > Extension tab."
+            )
 
+        if self.anticaptcha_api_key and has_extension and ext_norm:
+            # Always sync on launch — use ExtensionManager with dynamic plugin settings from DB
+            ExtensionManager.sync_api_key(Path(ext_norm), self.anticaptcha_api_key, self.anticaptcha_settings)
 
         if has_extension and ext_norm:
             launch_args.append(f"--disable-extensions-except={ext_norm}")
@@ -167,16 +188,58 @@ class SingleSessionBrowserRunner:
             target_user_dir = ""
 
         persistent_default = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "browser_profile"))
-        if target_user_dir and os.path.exists(target_user_dir):
-            self.profile_to_use = target_user_dir
-        elif os.path.exists(persistent_default) and os.path.isdir(persistent_default):
-            self.profile_to_use = persistent_default
-        else:
-            self.profile_to_use = tempfile.mkdtemp(prefix="uaic_chrome_profile_")
-            self.is_temp_profile = True
+        # Prefer engine-specific sub-profile (chrome/) — this is where setup-extension writes
+        # the correctly-pinned Preferences file. Fall back to the root browser_profile/ dir.
+        persistent_chrome = os.path.join(persistent_default, "chrome")
 
-        executable_path = find_chrome_executable() if self.use_chrome else None
-        channel = "chrome" if (self.use_chrome and not executable_path) else None
+        # For parallel multi-worker concurrency, always provision an isolated profile directory
+        # pre-seeded from persistent_default (or target_user_dir) to eliminate Chromium's SingletonLock
+        # while preserving 100% of extension credentials, toolbar pinning, and preferences.
+        self.profile_to_use = tempfile.mkdtemp(prefix="uaic_worker_profile_")
+        self.is_temp_profile = True
+
+        # Priority order: explicit user_data_dir → chrome/ sub-profile → root browser_profile/
+        if target_user_dir and os.path.exists(target_user_dir):
+            source_profile = target_user_dir
+        elif os.path.isdir(persistent_chrome) and os.path.isfile(os.path.join(persistent_chrome, "Default", "Preferences")):
+            source_profile = persistent_chrome
+            logger.info(f"[SingleSessionRunner] Pre-seeding worker profile from chrome sub-profile: {source_profile}")
+        elif os.path.exists(persistent_default) and os.path.isdir(persistent_default):
+            source_profile = persistent_default
+        else:
+            source_profile = None
+
+        if source_profile:
+            try:
+                src_default = os.path.join(source_profile, "Default")
+                dest_default = os.path.join(self.profile_to_use, "Default")
+                if os.path.isdir(src_default):
+                    os.makedirs(dest_default, exist_ok=True)
+                    for fname in ("Preferences", "Secure Preferences"):
+                        s = os.path.join(src_default, fname)
+                        if os.path.isfile(s):
+                            shutil.copy2(s, os.path.join(dest_default, fname))
+                src_ls = os.path.join(source_profile, "Local State")
+                if os.path.isfile(src_ls):
+                    shutil.copy2(src_ls, os.path.join(self.profile_to_use, "Local State"))
+            except Exception as e:
+                logger.debug(f"Note pre-seeding worker profile from {source_profile}: {e}")
+
+        # Browser Engine resolution
+        executable_path = None
+        channel = None
+        if self.browser_engine == "chrome":
+            executable_path = find_chrome_executable()
+            if not executable_path:
+                channel = "chrome"
+        elif self.browser_engine in ("edge", "msedge"):
+            channel = "msedge"
+        elif self.browser_engine == "chromium":
+            executable_path = None
+            channel = None
+        elif self.use_chrome:
+            executable_path = find_chrome_executable()
+            channel = "chrome" if not executable_path else None
         is_headless = self.headless
         if is_headless and has_extension:
             launch_args.append("--headless=new")
@@ -193,7 +256,10 @@ class SingleSessionBrowserRunner:
             "user_data_dir": self.profile_to_use,
             "headless": context_headless,
             "args": launch_args,
-            "ignore_default_args": ["--disable-extensions"] if has_extension else None,
+            "ignore_default_args": [
+                "--disable-extensions",
+                "--disable-component-extensions-with-background-pages",
+            ] if has_extension else None,
             "no_viewport": True if not is_headless else False,
             "viewport": {"width": settings.PLAYWRIGHT_VIEWPORT_WIDTH, "height": settings.PLAYWRIGHT_VIEWPORT_HEIGHT} if is_headless else None,
         }
@@ -259,14 +325,177 @@ class SingleSessionBrowserRunner:
         }
 
         if self.anticaptcha_api_key and ext_verified:
-            try:
-                worker = self.context.service_workers[0] if self.context.service_workers else (self.context.background_pages[0] if self.context.background_pages else None)
-                if worker:
-                    await worker.evaluate(f"chrome.storage.local.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false, 'solve_turnstile': true }})")
-                    await worker.evaluate(f"chrome.storage.sync.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false, 'solve_turnstile': true }})")
-                    logger.info("[SingleSessionRunner] AntiCaptcha extension configured with solve_turnstile=True, auto_submit_form=False.")
-            except Exception as e:
-                logger.warning(f"Note on AntiCaptcha storage injection: {e}")
+            api_key_to_use = self.anticaptcha_api_key
+            worker = (
+                self.context.service_workers[0] if self.context.service_workers
+                else (self.context.background_pages[0] if self.context.background_pages else None)
+            )
+
+            # Detect the actual loaded extension ID from service worker URL
+            import re as _re
+            detected_ext_id = None
+            for sw in self.context.service_workers:
+                url = getattr(sw, "url", "")
+                m = _re.search(r"chrome-extension://([a-z0-9]+)/", url)
+                if m:
+                    detected_ext_id = m.group(1)
+                    break
+            if not detected_ext_id:
+                for bg in self.context.background_pages:
+                    url = getattr(bg, "url", "")
+                    m = _re.search(r"chrome-extension://([a-z0-9]+)/", url)
+                    if m:
+                        detected_ext_id = m.group(1)
+                        break
+
+            # Pin the actual runtime extension ID to the temp profile Preferences
+            if detected_ext_id:
+                try:
+                    from pathlib import Path as _Path
+
+                    from app.automation.browser_manager import ChromeSession as _CS
+                    active_pref = _Path(self.profile_to_use) / "Default" / "Preferences"
+                    _CS.pin_extension_in_preferences(active_pref, [detected_ext_id])
+                except Exception as _pin_err:
+                    logger.debug(f"[SingleSessionRunner] Could not pin ext ID {detected_ext_id}: {_pin_err}")
+
+            if worker:
+                try:
+                    # Check if extension is already fully configured with the correct API key
+                    already_configured = False
+                    try:
+                        stored = await asyncio.wait_for(
+                            worker.evaluate("""() => {
+                                return new Promise(resolve => {
+                                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                        chrome.storage.local.get(['account_key', 'enable', 'account_key_checked'], res => resolve(res));
+                                    } else { resolve(null); }
+                                });
+                            }"""),
+                            timeout=2.0,
+                        )
+                        if (
+                            stored
+                            and stored.get("account_key") == api_key_to_use
+                            and stored.get("enable") is True
+                            and stored.get("account_key_checked") is True
+                        ):
+                            already_configured = True
+                    except Exception:
+                        already_configured = False
+
+                    if already_configured:
+                        logger.info(
+                            "[SingleSessionRunner] AntiCaptcha already fully configured with active API key. Skipping re-injection."
+                        )
+                    else:
+                        # ── Full config injection — ALL keys from anticaptcha-plugin_v0.83 options ─
+                        full_config = {
+                            # Core authentication
+                            "account_key": api_key_to_use,
+                            "account_key_checked": True,
+                            "enable": True,
+                            # UI / sound
+                            "auto_submit_form": False,
+                            "play_sounds": False,
+                            "reenable_contextmenu": False,
+                            # CAPTCHA type toggles
+                            "solve_recaptcha2": True,
+                            "solve_invisible_recaptcha": True,
+                            "solve_recaptcha3": True,
+                            "recaptcha3_score": 0.3,
+                            "solve_hcaptcha": True,
+                            "solve_turnstile": True,
+                            "solve_funcaptcha": True,
+                            "solve_geetest": True,
+                            # Image CAPTCHA
+                            "use_predefined_image_captcha_marks": True,
+                            # reCAPTCHA advanced behavior
+                            "start_recaptcha2_solving_when_challenge_shown": True,
+                            "solve_only_presented_recaptcha2": False,
+                            "run_explicit_invisible_hcaptcha_callback_when_challenge_shown": False,
+                            "delay_onready_callback": False,
+                            # Precaching
+                            "use_recaptcha_precaching": False,
+                            "k_precached_solution_count_min": 2,
+                            "k_precached_solution_count_max": 4,
+                            "dont_reuse_recaptcha_solution": False,
+                            # Worker / proxy
+                            "solve_proxy_on_tasks": False,
+                            "set_incoming_workers_user_agent": False,
+                            "user_proxy_protocol": None,
+                            "user_proxy_login": None,
+                            "user_proxy_password": None,
+                            "user_proxy_server": None,
+                            "user_proxy_port": None,
+                            # Domain filter (empty = solve on all sites)
+                            "where_solve_list": [],
+                            "where_solve_white_list_type": False,
+                        }
+
+
+                        # Inject into chrome.storage.local (primary runtime storage)
+                        await asyncio.wait_for(
+                            worker.evaluate(
+                                """(cfg) => {
+                                    return new Promise(resolve => {
+                                        const setLocal = new Promise(r => {
+                                            if (chrome.storage && chrome.storage.local && chrome.storage.local.set) {
+                                                chrome.storage.local.set(cfg, () => r(true));
+                                            } else { r(false); }
+                                        });
+                                        const setSync = new Promise(r => {
+                                            if (chrome.storage && chrome.storage.sync && chrome.storage.sync.set) {
+                                                chrome.storage.sync.set(cfg, () => r(true));
+                                            } else { r(false); }
+                                        });
+                                        Promise.all([setLocal, setSync]).then(() => resolve(true));
+                                    });
+                                }""",
+                                full_config,
+                            ),
+                            timeout=5.0,
+                        )
+                        logger.info(
+                            f"[SingleSessionRunner] AntiCaptcha fully configured: 20-key config injected "
+                            f"into chrome.storage.local + chrome.storage.sync (ext ID: {detected_ext_id or 'unknown'})."
+                        )
+
+                        # ── Popup activation: initialize Vue options store (same as ChromeSession) ──
+                        if detected_ext_id:
+                            try:
+                                setup_page = await self.context.new_page()
+                                popup_url = f"chrome-extension://{detected_ext_id}/popup_v3.html"
+                                await setup_page.goto(popup_url, wait_until="load", timeout=8000)
+                                await setup_page.evaluate(
+                                    """(apiKey) => {
+                                        return new Promise(resolve => {
+                                            const inp = document.getElementById("account_key");
+                                            const chk = document.getElementById("enable_checkbox");
+                                            if (chk && !chk.checked) { chk.click(); }
+                                            if (inp && (!inp.value || inp.value !== apiKey)) {
+                                                inp.value = apiKey;
+                                                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                                                const submitBtn = document.querySelector('input[type="submit"], button.btn-primary');
+                                                if (submitBtn) submitBtn.click();
+                                            }
+                                            resolve(true);
+                                        });
+                                    }""",
+                                    api_key_to_use,
+                                )
+                                await asyncio.sleep(0.4)
+                                await setup_page.close()
+                                logger.info(
+                                    f"[SingleSessionRunner] AntiCaptcha popup activated and Vue store initialized "
+                                    f"(ext ID: {detected_ext_id})."
+                                )
+                            except Exception as _popup_err:
+                                logger.debug(f"[SingleSessionRunner] Popup init note (non-critical): {_popup_err}")
+                except Exception as e:
+                    logger.warning(f"[SingleSessionRunner] AntiCaptcha CDP injection note: {e}")
+
+
 
         return self
 

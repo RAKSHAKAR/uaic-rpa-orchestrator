@@ -1,4 +1,4 @@
-// Auto-synchronized runtime Anti-Captcha key and settings (Python 3.14)
+// Auto-synchronized runtime Anti-Captcha key and settings (Python 3.14 / UAIC Orchestrator)
 var antiCapApiKey = '28b486b8f31f74c6bf4453735815aa53';
 var antiCapAutoSubmitForm = false;
 

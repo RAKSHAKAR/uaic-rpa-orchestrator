@@ -959,7 +959,10 @@ class BaseCourtScraper(ABC):
                     "user_data_dir": profile_to_use,
                     "headless": context_headless,
                     "args": launch_args,
-                    "ignore_default_args": ["--disable-extensions"] if has_extension else None,
+                    "ignore_default_args": [
+                        "--disable-extensions",
+                        "--disable-component-extensions-with-background-pages",
+                    ] if has_extension else None,
                     "no_viewport": True if not is_headless else False,
                     "viewport": {"width": settings.PLAYWRIGHT_VIEWPORT_WIDTH, "height": settings.PLAYWRIGHT_VIEWPORT_HEIGHT} if is_headless else None,
                 }

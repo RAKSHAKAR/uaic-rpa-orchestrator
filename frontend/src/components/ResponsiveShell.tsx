@@ -33,14 +33,12 @@ const ShellInner: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   return (
-    <div className="flex flex-col w-full min-h-screen relative overflow-x-clip bg-slate-50 dark:bg-slate-950 transition-colors">
-      {/* Top area: Sidebar + Main Content */}
-      <div className="flex-1 flex w-full min-w-0 relative">
-        {/* Desktop & Tablet Sidebar */}
-        <div className="no-print hidden md:flex shrink-0 w-56 lg:w-64 relative border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-          <div className="sticky top-0 h-screen w-56 lg:w-64 overflow-y-auto">
-            <Sidebar />
-          </div>
+    <div className="flex flex-col w-full h-screen max-h-screen overflow-hidden relative bg-slate-50 dark:bg-slate-950 transition-colors">
+      {/* Top area: Sidebar + Main Content Area */}
+      <div className="flex-1 flex w-full min-w-0 min-h-0 overflow-hidden relative">
+        {/* Desktop & Tablet Sidebar (Always docked on the left, full height) */}
+        <div className="no-print hidden md:flex shrink-0 w-56 lg:w-64 h-full relative border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex-col overflow-y-auto overflow-x-hidden z-30">
+          <Sidebar />
         </div>
 
         {/* Slide-over Mobile Drawer for Phone Viewports */}
@@ -48,14 +46,14 @@ const ShellInner: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <MobileDrawer isOpen={isDrawerOpen} onClose={closeDrawer} />
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col w-full min-w-0 pb-6 md:pb-0">
+        {/* Main Content Area (Navbar at top + scrollable body) */}
+        <div className="flex-1 flex flex-col w-full h-full min-w-0 min-h-0 overflow-hidden relative">
           {children}
         </div>
       </div>
 
-      {/* Full Active Screen Width Footer with Mobile Bottom Nav Clearance */}
-      <div className="w-full shrink-0 z-20 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+      {/* Full Active Screen Width Footer: Permanently docked at bottom */}
+      <div className="w-full shrink-0 z-20 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-0 overflow-x-hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
         <Footer />
       </div>
 

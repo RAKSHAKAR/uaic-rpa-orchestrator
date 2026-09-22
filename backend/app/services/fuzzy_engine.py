@@ -93,8 +93,17 @@ def is_case_eligible(
     # Check filing date if present
     if filing_date:
         f_date = str(filing_date).strip()
+        date_formats = [
+            "%Y-%m-%d",
+            "%m/%d/%Y",
+            "%Y/%m/%d",
+            "%m-%d-%Y",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%d %H:%M:%S",
+        ]
         parsed_dt = None
-        for fmt in ["%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d", "%m-%d-%Y"]:
+        for fmt in date_formats:
             try:
                 parsed_dt = datetime.strptime(f_date, fmt)
                 break
@@ -102,8 +111,16 @@ def is_case_eligible(
                 pass
 
         if parsed_dt:
-            min_dt = datetime.strptime(min_filing_date, "%Y-%m-%d")
-            if parsed_dt < min_dt:
+            min_dt = None
+            min_date_clean = str(min_filing_date).strip() if min_filing_date else "2011-01-01"
+            for fmt in date_formats:
+                try:
+                    min_dt = datetime.strptime(min_date_clean, fmt)
+                    break
+                except ValueError:
+                    pass
+
+            if min_dt and parsed_dt < min_dt:
                 return False
 
     # Check Case Status

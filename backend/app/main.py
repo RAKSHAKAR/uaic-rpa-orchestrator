@@ -6,9 +6,12 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 # On Windows, Playwright requires ProactorEventLoop for subprocess creation
 if sys.platform == "win32":
@@ -23,6 +26,7 @@ if sys.platform == "win32":
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.database import init_db
+from app.schemas.match import DirectFuzzyMatchRequest, DirectFuzzyMatchResponse
 
 # Setup logging
 log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -117,47 +121,34 @@ if settings.BACKEND_CORS_ORIGINS:
 # Mount API Routers
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+FAVICON_PATH = STATIC_DIR / "favicon.ico"
 
-@app.post("/fuzzymatchapi")
-def root_fuzzy_match_parity(payload: dict):
-    """Legacy Power Automate Desktop root-level fuzzy match parity route with optional filing_date filtering."""
-    from rapidfuzz import fuzz
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    from app.services.fuzzy_engine import is_case_eligible
 
-    t1 = str(payload.get("text1", "")).strip().lower()
-    t2 = str(payload.get("text2", "")).strip().lower()
-    thresh = float(payload.get("threshold", 0.6))
-    score = float(fuzz.partial_ratio(t1, t2))
-    scale = thresh * 100.0 if thresh <= 1.0 else thresh
-    is_match = score >= scale
-    result = "Match Found" if is_match else "No Match Found"
-    guidewire_eligible = is_match
-    filter_reason = None
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Favicon endpoint to prevent browser 404 errors during UI tests and browser inspection."""
+    if FAVICON_PATH.is_file():
+        return FileResponse(FAVICON_PATH, media_type="image/x-icon")
+    return Response(status_code=204)
 
-    filing_date = payload.get("filing_date") or payload.get("FilingDate")
-    min_filing_date = payload.get("min_filing_date") or payload.get("MinFilingDate") or "2010-01-01"
 
-    if filing_date:
-        date_eligible = is_case_eligible(str(filing_date), case_status=None, case_type=None, min_filing_date=str(min_filing_date))
-        if not date_eligible:
-            guidewire_eligible = False
-            result = f"Filtered Out (Filing Date < {min_filing_date})"
-            filter_reason = f"Filing date '{filing_date}' is prior to Minimum Case Filing Date '{min_filing_date}'"
+@app.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse, response_model_exclude_none=True)
+def root_fuzzy_match_parity(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResponse:
+    """Legacy Power Automate Desktop root-level fuzzy match parity route with optional filing_date filtering and batch cases support."""
+    from app.api.v1.endpoints.matches import fuzzy_match_direct
 
-    response = {
-        "result": result,
-        "score": score,
-        "guidewire_eligible": guidewire_eligible,
-    }
-    if filing_date:
-        response["filing_date"] = str(filing_date)
-        response["min_filing_date"] = str(min_filing_date)
-        response["guidewire_eligible"] = guidewire_eligible
-        if filter_reason:
-            response["filter_reason"] = filter_reason
+    return fuzzy_match_direct(payload)
 
-    return response
+
+
+@app.get("/health")
+def root_health():
+    """Root health endpoint for external uptime checkers, Docker, and CI probes."""
+    return {"status": "ok", "app": settings.APP_NAME, "version": "1.0.0"}
 
 
 @app.get("/")

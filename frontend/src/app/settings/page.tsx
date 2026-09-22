@@ -9,6 +9,8 @@ import {
   GuidewireTestResponse,
   PortalTestResponse,
   BrowserTestResponse,
+  FleetTestResponse,
+  FleetWorkerResult,
   StorageTestRequest,
   StorageTestResponse,
   EmailSettings,
@@ -22,7 +24,9 @@ import {
   UniqueNamesRequest,
   UniqueNamesResponse,
   DirectFuzzyMatchRequest,
-  DirectFuzzyMatchResponse
+  DirectFuzzyMatchResponse,
+  ExtensionSetupResponse,
+  ProxyTestResponse,
 } from "../../types";
 import { StatCard } from "../../components/StatCard";
 import {
@@ -80,6 +84,9 @@ import {
   AlignLeft,
   Network,
   Pin,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useBranding, DEFAULT_BRANDING } from "../../components/BrandingContext";
 
@@ -174,21 +181,17 @@ export default function SettingsPage() {
   const [isTestingBrowser, setIsTestingBrowser] = useState(false);
   const [browserTestResult, setBrowserTestResult] = useState<BrowserTestResponse | null>(null);
 
+  // Parallel Browser Fleet test states
+  const [isTestingFleet, setIsTestingFleet] = useState(false);
+  const [fleetTestResult, setFleetTestResult] = useState<FleetTestResponse | null>(null);
+
   // AntiCaptcha extension validation states
   const [isValidatingExtension, setIsValidatingExtension] = useState(false);
   const [extensionValidationResult, setExtensionValidationResult] = useState<any | null>(null);
 
   // One-time Extension Setup & Pinning states
   const [isSettingUpExtension, setIsSettingUpExtension] = useState(false);
-  const [extensionSetupResult, setExtensionSetupResult] = useState<{
-    status: string;
-    extension_id: string;
-    pinned_to_toolbar: boolean;
-    persistent_profile_path: string;
-    verified: boolean;
-    timestamp: string;
-    message: string;
-  } | null>(null);
+  const [extensionSetupResult, setExtensionSetupResult] = useState<ExtensionSetupResponse | null>(null);
 
   // AntiCaptcha API key balance test state (new /test-anticaptcha endpoint)
   const [isTestingAntiCaptchaBalance, setIsTestingAntiCaptchaBalance] = useState(false);
@@ -200,96 +203,172 @@ export default function SettingsPage() {
     error_code?: string | null;
   } | null>(null);
 
-  // Unique Names Tester State
-  const [isTestingUniqueNames, setIsTestingUniqueNames] = useState(false);
-  const [uniqueNamesResult, setUniqueNamesResult] = useState<UniqueNamesResponse | null>(null);
-  const [testUniqueNamesPayload, setTestUniqueNamesPayload] = useState<string>(
+  // Unique Names Tester State & Presets (Deduplication Scenarios)
+  const getUniqueNamesPresetAllSame = () =>
     JSON.stringify(
       {
-        Claimants: [
-          {
-            FirstName: "CORNELIUS",
-            LastName: "BRIGHT",
-            MiddleName: "",
-            Suffix: "",
-          },
-        ],
         Insureds: [
           {
-            FirstName: "Aquaria",
-            LastName: "Mitchell",
-            MiddleName: "",
-            Suffix: "",
+            FirstName: "MARIA",
+            LastName: "MARTINEZ",
           },
         ],
         Drivers: [
           {
-            FirstName: "Felicia",
-            LastName: "Mcmiller",
-            MiddleName: "",
-            Suffix: "",
+            FirstName: "MARIA",
+            LastName: "MARTINEZ",
           },
         ],
+        Claimants: [
+          {
+            FirstName: "MARIA",
+            LastName: "MARTINEZ",
+          },
+        ],
+      },
+      null,
+      2
+    );
+
+  const getUniqueNamesPresetInsuredDriverSame = () =>
+    JSON.stringify(
+      {
+        Insureds: [
+          {
+            FirstName: "ARMANDO",
+            LastName: "FERNANDEZ HERNANDEZ",
+          },
+        ],
+        Drivers: [
+          {
+            FirstName: "ARMANDO",
+            LastName: "FERNANDEZ HERNANDEZ",
+          },
+        ],
+        Claimants: [
+          {
+            FirstName: "Jorge",
+            LastName: "Bencomo Santana",
+          },
+        ],
+      },
+      null,
+      2
+    );
+
+  const getUniqueNamesPresetAllDifferent = () =>
+    JSON.stringify(
+      {
+        Insureds: [
+          {
+            FirstName: "CORNELIUS",
+            LastName: "BRIGHT",
+          },
+        ],
+        Drivers: [
+          {
+            FirstName: "Aquaria",
+            LastName: "Mitchell",
+          },
+        ],
+        Claimants: [
+          {
+            FirstName: "Felicia",
+            LastName: "Mcmiller",
+          },
+        ],
+      },
+      null,
+      2
+    );
+
+  const [selectedUniquePreset, setSelectedUniquePreset] = useState<"all_same" | "insured_driver_same" | "all_different">("all_same");
+  const [isTestingUniqueNames, setIsTestingUniqueNames] = useState(false);
+  const [uniqueNamesResult, setUniqueNamesResult] = useState<UniqueNamesResponse | null>(null);
+  const [testUniqueNamesPayload, setTestUniqueNamesPayload] = useState<string>(getUniqueNamesPresetAllSame());
+
+  // Separate Noise Words Input States for Unique Names and Fuzzy Match Engines
+  const [newPartyNoiseWord, setNewPartyNoiseWord] = useState("");
+  const [newCaseNoiseWord, setNewCaseNoiseWord] = useState("");
+
+  // Dynamic Presets for Fuzzy Match API Tester (PowerAutomateSolutions/fuzzy-match-api parity)
+  const getFuzzyPresetExact = () =>
+    JSON.stringify(
+      {
+        text1: "Miami Dade Police Department",
+        text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
+        threshold: 0.6,
+      },
+      null,
+      2
+    );
+
+  const getFuzzyPresetWithDateFilter = (minDate?: string) =>
+    JSON.stringify(
+      {
+        text1: "Miami Dade Police Department",
+        text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
+        threshold: 0.6,
+        filing_date: "2023-05-14",
+        min_filing_date: minDate || settings?.matcher?.min_filing_date || "2010-01-01",
+      },
+      null,
+      2
+    );
+
+  const getFuzzyPresetCasesBatch = (minDate?: string) =>
+    JSON.stringify(
+      {
+        text1: "JOHN DOE",
+        threshold: 0.6,
+        min_filing_date: minDate || settings?.matcher?.min_filing_date || "2010-01-01",
+        cases: [
+          {
+            CaseNumber: "COCE-23-019482",
+            CaseStyle: "JOHN DOE VS JANE SMITH",
+            CountyWebsite: "https://www.browardclerk.org/Web2/",
+            FilingDate: "2023-05-14",
+          },
+          {
+            CaseNumber: "COCE-09-001234",
+            CaseStyle: "JOHN DOE VS ACME CORP",
+            CountyWebsite: "https://www.browardclerk.org/Web2/",
+            FilingDate: "2009-02-10",
+          },
+        ],
+      },
+      null,
+      2
+    );
+
+  // Fuzzy Match Tester State
+  const [isTestingFuzzyMatch, setIsTestingFuzzyMatch] = useState(false);
+  const [fuzzyMatchResult, setFuzzyMatchResult] = useState<DirectFuzzyMatchResponse | null>(null);
+  const [selectedFuzzyPreset, setSelectedFuzzyPreset] = useState<"exact" | "date_filter" | "cases_batch">("date_filter");
+  const [testFuzzyMatchPayload, setTestFuzzyMatchPayload] = useState<string>(() =>
+    JSON.stringify(
+      {
+        text1: "Miami Dade Police Department",
+        text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
+        threshold: 0.6,
+        filing_date: "2023-05-14",
+        min_filing_date: "2010-01-01",
       },
       null,
       2
     )
   );
 
-  // Separate Noise Words Input States for Unique Names and Fuzzy Match Engines
-  const [newPartyNoiseWord, setNewPartyNoiseWord] = useState("");
-  const [newCaseNoiseWord, setNewCaseNoiseWord] = useState("");
-
-  // Presets for Fuzzy Match API Tester (PowerAutomateSolutions/fuzzy-match-api parity)
-  const FUZZY_PRESET_EXACT_API = JSON.stringify(
-    {
-      text1: "Miami Dade Police Department",
-      text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
-      threshold: 0.6,
-    },
-    null,
-    2
-  );
-
-  const FUZZY_PRESET_WITH_DATE_FILTER = JSON.stringify(
-    {
-      text1: "Miami Dade Police Department",
-      text2: "JASMINE PHILLIPS vs MIAMI DADE POLICE DEPARTMENT et al",
-      threshold: 0.6,
-      filing_date: "2023-05-14",
-      min_filing_date: "2010-01-01",
-    },
-    null,
-    2
-  );
-
-  const FUZZY_PRESET_COURT_CASES_BATCH = JSON.stringify(
-    {
-      text1: "JOHN DOE",
-      threshold: 0.6,
-      min_filing_date: "2010-01-01",
-      cases: [
-        {
-          CaseNumber: "COCE-23-019482",
-          CaseStyle: "JOHN DOE VS JANE SMITH",
-          FilingDate: "2023-05-14",
-        },
-        {
-          CaseNumber: "COCE-09-001234",
-          CaseStyle: "JOHN DOE VS ACME CORP",
-          FilingDate: "2009-02-10",
-        },
-      ],
-    },
-    null,
-    2
-  );
-
-  // Fuzzy Match Tester State
-  const [isTestingFuzzyMatch, setIsTestingFuzzyMatch] = useState(false);
-  const [fuzzyMatchResult, setFuzzyMatchResult] = useState<DirectFuzzyMatchResponse | null>(null);
-  const [testFuzzyMatchPayload, setTestFuzzyMatchPayload] = useState<string>(FUZZY_PRESET_WITH_DATE_FILTER);
-  const [selectedFuzzyPreset, setSelectedFuzzyPreset] = useState<"exact" | "date_filter" | "cases_batch">("date_filter");
+  const getBrowserEngineLabel = (engine?: string) => {
+    switch (engine?.toLowerCase()) {
+      case "chrome":
+        return "Google Chrome";
+      case "edge":
+        return "Microsoft Edge";
+      default:
+        return "Chromium";
+    }
+  };
 
   // CC & BCC Accordion State
   const [isCcBccOpen, setIsCcBccOpen] = useState(false);
@@ -451,18 +530,21 @@ export default function SettingsPage() {
     try {
       const res = await api.setupExtension({ force_reconfigure: true });
       setExtensionSetupResult(res);
-      if (res.verified) {
+      const isVerified = Boolean(res.verified || res.success);
+      if (isVerified) {
+        const profilePath = res.persistent_profile_path || res.profile_dir || "backend/data/browser_profile/";
+        const setupTime = res.timestamp || res.verified_at || new Date().toISOString();
         setSettings({
           ...settings,
           automation: {
             ...settings.automation,
             extension_setup_verified: true,
-            extension_setup_timestamp: res.timestamp,
+            extension_setup_timestamp: setupTime,
           },
         });
         setFeedback({
           type: "success",
-          msg: `Anti-Captcha extension pinned to toolbar & persistent profile configured! (${res.persistent_profile_path})`,
+          msg: `Anti-Captcha extension pinned to toolbar & persistent profile configured! (${profilePath})`,
         });
       } else {
         setFeedback({
@@ -488,7 +570,7 @@ export default function SettingsPage() {
       const modeToTest = forceHeadless !== undefined ? forceHeadless : settings.automation.headless_mode;
       const res = await api.testBrowserLaunch({
         headless: modeToTest,
-        browser_engine: settings.automation.browser_engine || "chromium",
+        browser_engine: settings.automation.browser_engine || "chrome",
         test_url: "https://example.com",
         timeout_seconds: 25,
         chrome_binary_path: settings.automation.chrome_binary_path || undefined,
@@ -526,6 +608,42 @@ export default function SettingsPage() {
       setIsTestingBrowser(false);
     }
   };
+
+  const handleTestFleet = async () => {
+    if (!settings) return;
+    setIsTestingFleet(true);
+    setFleetTestResult(null);
+    try {
+      const concurrency = settings.automation.max_concurrent_claims ?? 1;
+      const res = await api.testFleet({
+        concurrency,
+        headless: settings.automation.headless_mode,
+        browser_engine: (settings.automation.browser_engine || "chrome") as any,
+        test_url: "http://127.0.0.1:8000/api/v1/settings/browser-test-page",
+        timeout_seconds: Math.min(120, Math.max(45, 30 + concurrency * 8)),
+      });
+      setFleetTestResult(res);
+      if (res.success) {
+        setFeedback({
+          type: "success",
+          msg: `Parallel Fleet Launch Verified! ${res.concurrency_succeeded}/${res.concurrency_requested} parallel browsers opened successfully in ${res.mode} mode (${res.total_fleet_duration_ms}ms).`,
+        });
+      } else {
+        setFeedback({
+          type: "error",
+          msg: `Fleet launch completed with errors: ${res.concurrency_succeeded}/${res.concurrency_requested} workers succeeded in ${res.total_fleet_duration_ms}ms.`,
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to execute parallel fleet launch.",
+      });
+    } finally {
+      setIsTestingFleet(false);
+    }
+  };
+
 
   // Storage test states
   const [isTestingStorage, setIsTestingStorage] = useState(false);
@@ -582,6 +700,48 @@ export default function SettingsPage() {
     }
   };
 
+  // Proxy connectivity test states
+  const [isTestingProxy, setIsTestingProxy] = useState(false);
+  const [proxyTestResult, setProxyTestResult] = useState<ProxyTestResponse | null>(null);
+
+  const handleTestProxy = async () => {
+    if (!settings?.proxy?.host?.trim()) {
+      setFeedback({ type: "error", msg: "Enter a Proxy Host / IP address before testing." });
+      return;
+    }
+    setIsTestingProxy(true);
+    setProxyTestResult(null);
+    try {
+      const result = await api.testProxyConnection({
+        host: settings.proxy.host,
+        port: settings.proxy.port || 3128,
+        username: settings.proxy.username || null,
+        password: settings.proxy.password || null,
+      });
+      setProxyTestResult(result);
+      if (result.success) {
+        setFeedback({ type: "success", msg: `Proxy reachable: ${result.message}` });
+      } else {
+        setFeedback({ type: "error", msg: `Proxy test failed: ${result.message}` });
+      }
+    } catch (e: any) {
+      const errResult: ProxyTestResponse = {
+        success: false,
+        host: settings?.proxy?.host || "",
+        port: settings?.proxy?.port || 3128,
+        authenticated: !!(settings?.proxy?.username && settings?.proxy?.password),
+        test_url: "https://www.browardclerk.org/",
+        duration_ms: 0,
+        message: e?.response?.data?.detail || e?.message || "Request failed",
+        error_detail: String(e),
+      };
+      setProxyTestResult(errResult);
+      setFeedback({ type: "error", msg: errResult.message });
+    } finally {
+      setIsTestingProxy(false);
+    }
+  };
+
   // Email & Notifications states
   const [isTestingEmailConnection, setIsTestingEmailConnection] = useState(false);
   const [emailConnectionResult, setEmailConnectionResult] = useState<EmailConnectionTestResponse | null>(null);
@@ -604,6 +764,8 @@ export default function SettingsPage() {
   const [historySearch, setHistorySearch] = useState("");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("ALL");
   const [historyEventTypeFilter, setHistoryEventTypeFilter] = useState<string>("ALL");
+  const [historySortBy, setHistorySortBy] = useState<string>("created_at");
+  const [historySortOrder, setHistorySortOrder] = useState<"asc" | "desc">("desc");
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
   const [historyTotalCount, setHistoryTotalCount] = useState(0);
@@ -666,6 +828,21 @@ export default function SettingsPage() {
         email: data.email || DEFAULT_EMAIL_SETTINGS,
       };
       setSettings(withBranding);
+      if (withBranding.matcher?.min_filing_date) {
+        const loadedMinDate = withBranding.matcher.min_filing_date;
+        setTestFuzzyMatchPayload((prev) => {
+          try {
+            const parsed = JSON.parse(prev);
+            if (parsed.min_filing_date !== undefined) {
+              parsed.min_filing_date = loadedMinDate;
+              return JSON.stringify(parsed, null, 2);
+            }
+          } catch {
+            // Keep unchanged if invalid JSON
+          }
+          return prev;
+        });
+      }
     } catch (e: any) {
       setFeedback({ type: "error", msg: "Failed to load active system settings." });
     } finally {
@@ -787,13 +964,17 @@ export default function SettingsPage() {
     targetPage?: number,
     targetStatus?: string,
     targetSearch?: string,
-    targetEventType?: string
+    targetEventType?: string,
+    targetSortBy?: string,
+    targetSortOrder?: "asc" | "desc"
   ) => {
     setIsLoadingNotifications(true);
     const p = targetPage !== undefined ? targetPage : historyPage;
     const s = targetStatus !== undefined ? targetStatus : historyStatusFilter;
     const q = targetSearch !== undefined ? targetSearch : historySearch;
     const e = targetEventType !== undefined ? targetEventType : historyEventTypeFilter;
+    const sb = targetSortBy !== undefined ? targetSortBy : historySortBy;
+    const so = targetSortOrder !== undefined ? targetSortOrder : historySortOrder;
     try {
       const res = await api.getNotifications({
         page: p,
@@ -801,6 +982,8 @@ export default function SettingsPage() {
         status: s !== "ALL" ? s : undefined,
         search: q.trim() ? q.trim() : undefined,
         event_type: e !== "ALL" ? e : undefined,
+        sort_by: sb,
+        sort_order: so,
       });
       setRecentNotifications(res.items || []);
       setHistoryPage(res.page || p);
@@ -811,6 +994,16 @@ export default function SettingsPage() {
     } finally {
       setIsLoadingNotifications(false);
     }
+  };
+
+  const handleSortHistory = (colKey: string) => {
+    let nextOrder: "asc" | "desc" = "desc";
+    if (historySortBy === colKey) {
+      nextOrder = historySortOrder === "desc" ? "asc" : "desc";
+    }
+    setHistorySortBy(colKey);
+    setHistorySortOrder(nextOrder);
+    fetchRecentNotifications(1, undefined, undefined, undefined, colKey, nextOrder);
   };
 
   const fetchTemplates = async () => {
@@ -1271,9 +1464,9 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col w-full">
+      <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
         <Navbar />
-        <div className="p-8 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+        <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-500 text-xs gap-2">
           <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
           Loading dynamic system settings...
         </div>
@@ -1283,9 +1476,9 @@ export default function SettingsPage() {
 
   if (!settings) {
     return (
-      <div className="flex-1 flex flex-col w-full">
+      <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
         <Navbar />
-        <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
+        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-500 text-xs gap-3">
           <AlertCircle className="w-8 h-8 text-rose-500" />
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             {feedback?.msg || "Failed to load dynamic system settings from backend."}
@@ -1314,10 +1507,10 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col w-full">
+    <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={fetchSettings} isRefreshing={isLoading} />
 
-      <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Title & Save Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div>
@@ -1381,8 +1574,8 @@ export default function SettingsPage() {
         )}
 
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar pb-px w-full flex-nowrap gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar flex-nowrap">
+        <div className="w-full border-b border-slate-200 dark:border-slate-800 pb-px overflow-x-hidden">
+          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1845,15 +2038,63 @@ export default function SettingsPage() {
 
               {/* Unique Names API Tester Sub-Console */}
               <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-indigo-500" />
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200">
-                      Unique Names API Live Tester (<code>/api/v1/matches/unique-names</code>)
-                    </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Deduplicates <code>Claimants</code>, <code>Insureds</code>, and <code>Drivers</code> arrays with dynamic {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}% RapidFuzz matching.
-                    </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-indigo-500" />
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200">
+                        Unique Names API Live Tester (<code>/api/v1/matches/unique-names</code>)
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Deduplicates <code>Claimants</code>, <code>Insureds</code>, and <code>Drivers</code> arrays with dynamic {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}% RapidFuzz matching.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 3 Deduplication Presets */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800 flex-wrap sm:flex-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUniquePreset("all_same");
+                        setTestUniqueNamesPayload(getUniqueNamesPresetAllSame());
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedUniquePreset === "all_same"
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Record 1: All Same (1 Unique)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUniquePreset("insured_driver_same");
+                        setTestUniqueNamesPayload(getUniqueNamesPresetInsuredDriverSame());
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedUniquePreset === "insured_driver_same"
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Record 2: Insured=Driver (2 Unique)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUniquePreset("all_different");
+                        setTestUniqueNamesPayload(getUniqueNamesPresetAllDifferent());
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedUniquePreset === "all_different"
+                          ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Record 3: All Different (3 Unique)
+                    </button>
                   </div>
                 </div>
 
@@ -2018,15 +2259,21 @@ export default function SettingsPage() {
                   <input
                     type="date"
                     value={settings.matcher.min_filing_date}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newMinDate = e.target.value;
                       setSettings({
                         ...settings,
                         matcher: {
                           ...settings.matcher,
-                          min_filing_date: e.target.value,
+                          min_filing_date: newMinDate,
                         },
-                      })
-                    }
+                      });
+                      if (selectedFuzzyPreset === "date_filter") {
+                        setTestFuzzyMatchPayload(getFuzzyPresetWithDateFilter(newMinDate));
+                      } else if (selectedFuzzyPreset === "cases_batch") {
+                        setTestFuzzyMatchPayload(getFuzzyPresetCasesBatch(newMinDate));
+                      }
+                    }}
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
                   />
                   <p className="text-[11px] text-amber-600 dark:text-amber-400">
@@ -2115,7 +2362,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => {
                         setSelectedFuzzyPreset("exact");
-                        setTestFuzzyMatchPayload(FUZZY_PRESET_EXACT_API);
+                        setTestFuzzyMatchPayload(getFuzzyPresetExact());
                       }}
                       className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
                         selectedFuzzyPreset === "exact"
@@ -2129,7 +2376,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => {
                         setSelectedFuzzyPreset("date_filter");
-                        setTestFuzzyMatchPayload(FUZZY_PRESET_WITH_DATE_FILTER);
+                        setTestFuzzyMatchPayload(getFuzzyPresetWithDateFilter(settings?.matcher?.min_filing_date));
                       }}
                       className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
                         selectedFuzzyPreset === "date_filter"
@@ -2143,7 +2390,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => {
                         setSelectedFuzzyPreset("cases_batch");
-                        setTestFuzzyMatchPayload(FUZZY_PRESET_COURT_CASES_BATCH);
+                        setTestFuzzyMatchPayload(getFuzzyPresetCasesBatch(settings?.matcher?.min_filing_date));
                       }}
                       className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
                         selectedFuzzyPreset === "cases_batch"
@@ -2496,124 +2743,479 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-              {/* Concurrent RPA Claim Executions (1 to 10 Parallel Claims) */}
-              <div className="sm:col-span-2 space-y-3 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/60 via-purple-50/40 to-slate-50 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-slate-900">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {/* ========================================================================= */}
+              {/* STEP 1 OF 4: BROWSER AUTOMATION ENGINE & RUNTIME ENVIRONMENT              */}
+              {/* ========================================================================= */}
+              <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/50 via-slate-50 to-purple-50/40 dark:from-indigo-950/20 dark:via-slate-900 dark:to-purple-950/20 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-200/70 dark:border-indigo-800/40">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs">
-                        Parallel RPA Concurrency
+                      <Laptop className="w-4 h-4 text-indigo-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                        Browser Engine &amp; Runtime Environment
                       </span>
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                        Concurrent Scraper Worker Fleet (1 – 10 Parallel Claims)
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/20">
+                        Core Foundation
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Controls how many court portal scrapers and claims execute concurrently in parallel. 1 = Sequential FIFO execution, 10 = Maximum high-throughput parallel fleet.
+                      Choose the browser engine, specify executable paths, select Attended GUI vs. Headless execution, and verify with a test launch.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400">Current Fleet:</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Selected Engine:</span>
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
-                      {settings.automation.max_concurrent_claims ?? 1}x Parallel Workers
+                      {settings.automation.browser_engine?.toUpperCase() || "CHROME"}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-1">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">1 Worker (Sequential Default)</span>
-                    <span className="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 shadow-2xs">
-                      {settings.automation.max_concurrent_claims ?? 1} Parallel Workers
+                {/* Browser Automation Engine Selector */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-800 dark:text-slate-200 text-xs block">
+                      Browser Automation Engine
+                    </label>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                      Extension Compatibility Core
                     </span>
-                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">10 Workers (Max Concurrency)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Option 1: Google Chrome (Default) */}
+                    <label
+                      className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        (settings.automation.browser_engine || "chrome") === "chrome"
+                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="browser_engine"
+                        value="chrome"
+                        checked={(settings.automation.browser_engine || "chrome") === "chrome"}
+                        onChange={() => {
+                          const engine = "chrome";
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              browser_engine: engine,
+                              user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
+                            },
+                          });
+                        }}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          <Laptop className="w-3.5 h-3.5 text-indigo-500" />
+                          Google Chrome
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Default
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Official Google Chrome browser. Primary default engine for court portal discovery and extraction.
+                      </p>
+                    </label>
+
+                    {/* Option 2: Chromium (Bundled) */}
+                    <label
+                      className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        settings.automation.browser_engine === "chromium"
+                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="browser_engine"
+                        value="chromium"
+                        checked={settings.automation.browser_engine === "chromium"}
+                        onChange={() => {
+                          const engine = "chromium";
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              browser_engine: engine,
+                              user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
+                            },
+                          });
+                        }}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Chromium</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                          Bundled
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Playwright bundled Chromium build. Fully autonomous headless fallback.
+                      </p>
+                    </label>
+
+                    {/* Option 3: Microsoft Edge */}
+                    <label
+                      className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        settings.automation.browser_engine === "msedge"
+                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="browser_engine"
+                        value="msedge"
+                        checked={settings.automation.browser_engine === "msedge"}
+                        onChange={() => {
+                          const engine = "msedge";
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              browser_engine: engine,
+                              user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
+                            },
+                          });
+                        }}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Microsoft Edge</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                          Supported
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                        System Microsoft Edge via Chromium channel. Full extension support with active service worker lifecycle.
+                      </p>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Binary Paths & User Profile Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Google Chrome Executable Binary Path */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                        Google Chrome Executable Location
+                      </label>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                        Windows Auto-Detected
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe"
+                      value={settings.automation.chrome_binary_path || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            chrome_binary_path: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Standard Windows path: <code className="text-slate-700 dark:text-slate-300 font-mono">C:\Program Files\Google\Chrome\Application\chrome.exe</code>.
+                    </p>
+                  </div>
+
+                  {/* Chrome User Profile Directory (Optional) */}
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      Chrome User Profile Directory (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. C:\Users\user\AppData\Local\Google\Chrome\User Data"
+                      value={settings.automation.chrome_user_data_dir || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            chrome_user_data_dir: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Base profile used for seeding extension configuration and persistent cookies.
+                    </p>
+                  </div>
+                </div>
+
+                {/* User Agent */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      Browser User-Agent String
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const engine = settings.automation.browser_engine || "chrome";
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            user_agent: ENGINE_USER_AGENTS[engine] || ENGINE_USER_AGENTS.chromium,
+                          },
+                        });
+                      }}
+                      className="text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 font-medium cursor-pointer"
+                    >
+                      Reset to Default for Selected Engine
+                    </button>
                   </div>
                   <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    step="1"
-                    value={settings.automation.max_concurrent_claims ?? 1}
+                    type="text"
+                    value={settings.automation.user_agent}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
                         automation: {
                           ...settings.automation,
-                          max_concurrent_claims: parseInt(e.target.value, 10) || 1,
+                          user_agent: e.target.value,
                         },
                       })
                     }
-                    className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 font-mono focus:outline-hidden focus:border-indigo-500"
                   />
-                  <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono px-0.5">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            automation: {
-                              ...settings.automation,
-                              max_concurrent_claims: n,
-                            },
-                          })
-                        }
-                        className={`hover:text-indigo-600 cursor-pointer transition-colors ${
-                          (settings.automation.max_concurrent_claims ?? 1) === n
-                            ? "font-bold text-indigo-600 dark:text-indigo-400"
-                            : ""
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
-                {/* Preset quick buttons */}
-                <div className="flex items-center gap-2 pt-1 border-t border-indigo-100 dark:border-indigo-900/60 flex-wrap text-xs">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Quick Presets:</span>
-                  {[
-                    { label: "Sequential Default (1)", val: 1 },
-                    { label: "Conservative (2)", val: 2 },
-                    { label: "Multi-Worker (3)", val: 3 },
-                    { label: "Balanced (5)", val: 5 },
-                    { label: "High Throughput (8)", val: 8 },
-                    { label: "Max Speed (10)", val: 10 },
-                  ].map((p) => (
-                    <button
-                      key={p.val}
-                      type="button"
+                {/* Browser Execution Mode Cards (Attended vs Headless) */}
+                <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Monitor className="w-3.5 h-3.5 text-indigo-500" />
+                      Execution Mode &amp; Visibility
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                        !settings.automation.headless_mode
+                          ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                          : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
+                      }`}
+                    >
+                      Active: {!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Option 1: Attended Mode */}
+                    <div
                       onClick={() =>
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
-                            max_concurrent_claims: p.val,
+                            headless_mode: false,
                           },
                         })
                       }
-                      className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all ${
-                        (settings.automation.max_concurrent_claims ?? 1) === p.val
-                          ? "bg-indigo-600 text-white shadow-2xs"
-                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-400"
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        !settings.automation.headless_mode
+                          ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 ring-2 ring-purple-600/20"
+                          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
                       }`}
                     >
-                      {p.label}
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                              !settings.automation.headless_mode
+                                ? "bg-purple-600 text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                            }`}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                              Attended (Visible GUI)
+                              {!settings.automation.headless_mode && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-purple-600 text-white">
+                                  Selected
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
+                              Real Desktop Window • Operator Visible
+                            </span>
+                          </div>
+                        </div>
+                        <div
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                            !settings.automation.headless_mode
+                              ? "border-purple-600 bg-purple-600 text-white"
+                              : "border-slate-300 dark:border-slate-700"
+                          }`}
+                        >
+                          {!settings.automation.headless_mode && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
+                        Spawns real browser windows on your Windows desktop. You see tabs open, fields fill, and the AntiCaptcha extension solve challenges in real time.
+                      </p>
+                    </div>
+
+                    {/* Option 2: Headless Mode */}
+                    <div
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            headless_mode: true,
+                          },
+                        })
+                      }
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        settings.automation.headless_mode
+                          ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-sky-600/20"
+                          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                              settings.automation.headless_mode
+                                ? "bg-sky-600 text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                            }`}
+                          >
+                            <EyeOff className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                              Headless (Background)
+                              {settings.automation.headless_mode && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-600 text-white">
+                                  Selected
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">
+                              Silent Execution • Server Production Mode
+                            </span>
+                          </div>
+                        </div>
+                        <div
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                            settings.automation.headless_mode
+                              ? "border-sky-600 bg-sky-600 text-white"
+                              : "border-slate-300 dark:border-slate-700"
+                          }`}
+                        >
+                          {settings.automation.headless_mode && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
+                        Runs browser silently without displaying a window. Consumes less RAM/CPU, optimal for Docker containers and server deployments.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Single Browser Test Action Button */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Verify single browser binary launch, extension loading, and window rendering before scaling to fleet:
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isTestingBrowser}
+                      onClick={() => handleTestBrowser(settings.automation.headless_mode)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 text-white shrink-0 ${
+                        !settings.automation.headless_mode
+                          ? "bg-purple-600 hover:bg-purple-500"
+                          : "bg-sky-600 hover:bg-sky-500"
+                      }`}
+                    >
+                      {isTestingBrowser ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : !settings.automation.headless_mode ? (
+                        <Eye className="w-3.5 h-3.5" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      )}
+                      Test Single Browser Launch ({!settings.automation.headless_mode ? "Attended GUI" : "Headless"})
                     </button>
-                  ))}
+                  </div>
+
+                  {/* Single Browser Test Results Banner */}
+                  {browserTestResult && (
+                    <div
+                      className={`rounded-xl p-3.5 text-xs border space-y-2 transition-all ${
+                        browserTestResult.success
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                          : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2.5 min-w-0 pb-2 border-b border-black/5 dark:border-white/5">
+                        <div className="flex items-center gap-2 font-bold min-w-0">
+                          {browserTestResult.success ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                          )}
+                          <span className="truncate">
+                            {browserTestResult.success
+                              ? `${(browserTestResult.browser_engine || "browser").toUpperCase()} Launch Test Passed Successfully`
+                              : `${(browserTestResult.browser_engine || "browser").toUpperCase()} Launch Test Failed`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-mono text-[10px] opacity-70 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded">
+                            {browserTestResult.duration_ms.toFixed(0)} ms
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setBrowserTestResult(null)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] leading-relaxed">{browserTestResult.message}</p>
+
+                      {browserTestResult.extension_path && (
+                        <div className="text-[10px] font-mono opacity-80 bg-black/5 dark:bg-white/5 p-2 rounded-lg break-all">
+                          Extension Path: {browserTestResult.extension_path}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Execution Speed & Keystroke Dynamics Card */}
+              {/* ========================================================================= */}
+              {/* STEP 2 OF 4: EXECUTION TIMING, SPEED & KEYSTROKE DYNAMICS                 */}
+              {/* ========================================================================= */}
               <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-r from-amber-50/50 via-indigo-50/30 to-slate-50 dark:from-amber-950/20 dark:via-indigo-950/20 dark:to-slate-900 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/70 dark:border-amber-900/40">
                   <div>
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
                       <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-                        Execution Speed &amp; Keystroke Dynamics
+                        Execution Timing &amp; Keystroke Dynamics
                       </span>
                       <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold border border-amber-500/20">
                         Form Typing Speed
@@ -2794,6 +3396,71 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                {/* Page Timeout and Reload Backoff Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Page Timeout */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                        Portal Navigation Timeout (Seconds)
+                      </label>
+                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                        {settings.automation.page_timeout_seconds}s
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      min="5"
+                      max="120"
+                      value={settings.automation.page_timeout_seconds}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            page_timeout_seconds: parseInt(e.target.value) || 30,
+                          },
+                        })
+                      }
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
+                    />
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Maximum network idle wait time before scraper fails over or attempts recovery.
+                    </p>
+                  </div>
+
+                  {/* Page Reload Backoff Delay */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                        Page Reload Backoff Delay (Seconds)
+                      </label>
+                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                        {settings.automation.reload_backoff_seconds}s
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={settings.automation.reload_backoff_seconds}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            reload_backoff_seconds: parseInt(e.target.value) || 2,
+                          },
+                        })
+                      }
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
+                    />
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Delay before retrying or re-navigating after CAPTCHA timeout or network reset.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Anti-Captcha Decoupled Notice Banner */}
                 <div className="flex items-start gap-2.5 p-3 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-xs">
                   <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
@@ -2804,507 +3471,317 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Page Timeout */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
-                    Portal Navigation Timeout (Seconds)
-                  </label>
-                  <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
-                    {settings.automation.page_timeout_seconds}s
-                  </span>
-                </div>
-                <input
-                  type="number"
-                  min="5"
-                  max="120"
-                  value={settings.automation.page_timeout_seconds}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        page_timeout_seconds: parseInt(e.target.value) || 30,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
-                />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Maximum network idle wait time before scraper fails over or attempts recovery.
-                </p>
-              </div>
-
-              {/* Page Reload Backoff Delay */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
-                    Page Reload Backoff Delay (Seconds)
-                  </label>
-                  <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
-                    {settings.automation.reload_backoff_seconds}s
-                  </span>
-                </div>
-                <input
-                  type="number"
-                  min="1"
-                  max="30"
-                  value={settings.automation.reload_backoff_seconds}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        reload_backoff_seconds: parseInt(e.target.value) || 2,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
-                />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Delay before retrying or re-navigating after CAPTCHA timeout or network reset.
-                </p>
-              </div>
-
-              {/* Browser Automation Engine Selector */}
-              <div className="sm:col-span-2 space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800/80">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-800 dark:text-slate-200 text-xs block">
-                    Browser Automation Engine
-                  </label>
-                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                    Extension Compatibility Core
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Option 1: Chromium */}
-                  <label
-                    className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      (settings.automation.browser_engine || "chromium") === "chromium"
-                        ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="browser_engine"
-                      value="chromium"
-                      checked={(settings.automation.browser_engine || "chromium") === "chromium"}
-                      onChange={() => {
-                        const engine = "chromium";
-                        setSettings({
-                          ...settings,
-                          automation: {
-                            ...settings.automation,
-                            browser_engine: engine,
-                            user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
-                          },
-                        });
-                      }}
-                      className="sr-only"
-                    />
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                        <Laptop className="w-3.5 h-3.5 text-indigo-500" />
-                        Chromium (Bundled)
+              {/* ========================================================================= */}
+              {/* STEP 3 OF 4: PARALLEL RPA CONCURRENCY & WORKER FLEET                      */}
+              {/* ========================================================================= */}
+              <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/60 via-purple-50/40 to-slate-50 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-slate-900 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-indigo-200/70 dark:border-indigo-800/40">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-indigo-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                        Parallel RPA Concurrency &amp; Worker Fleet
                       </span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                        Default
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-bold border border-indigo-500/20">
+                        Scale &amp; Fleet Test
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                      Playwright bundled Chromium. Highest reliability, seamless unpacked extension loading, zero policy interference.
-                    </p>
-                  </label>
-
-                  {/* Option 2: Google Chrome */}
-                  <label
-                    className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      settings.automation.browser_engine === "chrome"
-                        ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="browser_engine"
-                      value="chrome"
-                      checked={settings.automation.browser_engine === "chrome"}
-                      onChange={() => {
-                        const engine = "chrome";
-                        setSettings({
-                          ...settings,
-                          automation: {
-                            ...settings.automation,
-                            browser_engine: engine,
-                            user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
-                          },
-                        });
-                      }}
-                      className="sr-only"
-                    />
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Google Chrome</span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                        Installed
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                      System installed Google Chrome. Note: Enterprise-managed Chrome will automatically fall back to Chromium if extensions are blocked.
-                    </p>
-                  </label>
-
-                  {/* Option 3: Microsoft Edge */}
-                  <label
-                    className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      settings.automation.browser_engine === "msedge"
-                        ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="browser_engine"
-                      value="msedge"
-                      checked={settings.automation.browser_engine === "msedge"}
-                      onChange={() => {
-                        const engine = "msedge";
-                        setSettings({
-                          ...settings,
-                          automation: {
-                            ...settings.automation,
-                            browser_engine: engine,
-                            user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
-                          },
-                        });
-                      }}
-                      className="sr-only"
-                    />
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Microsoft Edge</span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                        Supported
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                      System Microsoft Edge via Chromium channel. Full extension support with active service worker lifecycle.
-                    </p>
-                  </label>
-                </div>
-              </div>
-
-              {/* Google Chrome Executable Binary Path */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                    Google Chrome Executable Location
-                  </label>
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                    Windows Default Auto-Detected
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe"
-                  value={settings.automation.chrome_binary_path || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        chrome_binary_path: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Standard Windows path: <code className="text-slate-700 dark:text-slate-300 font-mono">C:\Program Files\Google\Chrome\Application\chrome.exe</code>. Used when Google Chrome engine is selected.
-                </p>
-              </div>
-
-              {/* Chrome User Profile Directory (Optional) */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                  Chrome User Profile Directory (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. C:\Users\user\AppData\Local\Google\Chrome\User Data"
-                  value={settings.automation.chrome_user_data_dir || ""}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        chrome_user_data_dir: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Path to persistent user profile for cookie persistence or single sign-on.
-                </p>
-              </div>
-
-              {/* User Agent */}
-              <div className="sm:col-span-2 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                    Browser User-Agent String
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const engine = settings.automation.browser_engine || "chromium";
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          user_agent: ENGINE_USER_AGENTS[engine] || ENGINE_USER_AGENTS.chromium,
-                        },
-                      });
-                    }}
-                    className="text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 font-medium cursor-pointer"
-                  >
-                    Reset to Default for Selected Engine
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={settings.automation.user_agent}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      automation: {
-                        ...settings.automation,
-                        user_agent: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 font-mono focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              {/* Browser Execution Mode Interactive Card & Live Tester */}
-              <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                      <Monitor className="w-4 h-4 text-indigo-500" />
-                      Browser Execution Mode &amp; Runtime Environment
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Select how Google Chrome executes county court portal scrapers and automated CAPTCHA workflows.
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Controls how many court portal scrapers and claims execute concurrently in parallel. 1 = Sequential FIFO execution, 10 = Maximum high-throughput parallel fleet.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                        !settings.automation.headless_mode
-                          ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
-                          : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
-                      }`}
-                    >
-                      Active: {!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Current Fleet:</span>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
+                      {settings.automation.max_concurrent_claims ?? 1}x Parallel Workers
                     </span>
                   </div>
                 </div>
 
-                {/* Dual Mode Selector Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Option 1: Attended Mode */}
-                  <div
-                    onClick={() =>
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          headless_mode: false,
-                        },
-                      })
-                    }
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      !settings.automation.headless_mode
-                        ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 ring-2 ring-purple-600/20"
-                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                            !settings.automation.headless_mode
-                              ? "bg-purple-600 text-white"
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                          }`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
-                            Attended (Visible GUI)
-                            {!settings.automation.headless_mode && (
-                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-purple-600 text-white">
-                                Selected
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
-                            Real Desktop Window • Operator Visible
-                          </span>
-                        </div>
-                      </div>
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          !settings.automation.headless_mode
-                            ? "border-purple-600 bg-purple-600 text-white"
-                            : "border-slate-300 dark:border-slate-700"
-                        }`}
-                      >
-                        {!settings.automation.headless_mode && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                      Spawns real Chrome windows on your Windows desktop. You see tabs open, fields fill, and the AntiCaptcha extension solve challenges in real time.
-                    </p>
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">1 Worker (Sequential Default)</span>
+                    <span className="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+                      {settings.automation.max_concurrent_claims ?? 1} Parallel Workers
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">10 Workers (Max Concurrency)</span>
                   </div>
-
-                  {/* Option 2: Headless Mode */}
-                  <div
-                    onClick={() =>
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          headless_mode: true,
-                        },
-                      })
-                    }
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      settings.automation.headless_mode
-                        ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-sky-600/20"
-                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                            settings.automation.headless_mode
-                              ? "bg-sky-600 text-white"
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                          }`}
-                        >
-                          <EyeOff className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
-                            Headless (Background)
-                            {settings.automation.headless_mode && (
-                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-600 text-white">
-                                Selected
-                              </span>
-                            )}
+                  <div className="relative w-full pt-1 pb-4">
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      step="1"
+                      value={settings.automation.max_concurrent_claims ?? 1}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            max_concurrent_claims: parseInt(e.target.value, 10) || 1,
+                          },
+                        })
+                      }
+                      className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg relative z-10"
+                    />
+                    {/* Exact Thumb-Aligned Tick Marks & Numbers 1-10 */}
+                    <div className="relative w-full h-5 mt-1 select-none pointer-events-none">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+                        const isCurrent = (settings.automation.max_concurrent_claims ?? 1) === n;
+                        return (
+                          <div
+                            key={n}
+                            style={{ left: `calc(8px + (100% - 16px) * ${(n - 1) / 9})` }}
+                            className="absolute -translate-x-1/2 flex flex-col items-center pointer-events-auto"
+                          >
+                            <div className={`w-0.5 rounded-full mb-0.5 transition-all ${isCurrent ? "bg-indigo-600 dark:bg-indigo-400 h-2" : "bg-slate-300 dark:bg-slate-600 h-1"}`} />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSettings({
+                                  ...settings,
+                                  automation: {
+                                    ...settings.automation,
+                                    max_concurrent_claims: n,
+                                  },
+                                })
+                              }
+                              className={`text-[10px] font-mono transition-colors cursor-pointer px-1 py-0.5 rounded ${
+                                isCurrent
+                                  ? "font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 ring-1 ring-indigo-500/30"
+                                  : "text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
+                              }`}
+                            >
+                              {n}
+                            </button>
                           </div>
-                          <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">
-                            Silent Execution • Server Production Mode
-                          </span>
-                        </div>
-                      </div>
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          settings.automation.headless_mode
-                            ? "border-sky-600 bg-sky-600 text-white"
-                            : "border-slate-300 dark:border-slate-700"
-                        }`}
-                      >
-                        {settings.automation.headless_mode && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                      Runs Chrome silently without displaying a browser window. Consumes less RAM/CPU, optimal for Docker containers and server deployments.
-                    </p>
                   </div>
                 </div>
 
-                {/* Live Browser Test Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800/80">
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Test launch Chrome right now to verify display, AntiCaptcha extension, and browser profile:
+                {/* 10-Column Symmetrical Quick Presets Selector */}
+                <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/60 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                      Fleet Concurrency Presets (1–10x):
+                    </span>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-medium">
+                      Select worker concurrency tier
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                    <button
-                      type="button"
-                      disabled={isTestingBrowser}
-                      onClick={() => handleTestBrowser(false)}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                    >
-                      {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                      Test Attended (Visible GUI)
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isTestingBrowser}
-                      onClick={() => handleTestBrowser(true)}
-                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                    >
-                      {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <EyeOff className="w-3.5 h-3.5" />}
-                      Test Headless
-                    </button>
-                  </div>
-                </div>
-
-                {/* Browser Test Results Banner */}
-                {browserTestResult && (
-                  <div
-                    className={`rounded-xl p-3.5 text-xs border space-y-2 transition-all ${
-                      browserTestResult.success
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-                        : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2.5 min-w-0 pb-2 border-b border-black/5 dark:border-white/5">
-                      <div className="flex items-center gap-2 font-bold min-w-0">
-                        {browserTestResult.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                        )}
-                        <span className="truncate">
-                          {browserTestResult.success
-                            ? "Chrome Launch Test Passed Successfully"
-                            : "Chrome Launch Test Failed"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-mono text-[10px] opacity-70 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded">
-                          {browserTestResult.duration_ms.toFixed(0)} ms
-                        </span>
+                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
+                    {[
+                      { n: 1, label: "1x", desc: "Sequential" },
+                      { n: 2, label: "2x", desc: "Duo" },
+                      { n: 3, label: "3x", desc: "Trio" },
+                      { n: 4, label: "4x", desc: "Quad" },
+                      { n: 5, label: "5x", desc: "Half Fleet" },
+                      { n: 6, label: "6x", desc: "6-Worker" },
+                      { n: 7, label: "7x", desc: "7-Worker" },
+                      { n: 8, label: "8x", desc: "Heavy" },
+                      { n: 9, label: "9x", desc: "Ultra" },
+                      { n: 10, label: "10x", desc: "Max Speed" },
+                    ].map((p) => {
+                      const isSelected = (settings.automation.max_concurrent_claims ?? 1) === p.n;
+                      return (
                         <button
+                          key={p.n}
                           type="button"
-                          onClick={() => setBrowserTestResult(null)}
-                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                          onClick={() =>
+                            setSettings({
+                              ...settings,
+                              automation: {
+                                ...settings.automation,
+                                max_concurrent_claims: p.n,
+                              },
+                            })
+                          }
+                          className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold ring-2 ring-indigo-500/30"
+                              : "bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-indigo-50/50 dark:hover:bg-slate-800"
+                          }`}
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <span className="text-xs font-bold font-mono">{p.label}</span>
+                          <span className={`text-[9px] truncate max-w-full tracking-tight ${isSelected ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
+                            {p.desc}
+                          </span>
                         </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Interactive Parallel Fleet Launch Test */}
+                <div className="pt-3 border-t border-indigo-100 dark:border-indigo-900/60 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-900/50 p-3 rounded-xl border border-indigo-100/80 dark:border-indigo-900/40">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Layers className="w-4 h-4 text-indigo-500" />
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                          Live Fleet Concurrency Test
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                          {settings.automation.browser_engine?.toUpperCase() || "CHROME"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {!settings.automation.headless_mode ? "Attended (GUI)" : "Headless"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          {settings.automation.max_concurrent_claims ?? 1}x Fleet
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Spawns {settings.automation.max_concurrent_claims ?? 1} parallel {settings.automation.browser_engine?.toUpperCase() || "CHROME"} browsers simultaneously in {!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"} mode with isolated profiles.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isTestingFleet}
+                      onClick={handleTestFleet}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isTestingFleet ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      )}
+                      {isTestingFleet
+                        ? `Launching ${settings.automation.max_concurrent_claims ?? 1} Browsers...`
+                        : `Test Fleet Launch (${settings.automation.max_concurrent_claims ?? 1} Parallel Browsers)`}
+                    </button>
+                  </div>
+
+                  {/* Fleet Test Results Grid */}
+                  {fleetTestResult && (
+                    <div
+                      className={`p-3.5 rounded-xl border space-y-3 transition-all ${
+                        fleetTestResult.success
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
+                          : "bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-black/5 dark:border-white/10">
+                        <div className="flex items-center gap-2 font-bold text-xs">
+                          {fleetTestResult.success ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                          )}
+                          <span>
+                            {fleetTestResult.success
+                              ? `Fleet Launch Succeeded (${fleetTestResult.concurrency_succeeded}/${fleetTestResult.concurrency_requested} Workers Verified)`
+                              : `Fleet Launch Incomplete (${fleetTestResult.concurrency_succeeded}/${fleetTestResult.concurrency_requested} Workers Verified)`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono">
+                          <span className="px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">
+                            {fleetTestResult.browser_engine.toUpperCase()}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">
+                            {fleetTestResult.mode}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-black/10 dark:bg-white/10 font-bold">
+                            Total: {fleetTestResult.total_fleet_duration_ms}ms
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] opacity-90">{fleetTestResult.message}</p>
+
+                      {/* Worker Cards Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+                        {fleetTestResult.workers.map((w) => (
+                          <div
+                            key={w.worker_id}
+                            className={`p-2.5 rounded-lg border text-xs flex flex-col justify-between gap-1.5 transition-all ${
+                              w.status === "success"
+                                ? "bg-white/80 dark:bg-slate-900/80 border-emerald-300 dark:border-emerald-800"
+                                : "bg-white/80 dark:bg-slate-900/80 border-rose-300 dark:border-rose-800"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1">
+                                <Monitor className="w-3 h-3 text-indigo-500" />
+                                Worker #{w.worker_id}
+                              </span>
+                              {w.status === "success" ? (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
+                                  <Check className="w-2.5 h-2.5" /> OK
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded">
+                                  <X className="w-2.5 h-2.5" /> Failed
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                              <div className="flex justify-between font-mono">
+                                <span>Latency:</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">{w.duration_ms}ms</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Profile:</span>
+                                <span className="font-semibold text-indigo-600 dark:text-indigo-400">Isolated</span>
+                              </div>
+                              {w.proxy_egress && (
+                                <div className="flex justify-between truncate">
+                                  <span>Egress:</span>
+                                  <span className="font-semibold text-sky-600 dark:text-sky-400 truncate max-w-[85px]" title={w.proxy_egress}>
+                                    {w.proxy_egress}
+                                  </span>
+                                </div>
+                              )}
+                              {w.extension_loaded && (
+                                <div className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                  ✓ AntiCaptcha Active
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                  )}
+                </div>
+              </div>
 
-                    <p className="text-[11px] leading-relaxed">{browserTestResult.message}</p>
-
-                    {browserTestResult.extension_path && (
-                      <div className="text-[10px] font-mono opacity-80 bg-black/5 dark:bg-white/5 p-2 rounded-lg break-all">
-                        Extension Path: {browserTestResult.extension_path}
-                      </div>
-                    )}
+              {/* ========================================================================= */}
+              {/* STEP 4 OF 4: PROXY NETWORK OBSERVABILITY BANNER                           */}
+              {/* ========================================================================= */}
+              <div className="sm:col-span-2 p-4 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-gradient-to-r from-sky-50/60 via-indigo-50/40 to-slate-50 dark:from-sky-950/30 dark:via-indigo-950/20 dark:to-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${settings.proxy?.enabled ? "bg-emerald-500 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-500"}`}>
+                    <Network className="w-4 h-4" />
                   </div>
-                )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Step 4: Proxy Gateway Egress Status</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        settings.proxy?.enabled
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                          : "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20"
+                      }`}>
+                        {settings.proxy?.enabled ? `Active: ${settings.proxy.host}:${settings.proxy.port}` : "Direct Network (No Proxy)"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {settings.proxy?.enabled
+                        ? "All browser automation traffic and parallel fleet workers are routed through your configured proxy gateway."
+                        : "Traffic routes directly via the host network. Configure a dedicated proxy in the Proxy Network tab to avoid rate limits."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("proxy")}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Network className="w-3.5 h-3.5 text-sky-500" />
+                  Configure Proxy Network →
+                </button>
               </div>
             </div>
           </div>
@@ -3461,6 +3938,103 @@ export default function SettingsPage() {
                 </p>
               </div>
 
+              {/* Plugin Behavior Toggles */}
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Plugin Behavior Toggles</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">Saved to DB — applied every browser launch</span>
+                </div>
+
+                {/* Master Enable */}
+                <div className="bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">AntiCaptcha Enabled (Master Switch)</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">When OFF, extension loads but solving is disabled for all CAPTCHA types</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_enabled: !(settings.automation.anticaptcha_enabled ?? true) } })}
+                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0 ${(settings.automation.anticaptcha_enabled ?? true) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${(settings.automation.anticaptcha_enabled ?? true) ? "translate-x-5" : ""}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* CAPTCHA Type Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    { key: "anticaptcha_solve_recaptcha2" as const, label: "reCAPTCHA v2", desc: "Image challenge widgets (checkbox + select tiles)", defaultVal: true },
+                    { key: "anticaptcha_solve_invisible" as const, label: "Invisible reCAPTCHA", desc: "Score-based, no checkbox shown", defaultVal: true },
+                    { key: "anticaptcha_solve_recaptcha3" as const, label: "reCAPTCHA v3", desc: "Score-based, no visual challenge", defaultVal: true },
+                    { key: "anticaptcha_solve_hcaptcha" as const, label: "hCaptcha", desc: "Used on Harris County portals", defaultVal: true },
+                    { key: "anticaptcha_solve_turnstile" as const, label: "Cloudflare Turnstile", desc: "Modern invisible challenge", defaultVal: true },
+                    { key: "anticaptcha_solve_funcaptcha" as const, label: "FunCaptcha / Arkose", desc: "Puzzle-style challenges", defaultVal: true },
+                    { key: "anticaptcha_solve_geetest" as const, label: "GeeTest", desc: "Slider / puzzle CAPTCHA", defaultVal: true },
+                  ].map(({ key, label, desc, defaultVal }) => (
+                    <div key={key} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">{label}</div>
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, automation: { ...settings.automation, [key]: !((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) } })}
+                        className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer flex-shrink-0 ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-xs transition-transform ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Auxiliary Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    { key: "anticaptcha_auto_submit" as const, label: "Auto-Submit After Solve", desc: "Clicks the submit button automatically", defaultVal: false },
+                    { key: "anticaptcha_play_sounds" as const, label: "Play Notification Sounds", desc: "Audio alert on CAPTCHA solution", defaultVal: false },
+                  ].map(({ key, label, desc, defaultVal }) => (
+                    <div key={key} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">{label}</div>
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, automation: { ...settings.automation, [key]: !((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) } })}
+                        className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer flex-shrink-0 ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-xs transition-transform ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* reCAPTCHA v3 Score Slider */}
+                {(settings.automation.anticaptcha_solve_recaptcha3 ?? true) && (
+                  <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-lg px-3 py-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-indigo-800 dark:text-indigo-300">reCAPTCHA v3 Target Score</span>
+                      <span className="text-[11px] font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
+                        {(settings.automation.anticaptcha_recaptcha3_score ?? 0.3).toFixed(1)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.1} max={0.9} step={0.1}
+                      value={settings.automation.anticaptcha_recaptcha3_score ?? 0.3}
+                      onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_recaptcha3_score: parseFloat(e.target.value) } })}
+                      className="w-full accent-indigo-600 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[9px] text-indigo-400 dark:text-indigo-600 font-mono">
+                      <span>0.1 lenient</span><span>0.3 (V4 default)</span><span>0.9 strict</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => handleSave()}
@@ -3471,6 +4045,7 @@ export default function SettingsPage() {
                 {isSaving ? "Saving..." : "Save Extension Configuration"}
               </button>
             </div>
+
 
             {/* Step 3: API Key Balance Test */}
             <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-5 space-y-3">
@@ -3513,7 +4088,114 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Step 4: Extension Health Diagnostics */}
+            {/* One-Time Extension Toolbar Pinning & Persistent Profile Card */}
+            <div className="bg-gradient-to-r from-slate-50 to-indigo-50/40 dark:from-slate-950/60 dark:to-indigo-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
+                    <Pin className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    One-Time Extension Toolbar Pinning &amp; Persistent Profile Setup
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Configures Anti-Captcha into dedicated persistent browser profiles (<code>data/browser_profile/{settings.automation.browser_engine || "chrome"}/</code>) and pins it to the {getBrowserEngineLabel(settings.automation.browser_engine)} toolbar (<code>toolbar.pinned_actions</code> &amp; <code>extensions.pinned_extensions</code>).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSetupExtension}
+                  disabled={isSettingUpExtension}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {isSettingUpExtension ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Pin className="w-3.5 h-3.5" />
+                  )}
+                  Configure &amp; Pin Extension
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {/* Card 1: Toolbar Pinning Status */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between space-y-2">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Toolbar Pinning Status</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                        settings.automation.extension_setup_verified
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                          : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                      }`}>
+                        {settings.automation.extension_setup_verified ? "Pinned & Verified" : "Pending Setup"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {settings.automation.extension_setup_verified
+                        ? `Anti-Captcha is pinned to the ${getBrowserEngineLabel(settings.automation.browser_engine)} browser toolbar and ready for instant automated CAPTCHA solving.`
+                        : "Click 'Configure & Pin Extension' to initialize toolbar action pinning in Preferences."}
+                    </p>
+                  </div>
+                  {settings.automation.extension_setup_timestamp && (
+                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate">
+                        Last Configured: {settings.automation.extension_setup_timestamp}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 2: Persistent Profile Target & Action ID */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between space-y-2">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Persistent Profile Target</span>
+                      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">
+                        {settings.automation.browser_engine || "chrome"}
+                      </span>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                      <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300 break-all select-all">
+                        backend/data/browser_profile/{settings.automation.browser_engine || "chrome"}/
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Action ID:</span>
+                      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">Preferences Key</span>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100/80 dark:border-indigo-900/50">
+                      <code className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono break-all select-all block leading-tight">
+                        kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {extensionSetupResult && (
+                <div className={`rounded-xl p-3 text-xs border space-y-1 ${
+                  (extensionSetupResult.verified || extensionSetupResult.success)
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                    : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+                }`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {(extensionSetupResult.verified || extensionSetupResult.success) ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5" />
+                    )}
+                    {extensionSetupResult.message}
+                  </div>
+                  <div className="text-[10px] opacity-70 font-mono">
+                    Target: {extensionSetupResult.persistent_profile_path || extensionSetupResult.profile_dir || "backend/data/browser_profile/"} • Pinned: {String(extensionSetupResult.pinned_to_toolbar ?? extensionSetupResult.toolbar_action_verified ?? true)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Step 4: Extension Health Diagnostics (Placed immediately before Live Browser Launch Test) */}
             <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
                 <div className="space-y-0.5">
@@ -3550,7 +4232,7 @@ export default function SettingsPage() {
                             <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{item.okText}</span>
                           ) : (
                             <span className={`flex items-center gap-1 ${item.warn ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
-                              {item.warn ? <AlertTriangle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}{item.failText}
+                              {item.warn ? <AlertTriangle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />} {item.failText}
                             </span>
                           )}
                         </div>
@@ -3566,7 +4248,7 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Step 5: Browser Launch Test */}
+            {/* Step 5: Live Browser Launch Test (Placed after Extension Health Diagnostics) */}
             <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
                 <div className="space-y-0.5">
@@ -3575,7 +4257,7 @@ export default function SettingsPage() {
                     Live Browser Launch Test
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Launches a real browser with the AntiCaptcha extension loaded and navigates to a test page to confirm the CAPTCHA-solving pipeline works end-to-end.
+                    Opens {getBrowserEngineLabel(settings.automation.browser_engine)} with Anti-Captcha automatically configured and pinned to the toolbar, loading the live verification console.
                   </p>
                 </div>
                 <button
@@ -3585,7 +4267,7 @@ export default function SettingsPage() {
                   className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
                 >
                   {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                  {isTestingBrowser ? "Testing Browser..." : "Launch Browser Test"}
+                  {isTestingBrowser ? "Opening Browser..." : "Launch Browser Test"}
                 </button>
               </div>
               {browserTestResult && (
@@ -3605,93 +4287,9 @@ export default function SettingsPage() {
               )}
               {!browserTestResult && (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Mode: <strong className="text-slate-700 dark:text-slate-300">{!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}</strong>.
+                  Mode: <strong className="text-slate-700 dark:text-slate-300">{!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}</strong> ({getBrowserEngineLabel(settings.automation.browser_engine)}).
                   Change in the <button onClick={() => setActiveTab("automation")} className="text-indigo-500 hover:underline cursor-pointer">Browser &amp; CAPTCHA</button> tab.
                 </p>
-              )}
-            </div>
-          
-
-            {/* One-Time Extension Toolbar Pinning & Persistent Profile Card */}
-            <div className="bg-gradient-to-r from-slate-50 to-indigo-50/40 dark:from-slate-950/60 dark:to-indigo-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                    <Pin className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    One-Time Extension Toolbar Pinning &amp; Persistent Profile Setup
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Configures Anti-Captcha once into persistent profile (<code>data/browser_profile/</code>) and pins it to the modern Chromium toolbar (<code>toolbar.pinned_actions</code>). Subsequent scraper runs reuse this profile without repeated overhead.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSetupExtension}
-                  disabled={isSettingUpExtension}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {isSettingUpExtension ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Pin className="w-3.5 h-3.5" />
-                  )}
-                  Configure &amp; Pin Extension
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Toolbar Pinning Status</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      settings.automation.extension_setup_verified
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                        : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                    }`}>
-                      {settings.automation.extension_setup_verified ? "Pinned & Verified" : "Pending Setup"}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                    {settings.automation.extension_setup_verified
-                      ? "Anti-Captcha is pinned to the Chromium browser toolbar and ready for instant automated CAPTCHA solving."
-                      : "Click 'Configure & Pin Extension' to initialize toolbar action pinning in Preferences."}
-                  </p>
-                  {settings.automation.extension_setup_timestamp && (
-                    <p className="text-[10px] text-slate-400 font-mono">
-                      Last Configured: {settings.automation.extension_setup_timestamp}
-                    </p>
-                  )}
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Persistent Profile Target</span>
-                  <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300">
-                    backend/data/browser_profile/
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    Action ID: <code className="text-indigo-600 dark:text-indigo-400 font-mono">kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj</code>
-                  </p>
-                </div>
-              </div>
-
-              {extensionSetupResult && (
-                <div className={`rounded-xl p-3 text-xs border space-y-1 ${
-                  extensionSetupResult.verified
-                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-                    : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
-                }`}>
-                  <div className="flex items-center gap-2 font-bold">
-                    {extensionSetupResult.verified ? (
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    ) : (
-                      <AlertCircle className="w-3.5 h-3.5" />
-                    )}
-                    {extensionSetupResult.message}
-                  </div>
-                  <div className="text-[10px] opacity-70 font-mono">
-                    Target: {extensionSetupResult.persistent_profile_path} • Pinned: {String(extensionSetupResult.pinned_to_toolbar)}
-                  </div>
-                </div>
               )}
             </div>
           </div>
@@ -3702,31 +4300,56 @@ export default function SettingsPage() {
         {/* ========================================================= */}
         {activeTab === "proxy" && (
           <div className="space-y-6 w-full">
+            {/* Header banner */}
             <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg shadow-slate-900/20">
               <div className="flex items-center gap-3 mb-2">
                 <Network className="w-6 h-6 text-slate-300" />
                 <h3 className="text-xl font-bold">Proxy Pool Settings</h3>
               </div>
               <p className="text-sm text-slate-300 max-w-2xl">
-                Configure a dedicated proxy server to route all automation traffic through. 
+                Configure a dedicated proxy server to route all automation traffic through.
                 This helps distribute requests and avoid IP bans from county court portals.
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm w-full">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                <Network className="w-4 h-4 text-slate-400" />
-                Proxy Connection Details
-              </h4>
+            {/* Connection details card */}
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <Network className="w-5 h-5 text-indigo-500" />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Proxy Connection Details</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Configure and validate your proxy server before enabling automation traffic routing.
+                    </p>
+                  </div>
+                </div>
+                {/* Test Proxy Button — shown only when enabled and host is set */}
+                {settings?.proxy?.enabled && settings?.proxy?.host?.trim() && (
+                  <button
+                    type="button"
+                    id="btn-test-proxy-connection"
+                    onClick={handleTestProxy}
+                    disabled={isTestingProxy}
+                    className="shrink-0 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer inline-flex items-center gap-2 shadow-xs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingProxy ? "animate-spin" : ""}`} />
+                    {isTestingProxy ? "Testing Proxy..." : "Test Proxy Connection"}
+                  </button>
+                )}
+              </div>
+
               <div className="space-y-6 w-full">
+                {/* Enable toggle */}
                 <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full">
                   <input
                     type="checkbox"
+                    id="proxy-enabled-toggle"
                     checked={settings?.proxy?.enabled ?? false}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
-                        proxy: { ...(settings?.proxy || { host: "", port: 8080 }), enabled: e.target.checked },
+                        proxy: { ...(settings?.proxy || { host: "", port: 3128 }), enabled: e.target.checked },
                       } as SystemSettings)
                     }
                     className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
@@ -3739,10 +4362,12 @@ export default function SettingsPage() {
 
                 {settings?.proxy?.enabled && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                    {/* Host */}
                     <div className="w-full">
                       <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Proxy Host / IP</label>
                       <input
                         type="text"
+                        id="proxy-host"
                         value={settings?.proxy?.host || ""}
                         onChange={(e) =>
                           setSettings({
@@ -3754,24 +4379,28 @@ export default function SettingsPage() {
                         className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
                       />
                     </div>
+                    {/* Port */}
                     <div className="w-full">
                       <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Port</label>
                       <input
                         type="number"
-                        value={settings?.proxy?.port || 8080}
+                        id="proxy-port"
+                        value={settings?.proxy?.port || 3128}
                         onChange={(e) =>
                           setSettings({
                             ...settings,
-                            proxy: { ...(settings?.proxy || {}), port: parseInt(e.target.value) || 8080 },
+                            proxy: { ...(settings?.proxy || {}), port: parseInt(e.target.value) || 3128 },
                           } as SystemSettings)
                         }
                         className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
                       />
                     </div>
+                    {/* Username */}
                     <div className="w-full">
                       <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Username (Optional)</label>
                       <input
                         type="text"
+                        id="proxy-username"
                         value={settings?.proxy?.username || ""}
                         onChange={(e) =>
                           setSettings({
@@ -3783,10 +4412,12 @@ export default function SettingsPage() {
                         className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
                       />
                     </div>
+                    {/* Password */}
                     <div className="w-full">
                       <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password (Optional)</label>
                       <input
                         type="password"
+                        id="proxy-password"
                         value={settings?.proxy?.password || ""}
                         onChange={(e) =>
                           setSettings({
@@ -3801,7 +4432,62 @@ export default function SettingsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Proxy Test Result Card */}
+              {proxyTestResult && (
+                <div
+                  id="proxy-test-result-card"
+                  className={`mt-2 p-4 rounded-xl border text-xs space-y-2 ${
+                    proxyTestResult.success
+                      ? "bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/20 dark:border-emerald-800/50"
+                      : "bg-rose-500/10 border-rose-500/30 dark:bg-rose-950/20 dark:border-rose-800/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold">
+                    {proxyTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-500" />
+                    )}
+                    <span
+                      className={
+                        proxyTestResult.success
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-rose-700 dark:text-rose-300"
+                      }
+                    >
+                      {proxyTestResult.success ? "Proxy Reachable" : "Proxy Connection Failed"}
+                    </span>
+                    <span className="ml-auto font-mono text-slate-500 dark:text-slate-400">
+                      {proxyTestResult.duration_ms}ms
+                    </span>
+                  </div>
+                  <p className="text-slate-700 dark:text-slate-300">{proxyTestResult.message}</p>
+                  {proxyTestResult.http_status && (
+                    <div className="font-mono text-slate-500 dark:text-slate-400">
+                      HTTP {proxyTestResult.http_status} · via {proxyTestResult.host}:{proxyTestResult.port}
+                      {proxyTestResult.authenticated ? " (authenticated)" : " (no auth)"}
+                    </div>
+                  )}
+                  {proxyTestResult.error_detail && (
+                    <pre className="mt-1 p-2 bg-rose-950/30 rounded text-[10px] text-rose-300 overflow-x-auto whitespace-pre-wrap break-all">
+                      {proxyTestResult.error_detail}
+                    </pre>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Info callout when proxy is disabled */}
+            {!settings?.proxy?.enabled && (
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2">
+                <Network className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" />
+                <span>
+                  Proxy routing is <strong>disabled</strong>. Scraper bots use your direct internet connection.
+                  Enable the proxy above to route all Playwright browser traffic through a dedicated proxy server.
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -5178,9 +5864,9 @@ export default function SettingsPage() {
               {/* ==================================================== */}
               {(() => {
                 const renderEditor = () => (
-                  <div className="space-y-4">
+                  <div className="space-y-4 flex flex-col h-full">
                     {/* Subject Line Input */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 shrink-0">
                       <div className="flex items-center justify-between">
                         <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
                           Subject Line Template
@@ -5208,7 +5894,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Format Tabs & Token Target */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-800 shrink-0">
                       <div className="flex items-center gap-2">
                         <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
                           Body Format:
@@ -5254,7 +5940,7 @@ export default function SettingsPage() {
 
                     {/* DYNAMIC PARAMETER PALETTE (Collapsible) */}
                     {isTokensPaletteOpen && (
-                      <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-950 bg-indigo-50/40 dark:bg-indigo-950/15 space-y-3">
+                      <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-950 bg-indigo-50/40 dark:bg-indigo-950/15 space-y-3 shrink-0">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <Tag className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -5315,8 +6001,8 @@ export default function SettingsPage() {
                     )}
 
                     {/* Code Editor Textarea */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
+                    <div className="space-y-1.5 flex-1 flex flex-col min-h-0">
+                      <div className="flex items-center justify-between shrink-0">
                         <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
                           {templateEditFormat === "html"
                             ? "HTML Body Template (Responsive Email Layout)"
@@ -5342,7 +6028,7 @@ export default function SettingsPage() {
                           }}
                           placeholder="Write HTML markup here..."
                           spellCheck={false}
-                          className="w-full bg-slate-950 text-emerald-400 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner"
+                          className="w-full flex-1 min-h-[360px] bg-slate-950 text-emerald-400 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner resize-y"
                         />
                       ) : (
                         <textarea
@@ -5360,7 +6046,7 @@ export default function SettingsPage() {
                           }}
                           placeholder="Plain text fallback body..."
                           spellCheck={false}
-                          className="w-full bg-slate-950 text-slate-200 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner"
+                          className="w-full flex-1 min-h-[360px] bg-slate-950 text-slate-200 border border-slate-800 rounded-xl p-4 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500 transition-colors shadow-inner resize-y"
                         />
                       )}
                     </div>
@@ -5368,8 +6054,8 @@ export default function SettingsPage() {
                 );
 
                 const renderPreview = () => (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="space-y-3 flex flex-col h-full">
+                    <div className="flex items-center justify-between shrink-0">
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         <Eye className="w-3.5 h-3.5 text-indigo-500" />
                         Live Synchronized Render Preview
@@ -5394,7 +6080,7 @@ export default function SettingsPage() {
                     </div>
 
                     {!isLivePreviewEnabled ? (
-                      <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center bg-slate-50/50 dark:bg-slate-950/20 space-y-3">
+                      <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center bg-slate-50/50 dark:bg-slate-950/20 space-y-3 flex-1 flex flex-col items-center justify-center">
                         <EyeOff className="w-8 h-8 mx-auto text-slate-400" />
                         <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Live Preview Paused</h4>
                         <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -5409,9 +6095,9 @@ export default function SettingsPage() {
                         </button>
                       </div>
                     ) : (
-                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-inner">
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-inner flex-1 flex flex-col min-h-0">
                       {/* Subject Banner */}
-                      <div className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2">
+                      <div className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2 shrink-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono shrink-0">
                             Subject
@@ -5426,7 +6112,7 @@ export default function SettingsPage() {
                       </div>
 
                       {/* Rendered Viewport Frame */}
-                      <div className="p-4 sm:p-6 bg-slate-100 dark:bg-slate-950 overflow-y-auto max-h-[520px]">
+                      <div className="p-4 sm:p-6 bg-slate-100 dark:bg-slate-950 overflow-y-auto flex-1 min-h-[340px]">
                         {isLoadingTemplatePreview ? (
                           <div className="py-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                             <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
@@ -5460,14 +6146,14 @@ export default function SettingsPage() {
                             </div>
                           )
                         ) : (
-                          <pre className="p-4 overflow-y-auto max-h-[460px] text-xs font-mono text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950 whitespace-pre-wrap rounded-lg">
+                          <pre className="p-4 overflow-y-auto h-full text-xs font-mono text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950 whitespace-pre-wrap rounded-lg">
                             {templatePreviewText || "No plain text body defined."}
                           </pre>
                         )}
                       </div>
 
                       {/* Sample Context Mock Tokens */}
-                      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
                         <span className="font-semibold">Context Tokens:</span>
                         <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">Claim: 0100456789</span>
                         <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">Insured: JOHNATHAN DOE</span>
@@ -5482,7 +6168,7 @@ export default function SettingsPage() {
 
                 if (activeEditorTab === "split") {
                   return (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start w-full">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch w-full">
                       {renderEditor()}
                       {renderPreview()}
                     </div>
@@ -5602,14 +6288,36 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider select-none">
                         <tr>
-                          <th className="px-4 py-3">Timestamp</th>
-                          <th className="px-4 py-3">Event</th>
-                          <th className="px-4 py-3">Recipient</th>
-                          <th className="px-4 py-3">Subject</th>
-                          <th className="px-4 py-3">Provider</th>
-                          <th className="px-4 py-3">Status</th>
+                          {[
+                            { key: "created_at", label: "Timestamp" },
+                            { key: "event_type", label: "Event" },
+                            { key: "recipient", label: "Recipient" },
+                            { key: "subject", label: "Subject" },
+                            { key: "provider", label: "Provider" },
+                            { key: "status", label: "Status" },
+                          ].map((col) => (
+                            <th
+                              key={col.key}
+                              onClick={() => handleSortHistory(col.key)}
+                              className="px-4 py-3 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-colors"
+                              title={`Click to sort by ${col.label}`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>{col.label}</span>
+                                {historySortBy === col.key ? (
+                                  historySortOrder === "asc" ? (
+                                    <ArrowUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                  ) : (
+                                    <ArrowDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                  )
+                                ) : (
+                                  <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-slate-500 opacity-40 hover:opacity-100" />
+                                )}
+                              </div>
+                            </th>
+                          ))}
                           <th className="px-4 py-3 text-right">Delivery Proof</th>
                         </tr>
                       </thead>

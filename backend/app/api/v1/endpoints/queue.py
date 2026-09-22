@@ -545,11 +545,21 @@ async def run_selected_claims(
     request: Request = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Run a specific batch of selected claims in parallel."""
+    """Run a specific batch of selected claims, respecting max_concurrent_claims fleet limit."""
     await _validate_anticaptcha()
-    
+
     if not payload.claim_ids:
         return {"message": "No claim IDs provided", "count": 0}
+
+    # ── FLEET CONCURRENCY GATE ────────────────────────────────────────────────
+    from app.services.settings_service import get_system_settings_async as _get_settings
+    runtime_settings = await _get_settings()
+    max_concurrency = max(1, min(10, int(getattr(runtime_settings.automation, "max_concurrent_claims", 1) or 1)))
+
+    active_q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
+    active_res = await db.execute(active_q)
+    active_count = len(list(active_res.scalars().all()))
+    available_slots = max(0, max_concurrency - active_count)
 
     res = await db.execute(
         select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
@@ -558,33 +568,51 @@ async def run_selected_claims(
     from app.tasks.queue_runner import add_active_queue_item_id
 
     dispatched = []
-    for c in claims:
-        c.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
-        c.retry_count += 1
-        add_active_queue_item_id(c.id)
-        celery_app.send_task(
-            "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
-            args=[c.id],
-            queue="scrapers",
-        )
-        dispatched.append(c.id)
+    queued = []
+
+    for i, c in enumerate(claims):
+        if i < available_slots:
+            # Dispatch immediately — slot available
+            c.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
+            c.retry_count += 1
+            add_active_queue_item_id(c.id)
+            celery_app.send_task(
+                "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
+                args=[c.id],
+                queue="scrapers",
+            )
+            dispatched.append(c.id)
+        else:
+            # No slot available — queue for sequential pickup
+            c.record_status = RecordStatusEnum.NEW
+            queued.append(c.id)
 
     await db.commit()
+
+    msg = f"Dispatched {len(dispatched)} claim(s) immediately (fleet limit: {max_concurrency}x)."
+    if queued:
+        msg += f" {len(queued)} claim(s) queued for sequential pickup as slots free up."
 
     ctx = extract_client_context(request)
     record_audit_event_background(
         action="QUEUE_SELECTED_DISPATCHED",
         entity_type="QUEUE",
-        description=f"Operator launched {len(dispatched)} selected claims concurrently",
+        description=msg,
         user_id=ctx["user_id"],
         user_email=ctx["user_email"],
         ip_address=ctx["ip_address"],
         user_agent=ctx["user_agent"],
         status="SUCCESS",
-        details={"claim_ids": dispatched},
+        details={"dispatched": dispatched, "queued_sequential": queued, "fleet_limit": max_concurrency},
     )
 
-    return {"message": f"Dispatched {len(dispatched)} claims for parallel execution.", "count": len(dispatched), "claim_ids": dispatched}
-
+    return {
+        "message": msg,
+        "count": len(dispatched),
+        "dispatched_immediately": len(dispatched),
+        "queued_sequential": len(queued),
+        "fleet_limit": max_concurrency,
+        "claim_ids": dispatched,
+    }
 
 

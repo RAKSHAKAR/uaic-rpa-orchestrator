@@ -35,6 +35,8 @@ import {
   Activity,
   Layers,
   Download,
+  Eye,
+  FileText,
 } from "lucide-react";
 
 type SortField =
@@ -52,6 +54,52 @@ export default function ExceptionReviewPage() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  // Match Inspection Modal State
+  const [selectedMatch, setSelectedMatch] = useState<MatchPair | null>(null);
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [reviewerName, setReviewerName] = useState("Claims Adjuster");
+
+  const openInspection = (match: MatchPair) => {
+    setSelectedMatch(match);
+    setReviewNotes(match.review_notes || "");
+    setReviewerName(match.reviewed_by || "Claims Adjuster");
+  };
+
+  const highlightMatchTokens = (text: string, query: string) => {
+    if (!text || !query) return <span>{text || ""}</span>;
+    const queryTokens = query
+      .toLowerCase()
+      .split(/\s+/)
+      .map((t) => t.replace(/[^a-z0-9]/gi, ""))
+      .filter((t) => t.length > 1);
+
+    if (queryTokens.length === 0) return <span>{text}</span>;
+
+    const words = text.split(/(\s+|[.,;/-]+)/);
+
+    return (
+      <span>
+        {words.map((part, idx) => {
+          const cleanPart = part.toLowerCase().replace(/[^a-z0-9]/gi, "");
+          const isMatched =
+            cleanPart.length > 1 &&
+            queryTokens.some((qt) => cleanPart.includes(qt) || qt.includes(cleanPart));
+          if (isMatched) {
+            return (
+              <mark
+                key={idx}
+                className="bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-1 rounded-xs"
+              >
+                {part}
+              </mark>
+            );
+          }
+          return <span key={idx}>{part}</span>;
+        })}
+      </span>
+    );
+  };
 
   // View Mode: Table or Cards
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
@@ -88,17 +136,25 @@ export default function ExceptionReviewPage() {
 
   const handleDecision = async (
     matchId: string,
-    decision: "APPROVED" | "REJECTED"
+    decision: "APPROVED" | "REJECTED",
+    notes?: string,
+    reviewer: string = "Claims Adjuster"
   ) => {
     setActionInProgress(matchId);
     setFeedback(null);
     try {
-      await api.reviewMatchPair(matchId, decision, "Operations Lead");
+      await api.reviewMatchPair(matchId, decision, reviewer, notes);
       setFeedback({
         type: "success",
-        msg: `Match pair successfully marked as ${decision === "APPROVED" ? "Approved" : "Rejected"}.`,
+        msg: `Match pair successfully marked as ${
+          decision === "APPROVED" ? "Approved" : "Rejected"
+        }${notes ? " with adjuster notes" : ""}.`,
       });
       setPendingMatches((prev) => prev.filter((m) => m.id !== matchId));
+      if (selectedMatch?.id === matchId) {
+        setSelectedMatch(null);
+        setReviewNotes("");
+      }
     } catch (err) {
       setFeedback({ type: "error", msg: "Failed to update review decision." });
     } finally {
@@ -339,10 +395,10 @@ export default function ExceptionReviewPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col w-full">
+    <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={loadPending} isRefreshing={isLoading} />
 
-      <main className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none flex-1 transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Title Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div>
@@ -641,7 +697,9 @@ export default function ExceptionReviewPage() {
                         return (
                           <tr
                             key={match.id}
-                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                            onClick={() => openInspection(match)}
+                            className="hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                            title="Click to inspect full claim and court case details"
                           >
                             <td className="py-3 px-4 whitespace-nowrap">
                               <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -649,8 +707,11 @@ export default function ExceptionReviewPage() {
                               </span>
                             </td>
                             <td className="py-3 px-4 whitespace-nowrap">
-                              <div className="font-medium text-slate-900 dark:text-slate-100">
-                                {match.party_name}
+                              <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                <span>{match.party_name}</span>
+                                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500">
+                                  <Eye className="w-3.5 h-3.5" />
+                                </span>
                               </div>
                             </td>
                             <td className="py-3 px-4 whitespace-nowrap">
@@ -696,8 +757,16 @@ export default function ExceptionReviewPage() {
                             <td className="py-3 px-4 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
                               {match.filing_date || "N/A"}
                             </td>
-                            <td className="py-3 px-4 whitespace-nowrap text-right">
+                            <td className="py-3 px-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => openInspection(match)}
+                                  className="px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md transition-colors cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800/50"
+                                  title="Inspect full match evidence, claim details, and adjuster resolution notes"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Inspect</span>
+                                </button>
                                 <button
                                   onClick={() => handleDecision(match.id, "REJECTED")}
                                   disabled={actionInProgress === match.id}
@@ -795,21 +864,30 @@ export default function ExceptionReviewPage() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <button
-                          onClick={() => handleDecision(match.id, "REJECTED")}
-                          disabled={actionInProgress === match.id}
-                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          onClick={() => openInspection(match)}
+                          className="px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800/50"
                         >
-                          Reject
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Inspect Details</span>
                         </button>
-                        <button
-                          onClick={() => handleDecision(match.id, "APPROVED")}
-                          disabled={actionInProgress === match.id}
-                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          Approve Match
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleDecision(match.id, "REJECTED")}
+                            disabled={actionInProgress === match.id}
+                            className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => handleDecision(match.id, "APPROVED")}
+                            disabled={actionInProgress === match.id}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            Approve Match
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -878,6 +956,313 @@ export default function ExceptionReviewPage() {
           searchTerm={searchTerm}
           totalRecordsCount={totalFilteredCount}
         />
+
+        {/* Candidate Match Inspection & Adjuster Resolution Modal */}
+        {selectedMatch && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+            onClick={() => setSelectedMatch(null)}
+          >
+            <div
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400">
+                    <Scale className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                        Candidate Match Inspection & Resolution
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+                        {selectedMatch.county_name || "Court Portal"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      Match Evaluation ID: {selectedMatch.id}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* Similarity Badge */}
+                  <div className="text-right">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500">Confidence:</span>
+                      <span
+                        className={`font-mono text-sm font-black px-2 py-0.5 rounded-md ${
+                          (selectedMatch.similarity_score || 0) >= 0.6
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+                            : (selectedMatch.similarity_score || 0) >= 0.4
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+                            : "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400"
+                        }`}
+                      >
+                        {((selectedMatch.similarity_score || 0) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      Threshold: {((selectedMatch.threshold_applied || 0.6) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedMatch(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    aria-label="Close modal"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto space-y-6">
+                {/* Side-by-Side Dual Pane Comparison Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left Pane: Insurance Claim Master */}
+                  <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                        Insurance Claim Master
+                      </span>
+                      {selectedMatch.claim_id && (
+                        <Link
+                          href={`/claims/${selectedMatch.claim_id}`}
+                          target="_blank"
+                          className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                        >
+                          View Claim <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Claim Number</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                          {selectedMatch.claim_number || selectedMatch.claim_id?.substring(0, 8) || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Exposure #</span>
+                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                          {selectedMatch.exposure_number || "001"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Date of Loss (DOL)</span>
+                        <span className="font-mono text-slate-700 dark:text-slate-300">
+                          {selectedMatch.dol || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Jurisdiction</span>
+                        <span className="text-slate-700 dark:text-slate-300">
+                          Policy: <strong className="font-mono">{selectedMatch.policy_state || "FL"}</strong> | Loss:{" "}
+                          <strong className="font-mono">{selectedMatch.loss_location_state || "FL"}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-1.5 text-xs">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Claim Parties</span>
+                      <div className="flex items-center justify-between p-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                        <span className="text-slate-500 text-[11px]">Insured:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedMatch.insured_name || "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                        <span className="text-slate-500 text-[11px]">Claimant:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedMatch.claimant_name || "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-1.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                        <span className="text-slate-500 text-[11px]">Driver:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedMatch.driver_name || "N/A"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Pane: Discovered Public Court Docket */}
+                  <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <Scale className="w-3.5 h-3.5 text-purple-500" />
+                        Discovered Court Docket
+                      </span>
+                      {selectedMatch.county_website ? (
+                        <a
+                          href={selectedMatch.county_website}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+                        >
+                          Court Portal <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">Portal Online</span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Docket / Case #</span>
+                        <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+                          {selectedMatch.case_number || "Unknown"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Filing Date</span>
+                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedMatch.filing_date || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Case Status</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          {selectedMatch.case_status || "Active / Open"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Case Type</span>
+                        <span className="text-slate-700 dark:text-slate-300 truncate block" title={selectedMatch.case_type || "N/A"}>
+                          {selectedMatch.case_type || "Civil / Auto Negligence"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-1 text-xs">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Full Case Style</span>
+                      <p className="p-2.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-medium text-xs leading-relaxed max-h-24 overflow-y-auto">
+                        {selectedMatch.case_style}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Matching Engine Evidence & Token Highlight Box */}
+                <div className="p-4 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      Matching Engine Evidence & Token Overlap
+                    </span>
+                    <span className="text-[11px] font-mono text-purple-700 dark:text-purple-400">
+                      Algorithm: RapidFuzz partial_ratio
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-100 dark:border-purple-900/40">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Party Evaluated</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                        {selectedMatch.party_name}
+                      </span>
+                      <span className="block text-[10px] text-purple-600 dark:text-purple-400 font-semibold mt-0.5">
+                        Role: {selectedMatch.party_type}
+                      </span>
+                    </div>
+
+                    <div className="md:col-span-2 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-100 dark:border-purple-900/40">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                        Token Overlap in Docket Case Style
+                      </span>
+                      <div className="text-xs text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
+                        {highlightMatchTokens(selectedMatch.case_style, selectedMatch.party_name)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-purple-100 dark:border-purple-900/40 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 dark:text-slate-400">Match Classification:</span>
+                      {(selectedMatch.similarity_score || 0) >= 0.6 ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                          Strong Match (≥60%) — Recommended for Guidewire Sync
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                          Borderline Match (40%–59%) — Adjuster Discretion Required
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      Filing Date Filter: Compliant (&gt;= 2010)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Adjuster Resolution & Justification Notes Box */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-indigo-500" />
+                      Adjuster Legal Justification & Decision Notes
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Reviewer:</span>
+                      <input
+                        type="text"
+                        value={reviewerName}
+                        onChange={(e) => setReviewerName(e.target.value)}
+                        className="text-xs px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium"
+                        placeholder="Claims Adjuster"
+                      />
+                    </div>
+                  </div>
+
+                  <textarea
+                    value={reviewNotes}
+                    onChange={(e) => setReviewNotes(e.target.value)}
+                    rows={3}
+                    className="w-full text-xs p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-500 placeholder:text-slate-400"
+                    placeholder="Enter adjuster justification, DOB/VIN cross-check observations, or reasons for approval/rejection (saved to Audit Log & Guidewire payload)..."
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
+                <button
+                  onClick={() => setSelectedMatch(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel & Close
+                </button>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => handleDecision(selectedMatch.id, "REJECTED", reviewNotes, reviewerName)}
+                    disabled={actionInProgress === selectedMatch.id}
+                    className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>Reject Match</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDecision(selectedMatch.id, "APPROVED", reviewNotes, reviewerName)}
+                    disabled={actionInProgress === selectedMatch.id}
+                    className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Approve Match & Sync Guidewire</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

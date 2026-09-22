@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, select
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -211,6 +211,8 @@ async def get_notifications(
     status: str | None = Query(None, description="Filter by status: SENT, FAILED, QUEUED, SENDING, SKIPPED"),
     event_type: str | None = Query(None, description="Filter by event type"),
     search: str | None = Query(None, description="Search recipient, subject, or claim number"),
+    sort_by: str = Query("created_at", description="Field to sort by: created_at, event_type, recipient, subject, provider, status, latency_ms"),
+    sort_order: str = Query("desc", description="Sort order: 'desc' (default) or 'asc'"),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Retrieve paginated notification delivery history with filtering and search."""
@@ -235,10 +237,31 @@ async def get_notifications(
     total_res = await db.execute(count_query)
     total_count = total_res.scalar() or 0
 
-    # Paginate and order by newest first
-    query = query.order_by(desc(Notification.created_at)).offset((page - 1) * page_size).limit(page_size)
+    # Resolve sorting column and direction
+    sort_col_map = {
+        "created_at": Notification.created_at,
+        "timestamp": Notification.created_at,
+        "event_type": Notification.event_type,
+        "event": Notification.event_type,
+        "recipient": Notification.recipient,
+        "subject": Notification.subject,
+        "provider": Notification.provider,
+        "status": Notification.status,
+    }
+    col = sort_col_map.get((sort_by or "").lower().strip(), Notification.created_at)
+    order_clause = asc(col) if (sort_order or "").lower().strip() == "asc" else desc(col)
+
+    # Paginate and order
+    query = query.order_by(order_clause).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     items = result.scalars().all()
+
+    def _format_ts(val: Any) -> str | None:
+        if val is None:
+            return None
+        if hasattr(val, "isoformat"):
+            return val.isoformat()
+        return str(val)
 
     serialized = []
     for item in items:
@@ -255,9 +278,9 @@ async def get_notifications(
             "status": item.status,
             "error_message": item.error_message,
             "retry_count": item.retry_count,
-            "created_at": item.created_at.isoformat() if item.created_at else "",
-            "sent_at": item.sent_at.isoformat() if item.sent_at else None,
-            "failed_at": item.failed_at.isoformat() if item.failed_at else None,
+            "created_at": _format_ts(item.created_at) or "",
+            "sent_at": _format_ts(item.sent_at),
+            "failed_at": _format_ts(item.failed_at),
             "delivery_receipt": item.delivery_receipt,
             "details": item.details,
         })

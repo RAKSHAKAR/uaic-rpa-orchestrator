@@ -537,7 +537,7 @@ function Invoke-StartAllServices {
 
     Write-LogMessage "Launching background service windows..." "INFO"
     Start-EncodedWindow "FastAPI Backend (port 8000)" "Set-Location '$backendDir'; & '$pyExe' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    Start-EncodedWindow "Celery Worker [$activeMode RPA]" "Set-Location '$backendDir'; & '$pyExe' -m celery -A app.core.celery_app.celery_app worker -E --loglevel=info -Q ingest,scrapers,matcher,notifications,default -P solo"
+    Start-EncodedWindow "Celery Worker [$activeMode RPA]" "Set-Location '$backendDir'; & '$pyExe' -m celery -A app.core.celery_app.celery_app worker -E --loglevel=info -Q ingest,scrapers,matcher,notifications,default --pool=threads --concurrency=10"
     Start-EncodedWindow "Celery Beat Scheduler" "Set-Location '$backendDir'; & '$pyExe' -m celery -A app.core.celery_app.celery_app beat --loglevel=info"
     Start-EncodedWindow "Celery Flower Monitor (port 5555)" "Set-Location '$backendDir'; & '$pyExe' -m celery -A app.core.celery_app.celery_app flower --port=5555"
     Start-EncodedWindow "Next.js Frontend (port 3000)" "Set-Location '$frontendDir'; npm.cmd run dev"

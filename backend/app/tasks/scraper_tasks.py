@@ -26,6 +26,7 @@ from app.automation.texas import (
     TravisScraper,
 )
 from app.core.celery_app import celery_app
+from app.core.config import settings
 from app.core.database import TaskAsyncSessionLocal
 from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
 from app.models.court_case import ScrapedCourtCase
@@ -81,6 +82,89 @@ def normalize_court_date(val: str | None) -> str | None:
 def health_ping_task(message: str = "PING") -> str:
     """Dummy task used to verify worker connectivity during E2E diagnostic tests."""
     return f"PONG: {message}"
+
+
+# ── Fleet Concurrency: Redis Distributed Semaphore ───────────────────────────
+# Enforces max_concurrent_claims regardless of whether tasks arrive via
+# queue_runner (auto-mode) or direct API bulk-start. Each Celery worker
+# must acquire a slot before launching a Chrome browser session.
+BROWSER_SEMAPHORE_KEY = "uaic:browser:active_count"
+
+
+async def _acquire_browser_slot(max_concurrency: int, claim_id: str, timeout: int = 600) -> bool:
+    """Atomically acquire a browser slot via Redis Lua script. Blocks up to `timeout` seconds.
+
+    Fails CLOSED by default: if Redis is unavailable, the slot is NOT granted and the claim
+    is marked FAILED. Set SEMAPHORE_BYPASS=true in .env to override for dev environments.
+    """
+    import os as _os
+
+    import redis as redis_lib
+
+    # Dev bypass: allow opt-in for environments without Redis
+    if _os.environ.get("SEMAPHORE_BYPASS", "").lower() in ("true", "1", "yes"):
+        logger.warning(f"[FLEET] SEMAPHORE_BYPASS active — skipping concurrency gate for claim {claim_id}.")
+        return True
+
+    try:
+        r = redis_lib.Redis.from_url(
+            settings.CELERY_BROKER_URL,
+            socket_connect_timeout=2.0,
+            socket_timeout=2.0,
+        )
+        lua = (
+            "local c = tonumber(redis.call('get', KEYS[1]) or 0) "
+            "if c < tonumber(ARGV[1]) then "
+            "  redis.call('incr', KEYS[1]) "
+            "  redis.call('expire', KEYS[1], 7200) "
+            "  return 1 "
+            "end "
+            "return 0"
+        )
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while loop.time() < deadline:
+            result = r.eval(lua, 1, BROWSER_SEMAPHORE_KEY, str(max_concurrency))
+            if result == 1:
+                logger.info(
+                    f"[FLEET] Browser slot acquired for claim {claim_id}. "
+                    f"Max concurrency: {max_concurrency}."
+                )
+                return True
+            await asyncio.sleep(3)
+        logger.warning(
+            f"[FLEET] Timeout waiting for browser slot for claim {claim_id} "
+            f"after {timeout}s. Fleet={max_concurrency}."
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            f"[FLEET] CRITICAL: Redis semaphore unavailable for claim {claim_id}: {e}. "
+            "Claim will be marked FAILED to prevent concurrency bypass. "
+            "Set SEMAPHORE_BYPASS=true in .env to allow execution without Redis."
+        )
+        # Fail CLOSED: do NOT grant the slot — prevents concurrency bypass on Redis failure
+        return False
+
+
+async def _release_browser_slot(claim_id: str):
+    """Atomically release a browser slot back to the pool."""
+    import redis as redis_lib
+    try:
+        r = redis_lib.Redis.from_url(
+            settings.CELERY_BROKER_URL,
+            socket_connect_timeout=2.0,
+            socket_timeout=2.0,
+        )
+        lua = (
+            "local c = tonumber(redis.call('get', KEYS[1]) or 0) "
+            "if c > 0 then redis.call('decr', KEYS[1]) end "
+            "return redis.call('get', KEYS[1])"
+        )
+        remaining = r.eval(lua, 1, BROWSER_SEMAPHORE_KEY)
+        logger.info(f"[FLEET] Browser slot released for claim {claim_id}. Remaining active: {remaining}.")
+    except Exception as e:
+        logger.warning(f"[FLEET] Redis semaphore release failed: {e}")
 
 
 async def _async_orchestrate_scrapers(
@@ -188,6 +272,42 @@ async def _async_orchestrate_scrapers(
                 await session.commit()
                 return
 
+        # If scrapers_to_run is empty and not a targeted single bot or retry run, auto-resolve targets from policy/loss state
+        if not scrapers_to_run and not single_bot_key and not retry_failed_only:
+            from app.services.excel_parser import resolve_county_bot_targets
+            resolved_targets = resolve_county_bot_targets(claim.policy_state, claim.loss_location_state)
+            logger.info(
+                f"Claim {claim.claim_number}: County targets not explicitly set. "
+                f"Auto-resolved from policy '{claim.policy_state}' / loss '{claim.loss_location_state}': {resolved_targets}"
+            )
+            claim.fl_website_broward = resolved_targets.get("fl_broward", "No")
+            claim.fl_website_hillsborough = resolved_targets.get("fl_hillsborough", "No")
+            claim.fl_website_miami = resolved_targets.get("fl_miami", "No")
+            claim.te_website_travis = resolved_targets.get("te_travis", "No")
+            claim.te_website_dallas = resolved_targets.get("te_dallas", "No")
+            claim.te_website_harris = resolved_targets.get("te_harris", "No")
+            claim.te_website_cclerk = resolved_targets.get("te_cclerk", "No")
+            claim.te_website_hcdistrict = resolved_targets.get("te_hcdistrict", "No")
+            await session.commit()
+
+            if claim.fl_website_broward == "Yes" and portals_cfg.broward_enabled:
+                scrapers_to_run.append(("broward", BrowardScraper(base_url=portals_cfg.broward_url, **scraper_kw), "fl_botstatus_broward", "fl_jsonbody_broward"))
+            if claim.fl_website_hillsborough == "Yes" and portals_cfg.hillsborough_enabled:
+                scrapers_to_run.append(("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough"))
+            if claim.fl_website_miami == "Yes" and portals_cfg.miami_enabled:
+                scrapers_to_run.append(("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami"))
+            if claim.te_website_travis == "Yes" and portals_cfg.travis_enabled:
+                scrapers_to_run.append(("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis"))
+            if claim.te_website_dallas == "Yes" and portals_cfg.dallas_enabled:
+                scrapers_to_run.append(("dallas", DallasScraper(base_url=portals_cfg.dallas_url, **scraper_kw), "te_botstatus_dallas", "te_jsonbody_dallas"))
+            if claim.te_website_harris == "Yes" and portals_cfg.harris_jp_enabled:
+                scrapers_to_run.append(("harris_jp", HarrisJPScraper(base_url=portals_cfg.harris_jp_url, **scraper_kw), "te_botstatus_harris", "te_jsonbody_harris"))
+            if claim.te_website_cclerk == "Yes" and portals_cfg.harris_cclerk_enabled:
+                scrapers_to_run.append(("harris_cclerk", HarrisCountyClerkScraper(base_url=portals_cfg.harris_cclerk_url, **scraper_kw), "te_botstatus_cclerk", "te_jsonbody_cclerk"))
+            if claim.te_website_hcdistrict == "Yes" and portals_cfg.harris_district_enabled:
+                scrapers_to_run.append(("harris_district", HarrisDistrictClerkScraper(base_url=portals_cfg.harris_district_url, **scraper_kw), "te_botstatus_hcdistrict", "te_jsonbody_hcdistrict"))
+
+
         # Check if ALL scrapers_to_run are currently in cooldown
         all_in_cooldown = True
         min_remaining = 0
@@ -291,6 +411,30 @@ async def _async_orchestrate_scrapers(
             proxy_username = proxy_cfg.username or None
             proxy_password = proxy_cfg.password or None
 
+        # ── FLEET CONCURRENCY GATE ──────────────────────────────────────────────
+        # Acquire a browser slot BEFORE launching Chrome. This enforces
+        # max_concurrent_claims at the task level regardless of Celery worker count.
+        max_concurrency = max(1, getattr(auto_cfg, "max_concurrent_claims", 1) or 1)
+        slot_acquired = await _acquire_browser_slot(max_concurrency, claim.claim_number)
+        if not slot_acquired:
+            claim.record_status = RecordStatusEnum.FAILED
+            claim.last_error = (
+                f"Fleet concurrency limit reached (max={max_concurrency}). "
+                "Claim timed out waiting for an available browser slot."
+            )
+            await session.commit()
+            try:
+                from app.tasks.queue_runner import (
+                    is_auto_queue_enabled,
+                    remove_active_queue_item_id,
+                )
+                remove_active_queue_item_id(claim.id)
+                if is_auto_queue_enabled():
+                    celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+            except Exception:
+                pass
+            return
+
         # Launch single Chrome browser session across all enabled portals for this claim
         try:
             browser_session_runner = SingleSessionBrowserRunner(
@@ -299,6 +443,7 @@ async def _async_orchestrate_scrapers(
                 use_chrome=auto_cfg.use_chrome_browser,
                 extension_dir=auto_cfg.chrome_extension_dir,
                 anticaptcha_api_key=auto_cfg.anticaptcha_api_key,
+                anticaptcha_settings=auto_cfg,
                 user_data_dir=auto_cfg.chrome_user_data_dir,
                 user_agent=auto_cfg.user_agent,
                 proxy_server=proxy_server,
@@ -369,6 +514,7 @@ async def _async_orchestrate_scrapers(
                 # Accumulate results per portal across all names
                 portal_results: dict[str, list[dict]] = {name: [] for name, *_ in scrapers_to_run}
                 portal_seen: dict[str, set] = {name: set() for name, *_ in scrapers_to_run}
+                portal_stages: dict[str, dict] = {name: {} for name, *_ in scrapers_to_run}
                 portal_start_t: dict[str, float] = {}
                 portal_start_iso: dict[str, str] = {}
                 for name, *_ in scrapers_to_run:
@@ -480,6 +626,7 @@ async def _async_orchestrate_scrapers(
                             if hasattr(scraper, "stage_timings") and scraper.stage_timings:
                                 browser_session.stage_timings.update(scraper.stage_timings)
                                 stages.update(scraper.stage_timings)
+                                portal_stages[name].update(scraper.stage_timings)
                                 # Reset scraper timings so next name gets fresh telemetry
                                 scraper.stage_timings = {}
 
@@ -621,7 +768,9 @@ async def _async_orchestrate_scrapers(
                     await session.commit()
                     t_db_end = datetime.now()
 
-                    scraper_stages = dict(scraper.stage_timings) if hasattr(scraper, "stage_timings") and scraper.stage_timings else {}
+                    scraper_stages = dict(portal_stages.get(name, {}))
+                    if hasattr(scraper, "stage_timings") and scraper.stage_timings:
+                        scraper_stages.update(scraper.stage_timings)
                     portal_timings[name]["stages"] = scraper_stages
                     if scraper_stages:
                         stages.update(scraper_stages)
@@ -734,6 +883,9 @@ async def _async_orchestrate_scrapers(
                     celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
             except Exception as auto_q_exc:
                 logger.warning(f"Could not advance auto-queue after browser failure: {auto_q_exc}")
+        finally:
+            # Always release the browser semaphore slot so next claim can proceed
+            await _release_browser_slot(claim.claim_number)
 
 
 @celery_app.task(name="app.tasks.scraper_tasks.orchestrate_court_scrapers_task", bind=True, max_retries=3)

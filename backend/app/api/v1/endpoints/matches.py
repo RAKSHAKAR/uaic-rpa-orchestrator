@@ -41,6 +41,63 @@ from app.services.fuzzy_engine import (
 router = APIRouter()
 
 
+def _build_match_pair_response(mp: MatchPair) -> MatchPairResponse:
+    insured = (
+        f"{mp.claim.insured_first_name or ''} {mp.claim.insured_last_name or ''}".strip()
+        if mp.claim
+        else None
+    )
+    claimant = (
+        f"{mp.claim.claimant_first_name or ''} {mp.claim.claimant_last_name or ''}".strip()
+        if mp.claim
+        else None
+    )
+    driver = (
+        f"{mp.claim.driver_first_name or ''} {mp.claim.driver_last_name or ''}".strip()
+        if mp.claim
+        else None
+    )
+    claim_status_val = None
+    if mp.claim and hasattr(mp.claim.record_status, "value"):
+        claim_status_val = mp.claim.record_status.value
+    elif mp.claim:
+        claim_status_val = str(mp.claim.record_status)
+
+    return MatchPairResponse(
+        id=mp.id,
+        claim_id=mp.claim_id,
+        court_case_id=mp.court_case_id,
+        party_type=mp.party_type,
+        party_name=mp.party_name,
+        case_style=mp.case_style,
+        county_name=mp.court_case.county_name if mp.court_case else "Unknown",
+        case_number=mp.court_case.case_number if mp.court_case else "Unknown",
+        filing_date=mp.court_case.filing_date if mp.court_case else None,
+        county_website=mp.court_case.county_website if mp.court_case else None,
+        case_status=mp.court_case.case_status if mp.court_case else None,
+        case_type=mp.court_case.case_type if mp.court_case else None,
+        cleaned_case_style=mp.court_case.cleaned_case_style if mp.court_case else None,
+        raw_payload=mp.court_case.raw_payload if mp.court_case else None,
+        claim_number=mp.claim.claim_number if mp.claim else None,
+        exposure_number=mp.claim.exposure_number if mp.claim else None,
+        dol=mp.claim.dol if mp.claim else None,
+        policy_state=mp.claim.policy_state if mp.claim else None,
+        loss_location_state=mp.claim.loss_location_state if mp.claim else None,
+        insured_name=insured if insured else None,
+        claimant_name=claimant if claimant else None,
+        driver_name=driver if driver else None,
+        claim_status=claim_status_val,
+        similarity_score=mp.similarity_score,
+        threshold_applied=mp.threshold_applied,
+        is_match=mp.is_match,
+        review_status=mp.review_status,
+        reviewed_by=mp.reviewed_by,
+        reviewed_at=mp.reviewed_at,
+        review_notes=mp.review_notes,
+        created_at=mp.created_at,
+    )
+
+
 @router.get("/pending", response_model=list[MatchPairResponse])
 async def list_pending_match_reviews(
     limit: int = Query(50, ge=1, le=200),
@@ -50,38 +107,17 @@ async def list_pending_match_reviews(
     query = (
         select(MatchPair)
         .where(MatchPair.review_status == MatchReviewStatusEnum.PENDING_REVIEW)
-        .options(selectinload(MatchPair.court_case))
+        .options(
+            selectinload(MatchPair.court_case),
+            selectinload(MatchPair.claim),
+        )
         .order_by(desc(MatchPair.similarity_score))
         .limit(limit)
     )
     res = await db.execute(query)
     match_pairs = res.scalars().all()
 
-    output = []
-    for mp in match_pairs:
-        output.append(
-            MatchPairResponse(
-                id=mp.id,
-                claim_id=mp.claim_id,
-                court_case_id=mp.court_case_id,
-                party_type=mp.party_type,
-                party_name=mp.party_name,
-                case_style=mp.case_style,
-                county_name=mp.court_case.county_name if mp.court_case else "Unknown",
-                case_number=mp.court_case.case_number if mp.court_case else "Unknown",
-                filing_date=mp.court_case.filing_date if mp.court_case else None,
-                county_website=mp.court_case.county_website if mp.court_case else None,
-                similarity_score=mp.similarity_score,
-                threshold_applied=mp.threshold_applied,
-                is_match=mp.is_match,
-                review_status=mp.review_status,
-                reviewed_by=mp.reviewed_by,
-                reviewed_at=mp.reviewed_at,
-                review_notes=mp.review_notes,
-                created_at=mp.created_at,
-            )
-        )
-    return output
+    return [_build_match_pair_response(mp) for mp in match_pairs]
 
 
 @router.post("/{match_pair_id}/review")
@@ -398,7 +434,28 @@ async def export_match_reviews(
         )
 
 
-@router.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse)
+@router.get("/{match_pair_id}", response_model=MatchPairResponse)
+async def get_match_pair_detail(
+    match_pair_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve complete inspection details for a single match pair."""
+    query = (
+        select(MatchPair)
+        .where(MatchPair.id == match_pair_id)
+        .options(
+            selectinload(MatchPair.court_case),
+            selectinload(MatchPair.claim),
+        )
+    )
+    res = await db.execute(query)
+    mp = res.scalar_one_or_none()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Match pair not found")
+    return _build_match_pair_response(mp)
+
+
+@router.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse, response_model_exclude_none=True)
 def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResponse:
     """
     Direct legacy Power Automate Desktop fuzzy match endpoint parity (PowerAutomateSolutions/fuzzy-match-api).
@@ -410,7 +467,16 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
     """
     thresh = float(payload.threshold if payload.threshold is not None else 0.60)
     threshold_scaled = thresh * 100.0 if thresh <= 1.0 else thresh
-    min_date_str = payload.min_filing_date or "2010-01-01"
+
+    # Determine min_filing_date: payload explicit > system settings > default fallback
+    min_date_str = (payload.min_filing_date or "").strip()
+    if not min_date_str:
+        try:
+            from app.services.settings_service import get_system_settings_sync
+            sys_settings = get_system_settings_sync()
+            min_date_str = (sys_settings.matcher.min_filing_date if sys_settings and sys_settings.matcher else None) or "2010-01-01"
+        except Exception:
+            min_date_str = "2010-01-01"
 
     # Case 1: Backward compatibility with array evaluator (target_strings)
     if payload.target_strings is not None and len(payload.target_strings) > 0:
@@ -447,7 +513,8 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
         for c in payload.cases:
             c_style = str(c.get("CaseStyle") or c.get("case_style") or c.get("text2") or "").strip()
             c_num = str(c.get("CaseNumber") or c.get("case_number") or "").strip()
-            c_date = str(c.get("FilingDate") or c.get("filing_date") or "").strip()
+            c_date = str(c.get("SuitFiledDate") or c.get("FilingDate") or c.get("filing_date") or "").strip()
+            c_website = str(c.get("CountyWebsite") or c.get("county_website") or "").strip()
 
             date_eligible = True
             filter_reason = None
@@ -473,15 +540,22 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
             if case_score > best_score and date_eligible:
                 best_score = case_score
 
-            cases_results.append({
-                "case_number": c_num,
-                "case_style": c_style,
-                "filing_date": c_date,
+            case_item = {
+                "CaseNumber": c_num,
+                "CaseStyle": c_style,
+                "CountyWebsite": c_website,
+                "SuitFiledDate": c_date,
                 "score": case_score,
                 "result": c_result,
                 "guidewire_eligible": gw_eligible,
-                "filter_reason": filter_reason,
-            })
+                # Backward compatibility aliases
+                "case_number": c_num,
+                "case_style": c_style,
+                "filing_date": c_date,
+            }
+            if filter_reason:
+                case_item["filter_reason"] = filter_reason
+            cases_results.append(case_item)
 
         overall_result = "Match Found" if best_match_found else "No Match Found"
         eligible_count = sum(1 for c in cases_results if c.get("guidewire_eligible"))
@@ -493,7 +567,6 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
             min_filing_date=min_date_str,
             guidewire_eligible=best_match_found,
             cases=cases_results,
-            cases_results=cases_results,
             cases_evaluated=len(cases_results),
             eligible_for_guidewire=eligible_count,
         )
@@ -507,13 +580,16 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
     guidewire_eligible = text_matched
     filter_reason = None
 
-    # Apply Minimum Case Filing Date filter if filing_date is provided
-    if payload.filing_date:
-        date_eligible = is_case_eligible(payload.filing_date, case_status=None, case_type=None, min_filing_date=min_date_str)
+    # Apply Minimum Case Filing Date filter only if filing_date is provided
+    has_filing_date = bool(payload.filing_date and str(payload.filing_date).strip())
+    filing_date_val = str(payload.filing_date).strip() if has_filing_date else None
+
+    if has_filing_date:
+        date_eligible = is_case_eligible(filing_date_val, case_status=None, case_type=None, min_filing_date=min_date_str)
         if not date_eligible:
             guidewire_eligible = False
             result = f"Filtered Out (Filing Date < {min_date_str})"
-            filter_reason = f"Filing date '{payload.filing_date}' is prior to Minimum Case Filing Date '{min_date_str}'"
+            filter_reason = f"Filing date '{filing_date_val}' is prior to Minimum Case Filing Date '{min_date_str}'"
 
     return DirectFuzzyMatchResponse(
         result=result,
@@ -521,8 +597,8 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
         text1=t1,
         text2=t2,
         threshold_applied=threshold_scaled,
-        filing_date=payload.filing_date,
-        min_filing_date=min_date_str,
+        filing_date=filing_date_val,
+        min_filing_date=min_date_str if has_filing_date else None,
         guidewire_eligible=guidewire_eligible,
         filter_reason=filter_reason,
     )

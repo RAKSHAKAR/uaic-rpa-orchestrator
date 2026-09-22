@@ -15,12 +15,17 @@ import {
   PortalTestResponse,
   BrowserTestRequest,
   BrowserTestResponse,
+  FleetTestRequest,
+  FleetTestResponse,
+  FleetWorkerResult,
   FilePreviewData,
   SystemHealthData,
   PortalPingResponse,
   ErrorScreenshot,
   StorageTestRequest,
   StorageTestResponse,
+  ProxyTestRequest,
+  ProxyTestResponse,
   RetryFailedResponse,
   AuditLogEntry,
   AuditLogListResponse,
@@ -53,6 +58,7 @@ import {
   CleanupPreviewResponse,
   CleanupExecuteRequest,
   CleanupExecuteResponse,
+  ExtensionSetupResponse,
 } from "../types";
 
 
@@ -347,6 +353,11 @@ export const api = {
     return res.data;
   },
 
+  getMatchPair: async (id: string): Promise<MatchPair> => {
+    const res = await apiClient.get(`/matches/${id}`);
+    return res.data;
+  },
+
   reviewMatchPair: async (
     id: string,
     decision: "APPROVED" | "REJECTED",
@@ -467,6 +478,11 @@ export const api = {
     return res.data;
   },
 
+  testFleet: async (payload?: FleetTestRequest): Promise<FleetTestResponse> => {
+    const res = await apiClient.post("/settings/test-fleet", payload || {});
+    return res.data;
+  },
+
   validateExtension: async (payload?: {
     chrome_extension_dir?: string;
     anticaptcha_api_key?: string;
@@ -487,21 +503,18 @@ export const api = {
 
   setupExtension: async (payload?: {
     force_reconfigure?: boolean;
-  }): Promise<{
-    status: string;
-    extension_id: string;
-    pinned_to_toolbar: boolean;
-    persistent_profile_path: string;
-    verified: boolean;
-    timestamp: string;
-    message: string;
-  }> => {
+  }): Promise<ExtensionSetupResponse> => {
     const res = await apiClient.post("/settings/setup-extension", payload || {});
     return res.data;
   },
 
   testStorageConnection: async (payload: StorageTestRequest): Promise<StorageTestResponse> => {
     const res = await apiClient.post("/settings/test-storage", payload);
+    return res.data;
+  },
+
+  testProxyConnection: async (payload: ProxyTestRequest): Promise<ProxyTestResponse> => {
+    const res = await apiClient.post("/settings/test-proxy", payload);
     return res.data;
   },
 
@@ -542,8 +555,10 @@ export const api = {
     return res.data;
   },
 
-  getClaimCombinedLogs: async (claimId: string): Promise<ClaimCombinedLogsResponse> => {
-    const res = await apiClient.get(`/claims/${claimId}/combined-logs`);
+  getClaimCombinedLogs: async (claimId: string, sort_order?: string): Promise<ClaimCombinedLogsResponse> => {
+    const res = await apiClient.get(`/claims/${claimId}/combined-logs`, {
+      params: sort_order ? { sort_order } : undefined,
+    });
     return res.data;
   },
 
@@ -572,6 +587,8 @@ export const api = {
     search?: string;
     status?: string;
     event_type?: string;
+    sort_by?: string;
+    sort_order?: string;
   }): Promise<NotificationListResponse> => {
     const res = await apiClient.get("/notifications", { params });
     return res.data;

@@ -23,6 +23,21 @@ class MatchPairResponse(BaseModel):
     case_number: str | None = None
     filing_date: str | None = None
     county_website: str | None = None
+    case_status: str | None = None
+    case_type: str | None = None
+    cleaned_case_style: str | None = None
+    raw_payload: dict | None = None
+
+    # Claim Master metadata
+    claim_number: str | None = None
+    exposure_number: str | None = None
+    dol: str | None = None
+    policy_state: str | None = None
+    loss_location_state: str | None = None
+    insured_name: str | None = None
+    claimant_name: str | None = None
+    driver_name: str | None = None
+    claim_status: str | None = None
     
     # Scores & Status
     similarity_score: float

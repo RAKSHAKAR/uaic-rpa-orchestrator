@@ -28,6 +28,7 @@ Bot_UAIC/
 |   +-- scratch_test_exports.py          # Scratch export generator test utility
 |   +-- verify_export_files.py           # MIME-type and payload integrity validator for exports
 |   +-- verify_attended_unattended_parity_e2e.py # Standalone E2E verification of Attended GUI vs Unattended Headless 1:1 parity
+|   +-- test_fleet_matrix.py             # Automated test harness for 1-10 parallel fleet concurrency across Chrome, Chromium, Edge
 |   +-- test_mapping_import.csv          # Column-mapping test dataset (CSV format)
 |   +-- test_mapping_import.xlsx         # Column-mapping test dataset (Excel format)
 |   +-- orchestrator_historical.db       # Archived SQLite database from initial development
@@ -159,6 +160,16 @@ Bot_UAIC/
 |   +-- tailwind.config.js               # Tailwind CSS theme configuration and custom utility classes
 |   +-- tsconfig.json                    # TypeScript compiler options
 |   +-- Dockerfile                       # Container definition for frontend Next.js app
+|
++-- docs/                                # Subsystem Operator Manuals & Architectural Guides
+|   +-- COURT_PORTALS_GUIDE.md           # 8 Florida & Texas Court Scrapers, Schemas & Anti-Bot Manual
+|   +-- EMAIL_AND_NOTIFICATIONS_GUIDE.md # 6 Multi-Provider Email Transports, Rules & Templates Manual
+|   +-- STORAGE_AND_EXPORTS_GUIDE.md     # Multi-Provider Storage, Error Screenshots & Async Exports Manual
+|   +-- TASK_QUEUE_AND_ORCHESTRATOR_GUIDE.md # Celery 5.6+ Distributed Queues, Fleet Concurrency & Worker Manual
+|   +-- PROXY_NETWORK_GUIDE.md           # Enterprise Proxy Network, Residential Pools & Rotation Manual
+|   +-- APIS_AND_MATCHING_ENGINE_GUIDE.md# Guidewire Cloud REST Integration & RapidFuzz Cascade Manual
+|   +-- DEVELOPMENT_WORKFLOW.md          # Multi-agent Git development & branching standards
+|   +-- WALKTHROUGH.md                   # System-wide operational walkthrough & verification guide
 |
 +-- uploads/                             # Staged file upload directory for batch Excel/CSV imports
 +-- frames/                              # 91 extracted video frames from PowerAutomate execution recordings
@@ -503,6 +514,10 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 | `GET`      | `/api/v1/matches/pending`                         | Get pending fuzzy match reviews                                     |
 | `POST`     | `/api/v1/matches/{id}/review`                     | Approve or reject a fuzzy match candidate                           |
 | `POST`     | `/api/v1/matches/unique-names`                    | Deduplicate party names across 3 columns with 60% RapidFuzz matching |
+| `GET`      | `/api/v1/matches/claims/{claim_id}/unique-names`  | Retrieve derived unique party names for a specific claim            |
+| `GET`      | `/api/v1/matches/extract-names`                   | Extract party names from an active claim                            |
+| `POST`     | `/api/v1/matches/fuzzy-search`                    | Direct ad-hoc fuzzy search test against court case styles           |
+| `POST`     | `/api/v1/matches/fuzzymatchapi`                   | Direct RapidFuzz matching test API with scoring breakdown           |
 | `GET`      | `/api/v1/queue/status`                            | Real-time queue metrics and worker health                           |
 | `POST`     | `/api/v1/queue/start-all`                         | Start sequential queue processor                                    |
 | `POST`     | `/api/v1/queue/pause`                             | Pause queue processing                                              |
@@ -514,8 +529,10 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 | `POST`     | `/api/v1/settings/test-guidewire`                 | Test Guidewire connection with custom payload                       |
 | `POST`     | `/api/v1/settings/test-portal`                    | Test portal reachability                                            |
 | `POST`     | `/api/v1/settings/test-browser`                   | Launch live Chrome test (Attended GUI vs Headless)                  |
+| `POST`     | `/api/v1/settings/test-fleet`                     | Test parallel browser fleet concurrency & session pooling           |
 | `POST`     | `/api/v1/settings/validate-extension`             | Validate AntiCaptcha extension directory, manifest, and engine      |
 | `POST`     | `/api/v1/settings/setup-extension`                | Configure AntiCaptcha in persistent profile & pin to toolbar        |
+| `POST`     | `/api/v1/settings/test-anticaptcha`               | Test AntiCaptcha API key and verify account balance                 |
 | `POST`     | `/api/v1/settings/test-storage`                   | Test storage provider connectivity (Local, S3, Azure, GCS)          |
 | `POST`     | `/api/v1/settings/email/test-connection`          | Test SMTP/Mock email provider connectivity & latency                |
 | `POST`     | `/api/v1/settings/email/test-send`                | Send interactive live test email                                    |
@@ -614,6 +631,30 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 - **Full End-to-End Equivalence**: Verified 1:1 extraction across all 8 court scrapers, pagination handling, strict schema compliance (NO `CaseType` on Harris JP and Harris Clerk), RapidFuzz 3-tier cascade, and Guidewire Cloud payload formatting.
 - **Automated Parity Test Harness**: Standalone runner `scripts/verify_attended_unattended_parity_e2e.py` and dedicated Pytest test suite `backend/tests/test_attended_unattended_parity.py`.
 
+### K. Enterprise Proxy Network & Anti-Bot Infrastructure
+
+- **Dual-Mode Playwright Tunneling**: Integrates `--proxy-server` and context proxy authentication directly into `browser_manager.py` and `BasePortalScraper`. Operates with identical tunneling reliability in both Attended GUI and Unattended Headless modes.
+- **Residential & Datacenter Pool Support**: Native handling of HTTP, HTTPS, and SOCKS5 proxy endpoints with username/password authentication, IP whitelisting, and rotating gateway endpoints.
+- **Intelligent Session Routing**: Supports round-robin egress rotation for high-volume batch scraping, as well as sticky-session IP binding for stateful multi-tab court portals (Odyssey, OCS, and Hover portals) where mid-session IP changes trigger session invalidation.
+- **Pre-Flight Health & Failover Protection**: Integrated portal reachability diagnostics (`POST /api/v1/settings/test-portal`) measure real-time latency and HTTP status through the active proxy pool, with automated error alerts if proxies fail or become unresponsive.
+- **Master Toggle Dynamics**:
+  - **`ENABLED`**: All Playwright browser instances and HTTP ping requests route exclusively through the configured proxy pool. Protects worker host IP from rate limits, CAPTCHA escalation, and geographic IP blocking.
+  - **`DISABLED`**: Browser automation and reachability checks connect directly via the host network. Eliminates proxy latency and external provider dependencies for air-gapped or internal network deployments.
+- **Authoritative Guide**: Full architectural diagrams, proxy parameters, Celery worker integration, and troubleshooting procedures are documented in [`docs/PROXY_NETWORK_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/PROXY_NETWORK_GUIDE.md).
+
+### L. Guidewire Cloud REST Integration & RapidFuzz Cascade Engine
+
+- **Guidewire Cloud REST Contract**: Outbound claim payloads strictly adhere to Guidewire ClaimCenter standards. Features automated 9-digit zero-prefixing (`len(claim_number) == 9` -> `"0" + claim_number`), default exposure assignment (`"001"`), and structured `CaseItems` arrays (`CaseNumber`, `CaseStyle`, `CountyWebsite`, `SuitFiledDate`).
+- **Flexible Multi-Auth Provider**: Supports `Bearer` tokens, `ApiKey` headers, `Basic` authentication, and enterprise `OAuth2` client credentials flows with automatic token caching and expiration renewal.
+- **3-Tier Fuzzy Match Cascade**: C-accelerated `rapidfuzz.fuzz.partial_ratio` matching evaluated in strict priority order:
+  1. **Tier 1 (Claimant)**: First + Last name compared against court `CaseStyle`.
+  2. **Tier 2 (Insured)**: Evaluated only if Tier 1 yields no match above the similarity threshold.
+  3. **Tier 3 (Driver)**: Evaluated only if Tiers 1 and 2 yield no match above the similarity threshold.
+- **Unique Names Deduplication Engine**: Normalizes and cross-matches Claimant, Insured, and Driver names across party columns using a 60% similarity threshold. Automatically derives authoritative `DualSearch` (1 or 2) and `TripleSearch` (1 or 3) search counts matching Power Automate V4 specifications.
+- **Temporal Docket Filtering**: Enforces a strict minimum filing date cutoff (`min_filing_date`, default `2010-01-01`). Stale historical docket records are filtered prior to matching, preventing irrelevant legacy litigation from matching active claims.
+- **Interactive Match Tester & Review Console**: Direct ad-hoc testing endpoint (`POST /api/v1/matches/fuzzymatchapi`) and full-featured operator review console at `/exceptions` with 1-click approve/reject actions and automated Guidewire dispatch triggers.
+- **Authoritative Guide**: Complete payload schemas, field mappings, mathematical cascade walkthroughs, and API test commands are documented in [`docs/APIS_AND_MATCHING_ENGINE_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/APIS_AND_MATCHING_ENGINE_GUIDE.md).
+
 ---
 
 ## 14. Critical Business Rules (Authoritative)
@@ -634,20 +675,26 @@ If `len(claim_number) == 9`, prepend a leading `"0"` (applied only to the Guidew
 
 ### Fuzzy Match Cascade (RapidFuzz `partial_ratio`, threshold=0.6)
 
-1. Claimant (First + Last) > CaseStyle
-2. Insured (First + Last) > CaseStyle
-3. Driver (First + Last) > CaseStyle
-   Minimum filing date: `>= 2010-01-01` (configurable in Settings).
+1. **Claimant** (`First + Last`) > `CaseStyle`
+2. If no match above threshold: **Insured** (`First + Last`) > `CaseStyle`
+3. If no match above threshold: **Driver** (`First + Last`) > `CaseStyle`
 
-### Search Count Derivation (DualSearch / TripleSearch)
+- **Temporal Cutoff**: Minimum filing date: `>= 2010-01-01` (`min_filing_date`, persisted in settings). Cases filed prior to this date are discarded prior to matching.
+- **Review Threshold**: Similarity scores between `threshold` and `auto_match_threshold` (e.g. 0.60 to 0.85) are flagged for human operator review at `/exceptions`.
 
-| Scenario                     | DualSearch | TripleSearch |
-| ---------------------------- | ---------- | ------------ |
-| All parties same             | 1          | 1            |
-| Insured = Driver, Claimant = | 1          | 3            |
-| Insured = Claimant, Driver = | 2          | 1            |
-| Driver = Claimant, Insured = | 2          | 1            |
-| All parties different        | 2          | 3            |
+### Party Deduplication & Search Count Derivation (DualSearch / TripleSearch)
+
+The system normalizes and cross-compares names across the three party columns (`Claimant`, `Insured`, and `Driver`) using RapidFuzz `partial_ratio` at a 60% similarity threshold. This deduplication drives the exact legacy Power Automate Robin flow execution branches:
+
+| Scenario / Relationship | DualSearch | TripleSearch | Unique Search Query Parties |
+| ----------------------- | :--------: | :----------: | --------------------------- |
+| **All parties same** (`Insured == Driver == Claimant`) | 1 | 1 | 1 Search Party |
+| **Insured == Driver**, `Claimant` different | 1 | 3 | 2 Search Parties (`Insured`, `Claimant`) |
+| **Insured == Claimant**, `Driver` different | 2 | 1 | 2 Search Parties (`Insured`, `Driver`) |
+| **Driver == Claimant**, `Insured` different | 2 | 1 | 2 Search Parties (`Claimant`, `Insured`) |
+| **All parties different** (`Insured != Driver != Claimant`) | 2 | 3 | 3 Search Parties (`Claimant`, `Insured`, `Driver`) |
+
+> Full mathematical specifications, normalization algorithms, and API payloads are documented in [`docs/APIS_AND_MATCHING_ENGINE_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/APIS_AND_MATCHING_ENGINE_GUIDE.md).
 
 ### Portal Output Schema
 
@@ -914,3 +961,91 @@ Complete technology reference for the UAIC Claim & RPA Orchestrator. Every techn
 | **AntiCaptcha Extension v0.83** | CAPTCHA solver                     | Chrome Manifest v3 extension loaded via `--load-extension` flag; API key synced to LevelDB; solves reCAPTCHA / hCaptcha on court portals                 | [anti-captcha.com/apidoc](https://anti-captcha.com/apidoc)                          |
 | **Google Chrome**               | Browser for RPA automation         | Launched via Playwright in Attended (visible) or Unattended (headless) mode; required by Anti-Captcha extension architecture                             | [developer.chrome.com/docs](https://developer.chrome.com/docs/)                     |
 | **SMTP Email**                  | Notification delivery              | `smtplib` / configurable provider (SSL/TLS/STARTTLS or `local_mock`); sends event notifications for claim failures, Guidewire dispatches, scraper errors | [docs.python.org/3/library/smtplib](https://docs.python.org/3/library/smtplib.html) |
+
+---
+
+## 20. Authoritative Master Documentation Index
+
+To prevent documentation fragmentation and maintain single-source architectural clarity, all system guides, operational manuals, and audited task histories are structured into three distinct tiers:
+
+| Documentation Tier | Purpose & Primary Audience | Canonical Storage Location | Single-Source Authority Level |
+| :--- | :--- | :--- | :--- |
+| **Tier 1: Master Project Booklet** | Living single source of truth for repository architecture, business logic, endpoints, and workflows | `README.md`, `AGENTS.md` | **Highest / Master Living Source** |
+| **Tier 2: Subsystem Operator Manuals** | Comprehensive technical and operational guides for specific subsystems and infrastructure | `docs/` | **Authoritative Subsystem Manuals** |
+| **Tier 3: Audited Implementation Plans** | Formally governed historical task records, gap analyses, and automated test reports | `implementation_plan/` | **Immutable Audit & Evidence Trail** |
+
+---
+
+### Tier 1: Master Living Repository Documentation
+
+- **[`README.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/README.md)** — Definitive enterprise project booklet covering full system layout, 8 Florida and Texas court scrapers, API routes, database schemas, and orchestration operations.
+- **[`AGENTS.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/AGENTS.md)** — Architectural knowledge base and strict governance rules for AI assistants (Claude, GPT, Gemini, Cursor) enforcing the 73 rules of the universal engineering lifecycle.
+
+---
+
+### Tier 2: Subsystem Operator Manuals (`docs/`)
+
+- **[`docs/COURT_PORTALS_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/COURT_PORTALS_GUIDE.md)**:
+  - Deep-dive technical manual for all 8 Florida and Texas county court scrapers.
+  - Playwright browser session architecture (`BaseCourtScraper`, `ChromeSession`, `TabManager`).
+  - Biometric human typing emulation, stage latency recording, and automated error screenshot capture.
+  - Anti-bot evasion & Manifest v3 AntiCaptcha LevelDB injection (`kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj`).
+  - Strict output schema compliance (6 portals with `CaseType`; Harris JP and Harris County Clerk strictly **NO `CaseType`**).
+  - Attended GUI vs. Unattended Headless 1:1 behavioral parity (`--headless=new`).
+  - Selective portal error recovery (S66) with deduplication safeguards.
+- **[`docs/EMAIL_AND_NOTIFICATIONS_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/EMAIL_AND_NOTIFICATIONS_GUIDE.md)**:
+  - 6 multi-provider email transports: Authenticated SMTP, Corporate Direct MX, Microsoft Graph API, Amazon SES API, MailDev, and Local Mock.
+  - Power Platform parity with legacy Cloud Flow (`UAICBotCreationMainFlow-V4`).
+  - Master enable/disable toggle (`email_notifications_enabled`) with zero Celery/DB overhead.
+  - 5 granular event trigger rules (`guidewire_activity_created`, `guidewire_activity_failed`, `court_case_matched`, `scraper_failed`, `claim_failed`).
+  - Deterministic idempotency key deduplication and transactional pipeline isolation.
+  - Dynamic HTML template studio with placeholder token validation and live previews.
+- **[`docs/STORAGE_AND_EXPORTS_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/STORAGE_AND_EXPORTS_GUIDE.md)**:
+  - Abstracted multi-provider file storage: Local Server Disk, AWS S3 (`boto3`), Azure Blob Storage, Google Cloud Storage (GCS).
+  - Zero-dependency local disk fallback ensuring scrapers never abort on storage provider outages.
+  - Hierarchical error screenshot capture (`backend/screenshots/{claim_id}/{portal}/`) with operator lightbox viewer on `/claims/[id]`.
+  - Chunked background streaming Celery exports (`export_tasks.py`) for massive datasets (XLSX, CSV, JSON, and PDF dossiers).
+  - Corporate brand whitelabeling, custom logo and favicon uploads, validation, and static HTTP streaming.
+- **[`docs/TASK_QUEUE_AND_ORCHESTRATOR_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/TASK_QUEUE_AND_ORCHESTRATOR_GUIDE.md)**:
+  - Celery 5.6+ distributed task queue with Redis 7 message broker and result backend.
+  - 5 dedicated queues (`default`, `ingest`, `scrapers`, `matcher`, `notifications`) with direct Kombu routing.
+  - Windows Attended GUI execution (`-P solo`) vs. Headless Unattended parallel fleet concurrency (1-10 concurrent claims).
+  - Autonomous background queue runner daemon (`queue_runner.py`) with pause/resume and auto-mode toggle.
+  - Automated retry worker (`retry_tasks.py`) with stuck claim detection (>15 min heartbeat) and exponential backoff.
+  - Real-time observability on `/monitor` (8-portal execution matrix) and Celery Flower dashboard at `:5555`.
+- **[`docs/PROXY_NETWORK_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/PROXY_NETWORK_GUIDE.md)**:
+  - Complete architecture of the Playwright browser proxy tunneling engine (`--proxy-server`).
+  - Residential and datacenter proxy pool configuration (HTTP, HTTPS, SOCKS5).
+  - Round-robin batch rotation vs. sticky-session IP binding for stateful court portals (Odyssey, OCS, Hover).
+  - Pre-flight connection latency tests and automated failover mechanics.
+  - Comprehensive operational impact analysis for `ENABLED` vs. `DISABLED` master states.
+- **[`docs/APIS_AND_MATCHING_ENGINE_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/APIS_AND_MATCHING_ENGINE_GUIDE.md)**:
+  - Guidewire ClaimCenter Cloud REST payload specification, 9-digit zero-prefixing, default exposure (`001`), and multi-auth (Bearer/ApiKey/OAuth2).
+  - 3-tier RapidFuzz `partial_ratio` matching cascade (Claimant > Insured > Driver) against court docket `CaseStyle`.
+  - Unique Names Deduplication Engine across party columns with 60% similarity threshold.
+  - Search count derivation (`DualSearch` / `TripleSearch`) preserving 100% behavioral parity with legacy Power Automate Robin flows.
+  - Temporal cutoff filtering via `min_filing_date` (default `2010-01-01`).
+  - Direct fuzzy match tester (`/api/v1/matches/fuzzymatchapi`) and exception review console (`/exceptions`).
+- **[`docs/DEVELOPMENT_WORKFLOW.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/DEVELOPMENT_WORKFLOW.md)**:
+  - Multi-agent collaboration protocol, feature branch naming conventions, and Git commit governance.
+  - Pre-merge testing verification checklists across backend (`pytest`, `ruff`) and frontend (`tsc`, `lint`).
+- **[`docs/WALKTHROUGH.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/WALKTHROUGH.md)**:
+  - Comprehensive operational walkthrough of claims ingestion, court scraping, deduplication, and Guidewire dispatch.
+  - Step-by-step visual verification evidence with portable relative media links and operator verification procedures.
+
+---
+
+### Tier 3: Audited Implementation & Historical Records (`implementation_plan/`)
+
+All major engineering tasks follow the mandatory **Diagnose-Plan-Confirm-Execute** lifecycle (`.agents/skills/diagnose-plan-confirm-execute/`). Every substantial task receives a unique Implementation ID (`IMP-YYYY-MMDD-NNN`) and is archived in `implementation_plan/`:
+
+- **[`implementation_plan/README.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/README.md)** — Architectural governance guide, documentation lifecycle, file naming conventions, and compliance requirements.
+- **[`implementation_plan/ChatGPT_Prompt/`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/ChatGPT_Prompt/)** — Protected original client requirements, 5 foundational ChatGPT prompts, and legacy Power Automate reconnaissance.
+- **[`IMP-2026-0918-001`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_pending-items-resolution_implementation-record_v1.md)** — Comprehensive resolution of all pending system items, full-width UI layout audit across 8 pages, and automated 453-test suite validation.
+- **[`IMP-2026-0918-002`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_action_id_responsive_alignment_implementation-record_v1.md)** — Responsive containerization, truncation protection, and visual alignment of the AntiCaptcha Extension Action ID across desktop and mobile viewports.
+- **[`IMP-2026-0918-004`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_subsystem_manuals_and_court_portals_implementation-record_v1.md)** — Creation of comprehensive Tier-2 subsystem operator manuals in `docs/` (Court Portals, Email, Storage, Task Queue), walkthrough media path normalization, and master README synchronization.
+- **[`IMP-2026-0918-005: Enterprise Architecture Specification`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_enterprise_architecture_specification_v1.md)** — Definitive system architecture specification covering micro-tier components, Celery task topologies, Playwright lifecycle, relational schemas, and zero-leakage security.
+- **[`IMP-2026-0918-005: Functional Requirements Specification`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_functional_requirements_specification_v1.md)** — Authoritative functional specification detailing FR-1 through FR-12 (state routing, 8-portal scraping, 3-tier cascade, party deduplication, Guidewire contract, NFRs).
+
+
+
