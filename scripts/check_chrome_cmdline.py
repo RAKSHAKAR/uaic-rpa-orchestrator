@@ -1,36 +1,18 @@
 import asyncio
-import subprocess
+import sys
 from pathlib import Path
-from playwright.async_api import async_playwright
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+from app.automation.browser_manager import ChromeSession
+import subprocess
 
-async def main():
-    ext_path = Path("anticaptcha-plugin_v0.83").resolve()
-    user_data_dir = Path("backend/data/test_profile_diag").resolve()
-    chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-    
-    async with async_playwright() as p:
-        context = await p.chromium.launch_persistent_context(
-            user_data_dir=str(user_data_dir),
-            executable_path=chrome_exe,
-            headless=False,
-            args=[
-                f"--disable-extensions-except={ext_path}",
-                f"--load-extension={ext_path}",
-            ],
-            ignore_default_args=[
-                "--disable-extensions",
-                "--disable-component-extensions-with-background-pages"
-            ],
-            no_viewport=True
-        )
-        ps_script = """Get-CimInstance Win32_Process -Filter "name='chrome.exe'" | Select-Object -ExpandProperty CommandLine"""
-        res = subprocess.check_output(["powershell", "-NoProfile", "-Command", ps_script], text=True)
-        for line in res.splitlines():
-            if "--type=" not in line and "chrome.exe" in line:
-                print("MAIN CHROME CMDLINE:")
-                for part in line.split(" --"):
-                    print("  --" + part if not part.startswith('"') else part)
-        await context.close()
+async def test():
+    s = ChromeSession(headless=False)
+    ctx = await s.start()
+    ps_cmd = 'Get-CimInstance Win32_Process -Filter "name=\'chrome.exe\'" | Select-Object -Property ProcessId, CommandLine | Format-List'
+    res = subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, text=True)
+    print("--- CHROME PROCESSES COMMAND LINE ---")
+    print(res.stdout)
+    await ctx.close()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(test())

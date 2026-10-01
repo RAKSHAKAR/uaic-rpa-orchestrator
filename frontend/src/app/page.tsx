@@ -80,6 +80,7 @@ export default function DashboardPage() {
   const [selectedQueueIds, setSelectedQueueIds] = useState<string[]>([]);
   const [queueStateFilter, setQueueStateFilter] = useState<"ALL" | "FL" | "TX">("ALL");
   const [isSeedingDemo, setIsSeedingDemo] = useState(false);
+  const [isRetriggering, setIsRetriggering] = useState(false);
   const [isUpdatingConcurrency, setIsUpdatingConcurrency] = useState(false);
   const [isStartingSelected, setIsStartingSelected] = useState(false);
   const [showRecentCompleted, setShowRecentCompleted] = useState(true);
@@ -240,6 +241,24 @@ export default function DashboardPage() {
       console.error("Error seeding demo claims:", e);
     } finally {
       setIsSeedingDemo(false);
+    }
+  };
+
+  const handleRetriggerFailed = async () => {
+    setIsRetriggering(true);
+    try {
+      const res = await api.retriggerClaims();
+      await fetchLiveQueue();
+      await loadData();
+      setLastTransitionMessage(
+        res && typeof res === "object" && "count" in res && res.count
+          ? `Successfully retriggered ${res.count} failed/stuck claims into the FIFO queue!`
+          : "Retrigger completed. Claims are now queued in FIFO priority."
+      );
+    } catch (e) {
+      console.error("Error retriggering failed claims:", e);
+    } finally {
+      setIsRetriggering(false);
     }
   };
 
@@ -541,13 +560,21 @@ export default function DashboardPage() {
           const maxConcurrency = liveQueue?.max_concurrency || 1;
           const availableSlots = liveQueue?.available_slots !== undefined ? liveQueue.available_slots : Math.max(0, maxConcurrency - activeItems.length);
           const allPendingItems = liveQueue?.pending_items || [];
+          const isFL = (st?: string) => {
+            const s = (st || "").toUpperCase().trim();
+            return s === "FL" || s.startsWith("FL");
+          };
+          const isTX = (st?: string) => {
+            const s = (st || "").toUpperCase().trim();
+            return s === "TX" || s.startsWith("TX");
+          };
           const filteredPendingItems = allPendingItems.filter((item) => {
-            if (queueStateFilter === "FL") return item.policy_state === "FL" || item.loss_location_state === "FL";
-            if (queueStateFilter === "TX") return item.policy_state === "TX" || item.loss_location_state === "TX";
+            if (queueStateFilter === "FL") return isFL(item.policy_state) || isFL(item.loss_location_state);
+            if (queueStateFilter === "TX") return isTX(item.policy_state) || isTX(item.loss_location_state);
             return true;
           });
-          const flPendingCount = allPendingItems.filter((i) => i.policy_state === "FL" || i.loss_location_state === "FL").length;
-          const txPendingCount = allPendingItems.filter((i) => i.policy_state === "TX" || i.loss_location_state === "TX").length;
+          const flPendingCount = allPendingItems.filter((i) => isFL(i.policy_state) || isFL(i.loss_location_state)).length;
+          const txPendingCount = allPendingItems.filter((i) => isTX(i.policy_state) || isTX(i.loss_location_state)).length;
           const recentCompleted = liveQueue?.recently_completed || [];
 
           const allSelected = filteredPendingItems.length > 0 && filteredPendingItems.every((i) => selectedQueueIds.includes(i.id));
@@ -647,6 +674,20 @@ export default function DashboardPage() {
                     {isSeedingDemo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-white" />}
                     Seed 10 Demo Claims
                   </button>
+
+                  {/* Retrigger Failed Claims Button */}
+                  {(stats?.failed ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleRetriggerFailed}
+                      disabled={isRetriggering}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      title="Re-enqueue all failed claims into the FIFO queue"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${isRetriggering ? "animate-spin" : ""}`} />
+                      Retrigger Failed ({stats?.failed})
+                    </button>
+                  )}
 
                   {/* Toggle Auto-Queue */}
                   <button
@@ -1040,14 +1081,29 @@ export default function DashboardPage() {
                         })}
                       </div>
                     ) : (
-                      <div className="py-8 text-center space-y-2">
+                      <div className="py-8 text-center space-y-3">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-70" />
                         <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
                           {queueStateFilter === "ALL" ? "No Pending Queue Items" : `No Pending ${queueStateFilter} Claims`}
                         </div>
                         <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                          All claims have completed execution. Ingest new claims via Upload or click &quot;Seed 10 Demo Claims&quot; above.
+                          {(stats?.failed ?? 0) > 0
+                            ? `${stats?.failed} claim(s) failed during execution. Re-enqueue them into the FIFO queue or seed new claims.`
+                            : "All claims have completed execution. Ingest new claims via Upload or click \"Seed 10 Demo Claims\" above."}
                         </p>
+                        {(stats?.failed ?? 0) > 0 && (
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={handleRetriggerFailed}
+                              disabled={isRetriggering}
+                              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow-xs transition-all inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <RotateCcw className={`w-3.5 h-3.5 ${isRetriggering ? "animate-spin" : ""}`} />
+                              Retrigger {stats?.failed} Failed Claim{stats?.failed === 1 ? "" : "s"}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 

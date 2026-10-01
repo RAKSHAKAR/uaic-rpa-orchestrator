@@ -1,0 +1,13 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T09:21:32.515040+00:00",
+  "portal": "hillsborough",
+  "status": "probe_exception",
+  "exception_type": "ValidationError",
+  "validation_fields": [
+    {
+      "field": "DEBUG",
+      "type": "bool_parsing"
+    }
+  ]
+}

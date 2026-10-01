@@ -1,0 +1,215 @@
+FUNCTION Subflow_Harris GLOBAL
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\' 2']['Heading 1 \'Smart Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR REPEAT 2 TIMES WAIT 2
+
+    END
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserHarris' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+
+    WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 3']['HarrisCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueHarris
+
+    IF $fx'=AttributeValueHarris="true"' THEN
+
+        LABEL Clickcaptcha
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+
+        WAIT $fx'=Int(5)'
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 3']['HarrisClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+        ON ERROR
+
+
+
+        END
+
+        WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_3'], imgrepo['Image_4'], imgrepo['Harris new'], imgrepo['Harris1'], imgrepo['harris 15/12'], imgrepo['Harris_2307'], imgrepo['Travis200726'], imgrepo['Harris2307'], imgrepo['Image_13_24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Harris3108'], imgrepo['Image_14_PR_Harris']] FindAllImages: False Tolerance: $fx'=10' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+
+        ON ERROR REPEAT 4 TIMES WAIT 8
+
+        ON ERROR
+
+            GOTO Clickcaptcha
+
+        END
+
+    END
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserHarris' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll(\'input[type="submit"]\')].forEach(el => {
+
+    if (el.value === "Submit") {
+
+        el.click();
+
+    }
+
+}); }' Result=> ResultClick
+
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=15' 
+
+    ON ERROR
+
+
+
+    END
+
+    IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 6']) THEN
+
+    ON ERROR
+
+
+
+    END
+
+        SET NextPage TO $fx'True'
+
+        LOOP WHILE $fx'=NextPage = "True"'
+
+            WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserHarris' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2) > div', $fx'Title', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHarris
+
+            ON ERROR
+
+
+
+            END
+
+            LOOP FOREACH CurrentRowH IN $fx'=DataFromWebPageHarris'
+
+                WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserHarris' Url: $fx'=CurrentRowH.\'value #4\'' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> NewBrowserH
+
+                WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Paragraph \'Case Status Appeal\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStatusHarris
+
+                Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStatusHarris' TextToFind: $fx'Case Status' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+
+                SET CaseStatusH TO $fx'=Replaced'
+
+                SET CaseNumberH TO $fx'=CurrentRowH.\'value #1\''
+
+                SET CaseStyleH TO $fx'=CurrentRowH.\'Value #2\''
+
+                SET FilingDateH TO $fx'=CurrentRowH.\'Value #3\''
+
+                IF IsEmpty($fx'=JSONListH') THEN
+
+                    SET JSONListH TO $fx'{
+
+    "CaseNumber": "${CaseNumberH}",
+
+    "CaseStyle": "${CaseStyleH}",
+
+    "FilingDate": "${FilingDateH}",
+
+    "CaseStatus": "${CaseStatusH}"
+
+  }'
+
+                ELSE
+
+                    SET JSONListH TO $fx'${JSONListH},
+
+{
+
+    "CaseNumber": "${CaseNumberH}",
+
+    "CaseStyle": "${CaseStyleH}",
+
+    "FilingDate": "${FilingDateH}",
+
+    "CaseStatus": "${CaseStatusH}"
+
+  }'
+
+                END
+
+                WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserH'
+
+            END
+
+            Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHarris'
+
+            IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 2']) THEN
+
+                SET NextPage TO $fx'False'
+
+            ELSE
+
+                WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 3'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+                SET NextPage TO $fx'True'
+
+            END
+
+        END
+
+    ELSE
+
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserHarris' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2) > div', $fx'Title', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHarris
+
+        ON ERROR
+
+
+
+        END
+
+        LOOP FOREACH CurrentRowH IN $fx'=DataFromWebPageHarris'
+
+            WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserHarris' Url: $fx'=CurrentRowH.\'value #4\'' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> NewBrowserH
+
+            WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Paragraph \'Case Status Appeal\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStatusHarris
+
+            Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStatusHarris' TextToFind: $fx'Case Status' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+
+            SET CaseStatusH TO $fx'=Replaced'
+
+            SET CaseNumberH TO $fx'=CurrentRowH.\'value #1\''
+
+            SET CaseStyleH TO $fx'=CurrentRowH.\'Value #2\''
+
+            SET FilingDateH TO $fx'=CurrentRowH.\'Value #3\''
+
+            IF IsEmpty($fx'=JSONListH') THEN
+
+                SET JSONListH TO $fx'{
+
+    "CaseNumber": "${CaseNumberH}",
+
+    "CaseStyle": "${CaseStyleH}",
+
+    "FilingDate": "${FilingDateH}",
+
+    "CaseStatus": "${CaseStatusH}"
+
+  }'
+
+            ELSE
+
+                SET JSONListH TO $fx'${JSONListH},
+
+{
+
+    "CaseNumber": "${CaseNumberH}",
+
+    "CaseStyle": "${CaseStyleH}",
+
+    "FilingDate": "${FilingDateH}",
+
+    "CaseStatus": "${CaseStatusH}"
+
+  }'
+
+            END
+
+            WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserH'
+
+        END
+
+        Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHarris'
+
+    END
+
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserHarris' Url: $fx'https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60'
+
+END FUNCTION

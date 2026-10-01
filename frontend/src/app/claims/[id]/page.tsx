@@ -1825,52 +1825,57 @@ export default function ClaimDetailPage() {
                 Individual County Portal Scraping Breakdown:
               </h4>
               <div className="divide-y divide-slate-200 dark:divide-slate-800/80 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                {Object.entries(claim.action_timings?.portals || {}).map(([key, p]: [string, any]) => (
-                  <div key={key} className="p-3 bg-slate-50/70 dark:bg-slate-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                      <span className="font-semibold text-slate-900 dark:text-slate-200">{p.portal_name}</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">({p.cases_found} cases extracted)</span>
-                      {p.url && (
-                        <a
-                          href={p.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-indigo-400"
-                          title="Open portal URL"
+                {Object.entries(claim.action_timings?.portals || {}).map(([key, p]: [string, any]) => {
+                  const bot = claim.bots?.find((b) => b.name.toLowerCase().includes(p.portal_name?.toLowerCase() || key));
+                  const effectiveStatus = (p.status === "IN_PROGRESS" && bot?.status && bot.status !== "IN_PROGRESS") ? bot.status : (p.status || "COMPLETED");
+                  const effectiveCases = p.cases_found ?? bot?.cases_found ?? 0;
+                  const effectiveDuration = p.duration_seconds ? `${p.duration_seconds}s` : (effectiveStatus !== "IN_PROGRESS" ? "—" : "...");
+                  return (
+                    <div key={key} className="p-3 bg-slate-50/70 dark:bg-slate-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <span className="font-semibold text-slate-900 dark:text-slate-200">{p.portal_name}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">({effectiveCases} cases extracted)</span>
+                        {p.url && (
+                          <a
+                            href={p.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-indigo-400"
+                            title="Open portal URL"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                        <span>Status: <strong className="text-slate-900 dark:text-slate-100">{effectiveStatus}</strong></span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-900">
+                          ⏱️ {effectiveDuration}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-900">
+                          📁 {effectiveCases} Cases Found
+                        </span>
+                        <button
+                          onClick={() => {
+                            handleOpenBotStages(
+                              bot || {
+                                name: p.portal_name || key,
+                                status: effectiveStatus,
+                                cases_found: effectiveCases,
+                                website_url: p.url || "",
+                              }
+                            );
+                          }}
+                          className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 underline text-[11px] cursor-pointer flex items-center gap-1 font-semibold"
                         >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                          <Layers className="w-3 h-3 text-indigo-500" />
+                          View Stages
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                      <span>Status: <strong className="text-slate-900 dark:text-slate-100">{p.status}</strong></span>
-                      <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-900">
-                        ⏱️ {p.duration_seconds}s
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-900">
-                        📁 {p.cases_found ?? 0} Cases Found
-                      </span>
-                      <button
-                        onClick={() => {
-                          const bot = claim.bots?.find((b) => b.name.toLowerCase().includes(p.portal_name?.toLowerCase() || key));
-                          handleOpenBotStages(
-                            bot || {
-                              name: p.portal_name || key,
-                              status: p.status,
-                              cases_found: p.cases_found ?? 0,
-                              website_url: p.url || "",
-                            }
-                          );
-                        }}
-                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 underline text-[11px] cursor-pointer flex items-center gap-1 font-semibold"
-                      >
-                        <Layers className="w-3 h-3 text-indigo-500" />
-                        View Stages
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

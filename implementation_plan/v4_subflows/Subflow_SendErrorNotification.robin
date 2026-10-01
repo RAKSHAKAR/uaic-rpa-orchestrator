@@ -1,0 +1,23 @@
+FUNCTION Subflow_SendErrorNotification GLOBAL
+
+    DISABLE System.GetEnvironmentVariable.GetEnvironmentVariable Name: $fx'Path' Value=> EnvironmentVariableValue
+
+    DISABLE File.Delete Files: $fx'=Concatenate("C:", EnvironmentVariableValue, "\\Desktop\\Errors\\Image.png")'
+
+ON ERROR
+
+
+
+END
+
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotOfForegroundWindow _
+
+    DISABLE Variables.CreateNewList List=> ListImage
+
+    DISABLE Clipboard.GetText Text=> ClipboardImage
+
+    DISABLE Variables.AddItemToList Item: $fx'=ClipboardImage' List: $fx'=ListImage'
+
+    DISABLE Display.ShowMessageDialog.ShowMessage Title: $fx'Error Encountered' Message: $fx'=Concatenate("Bot encountered below error while trying to extract data. Kindly trouleshoot and trigger the bot again.","\\n",ErrorReason)' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: True ButtonPressed=> ButtonPressed
+
+END FUNCTION

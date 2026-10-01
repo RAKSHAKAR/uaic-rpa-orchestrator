@@ -1,0 +1,27 @@
+﻿{
+    "implementation_id":  "IMP-2026-1001-002",
+    "timestamp_utc":  "2026-10-01T08:31:47.627014+00:00",
+    "synthetic_search":  {
+                             "first":  "John",
+                             "last":  "Smith",
+                             "date_of_loss":  "01/01/2024"
+                         },
+    "findings":  [
+                     {
+                         "portal":  "harris_cclerk",
+                         "configured_url":  "https://www.cclerk.hctx.net/Applications/WebSearch/",
+                         "navigation":  "loaded",
+                         "search":  "returned",
+                         "case_count":  0,
+                         "first_case_fields":  [
+
+                                               ],
+                         "final_url":  "https://www.cclerk.hctx.net/Applications/WebSearch/CourtSearch_R.aspx",
+                         "page_title":  "Web Inquiry",
+                         "captcha_visible":  false,
+                         "error":  null,
+                         "http_status":  200,
+                         "screenshot":  "implementation_plan\\Images\\IMP-2026-1001-002_harris_cclerk_live_probe.png"
+                     }
+                 ]
+}

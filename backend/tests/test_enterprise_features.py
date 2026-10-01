@@ -13,6 +13,7 @@ Covers:
 
 import io
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
@@ -21,6 +22,7 @@ from httpx import ASGITransport, AsyncClient
 from app.automation.base import BaseCourtScraper
 from app.core.database import Base, engine
 from app.main import app
+from app.schemas.settings import SystemSettings
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -137,9 +139,15 @@ async def test_bulk_operations():
         assert check1.json()["record_status"] == "MANUAL_REVIEW"
 
         # 2. Bulk Start (queuing automation)
-        start_res = await client.post("/api/v1/claims/bulk-start", json={
-            "claim_ids": [id1, id2],
-        })
+        ready_settings = SystemSettings()
+        ready_settings.automation.anticaptcha_api_key = "test-only-key"
+        with patch(
+            "app.api.v1.endpoints.claims.get_system_settings_async",
+            AsyncMock(return_value=ready_settings),
+        ):
+            start_res = await client.post("/api/v1/claims/bulk-start", json={
+                "claim_ids": [id1, id2],
+            })
         assert start_res.status_code == 200
         assert start_res.json()["affected_count"] == 2
 
@@ -233,7 +241,13 @@ async def test_automatic_queue_runner_endpoints():
         assert "auto_queue_enabled" in status_res.json()
 
         # 2. Toggle ON
-        toggle_on = await client.post("/api/v1/queue/auto-mode", json={"enabled": True})
+        ready_settings = SystemSettings()
+        ready_settings.automation.anticaptcha_api_key = "test-only-key"
+        with patch(
+            "app.api.v1.endpoints.queue.get_system_settings_async",
+            AsyncMock(return_value=ready_settings),
+        ):
+            toggle_on = await client.post("/api/v1/queue/auto-mode", json={"enabled": True})
         assert toggle_on.status_code == 200
         assert toggle_on.json()["auto_queue_enabled"] is True
 
@@ -245,6 +259,53 @@ async def test_automatic_queue_runner_endpoints():
         # Verify auto-mode is now False
         check_pause = await client.get("/api/v1/queue/auto-mode")
         assert check_pause.json()["auto_queue_enabled"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_redis
+async def test_manual_captcha_mode_starts_without_solver_key():
+    """Manual CAPTCHA mode can start claims and the queue without an API key."""
+    manual_settings = SystemSettings()
+    manual_settings.automation.anticaptcha_enabled = False
+    manual_settings.automation.anticaptcha_api_key = ""
+    solver_settings = SystemSettings()
+    solver_settings.automation.anticaptcha_enabled = True
+    solver_settings.automation.anticaptcha_api_key = ""
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        claim_number = f"MANUAL-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+        created = await client.post("/api/v1/claims", json={
+            "claim_number": claim_number,
+            "policy_state": "FL",
+            "loss_location_state": "FL",
+            "insured_first_name": "Manual",
+            "insured_last_name": "Captcha",
+        })
+        assert created.status_code == 201
+        claim_id = created.json()["id"]
+        try:
+            with patch(
+                "app.api.v1.endpoints.queue.get_system_settings_async",
+                AsyncMock(return_value=solver_settings),
+            ):
+                rejected = await client.post("/api/v1/queue/auto-mode", json={"enabled": True})
+            assert rejected.status_code == 422
+
+            with (
+                patch("app.api.v1.endpoints.claims.get_system_settings_async", AsyncMock(return_value=manual_settings)),
+                patch("app.api.v1.endpoints.queue.get_system_settings_async", AsyncMock(return_value=manual_settings)),
+                patch("app.core.celery_app.celery_app.send_task"),
+            ):
+                started = await client.post(f"/api/v1/claims/{claim_id}/start")
+                bulk = await client.post("/api/v1/claims/bulk-start", json={"claim_ids": [claim_id]})
+                queue = await client.post("/api/v1/queue/auto-mode", json={"enabled": True})
+            assert started.status_code == 200
+            assert bulk.status_code == 200
+            assert queue.status_code == 200
+        finally:
+            await client.post("/api/v1/queue/pause")
+            await client.delete(f"/api/v1/claims/{claim_id}")
 
 
 @pytest.mark.asyncio
@@ -356,4 +417,3 @@ async def test_file_preview_endpoint():
         assert len(data["preview_records"]) == 2
         assert data["preview_records"][0]["claim_number"] == "PREV-FL-001"
         assert data["preview_records"][1]["claim_number"] == "PREV-TX-002"
-

@@ -1,0 +1,137 @@
+[
+  {
+    "viewport": "tablet_portrait",
+    "width": 768,
+    "height": 1024,
+    "theme": "light",
+    "theme_applied": true,
+    "captcha_wait_seconds": 120,
+    "horizontal_overflow_px": 0,
+    "captcha_focus": {
+      "active": true,
+      "focus_visible": true,
+      "outline_style": "auto",
+      "outline_width": "1px",
+      "box_shadow": "none",
+      "center_unobscured": true,
+      "box": {
+        "left": 517,
+        "top": 475.375,
+        "right": 652,
+        "bottom": 505.375
+      }
+    },
+    "save_focus": {
+      "active": true,
+      "focus_visible": true,
+      "outline_style": "auto",
+      "outline_width": "2px",
+      "box_shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(79, 70, 229, 0.2) 0px 4px 6px -1px, rgba(79, 70, 229, 0.2) 0px 2px 4px -2px",
+      "center_unobscured": true,
+      "box": {
+        "left": 602.21875,
+        "top": 154,
+        "right": 736,
+        "bottom": 202
+      }
+    },
+    "console_errors": [],
+    "failed_local_responses": [],
+    "failed_requests": [],
+    "screenshots": [
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_tablet_portrait_light.png",
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_tablet_portrait_light_captcha_focus.png",
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_tablet_portrait_light_save_focus.png"
+    ]
+  },
+  {
+    "viewport": "tablet_landscape",
+    "width": 1024,
+    "height": 768,
+    "theme": "dark",
+    "theme_applied": true,
+    "captcha_wait_seconds": 120,
+    "horizontal_overflow_px": 0,
+    "captcha_focus": {
+      "active": true,
+      "focus_visible": true,
+      "outline_style": "auto",
+      "outline_width": "1px",
+      "box_shadow": "none",
+      "center_unobscured": true,
+      "box": {
+        "left": 661,
+        "top": 355.25,
+        "right": 908,
+        "bottom": 385.25
+      }
+    },
+    "save_focus": {
+      "active": true,
+      "focus_visible": true,
+      "outline_style": "auto",
+      "outline_width": "3px",
+      "box_shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(79, 70, 229, 0.2) 0px 4px 6px -1px, rgba(79, 70, 229, 0.2) 0px 2px 4px -2px",
+      "center_unobscured": true,
+      "box": {
+        "left": 858.21875,
+        "top": 122,
+        "right": 992,
+        "bottom": 170
+      }
+    },
+    "console_errors": [],
+    "failed_local_responses": [],
+    "failed_requests": [],
+    "screenshots": [
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_tablet_landscape_dark.png",
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_tablet_landscape_dark_captcha_focus.png",
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_tablet_landscape_dark_save_focus.png"
+    ]
+  },
+  {
+    "viewport": "mobile_landscape",
+    "width": 844,
+    "height": 390,
+    "theme": "dark",
+    "theme_applied": true,
+    "captcha_wait_seconds": 120,
+    "horizontal_overflow_px": 0,
+    "captcha_focus": {
+      "active": true,
+      "focus_visible": true,
+      "outline_style": "auto",
+      "outline_width": "1px",
+      "box_shadow": "none",
+      "center_unobscured": true,
+      "box": {
+        "left": 555,
+        "top": 157.875,
+        "right": 728,
+        "bottom": 187.875
+      }
+    },
+    "save_focus": {
+      "active": true,
+      "focus_visible": true,
+      "outline_style": "auto",
+      "outline_width": "3px",
+      "box_shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(79, 70, 229, 0.2) 0px 4px 6px -1px, rgba(79, 70, 229, 0.2) 0px 2px 4px -2px",
+      "center_unobscured": true,
+      "box": {
+        "left": 678.21875,
+        "top": 130,
+        "right": 812,
+        "bottom": 178
+      }
+    },
+    "console_errors": [],
+    "failed_local_responses": [],
+    "failed_requests": [],
+    "screenshots": [
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_mobile_landscape_dark.png",
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_mobile_landscape_dark_captcha_focus.png",
+      "C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\implementation_plan\\Images\\IMP-2026-1001-002_settings_mobile_landscape_dark_save_focus.png"
+    ]
+  }
+]

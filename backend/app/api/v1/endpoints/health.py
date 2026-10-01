@@ -18,6 +18,7 @@ from app.automation.browser_manager import ChromeSession, ExtensionManager
 from app.core.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import get_db
+from app.services.portal_proxy import portal_proxy_url
 from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.api.health")
@@ -343,7 +344,14 @@ async def ping_portal_endpoint(portal_key: str) -> dict[str, Any]:
     name, url = portal_map[portal_key]
     start = time.perf_counter()
     try:
-        async with httpx.AsyncClient(verify=False, timeout=5.0, follow_redirects=True) as client:
+        proxy_url = portal_proxy_url(sys_settings.proxy)
+        async with httpx.AsyncClient(
+            verify=False,
+            timeout=5.0,
+            follow_redirects=True,
+            proxy=proxy_url,
+            trust_env=False,
+        ) as client:
             res = await client.head(url)
             if res.status_code in (405, 501):
                 res = await client.get(url)
@@ -357,7 +365,7 @@ async def ping_portal_endpoint(portal_key: str) -> dict[str, Any]:
                 "latency_ms": duration_ms,
                 "status": "healthy" if res.status_code < 400 else "warning",
             }
-    except Exception as e:
+    except Exception:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         return {
             "portal_key": portal_key,
@@ -367,7 +375,7 @@ async def ping_portal_endpoint(portal_key: str) -> dict[str, Any]:
             "status_code": 0,
             "latency_ms": duration_ms,
             "status": "warning",
-            "error": str(e),
+            "error": "Court portal connection failed. Check the configured proxy and portal URL.",
         }
 
 
@@ -379,5 +387,4 @@ portals_router = APIRouter()
 async def ping_portal_alias(portal_key: str) -> dict[str, Any]:
     """Alias for testing portal reachability directly at /api/v1/portals/{portal_key}/ping."""
     return await ping_portal_endpoint(portal_key)
-
 

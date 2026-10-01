@@ -189,6 +189,7 @@ async def test_rpa_mode_toggle_and_backend_adherence():
     """Verify that toggling RPA mode between Attended (GUI) and Unattended (Headless) persists and is honored."""
     # 1. Set to Attended (headless_mode = False)
     cfg1 = await get_system_settings_async()
+    original_headless = cfg1.automation.headless_mode
     cfg1.automation.headless_mode = False
     await save_system_settings_async(cfg1)
 
@@ -210,8 +211,9 @@ async def test_rpa_mode_toggle_and_backend_adherence():
     assert session_unattended.headless is True, "ChromeSession must initialize with headless=True in Unattended Mode."
 
     # Reset back to False
-    cfg2.automation.headless_mode = False
-    await save_system_settings_async(cfg2)
+    current = await get_system_settings_async()
+    current.automation.headless_mode = original_headless
+    await save_system_settings_async(current)
 
 
 # ---------------------------------------------------------------------------
@@ -348,4 +350,3 @@ def test_setup_local_console_features_and_chromium_guard():
     assert script_path.exists()
     content = script_path.read_text(encoding="utf-8")
     assert "playwright install chromium" in content
-

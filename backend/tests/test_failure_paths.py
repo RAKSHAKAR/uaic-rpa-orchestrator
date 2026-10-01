@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from app.automation.base import (
+    CaptchaResolutionError,
     SecurityBlockException,
     detect_security_block,
     log_security_block_event,
@@ -54,15 +55,17 @@ async def test_tc_fail_001_broward_portal_timeout_returns_empty():
 
 
 @pytest.mark.asyncio
-async def test_tc_fail_002_captcha_unsolved_returns_empty_no_runtimeerror():
-    """TC-FAIL-002: CAPTCHA never solved returns [] rather than raising RuntimeError."""
+async def test_tc_fail_002_captcha_unsolved_refreshes_then_raises():
+    """TC-FAIL-002: An unsolved CAPTCHA refreshes and reports a failed search."""
     scraper = BrowardScraper()
     page = _build_mock_page()
+    page.reload = AsyncMock()
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = False
-        res = await scraper.search_by_party_name("John", "Doe", page)
-        assert res == []
+        with pytest.raises(CaptchaResolutionError, match="CAPTCHA was not resolved"):
+            await scraper.search_by_party_name("John", "Doe", page)
+    assert page.reload.await_count >= 1
 
 
 def test_tc_fail_003_detect_security_block_429():
@@ -126,6 +129,22 @@ async def test_tc_fail_005_miami_no_credentials_proceeds_gracefully():
     scraper = MiamiDadeScraper()
     page = _build_mock_page()
     page.inner_text = AsyncMock(return_value="No records found")
+    page.reload = AsyncMock()
+    empty_results = MagicMock()
+    empty_results.count = AsyncMock(return_value=0)
+    empty_results.is_visible = AsyncMock(return_value=False)
+    body = MagicMock()
+    body.inner_text = AsyncMock(return_value="No records found")
+    default_locator = page.locator.return_value
+
+    def locator_for_empty_search(selector):
+        if selector == "body":
+            return body
+        if any(part in selector for part in ("tbody tr", ".case-card", "paginate_button.next", "thead th")):
+            return empty_results
+        return default_locator
+
+    page.locator.side_effect = locator_for_empty_search
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = True

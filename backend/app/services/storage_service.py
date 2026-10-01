@@ -1,5 +1,6 @@
 """Storage Service managing screenshot captures and cloud storage providers."""
 
+import json
 import logging
 import os
 import time
@@ -21,6 +22,21 @@ class StorageService:
         dir_path = settings.SCREENSHOTS_DIR
         dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
+
+    @staticmethod
+    def get_gcs_client(project_id: str | None, credentials_json: str | None):
+        """Build a GCS client from Settings credentials or ambient credentials."""
+        from google.cloud import storage as gcs_storage
+
+        if credentials_json:
+            from google.oauth2 import service_account
+
+            info = json.loads(credentials_json)
+            credentials = service_account.Credentials.from_service_account_info(info)
+            return gcs_storage.Client(
+                project=project_id or info.get("project_id"), credentials=credentials
+            )
+        return gcs_storage.Client(project=project_id or None)
 
     @classmethod
     async def save_screenshot_bytes(
@@ -107,8 +123,9 @@ class StorageService:
         # 4. Upload to GCS if configured
         elif provider == "gcs" and storage_cfg and storage_cfg.gcs_bucket_name:
             try:
-                from google.cloud import storage as gcs_storage
-                client = gcs_storage.Client(project=storage_cfg.gcs_project_id or None)
+                client = cls.get_gcs_client(
+                    storage_cfg.gcs_project_id, storage_cfg.gcs_credentials_json
+                )
                 bucket = client.bucket(storage_cfg.gcs_bucket_name)
                 blob = bucket.blob(f"screenshots/{filename}")
                 blob.upload_from_string(image_bytes, content_type="image/png")
@@ -237,8 +254,7 @@ class StorageService:
                     error_detail="Missing gcs_bucket_name",
                 )
             try:
-                from google.cloud import storage as gcs_storage
-                client = gcs_storage.Client(project=req.gcs_project_id or None)
+                client = cls.get_gcs_client(req.gcs_project_id, req.gcs_credentials_json)
                 bucket = client.bucket(req.gcs_bucket_name)
                 exists = bucket.exists()
                 dur = round((time.perf_counter() - t_start) * 1000, 2)

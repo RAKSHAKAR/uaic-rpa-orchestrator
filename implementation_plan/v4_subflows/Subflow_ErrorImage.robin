@@ -1,0 +1,13 @@
+FUNCTION Subflow_ErrorImage GLOBAL
+
+    DISABLE IF (File.IfFile.Exists File: $fx'%ScreenshotFolderPath%') THEN
+
+        DISABLE File.Delete Files: $fx'%ScreenshotFolderPath%'
+
+    DISABLE END
+
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotAndSaveToFile File: $fx'%ScreenshotFolderPath%' ImageFormat: System.ImageFormat.Jpg
+
+    DISABLE EXIT FUNCTION
+
+END FUNCTION

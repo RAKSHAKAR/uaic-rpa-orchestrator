@@ -309,7 +309,6 @@ async def run_live_demonstration():
                     tab = await session_runner.get_or_create_tab(portal_key, scraper.base_url)
 
                     portal_cases = []
-                    portal_seen_case_numbers = set()
 
                     # Rotate across party types (Insured, Driver, Claimant) across portals
                     target_party = party_pairs[p_idx % len(party_pairs)]
@@ -368,8 +367,7 @@ async def run_live_demonstration():
                         # Verify strict output schema
                         for c in cases:
                             c_num = c.get("CaseNumber") or ""
-                            if c_num and c_num not in portal_seen_case_numbers:
-                                portal_seen_case_numbers.add(c_num)
+                            if c_num:
                                 portal_cases.append(c)
 
                                 # STRICT SCHEMA AUDIT

@@ -1,0 +1,85 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T09:32:26.804583+00:00",
+  "portal": "hillsborough",
+  "synthetic_claim": "John Smith, 01/01/2024",
+  "browser": "headless Chromium, isolated profile, no extension",
+  "storage": "temporary SQLite, Redis DB 11",
+  "guidewire": "mock only",
+  "runtime_settings": {
+    "scorer_algorithm": "partial_ratio",
+    "page_timeout_seconds": 90,
+    "captcha_wait_seconds": 5,
+    "max_captcha_attempts": 1,
+    "action_pacing_ms": 100
+  },
+  "scrape": "FAILED",
+  "fuzzy": "not_attempted",
+  "mock_guidewire": "not_attempted",
+  "scraper_returned_row_count": 49,
+  "scraper_missing_number_count": 0,
+  "scraper_missing_style_count": 1,
+  "scraper_missing_date_count": 1,
+  "scraper_field_sets": [
+    "CaseNumber,CaseStatus,CaseStyle,CaseType,FilingDate"
+  ],
+  "invalid_row_shapes": [
+    {
+      "index": 48,
+      "number_mask": "99-AA-999999",
+      "field_lengths": {
+        "FilingDate": 0,
+        "CaseStyle": 0,
+        "CaseType": 0,
+        "CaseNumber": 12,
+        "CaseStatus": 0
+      }
+    }
+  ],
+  "last_page_dom_shape": {
+    "row_count": 49,
+    "last_row_cell_count": 8,
+    "last_row_cell_text_lengths": [
+      0,
+      0,
+      12,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "last_row_cell_colspans": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "last_row_cell_child_tags": [
+      [],
+      [],
+      [],
+      [],
+      [
+        "SPAN"
+      ],
+      [],
+      [],
+      []
+    ],
+    "last_row_number_has_link": false,
+    "last_row_classes": []
+  },
+  "scrape_duration_seconds": 33.87,
+  "claim_status_after_scrape": "FAILED",
+  "claim_json_row_count": 0,
+  "court_case_row_count": 0,
+  "exact_json_fields": true,
+  "first_json_fields": [],
+  "all_rows_have_number_style_date": true,
+  "fuzzy_task_queued": false
+}

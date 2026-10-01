@@ -8,6 +8,7 @@ import {
   LiveQueueState,
   IngestionBatch,
   SystemSettings,
+  SettingsUpdatePayload,
   BrandingSettings,
   GuidewireTestRequest,
   GuidewireTestResponse,
@@ -436,7 +437,7 @@ export const api = {
     return res.data;
   },
 
-  updateSettings: async (settings: SystemSettings): Promise<SystemSettings> => {
+  updateSettings: async (settings: SettingsUpdatePayload): Promise<SystemSettings> => {
     const res = await apiClient.post("/settings", settings);
     return res.data;
   },
@@ -651,7 +652,7 @@ export const api = {
   },
 
   // --- Settings: Test Anti-Captcha API Key ---
-  testAntiCaptchaKey: async (apiKey: string): Promise<AntiCaptchaTestResponse> => {
+  testAntiCaptchaKey: async (apiKey: string = ""): Promise<AntiCaptchaTestResponse> => {
     const res = await apiClient.post("/settings/test-anticaptcha", { api_key: apiKey });
     return res.data;
   },
@@ -706,5 +707,3 @@ export const cleanupApi = {
   preview: api.previewCleanup,
   execute: api.executeCleanup,
 };
-
-

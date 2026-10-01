@@ -1,0 +1,24 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T08:09:06.072909+00:00",
+  "synthetic_search": {
+    "first": "Audit",
+    "last": "Zyxqtest",
+    "date_of_loss": "01/01/2020"
+  },
+  "findings": [
+    {
+      "portal": "hillsborough",
+      "configured_url": "https://hover.hillsclerk.com/",
+      "navigation": "failed",
+      "search": "not_attempted",
+      "case_count": null,
+      "first_case_fields": [],
+      "final_url": "https://hover.hillsclerk.com/",
+      "page_title": "Hover Court Records Home \u2013 Hillsborough County Clerk",
+      "captcha_visible": false,
+      "error": "navigation: TimeoutError: Page.goto: Timeout 45000ms exceeded.\nCall log:\n  - navigating to \"https://hover.hillsclerk.com/\", waiting until \"domcontentloaded\"\n",
+      "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_hillsborough_live_probe.png"
+    }
+  ]
+}

@@ -3,6 +3,8 @@
 > **Production-grade replacement for legacy Microsoft Power Automate Desktop RPA bots.**
 > Automates court-case discovery across 8 Florida & Texas county court portals, performs RapidFuzz deduplication cascade, and delivers validated claim dossiers to Guidewire Insurance Cloud.
 
+> **Current verification (IMP-2026-1001-002, 2026-10-01):** Settings persistence and V4-aligned portal behavior are being revalidated. After the latest fleet Settings copy edit, frontend build, TypeScript, lint, four-mode browser checks (including corrected Mouse Simulation copy), and tablet/mobile-landscape keyboard-focus checks passed. A read-only seven-tab traversal passed at the preceding UI checkpoint. The 844x390 landscape view has a short content area above its fixed status footer; focused controls remained reachable and unobscured. An isolated probe loaded all eight actual court sites: five stopped on unsolved CAPTCHA under probe-only 5-second/one-attempt limits, while Harris County Clerk, Hillsborough, and Harris District returned verified zero results. All eight scraper extractors, the session collector, task orchestrator, and fuzzy stage retain V4 source rows even when case numbers repeat. Later fleet fixes route normal portal navigation through configured click pacing where applicable, bound Hillsborough result waits to the configured page timeout, guard six paginated scrapers against repeated full pages, and report invalid Chrome profile/binary/managed-extension settings clearly; focused suites passed. A remaining Dallas/Travis/Harris JP literal pager-readiness timeout needs correction and a final backend suite rerun. Post-patch isolated live worker replays reached claim JSON, SQL, fuzzy matching, and **mock** Guidewire for Hillsborough (49 stored rows, 3 CaseItems) and Harris District (169 stored rows, 152 distinct case numbers, 10 CaseItems). Hillsborough's one genuine numbered row with blank details is retained and excluded from matching. The prior full backend suite passed 650 tests with 2 policy skips and zero warnings before the latest changes. AntiCaptcha and Miami password configuration flags remained false at this checkpoint, with CAPTCHA maximum wait saved as 120 seconds. Credentialed positive extraction across all eight sites, live CAPTCHA solve/expiry, and real Guidewire remain unverified. Historical parity and test-count statements below describe earlier records; see the [current implementation record](implementation_plan/2026-10-01_uaic_settings-v4-portal-runtime-parity_implementation-record_v1.md) for acceptance status and evidence.
+
 ---
 
 ## 1. Complete Repository Layout & Directory Structure
@@ -105,7 +107,7 @@ Bot_UAIC/
 |   +-- exports/                         # Generated asynchronous export downloads (XLSX, CSV, PDF)
 |   +-- screenshots/                     # Automatic scraper error capture screenshots
 |   +-- uploads/                         # Backend uploaded import spreadsheets
-|   +-- tests/                           # Comprehensive backend test suite (307 tests across 31 test suites, 100% pass rate)
+|   +-- tests/                           # Backend unit and integration suite; current full-suite result is tracked in the implementation record
 |   +-- live_e2e_verification.py         # Direct end-to-end integration test against live backend
 |   +-- seed_demo_claim.py               # Seed script creating realistic demonstration claims
 |   +-- seed_rich_data.py                # Database population script with rich multi-portal test claims
@@ -294,6 +296,19 @@ The **V4** Robin desktop flow definitions inside [`PowerAutomateSolutions/BotCre
 | `Broward_`, `Hillsborough_`, `Miami_`                     | `backend/app/automation/florida/` (Playwright)                   | Multi-tab session re-use; no aggressive Chrome termination.          |
 | `Travis_`, `Dallas_`, `Harris_`, `CClerk_`, `HCDistrict_` | `backend/app/automation/texas/` (Playwright)                     | Strict schema alignment: Harris JP & Harris Clerk have NO CaseType.  |
 | Power Apps Model-Driven Forms                             | Next.js 14 Full Dashboard & Health Console                       | Real-time queue telemetry, live portal matrix, and branding console. |
+
+### Canonical Power Automate V4 Portal Execution Sequence & Session Architecture
+
+The extraction engine adheres strictly to the **Power Automate Desktop V4 Robin flow architecture** (`ExtractDataFlow.robin` lines 140–1365):
+
+1. **Pre-Opened Dedicated Tab Fleet**: Upon Chrome browser launch, dedicated tabs are pre-opened for the eligible court portals (FL: 3, TX: 5, Cross-State: 8).
+2. **Canonical V4 Portal Order**: Portals execute in the exact Robin flow order:
+   $$\text{1. Broward} \longrightarrow \text{2. Dallas} \longrightarrow \text{3. Travis} \longrightarrow \text{4. Harris JP} \longrightarrow \text{5. Miami-Dade} \longrightarrow \text{6. Harris County Clerk} \longrightarrow \text{7. Hillsborough} \longrightarrow \text{8. Harris District Clerk}$$
+3. **Portal-by-Portal Inner Loop Execution**:
+   - The outer loop activates each portal's dedicated tab once.
+   - The inner loop executes all derived unique party searches (`Insured`, `Driver`, `Claimant` derived via `DualSearch` / `TripleSearch`) sequentially on that portal's tab.
+   - **Deterministic Search-State Reset (`return_to_search_state`)**: Between party searches, the tab executes the exact V4 reset sequence (e.g., Hillsborough dismisses `#messageClose` popup and returns to `caseSearch.html#nav-Party-tab`; Miami navigates `OCS Home` ➔ `Refresh`; Harris Clerk clicks `Clear`; Harris District clicks `btnSearchAgain`).
+   - **Immediate Persistence**: Extracted cases for each portal are committed to the database and status updated immediately upon portal completion, eliminating tab-thrashing and browser state desynchronization.
 
 ---
 
@@ -623,23 +638,22 @@ The platform includes a dedicated **Brand & Identity Management Console** at [`/
 - **Redis & Dashboard Invalidation**: Purges cached statistics (`cache:*`, `metrics:*`, `stats:*`, `dashboard:*`) with safe socket timeouts (1.0s) ensuring zero worker deadlocks when Redis is offline.
 - **Dual Interface**: Accessible via CLI (`python -m app.scripts.clean_history`) and REST API (`POST /api/v1/claims/clean`).
 
-### J. Attended vs. Unattended RPA 1:1 Parity Validation
+### J. Attended vs. Unattended RPA Parity Validation
 
-- **100% Behavioral Parity**: Every workflow that executes in Attended Mode (visible desktop Google Chrome GUI) executes with identical results in Unattended Mode (headless).
-- **Modern Headless Extension Loading**: Playwright initializes Chromium with `--headless=new` and `context_headless=False` across `browser_manager.py`, `session_runner.py`, and `base.py`, enabling Manifest v3 AntiCaptcha extension loading even in headless environments (`ExtLoaded=True`, active service workers verified) without opening visible GUI windows.
-- **Zero Desktop Session Reliance**: Scraper automation does not rely on active desktop sessions, pre-opened browser windows, focus state, or manual clicks.
-- **Full End-to-End Equivalence**: Verified 1:1 extraction across all 8 court scrapers, pagination handling, strict schema compliance (NO `CaseType` on Harris JP and Harris Clerk), RapidFuzz 3-tier cascade, and Guidewire Cloud payload formatting.
+- **Shared Workflow**: Attended and headless execution use the same portal search and extraction code paths. Identical case results across all eight actual sites remain an open acceptance check for IMP-2026-1001-002.
+- **Headless Extension Path**: Browser launch code configures Chromium headless extension loading and checks extension activity. Solver success in each real portal and mode still requires live verification.
+- **Browser Session Requirements**: The worker launches its own Playwright browser context and does not require an operator to pre-open portal tabs. Attended mode requires an available visible desktop session.
+- **Extraction Contract**: Portal JSON is constrained to five fields for six portals and four fields for Harris JP and Harris County Clerk. Live end-to-end equivalence, including pagination and Guidewire delivery, has not been established by this implementation record.
 - **Automated Parity Test Harness**: Standalone runner `scripts/verify_attended_unattended_parity_e2e.py` and dedicated Pytest test suite `backend/tests/test_attended_unattended_parity.py`.
 
 ### K. Enterprise Proxy Network & Anti-Bot Infrastructure
 
-- **Dual-Mode Playwright Tunneling**: Integrates `--proxy-server` and context proxy authentication directly into `browser_manager.py` and `BasePortalScraper`. Operates with identical tunneling reliability in both Attended GUI and Unattended Headless modes.
-- **Residential & Datacenter Pool Support**: Native handling of HTTP, HTTPS, and SOCKS5 proxy endpoints with username/password authentication, IP whitelisting, and rotating gateway endpoints.
-- **Intelligent Session Routing**: Supports round-robin egress rotation for high-volume batch scraping, as well as sticky-session IP binding for stateful multi-tab court portals (Odyssey, OCS, and Hover portals) where mid-session IP changes trigger session invalidation.
-- **Pre-Flight Health & Failover Protection**: Integrated portal reachability diagnostics (`POST /api/v1/settings/test-portal`) measure real-time latency and HTTP status through the active proxy pool, with automated error alerts if proxies fail or become unresponsive.
+- **Configured Browser Egress**: The Playwright runner passes the saved proxy host, port, and optional credentials into the browser context used for a claim. Attended and headless live-site behavior still requires verification.
+- **Configured Diagnostic Egress**: `/api/v1/settings/test-portal` and `/api/v1/health/portals/{key}/ping` create a short-lived HTTP client with the same configured proxy. Credentials are URL-encoded for the client and omitted from diagnostic errors.
+- **Proxy Scope**: Settings currently hold one HTTP proxy endpoint. The application does not implement a rotating proxy pool, round-robin routing, or automatic proxy failover from this control.
 - **Master Toggle Dynamics**:
-  - **`ENABLED`**: All Playwright browser instances and HTTP ping requests route exclusively through the configured proxy pool. Protects worker host IP from rate limits, CAPTCHA escalation, and geographic IP blocking.
-  - **`DISABLED`**: Browser automation and reachability checks connect directly via the host network. Eliminates proxy latency and external provider dependencies for air-gapped or internal network deployments.
+  - **`ENABLED`**: Claim browser sessions and portal reachability diagnostics use the configured proxy endpoint.
+  - **`DISABLED`**: Claim browser sessions and portal reachability diagnostics use direct egress; diagnostic clients also ignore process proxy environment variables.
 - **Authoritative Guide**: Full architectural diagrams, proxy parameters, Celery worker integration, and troubleshooting procedures are documented in [`docs/PROXY_NETWORK_GUIDE.md`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/docs/PROXY_NETWORK_GUIDE.md).
 
 ### L. Guidewire Cloud REST Integration & RapidFuzz Cascade Engine
@@ -793,7 +807,15 @@ erDiagram
    - Set AntiCaptcha API Key (masked in UI).
    - Verify Chrome Extension Directory (`anticaptcha-plugin_v0.83/`).
    - Choose Browser Execution Mode: `Attended (Visible GUI)` for desktop visibility or `Unattended (Headless)` for background runs.
-4. The system automatically synchronizes the API key to both `chrome.storage.local` and `chrome.storage.sync` LevelDB backing files, ensuring the plugin icon turns green and solves reCAPTCHA / hCaptcha automatically.
+4. The system attempts to synchronize the API key to the extension profile storage. Use the browser test and a real challenge to confirm that the configured extension loads and solves CAPTCHA in the selected execution mode.
+
+### Runtime settings and V4 execution
+
+- `/settings` saves one versioned `AutomationSetting` document in the database. The API omits secret values on read, reports whether each secret is configured, retains a stored secret when its input is left blank, and clears it only when explicitly requested. A stale revision is rejected with HTTP 409; a storage failure is reported with HTTP 503.
+- New browser sessions read the saved document. The configured CAPTCHA resolution wait is a **maximum**: token detection continues on a monotonic deadline and proceeds as soon as resolution is verified. When the deadline expires, the affected portal reloads and restarts its V4 search path within the configured attempt limit. Page navigation, refresh backoff, browser choice, extension behavior, input pacing, and fleet concurrency read the same settings. Normal portal navigation clicks use settings-aware click pacing where applicable; Hillsborough explicit result waits and AJAX budget derive from the configured page timeout. Invalid explicit Chrome profile/binary paths and managed-extension conflicts surface as errors instead of silently changing the selected browser configuration.
+- The Power Automate V4 desktop flow in `PowerAutomateSolutions/BotCreation_1_0_0_7/` remains the portal workflow reference. The runner executes portals in V4 order (Broward, Dallas, Travis, Harris JP, Miami, Harris County Clerk, Hillsborough, Harris District) and keeps the last complete stored result if a subsequent portal attempt fails.
+- All eight portal extractors, the browser session collector, task storage, and fuzzy matching preserve each V4 source row in order, including repeated case numbers across table rows and party searches. The exact portal field sets remain five fields for six portals and four for Harris JP/Harris County Clerk. A live Hillsborough source row with a case number but blank detail cells is retained in JSON/SQL and excluded from matching by the filing-date eligibility check. In isolated live worker tests, Hillsborough stored 49 rows and passed 3 matches to mock Guidewire; Harris District stored 169 rows (152 distinct numbers) and passed 10 matches to mock Guidewire. These results do not establish a real Guidewire connection or positive extraction at the other six portals.
+- `queue.batch_chunk_size` controls ingestion database flush size; `queue.max_task_retries` and `queue.task_retry_delay_seconds` control worker retry behavior. Email delivery retries use the corresponding email controls; hourly and daily digest modes group pending notifications at UTC period boundaries.
 
 ---
 
@@ -814,13 +836,24 @@ erDiagram
 
 ## 18. Automated Verification Commands
 
+Run backend integration tests with a disposable database and a separate Redis database, never against the operator's live settings store. Some suites save and reset system settings. `test_settings_alignment.py` now creates its own temporary settings database and in-memory Redis stub after an earlier shared-store test reset removed saved portal credentials.
+
 ```powershell
 # Enterprise Setup Console Full Automated Test Harness (AST, Ports, StopAll, CleanHistory, RunTests)
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\test_setup_console.ps1"
 
-# Backend Automated Unit & Integration Tests (307 tests across 31 test suites, 100% pass rate)
+# Backend Automated Unit & Integration Tests (record the current result for this revision)
 cd backend
 .venv\Scripts\pytest -ra -q
+
+# Dedicated Broward County Court Portal Workflow Suite (8 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_broward_portal.py -v
+
+# Dedicated Hillsborough County Court Portal Workflow Suite (8 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_hillsborough_portal.py -v
+
+# Dedicated Miami-Dade County Court Portal Workflow Suite (11 tests, 100% pass rate)
+.venv\Scripts\pytest tests/test_miami_portal.py -v
 
 # Guidewire Activity & Filtered Case Pipeline Integration Test Suite (8 tests, 100% pass rate)
 .venv\Scripts\pytest tests/test_guidewire_pipeline.py tests/test_guidewire_models.py -v
@@ -1046,6 +1079,7 @@ All major engineering tasks follow the mandatory **Diagnose-Plan-Confirm-Execute
 - **[`IMP-2026-0918-004`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_subsystem_manuals_and_court_portals_implementation-record_v1.md)** — Creation of comprehensive Tier-2 subsystem operator manuals in `docs/` (Court Portals, Email, Storage, Task Queue), walkthrough media path normalization, and master README synchronization.
 - **[`IMP-2026-0918-005: Enterprise Architecture Specification`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_enterprise_architecture_specification_v1.md)** — Definitive system architecture specification covering micro-tier components, Celery task topologies, Playwright lifecycle, relational schemas, and zero-leakage security.
 - **[`IMP-2026-0918-005: Functional Requirements Specification`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-18_uaic_functional_requirements_specification_v1.md)** — Authoritative functional specification detailing FR-1 through FR-12 (state routing, 8-portal scraping, 3-tier cascade, party deduplication, Guidewire contract, NFRs).
-
-
-
+- **[`IMP-2026-0925-010: Final Multi-Portal Execution Order & Google Chrome Settings Alignment`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-25_uaic_multi-portal-execution-order-unique-name-first_implementation-record_v1.md)** — Architectural inversion enforcing strict Unique-Name-First sequence (`Unique Name ➔ All Portals ➔ Next Name`), state tab pre-opening (FL: 3, TX: 5, Cross-State: 8), Rule 18 portal failure isolation, and native Google Chrome settings alignment with workspace AntiCaptcha unpacked extension detection (`fignfifoniblkonapihmkfakmlgkbkcf`).
+- **[`IMP-2026-0926-002: Exact Power Automate V4 Workflow & Portal Extraction Parity`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-09-26_uaic_power-automate-v4-portal-extraction-parity_plan_v1.md)** — Complete 1:1 replication of Power Automate Desktop V4 Robin desktop flows across all 8 Florida and Texas court portals. Migrated orchestrator to V4 Portal-by-Portal execution loop (`1. Broward ➔ 2. Dallas ➔ 3. Travis ➔ 4. Harris JP ➔ 5. Miami-Dade ➔ 6. Harris County Clerk ➔ 7. Hillsborough ➔ 8. Harris District Clerk`), eliminated tab-thrashing, implemented exact DOM selectors/nested table traversals/card extractions, guaranteed strict 4-field vs 5-field schema compliance, and achieved 100% pass rate across 565 automated tests.
+- **[`IMP-2026-1001-001: Miami-Dade Search Submit, Hillsborough Modal Dismissal, & reCAPTCHA Anchor Parity Fix`](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/implementation_plan/2026-10-01_uaic_miami-search-submit-and-recaptcha-anchor_implementation-record_v1.md)** — Fixed Hillsborough modal dismissal by removing invalid `:has-text(...)` regex flag syntax, resolved Miami-Dade pre-submit invisible reCAPTCHA wait trap and Search button scroll/click execution, fixed results locator syntax, and prioritized reCAPTCHA anchor frame targeting for the "I'm not a robot" checkbox across portals. 100% pass rate across 556 backend tests, 0 linter errors, 0 TypeScript errors.
+- **[`IMP-2026-1001-002: Settings Runtime Integrity and V4 Portal Parity`](implementation_plan/2026-10-01_uaic_settings-v4-portal-runtime-parity_implementation-record_v1.md)** — Current in-progress implementation and verification record. Its focused test results do not certify all eight live portal extractions; the record tracks outstanding acceptance evidence.

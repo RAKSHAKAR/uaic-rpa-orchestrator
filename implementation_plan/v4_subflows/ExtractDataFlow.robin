@@ -1,0 +1,1505 @@
+FUNCTION ExtractDataFlow GLOBAL
+
+    SET InitialCounter TO $fx'1'
+
+    @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': 'In Progress'
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '2027914976'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '2138712493'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_record_status': $fx'870300001' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+    ON ERROR ConnectorExecutionError
+
+
+
+    ON ERROR ConnectorTimeoutError
+
+
+
+    END
+
+    Variables.IncreaseVariable Value: $fx'=InitialCounter' IncrementValue: $fx'1'
+
+    SET VarInsuredFirstName TO $fx'=DataverseCurrentItem.uaic_insuredfirstname'
+
+    SET VarInsuredLastName TO $fx'=DataverseCurrentItem.uaic_insuredlastname'
+
+    SET VarDriverFirstName TO $fx'=DataverseCurrentItem.uaic_driverfirstnameinsuredvehicle'
+
+    SET VarDriverLastName TO $fx'=DataverseCurrentItem.uaic_driverlastnameinsuredvehicle'
+
+    SET VarClaimantFirstName TO $fx'=DataverseCurrentItem.uaic_claimantfirstname'
+
+    SET VarClaimantLastName TO $fx'=DataverseCurrentItem.uaic_claimantlastname'
+
+    SET VarDOL TO $fx'=DataverseCurrentItem.uaic_dol'
+
+    IF $fx'=VarInsuredFirstName = VarDriverFirstName And VarInsuredLastName = VarDriverLastName And VarClaimantFirstName = VarInsuredFirstName And VarClaimantLastName = VarInsuredLastName' THEN
+
+        SET DualSearch TO $fx'=Int(1)'
+
+        SET TripleSearch TO $fx'=Int(1)'
+
+    ELSE IF $fx'=VarInsuredFirstName = VarDriverFirstName And VarInsuredLastName = VarDriverLastName And VarInsuredFirstName <> VarClaimantFirstName And VarInsuredLastName <> VarClaimantLastName' THEN
+
+        SET DualSearch TO $fx'=Int(1)'
+
+        SET TripleSearch TO $fx'=Int(3)'
+
+    ELSE IF $fx'=VarInsuredFirstName = VarClaimantFirstName And VarInsuredLastName = VarClaimantLastName And VarInsuredFirstName <> VarDriverFirstName And VarInsuredLastName <> VarDriverLastName' THEN
+
+        SET DualSearch TO $fx'=Int(2)'
+
+        SET TripleSearch TO $fx'=Int(1)'
+
+    ELSE IF $fx'=VarDriverFirstName = VarClaimantFirstName And VarDriverLastName = VarClaimantLastName And VarDriverFirstName <> VarInsuredFirstName And VarDriverLastName <> VarInsuredLastName' THEN
+
+        SET DualSearch TO $fx'=Int(2)'
+
+        SET TripleSearch TO $fx'=Int(1)'
+
+    ELSE
+
+        SET DualSearch TO $fx'=Int(2)'
+
+        SET TripleSearch TO $fx'=Int(3)'
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_fl_website_broward="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': 'In Progress'
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '217125526'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '2048199402'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_broward': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListB
+
+        CALL Subflow_Broward
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Broward
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Broward
+
+        END
+
+        IF IsEmpty($fx'=JSONListB') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': 'No match found'
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_broward': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListB TO $fx'[
+
+${JSONListB}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': 'Completed'
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1200422580'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '1708406194'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_broward': $fx'870300001' @'item/uaic_fl_jsonbody_broward': $fx'=JSONListB' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_te_website_dallas="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': 'In Progress'
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_dallas': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListD
+
+        CALL Subflow_Dallas
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Dallas
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Dallas
+
+        END
+
+        IF IsEmpty($fx'=JSONListD') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': 'No match found'
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_dallas': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListD TO $fx'[
+
+${JSONListD}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': 'Completed'
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_dallas': $fx'870300001' @'item/uaic_te_jsonbody_dallas': $fx'=JSONListD' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_te_website_travis="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': 'In Progress'
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_travis': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListT
+
+        CALL Subflow_Travis
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Travis
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Travis
+
+        END
+
+        IF IsEmpty($fx'=JSONListT') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': 'No match found'
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_travis': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListT TO $fx'[
+
+${JSONListT}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': 'Completed'
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_travis': $fx'870300001' @'item/uaic_te_jsonbody_travis': $fx'=JSONListT' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_te_website_harris="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': 'In Progress'
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_harris': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListH
+
+        CALL Subflow_Harris
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Harris
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Harris
+
+        END
+
+        IF IsEmpty($fx'=JSONListH') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': 'No match found'
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_harris': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR REPEAT 2 TIMES WAIT 2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListH TO $fx'[
+
+${JSONListH}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': 'Completed'
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_harris': $fx'870300001' @'item/uaic_te_jsonbody_harris': $fx'=JSONListH' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_fl_website_miami="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': 'In Progress'
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_miami': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListM
+
+        CALL Subflow_Miami
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Miami
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Miami
+
+        END
+
+        IF IsEmpty($fx'=JSONListM') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': 'No match found'
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_miami': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListM TO $fx'[
+
+${JSONListM}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': 'Completed'
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_miami': $fx'870300001' @'item/uaic_fl_jsonbody_miami': $fx'=JSONListM' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_te_website_cclerk="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': 'In Progress'
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_cclerk': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListC
+
+        CALL Subflow_Cclerk
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Cclerk
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Cclerk
+
+        END
+
+        IF IsEmpty($fx'=JSONListC') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': 'No match found'
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_cclerk': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListC TO $fx'[
+
+${JSONListC}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': 'Completed'
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1802803342'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '1530877906'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_cclerk': $fx'870300001' @'item/uaic_te_jsonbody_cclerk': $fx'=JSONListC' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_fl_website_hillsborough="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': 'In Progress'
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '991039785'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-726534777'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_hillsborough': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        SET JSONListHill TO $fx'=Blank()'
+
+        DISABLE Variables.CreateNewList List=> JSONListHill
+
+        CALL Subflow_Hillsborough
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_Hillsborough
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_Hillsborough
+
+        END
+
+        IF $fx'=IsBlank(JSONListHill)' THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': 'No match found'
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1492033037'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_hillsborough': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListHill TO $fx'[
+
+${JSONListHill}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': 'Completed'
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '658584627'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-839503359'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_hillsborough': $fx'870300001' @'item/uaic_fl_jsonbody_hillsborough': $fx'=JSONListHill' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+            ON ERROR
+
+
+
+            END
+
+        END
+
+    END
+
+    IF $fx'=DataverseCurrentItem.uaic_te_website_hcdistrict="Yes"' THEN
+
+        @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': 'In Progress'
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '991039785'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-726534777'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_hcdistrict': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+        ON ERROR
+
+
+
+        END
+
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+
+        SET VarLastName TO $fx'=VarInsuredLastName'
+
+        Variables.CreateNewList List=> JSONListHc
+
+        CALL Subflow_HarrisDistrict
+
+        IF $fx'=DualSearch=2' THEN
+
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+
+            SET VarLastName TO $fx'=VarDriverLastName'
+
+            CALL Subflow_HarrisDistrict
+
+        END
+
+        IF $fx'=TripleSearch=3' THEN
+
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+
+            SET VarLastName TO $fx'=VarClaimantLastName'
+
+            CALL Subflow_HarrisDistrict
+
+        END
+
+        IF IsEmpty($fx'=JSONListHc') THEN
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': 'No match found'
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '658584627'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-839503359'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_hcdistrict': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+            ON ERROR
+
+
+
+            END
+
+        ELSE
+
+            SET JSONListHc TO $fx'[
+
+${JSONListHc}
+
+]'
+
+            @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': ''
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': 'Completed'
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '658584627'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-839503359'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_hcdistrict': $fx'870300001' @'item/uaic_te_jsonbody_hcdistrict': $fx'=JSONListHc' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+
+        END
+
+    END
+
+    @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': 'Fuzzy Match New'
+
+@@'item/uaic_record_status': 'Completed'
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '-1018451927'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '1405082537'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fuzzymatchflowstatus': $fx'870300000' @'item/uaic_record_status': $fx'870300002' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+    ON ERROR
+
+
+
+    END
+
+    DISABLE DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> EndTime
+
+    DISABLE DateTime.Subtract FromDate: $fx'=EndTime' SubstractDate: $fx'=StartTime' TimeUnit: DateTime.DifferenceTimeUnit.Minutes TimeDifference=> TimeDifference
+
+    DISABLE Display.ShowMessageDialog.ShowMessage Title: $fx'Time Taken' Message: $fx'=TimeDifference' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+END FUNCTION

@@ -70,14 +70,14 @@ class Settings(BaseSettings):
     LOGS_DIR: Path = (_BACKEND_DIR / "logs").resolve()
 
     # Portals
-    PORTAL_BROWARD_URL: str = "https://www.browardclerk.org/"
-    PORTAL_HILLSBOROUGH_URL: str = "https://hover.hillsclerk.com/"
+    PORTAL_BROWARD_URL: str = "https://www.browardclerk.org/Web2"
+    PORTAL_HILLSBOROUGH_URL: str = "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
     PORTAL_MIAMI_URL: str = "https://www2.miamidadeclerk.gov/ocs"
-    PORTAL_TRAVIS_URL: str = "https://odysseyweb.traviscountytx.gov/Portal/"
-    PORTAL_DALLAS_URL: str = "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
-    PORTAL_HARRIS_JP_URL: str = "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
+    PORTAL_TRAVIS_URL: str = "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
+    PORTAL_DALLAS_URL: str = "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
+    PORTAL_HARRIS_JP_URL: str = "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
     PORTAL_HARRIS_CCLERK_URL: str = "https://www.cclerk.hctx.net/Applications/WebSearch/"
-    PORTAL_HARRIS_DISTRICT_URL: str = "https://www.hcdistrictclerk.com/"
+    PORTAL_HARRIS_DISTRICT_URL: str = "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
 
     # Whitelisted Legacy Case Types & Statuses
     ALLOWED_CASE_STATUSES: list[str] = [

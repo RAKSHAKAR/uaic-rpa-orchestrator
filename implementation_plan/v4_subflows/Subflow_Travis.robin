@@ -1,0 +1,139 @@
+FUNCTION Subflow_Travis GLOBAL
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+
+    WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['TravisCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueTravisCaptcha
+
+    IF $fx'=AttributeValueTravisCaptcha="true"' THEN
+
+        LABEL Clickcaptcha
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['Travis AntiCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+
+        WAIT $fx'=Int(5)'
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['TravisClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+        ON ERROR
+
+
+
+        END
+
+        WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Travis new'], imgrepo['Travis1'], imgrepo['travis 15/12'], imgrepo['Travis2007'], imgrepo['Travis200726'], imgrepo['Image_13 24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Image_14 31826'], imgrepo['Travis3108'], imgrepo['Image_14_PR_Travis']] FindAllImages: False Tolerance: $fx'=10' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+
+        ON ERROR REPEAT 3 TIMES WAIT 8
+
+        ON ERROR
+
+            GOTO Clickcaptcha
+
+        END
+
+    END
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { document.getElementById("btnSSSubmit").click(); }' Result=> ResultClick
+
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserTravis' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=7' 
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserTravis' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(4)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageTravis
+
+    ON ERROR
+
+
+
+    END
+
+    LOOP FOREACH CurrentRowT IN $fx'=DataFromWebPageTravis'
+
+        SET WebsiteUrlT TO $fx'https://odysseyweb.traviscountytx.gov'
+
+        SET CaseUrlT TO $fx'=Concatenate(WebsiteUrlT,CurrentRowT.\'value #1\')'
+
+        WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserTravis' Url: $fx'=CaseUrlT' WaitForPageToLoadTimeout: $fx'60' NewBrowserInstance=> NewBrowserT
+
+        ON ERROR
+
+            REPEAT ACTION
+
+        END
+
+        WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowserT' Control: appmask['Travis']['Span \'IN THE INTEREST OF M. M. CHILD(REN)\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStyleInfoT
+
+        ON ERROR
+
+
+
+        END
+
+        WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowserT' Control: appmask['Travis']['Span \'11/06/2007\''] AttributeName: $fx'Own Text' AttributeValue=> FilingDateInfoT
+
+        ON ERROR
+
+
+
+        END
+
+        IF IsEmpty($fx'=JSONListT') THEN
+
+            SET JSONListT TO $fx'{
+
+    "CaseNumber": "${CurrentRowT.\'Value #2\'}",
+
+    "CaseStyle": "${CaseStyleInfoT}",
+
+    "FilingDate": "${FilingDateInfoT}",
+
+    "CaseStatus": "${CurrentRowT.\'Value #3\'}",
+
+    "CaseType": "${CurrentRowT.\'Value #4\'}"
+
+  }'
+
+        ELSE
+
+            SET JSONListT TO $fx'${JSONListT},
+
+{
+
+    "CaseNumber": "${CurrentRowT.\'Value #2\'}",
+
+    "CaseStyle": "${CaseStyleInfoT}",
+
+    "FilingDate": "${FilingDateInfoT}",
+
+    "CaseStatus": "${CurrentRowT.\'Value #3\'}",
+
+    "CaseType": "${CurrentRowT.\'Value #4\'}"
+
+  }'
+
+        END
+
+        WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserT'
+
+    END
+
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageTravis'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll("p.step-label")].forEach(el => {
+
+    if (el.textContent.trim() === "Smart Search") {
+
+        el.click();
+
+    }
+
+});
+
+ }' Result=> ResultClickSearch
+
+END FUNCTION

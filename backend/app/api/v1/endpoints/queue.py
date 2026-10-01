@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.claim import ClaimRecord, RecordStatusEnum
+from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
 from app.schemas.queue import (
     ConcurrencyUpdateRequest,
     LiveQueueItemResponse,
@@ -26,7 +26,9 @@ router = APIRouter()
 
 async def _validate_anticaptcha():
     settings_obj = await get_system_settings_async()
-    if not settings_obj.automation.anticaptcha_api_key or not settings_obj.automation.anticaptcha_api_key.strip():
+    if settings_obj.automation.anticaptcha_enabled and not (
+        settings_obj.automation.anticaptcha_api_key or ""
+    ).strip():
         raise HTTPException(
             status_code=422,
             detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers."
@@ -155,12 +157,27 @@ async def retrigger_failed_claims(
     if not claims_to_retrigger:
         return {"message": "No matching claims found to retrigger", "count": 0}
 
+    portal_status_attrs = (
+        "fl_botstatus_broward",
+        "fl_botstatus_hillsborough",
+        "fl_botstatus_miami",
+        "te_botstatus_travis",
+        "te_botstatus_dallas",
+        "te_botstatus_harris",
+        "te_botstatus_cclerk",
+        "te_botstatus_hcdistrict",
+    )
+
     retriggered_ids = []
     for claim in claims_to_retrigger:
         claim.record_status = RecordStatusEnum.NEW
         claim.retry_count += 1
+        claim.last_error = None
+        for attr in portal_status_attrs:
+            if getattr(claim, attr, None) in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED, "FAILED", "BLOCKED"):
+                setattr(claim, attr, BotStatusEnum.NOT_TRIGGERED)
         retriggered_ids.append(claim.id)
-        
+
         # Dispatch Celery scraping orchestrator task
         celery_app.send_task(
             "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
@@ -553,19 +570,21 @@ async def run_selected_claims(
 
     # ── FLEET CONCURRENCY GATE ────────────────────────────────────────────────
     from app.services.settings_service import get_system_settings_async as _get_settings
+    from app.tasks.queue_runner import add_active_queue_item_id, is_auto_queue_enabled
+
+    auto_enabled = is_auto_queue_enabled()
     runtime_settings = await _get_settings()
     max_concurrency = max(1, min(10, int(getattr(runtime_settings.automation, "max_concurrent_claims", 1) or 1)))
 
     active_q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
     active_res = await db.execute(active_q)
     active_count = len(list(active_res.scalars().all()))
-    available_slots = max(0, max_concurrency - active_count)
+    available_slots = max(0, max_concurrency - active_count) if auto_enabled else 0
 
     res = await db.execute(
         select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
     )
     claims = list(res.scalars().all())
-    from app.tasks.queue_runner import add_active_queue_item_id
 
     dispatched = []
     queued = []
@@ -614,5 +633,4 @@ async def run_selected_claims(
         "fleet_limit": max_concurrency,
         "claim_ids": dispatched,
     }
-
 

@@ -153,8 +153,9 @@ async def test_tc_pag_006_harris_jp_no_15_row_cap():
 
 
 @pytest.mark.asyncio
-async def test_tc_pag_001_broward_pagination_iterates_pages():
-    """TC-PAG-001: Broward pagination loop advances to next page."""
+@pytest.mark.parametrize("repeated_page", [False, True])
+async def test_tc_pag_001_broward_pagination_iterates_pages(repeated_page):
+    """TC-PAG-001: Broward advances to new rows or fails on a repeated page."""
     scraper = BrowardScraper()
     page = MagicMock()
     page.evaluate = AsyncMock(return_value=False)
@@ -166,7 +167,7 @@ async def test_tc_pag_001_broward_pagination_iterates_pages():
     call_idx = {"page": 0}
 
     def get_row(idx):
-        p = call_idx["page"]
+        p = 0 if repeated_page else call_idx["page"]
         row_m = MagicMock()
         row_m.locator.return_value.all_inner_texts = AsyncMock(
             return_value=[f"CACE-23-00{p}{idx:02d}", "Style", "CIVIL", "01/01/2023", "OPEN"]
@@ -212,14 +213,20 @@ async def test_tc_pag_001_broward_pagination_iterates_pages():
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = True
-        res = await scraper.search_by_party_name("John", "Doe", page)
+        if repeated_page:
+            with pytest.raises(RuntimeError, match="Pagination did not advance"):
+                await scraper.search_by_party_name("John", "Doe", page)
+        else:
+            res = await scraper.search_by_party_name("John", "Doe", page)
 
-    assert len(res) >= 2
+    if not repeated_page:
+        assert len(res) >= 2
+    assert next_btn.click.await_count <= 1
 
 
 @pytest.mark.asyncio
-async def test_tc_pag_009_safety_ceiling_stops_at_10_pages():
-    """TC-PAG-009: Base scraper pagination helper or loop respects max 10 pages ceiling."""
+async def test_tc_pag_009_repeated_page_fails_fast():
+    """TC-PAG-009: A pager that repeats the same case page fails before another loop."""
     scraper = TravisScraper()
     page = MagicMock()
     page.evaluate = AsyncMock(return_value=False)
@@ -263,7 +270,8 @@ async def test_tc_pag_009_safety_ceiling_stops_at_10_pages():
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = True
-        await scraper.search_by_party_name("Infinite", "Results", page)
+        with pytest.raises(RuntimeError, match="Pagination did not advance"):
+            await scraper.search_by_party_name("Infinite", "Results", page)
 
-    # Must exit and not loop infinitely (max 10 pages ceiling)
-    assert next_btn.click.await_count <= 10
+    # A repeated page is an extraction failure, not a reason to loop indefinitely.
+    assert next_btn.click.await_count <= 2

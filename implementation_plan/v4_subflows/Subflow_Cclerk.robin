@@ -1,0 +1,67 @@
+FUNCTION Subflow_Cclerk GLOBAL
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserCclerk' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ContentPlaceHolder1_txtFirstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserCclerk' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ContentPlaceHolder1_txtLastName").value = "${VarLastName}"; }' Result=> ResultLastName
+
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=BrowserCclerk' Control: appmask['CClerk']['Input text \'File Date from\' 4'] Text: $fx'=VarDOL' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserCclerk' Control: appmask['CClerk']['Input submit \'Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserCclerk' Control: $fx'html > body > form > div:eq(5) > div > div:eq(4) > div > table:eq(1) > tbody:eq(1) > tr' ExtractionParameters: {[$fx'td:eq(0) > a', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(5) > span', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageCclerk
+
+    ON ERROR
+
+
+
+    END
+
+    LOOP FOREACH CurrentRowC IN $fx'=DataFromWebPageCclerk'
+
+        SET CaseNumberC TO $fx'=CurrentRowC.\'value #1\''
+
+        SET CaseStyleC TO $fx'=CurrentRowC.\'Value #3\''
+
+        SET FilingDateC TO $fx'=CurrentRowC.\'Value #2\''
+
+        SET CaseStatusC TO $fx'=CurrentRowC.\'Value #4\''
+
+        IF IsEmpty($fx'=JSONListC') THEN
+
+            SET JSONListC TO $fx'{
+
+   "CaseNumber": "${Trim(CaseNumberC)}",
+
+   "CaseStyle": "${Trim(CaseStyleC)}",
+
+   "FilingDate": "${Trim(FilingDateC)}",
+
+   "CaseStatus": "${Trim(CaseStatusC)}"
+
+  }'
+
+        ELSE
+
+            SET JSONListC TO $fx'${JSONListC},
+
+{
+
+   "CaseNumber": "${Trim(CaseNumberC)}",
+
+   "CaseStyle": "${Trim(CaseStyleC)}",
+
+   "FilingDate": "${Trim(FilingDateC)}",
+
+   "CaseStatus": "${Trim(CaseStatusC)}"
+
+  }'
+
+        END
+
+    END
+
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageCclerk'
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserCclerk' Control: appmask['Web Page \'h ... EE2QBJQ==#\'']['Input submit \'Clear\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+END FUNCTION

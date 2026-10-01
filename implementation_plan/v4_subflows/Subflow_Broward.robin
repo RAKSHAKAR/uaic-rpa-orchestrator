@@ -1,0 +1,161 @@
+FUNCTION Subflow_Broward GLOBAL
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Anchor \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Label \'Last Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Detailsenterstarttime
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("firstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("lastName").value = "${VarLastName}"; }' Result=> ResultLastName
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("filingDateOnOrAfterP").value = "${VarDOL}"; }' Result=> ResultDOL
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtime
+
+    DateTime.Subtract FromDate: $fx'=Detailsenterstarttime' SubstractDate: $fx'=DetailsEnterendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEntering
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEntering' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... shboard/29\'']['BrowardCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueBroward
+
+    DISABLE IF $fx'=AttributeValueBroward="true"' THEN
+
+        DISABLE LABEL Clickcaptcha
+
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Div'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Label \'Middle Name\''] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+ON ERROR
+
+
+
+END
+
+        DISABLE WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Broward 13/04/26'], imgrepo['Broward 13/04'], imgrepo['Broward2007'], imgrepo['Broward200726']] FindAllImages: False Tolerance: $fx'=8' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=120' 
+
+ON ERROR REPEAT 2 TIMES WAIT 3
+
+END
+
+    DISABLE END
+
+    WAIT $fx'=Int(10)'
+
+    WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_13'], imgrepo['Image_3108']] FindAllImages: False Tolerance: $fx'=7' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X2 Y=> Y2)
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("PersonSearchResults").click(); }' Result=> ResultClick
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Extractionstarttime
+
+    SET NextPage TO $fx'True'
+
+    LOOP WHILE $fx'=NextPage = "True"'
+
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserBroward' Control: $fx'html > body > div:eq(8) > div:eq(3) > div:eq(1) > div:eq(1) > div:eq(1) > div:eq(1) > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(0) > div > button', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(4)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageBroward
+
+        ON ERROR
+
+
+
+        END
+
+        LOOP FOREACH CurrentRowB IN $fx'=DataFromWebPageBroward'
+
+            SET CaseNumberB TO $fx'=CurrentRowB.\'value #1\''
+
+            SET CaseStyleB TO $fx'=CurrentRowB.\'Value #2\''
+
+            SET FilingDateB TO $fx'=CurrentRowB.\'Value #3\''
+
+            SET CaseStatusB TO $fx'=CurrentRowB.\'Value #4\''
+
+            SET CaseTypeB TO $fx'=CurrentRowB.\'Value #5\''
+
+            IF IsEmpty($fx'=JSONListB') THEN
+
+                SET JSONListB TO $fx'{
+
+    "CaseNumber": "${CaseNumberB}",
+
+    "CaseStyle": "${CaseStyleB}",
+
+    "FilingDate": "${FilingDateB}",
+
+    "CaseStatus": "${CaseStatusB}",
+
+    "CaseType": "${CaseTypeB}"
+
+  }'
+
+            ELSE
+
+                SET JSONListB TO $fx'${JSONListB},
+
+{
+
+    "CaseNumber": "${CaseNumberB}",
+
+    "CaseStyle": "${CaseStyleB}",
+
+    "FilingDate": "${FilingDateB}",
+
+    "CaseStatus": "${CaseStatusB}",
+
+    "CaseType": "${CaseTypeB}"
+
+  }'
+
+            END
+
+        END
+
+        Variables.ClearDataTable DataTable: $fx'=DataFromWebPageBroward'
+
+        IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... zYUw%3D%3D\'']['Anchor \'Go to the next page\'']) THEN
+
+            SET NextPage TO $fx'False'
+
+        ELSE
+
+            WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... zYUw%3D%3D\'']['Anchor \'Go to the next page\' 2'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+            SET NextPage TO $fx'True'
+
+        END
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Extractionendtime
+
+    DateTime.Subtract FromDate: $fx'=Extractionstarttime' SubstractDate: $fx'=Extractionendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifference
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings' Message: $fx'=ExtractionTimeDifference' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://www.browardclerk.org/Web2' WaitForPageToLoadTimeout: $fx'=60'
+
+    ON ERROR
+
+        REPEAT ACTION
+
+    END
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Anchor \'Case Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR REPEAT 3 TIMES WAIT 2
+
+    ON ERROR
+
+
+
+    END
+
+END FUNCTION

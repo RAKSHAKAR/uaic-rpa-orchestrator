@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.automation.base import BaseCourtScraper
+from app.automation.base import BaseCourtScraper, PortalSearchError
 from app.automation.session_runner import SingleSessionBrowserRunner
 from app.schemas.settings import AutomationSettings
 from app.services.settings_service import get_default_settings
@@ -89,6 +89,87 @@ async def test_pace_action_applies_timeout():
     await scraper.pace_action(mock_page)
 
     mock_page.wait_for_timeout.assert_awaited_once_with(250)
+
+
+@pytest.mark.asyncio
+async def test_configured_action_pacing_applies_after_fill_and_click():
+    """Both ordinary field entry and button clicks honor the configured delay."""
+    scraper = DummyScraper(
+        county_name="TestCounty",
+        base_url="https://test.court.local",
+        action_pacing_ms=275,
+    )
+    locator = MagicMock()
+    locator.clear = AsyncMock()
+    locator.fill = AsyncMock()
+    locator.bounding_box = AsyncMock(return_value=None)
+    locator.click = AsyncMock()
+    page = MagicMock()
+    page.wait_for_timeout = AsyncMock()
+
+    with patch("asyncio.sleep", new_callable=AsyncMock) as sleep:
+        await scraper.biometric_fill(locator, "Jane Smith")
+        sleep.assert_awaited_once_with(0.275)
+
+    await scraper.biometric_click(page, locator)
+    page.wait_for_timeout.assert_awaited_once_with(275)
+    locator.fill.assert_awaited_once_with("Jane Smith")
+    locator.click.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_field_entry_raises_after_dom_fallback_fails():
+    scraper = DummyScraper("TestCounty", "https://test.court.local", action_pacing_ms=0)
+    locator = MagicMock()
+    locator.clear = AsyncMock(side_effect=RuntimeError("field blocked"))
+    locator.evaluate = AsyncMock(side_effect=RuntimeError("DOM blocked"))
+
+    with pytest.raises(PortalSearchError, match="Field entry failed"):
+        await scraper.biometric_fill(locator, "Jane Smith")
+
+    locator.evaluate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_click_raises_after_force_and_dom_fallbacks_fail():
+    scraper = DummyScraper("TestCounty", "https://test.court.local", action_pacing_ms=0)
+    page = MagicMock()
+    locator = MagicMock()
+    locator.bounding_box = AsyncMock(return_value=None)
+    locator.click = AsyncMock(side_effect=RuntimeError("click blocked"))
+    locator.evaluate = AsyncMock(side_effect=RuntimeError("DOM blocked"))
+
+    with pytest.raises(PortalSearchError, match="Click failed"):
+        await scraper.biometric_click(page, locator)
+
+    assert locator.click.await_count == 2
+    locator.evaluate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_offscreen_click_scrolls_then_uses_actionable_locator():
+    """An attended viewport must not accept a mouse click below its visible area."""
+    scraper = DummyScraper("TestCounty", "https://test.court.local", action_pacing_ms=0)
+    page = MagicMock()
+    page.viewport_size = {"width": 1200, "height": 900}
+    page.mouse.move = AsyncMock()
+    page.mouse.down = AsyncMock()
+    page.mouse.up = AsyncMock()
+    locator = MagicMock()
+    locator.scroll_into_view_if_needed = AsyncMock()
+
+    async def box_after_scroll():
+        locator.scroll_into_view_if_needed.assert_awaited_once()
+        return {"x": 100, "y": 969, "width": 120, "height": 30}
+
+    locator.bounding_box = AsyncMock(side_effect=box_after_scroll)
+    locator.click = AsyncMock()
+
+    await scraper.biometric_click(page, locator)
+
+    locator.click.assert_awaited_once_with()
+    page.mouse.move.assert_not_awaited()
+    page.mouse.down.assert_not_awaited()
 
 
 def test_automation_settings_speed_schema():

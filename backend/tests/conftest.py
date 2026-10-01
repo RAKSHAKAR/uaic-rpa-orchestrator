@@ -114,3 +114,28 @@ def mock_celery_when_no_redis(monkeypatch):
             MagicMock(return_value=MagicMock(id="mock-celery-task-id")),
         )
 
+
+@pytest.fixture(autouse=True)
+def reset_redis_concurrency_semaphore():
+    """Ensure test suite starts and ends with clean Redis browser concurrency slot count."""
+    if _REDIS_UP:
+        try:
+            import redis
+
+            from app.core.config import settings
+
+            r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_timeout=0.5)
+            r.set("uaic:browser:active_count", 0)
+        except Exception:
+            pass
+    yield
+    if _REDIS_UP:
+        try:
+            import redis
+
+            from app.core.config import settings
+
+            r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_timeout=0.5)
+            r.set("uaic:browser:active_count", 0)
+        except Exception:
+            pass

@@ -1,0 +1,25 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T08:30:09.235980+00:00",
+  "synthetic_search": {
+    "first": "John",
+    "last": "Smith",
+    "date_of_loss": "01/01/2020"
+  },
+  "findings": [
+    {
+      "portal": "harris_district",
+      "configured_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+      "navigation": "loaded",
+      "search": "failed",
+      "case_count": null,
+      "first_case_fields": [],
+      "final_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "page_title": "Office of Harris County District Clerk - Marilyn Burgess | Search Our Records",
+      "captcha_visible": false,
+      "error": "search: RuntimeError: [Harris District Clerk (TX)] Could not advance result pagination to page 2",
+      "http_status": 200,
+      "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_harris_district_live_probe.png"
+    }
+  ]
+}

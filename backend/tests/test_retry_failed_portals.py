@@ -1,7 +1,8 @@
 """Unit and integration tests for Retry from Failed Portal Only (§66)."""
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,6 +12,7 @@ from app.core.database import AsyncSessionLocal
 from app.main import app
 from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
 from app.models.court_case import ScrapedCourtCase
+from app.schemas.settings import SystemSettings
 from app.tasks.retry_tasks import _async_retrigger_failed_cases
 from app.tasks.scraper_tasks import _async_orchestrate_scrapers
 
@@ -144,7 +146,9 @@ async def test_bulk_retry_failed_portals_only(sample_claim_with_failures):
     """Test POST /api/v1/claims/bulk-retry with failed_portals_only=True."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("app.api.v1.endpoints.claims.celery_app.send_task") as mock_send_task:
+        with patch("app.tasks.queue_runner.is_auto_queue_enabled", return_value=True), patch(
+            "app.api.v1.endpoints.claims.celery_app.send_task"
+        ) as mock_send_task:
             response = await client.post(
                 "/api/v1/claims/bulk-retry",
                 json={"claim_ids": [sample_claim_with_failures], "failed_portals_only": True},
@@ -174,8 +178,20 @@ async def test_async_orchestrate_scrapers_retry_failed_only(sample_claim_with_fa
     mock_session.stage_timings = {}
     mock_session.tabs = {}
 
-    # Mock get_or_create_tab to return a fake page
-    mock_page = AsyncMock()
+    # Playwright page.locator() is synchronous even though locator actions are
+    # asynchronous. An AsyncMock page creates orphaned locator coroutines.
+    mock_page = MagicMock()
+    mock_page.goto = AsyncMock()
+    mock_page.wait_for_timeout = AsyncMock()
+    mock_page.evaluate = AsyncMock(return_value=None)
+    mock_page.bring_to_front = AsyncMock()
+    mock_page.is_closed = MagicMock(return_value=False)
+    empty_locator = MagicMock()
+    empty_locator.count = AsyncMock(return_value=0)
+    empty_locator.is_visible = AsyncMock(return_value=False)
+    empty_locator.first = empty_locator
+    empty_locator.locator = MagicMock(return_value=empty_locator)
+    mock_page.locator = MagicMock(return_value=empty_locator)
     mock_session.get_or_create_tab = AsyncMock(return_value=mock_page)
 
     # Mock search_on_page at the class level for the scrapers that will be exercised
@@ -237,17 +253,27 @@ async def test_async_orchestrate_scrapers_retry_failed_only(sample_claim_with_fa
         res = await session.execute(cases_q)
         all_cases = res.scalars().all()
 
-        # Both the original Broward case and the new Hillsborough case must exist!
+        # Preserve Broward and both V4 Hillsborough search rows, even when the
+        # same case number appears for the two distinct party searches.
         case_numbers = [c.case_number for c in all_cases]
-        assert "CACE-23-001234" in case_numbers, "Original Broward case must be preserved!"
-        assert "HILL-2023-9999" in case_numbers, "New Hillsborough case must be inserted!"
-        assert len(all_cases) == 2
+        assert case_numbers.count("CACE-23-001234") == 1, "Original Broward case must be preserved!"
+        assert case_numbers.count("HILL-2023-9999") == 2, "Both Hillsborough search rows must be inserted!"
+        assert len(all_cases) == 3
 
 
 @pytest.mark.asyncio
 async def test_async_retrigger_failed_cases_scheduled_task(sample_claim_with_failures):
     """Test periodic retrigger_failed_cases Celery Beat task passes retry_failed_only=True."""
-    with patch("app.tasks.retry_tasks.celery_app.send_task") as mock_send_task:
+    async with AsyncSessionLocal() as session:
+        claim = await session.get(ClaimRecord, sample_claim_with_failures)
+        claim.updated_at = datetime.now(UTC) - timedelta(seconds=60)
+        await session.commit()
+
+    with (
+        patch("app.tasks.retry_tasks.get_system_settings_async", AsyncMock(return_value=SystemSettings())),
+        patch("app.tasks.retry_tasks.is_portal_in_cooldown", return_value=(False, 0, "")),
+        patch("app.tasks.retry_tasks.celery_app.send_task") as mock_send_task,
+    ):
         await _async_retrigger_failed_cases()
 
         mock_send_task.assert_called_with(

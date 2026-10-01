@@ -8,6 +8,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -33,17 +34,22 @@ from app.schemas.settings import (
     PortalTestResponse,
     ProxyTestRequest,
     ProxyTestResponse,
+    SettingsResponse,
+    SettingsUpdateRequest,
     StorageTestRequest,
     StorageTestResponse,
-    SystemSettings,
     TestEmailSendRequest,
     TestEmailSendResponse,
+    merge_settings_update,
+    redact_system_settings,
 )
 from app.services.audit_service import extract_client_context, record_audit_event_background
 from app.services.email_service import get_email_provider
 from app.services.guidewire_client import GuidewireClient, test_court_portal
 from app.services.notification_service import NotificationService
 from app.services.settings_service import (
+    SettingsConflictError,
+    SettingsUnavailableError,
     get_system_settings_async,
     reset_system_settings_async,
     save_system_settings_async,
@@ -53,18 +59,22 @@ logger = logging.getLogger("uaic_orchestrator.api.settings")
 router = APIRouter()
 
 
-@router.get("", response_model=SystemSettings, summary="Get active system settings")
+@router.get("", response_model=SettingsResponse, summary="Get active system settings")
 async def get_system_settings_endpoint():
-    """Returns active system settings from Redis with dynamic local fallback."""
-    return await get_system_settings_async()
-
-
-@router.post("", response_model=SystemSettings, summary="Update runtime system settings")
-@router.put("", response_model=SystemSettings, summary="Update runtime system settings (PUT)")
-async def update_system_settings_endpoint(payload: SystemSettings, request: Request = None):
-    """Saves updated system settings to Redis and refreshes cached configuration."""
+    """Return the durable settings revision without exposing stored secrets."""
     try:
-        saved = await save_system_settings_async(payload)
+        return redact_system_settings(await get_system_settings_async())
+    except SettingsUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+
+
+@router.post("", response_model=SettingsResponse, summary="Update runtime system settings")
+@router.put("", response_model=SettingsResponse, summary="Update runtime system settings (PUT)")
+async def update_system_settings_endpoint(payload: SettingsUpdateRequest, request: Request = None):
+    """Merge write-only secrets and commit the operator's settings revision."""
+    try:
+        current = await get_system_settings_async()
+        saved = await save_system_settings_async(merge_settings_update(current, payload))
         ctx = extract_client_context(request)
         record_audit_event_background(
             action="SETTINGS_UPDATED",
@@ -77,15 +87,19 @@ async def update_system_settings_endpoint(payload: SystemSettings, request: Requ
             status="SUCCESS",
             details={"updated_sections": ["automation", "portals", "fuzzy_matcher", "integration", "storage"]},
         )
-        return saved
-    except Exception as e:
-        logger.error(f"Failed to save system settings: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to persist settings: {e!s}") from e
+        return redact_system_settings(saved)
+    except SettingsConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    except SettingsUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+    except Exception as exc:
+        logger.error("Unexpected settings save failure (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Settings could not be saved") from None
 
 
-@router.post("/reset", response_model=SystemSettings, summary="Reset system settings to defaults")
+@router.post("/reset", response_model=SettingsResponse, summary="Reset system settings to defaults")
 async def reset_system_settings_endpoint(request: Request = None):
-    """Resets system settings to defaults across Redis and active memory."""
+    """Reset the durable settings document to validated defaults."""
     try:
         reset_res = await reset_system_settings_async()
         ctx = extract_client_context(request)
@@ -99,10 +113,14 @@ async def reset_system_settings_endpoint(request: Request = None):
             user_agent=ctx["user_agent"],
             status="WARNING",
         )
-        return reset_res
-    except Exception as e:
-        logger.error(f"Failed to reset system settings: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to reset settings: {e!s}") from e
+        return redact_system_settings(reset_res)
+    except SettingsConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    except SettingsUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+    except Exception as exc:
+        logger.error("Unexpected settings reset failure (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Settings could not be reset") from None
 
 
 @router.get("/branding", response_model=BrandingSettings, summary="Get brand identity configuration")
@@ -129,7 +147,7 @@ async def update_branding_settings_endpoint(payload: BrandingSettings, request: 
         ip_address=ctx["ip_address"],
         user_agent=ctx["user_agent"],
         status="SUCCESS",
-        details={"app_title": payload.app_title, "theme_mode": payload.theme_mode},
+        details={"app_title": payload.app_title, "theme_accent": payload.theme_accent},
     )
     return sys_settings.branding
 
@@ -166,14 +184,21 @@ async def test_guidewire_endpoint(payload: GuidewireTestRequest | None = None):
     client = GuidewireClient(
         api_url=payload.api_url if payload and payload.api_url else settings.integration.guidewire_api_url,
         auth_type=payload.auth_type if payload and payload.auth_type else settings.integration.guidewire_auth_type,
-        api_key=payload.api_key if payload and payload.api_key is not None else settings.integration.guidewire_api_key,
+        api_key=payload.api_key if payload and payload.api_key else settings.integration.guidewire_api_key,
         client_id=payload.client_id if payload and payload.client_id is not None else settings.integration.guidewire_client_id,
-        client_secret=payload.client_secret if payload and payload.client_secret is not None else settings.integration.guidewire_client_secret,
+        client_secret=payload.client_secret if payload and payload.client_secret else settings.integration.guidewire_client_secret,
         timeout=float(payload.timeout_seconds or settings.integration.guidewire_timeout_seconds),
         mock_mode=payload.mock_mode if payload and payload.mock_mode is not None else settings.integration.guidewire_mock_mode,
     )
     
-    return await client.test_connection(payload)
+    test_payload = payload.model_copy(deep=True) if payload else None
+    if test_payload:
+        # The Settings GET response intentionally hides these secrets. A blank
+        # test field therefore means use the committed credential, not erase it.
+        test_payload.api_key = test_payload.api_key or settings.integration.guidewire_api_key
+        test_payload.client_secret = test_payload.client_secret or settings.integration.guidewire_client_secret
+        test_payload.client_id = test_payload.client_id or settings.integration.guidewire_client_id
+    return await client.test_connection(test_payload)
 
 
 @router.post("/test-portal", response_model=PortalTestResponse, summary="Ping Court Scraper Portal URL")
@@ -378,18 +403,25 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
     configured_chrome = payload.chrome_binary_path if (payload and payload.chrome_binary_path) else getattr(auto_cfg, "chrome_binary_path", None)
     configured_ext = payload.chrome_extension_dir if (payload and payload.chrome_extension_dir) else auto_cfg.chrome_extension_dir
 
+    # Check if we should test the extension (passed from frontend)
+    test_extension = getattr(payload, "test_extension", True) if payload else True
+
     mode_label = "Headless (Background)" if target_headless else "Attended (Visible GUI)"
     chrome_exe = ChromeSession.find_chrome_executable(configured_chrome)
-    ext_path = ExtensionManager.resolve_extension_path(configured_ext)
+
+    # Omit extension completely if this is a pure browser test
+    ext_path = ExtensionManager.resolve_extension_path(configured_ext) if test_extension else None
 
     # Automatically ensure dedicated profile is initialized and extension pinned
-    try:
-        ChromeSession.configure_and_pin_profile(
-            api_key=auto_cfg.anticaptcha_api_key,
-            extension_path=ext_path,
-        )
-    except Exception as e:
-        logger.warning(f"Could not auto-configure profile before test browser launch: {e}")
+    if test_extension:
+        try:
+            ChromeSession.configure_and_pin_profile(
+                api_key=auto_cfg.anticaptcha_api_key,
+                extension_path=ext_path,
+                auto_cfg=auto_cfg,
+            )
+        except Exception as e:
+            logger.warning(f"Could not auto-configure profile before test browser launch: {e}")
 
     # Extract Proxy Configuration
     proxy_cfg = runtime_settings.proxy
@@ -406,6 +438,10 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
 
     async def _do_browser_test() -> str:
         nonlocal session
+
+        # Check if the frontend passed 'force_kill' in the payload dict/model
+        force_kill = getattr(payload, "force_kill", False) if payload else False
+
         session = ChromeSession(
             headless=target_headless,
             extension_path=ext_path,
@@ -417,6 +453,9 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             proxy_server=proxy_server,
             proxy_username=proxy_username,
             proxy_password=proxy_password,
+            force_kill=force_kill,
+            load_extension=test_extension,
+            auto_cfg=auto_cfg,
         )
         ctx = await asyncio.wait_for(session.start(), timeout=float(timeout_sec))
         page = await ctx.new_page()
@@ -434,23 +473,30 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
         except Exception:
             title = "UAIC Browser Verified"
 
-        # In attended mode, inject a visual banner and wait 4 seconds so operator sees it
-        if not target_headless:
-            try:
-                engine_name = "Chromium" if browser_engine == "chromium" else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
-                ext_status_txt = " + AntiCaptcha Pinned" if (session and session.extension_loaded) else ""
-                await page.evaluate(f"""() => {{
-                    const b = document.createElement('div');
-                    b.id = 'uaic-test-banner';
-                    b.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#ffffff;padding:12px 28px;border-radius:12px;font-family:system-ui,sans-serif;font-weight:700;font-size:15px;box-shadow:0 12px 30px rgba(0,0,0,0.35);z-index:9999999;pointer-events:none;border:2px solid #818cf8;';
-                    b.innerText = 'UAIC Orchestrator: {engine_name} Verified ({mode_label}){ext_status_txt}';
-                    document.body.appendChild(b);
-                }}""")
-                await page.wait_for_timeout(3500)
-            except Exception:
-                pass
+        try:
+            # In attended mode, inject a visual banner and wait 3.5 seconds so operator sees it
+            if not target_headless:
+                try:
+                    engine_name = "Chromium" if browser_engine == "chromium" else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+                    ext_status_txt = " + AntiCaptcha Pinned" if (session and session.extension_loaded) else ""
+                    await page.evaluate(f"""() => {{
+                        const b = document.createElement('div');
+                        b.id = 'uaic-test-banner';
+                        b.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#ffffff;padding:12px 28px;border-radius:12px;font-family:system-ui,sans-serif;font-weight:700;font-size:15px;box-shadow:0 12px 30px rgba(0,0,0,0.35);z-index:9999999;pointer-events:none;border:2px solid #818cf8;';
+                        b.innerText = 'UAIC Orchestrator: {engine_name} Verified ({mode_label}){ext_status_txt}';
+                        document.body.appendChild(b);
+                    }}""")
+                    await page.wait_for_timeout(3500)
+                except Exception:
+                    pass
 
-        return title
+            return title
+        finally:
+            if session:
+                try:
+                    await session.close()
+                except Exception:
+                    pass
 
     try:
         page_title = await run_browser_coroutine(_do_browser_test)
@@ -462,14 +508,16 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
         worker_active = bool(session.service_worker_active) if (session and isinstance(getattr(session, "service_worker_active", None), bool)) else False
         warning = session.warning_message if (session and isinstance(getattr(session, "warning_message", None), str)) else None
 
-        if ext_path and ext_loaded:
-            ext_summary = f"Extension loaded & verified (Worker: {'Active' if worker_active else 'Page'}, ID: {ext_id or 'active'})."
+        if not test_extension:
+            ext_summary = ""
+        elif ext_path and ext_loaded:
+            ext_summary = f"Extension loaded & verified (Worker: {'Active' if worker_active else 'Page'}, ID: {ext_id or 'active'}). "
         elif ext_path and not ext_loaded:
-            ext_summary = "Extension NOT loaded by browser."
+            ext_summary = "Extension NOT loaded by browser. "
         else:
-            ext_summary = "Extension path not configured."
+            ext_summary = "Extension path not configured. "
 
-        msg = f"Successfully launched {engine_title} in {mode_label} mode. {ext_summary} Page title: '{page_title}'."
+        msg = f"Successfully launched {engine_title} in {mode_label} mode. {ext_summary}Page title: '{page_title}'."
 
         if ext_loaded:
             try:
@@ -588,6 +636,7 @@ async def test_fleet_endpoint(payload: FleetTestRequest | None = None):
                 proxy_server=proxy_server,
                 proxy_username=proxy_username,
                 proxy_password=proxy_password,
+                auto_cfg=auto_cfg,
             )
             ctx = await asyncio.wait_for(session.start(), timeout=float(timeout_sec))
             page = await ctx.new_page()
@@ -728,15 +777,15 @@ async def validate_anticaptcha_extension(payload: dict[str, Any] | None = None):
         "api_key_configured": bool(api_key),
         "api_key_synced": key_synced,
         "engine_support": {
-            "chromium": {
-                "supported": True,
-                "status": "Verified & Active (Recommended)",
-                "note": "Playwright bundled Chromium mounts unpacked extensions with 100% verified success."
-            },
             "chrome": {
                 "supported": True,
-                "status": "Verified & Active",
+                "status": "Verified & Active (Default & Recommended)",
                 "note": "Google Chrome supports unpacked extensions with dedicated profile isolation, toolbar pinning, and service worker activation."
+            },
+            "chromium": {
+                "supported": True,
+                "status": "Verified & Active (Bundled Fallback)",
+                "note": "Playwright bundled Chromium mounts unpacked extensions with 100% verified success."
             },
             "msedge": {
                 "supported": True,
@@ -744,7 +793,7 @@ async def validate_anticaptcha_extension(payload: dict[str, Any] | None = None):
                 "note": "Microsoft Edge supports unpacked extensions with modern toolbar pinning and service worker activation."
             }
         },
-        "recommended_engine": "chromium",
+        "recommended_engine": "chrome",
         "message": "Anti-Captcha extension verified and ready for county court scraping." if (dir_exists and manifest_valid) else "AntiCaptcha extension directory or manifest not found."
     }
 
@@ -771,6 +820,7 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
         profile_dir=persistent_dir,
         api_key=api_key,
         extension_path=ext_path,
+        auto_cfg=auto_cfg,
     )
 
     # 2. Verify toolbar pinning in Default/Preferences
@@ -797,6 +847,7 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     # 3. Quick verification context using persistent profile
     worker_active = False
     session: ChromeSession | None = None
+    ChromeSession.clean_profile_locks_and_orphans(persistent_dir, force_kill=False)
     try:
         async def _verify_profile():
             nonlocal session, worker_active
@@ -806,14 +857,25 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
                 anticaptcha_api_key=api_key,
                 user_data_dir=str(persistent_dir),
                 browser_engine=auto_cfg.browser_engine or "chrome",
+                auto_cfg=auto_cfg,
             )
-            await asyncio.wait_for(session.start(), timeout=20.0)
+            await asyncio.wait_for(session.start(), timeout=45.0)
             worker_active = bool(session.service_worker_active or session.extension_loaded)
             return True
 
         await run_browser_coroutine(_verify_profile)
     except Exception as e:
         logger.warning(f"Note during extension verification launch: {e}")
+        # Structured error logging hierarchy per specification
+        try:
+            log_dir = Path(__file__).resolve().parent.parent.parent.parent / "logs" / "setup"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = log_dir / "execution.log"
+            timestamp_str = datetime.now().isoformat()
+            with open(log_file, "a", encoding="utf-8") as f_log:
+                f_log.write(f"[{timestamp_str}] [ERROR] Extension verification failure: {type(e).__name__}: {e}\n")
+        except Exception as e_log:
+            logger.debug(f"Could not record setup error log: {e_log}")
     finally:
         if session:
             try:
@@ -824,23 +886,25 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     dur_ms = round((time.perf_counter() - t0) * 1000, 1)
     now_iso = datetime.now().isoformat()
 
-    # 4. Persist verified state in SystemSettings
-    auto_cfg.extension_setup_verified = True
-    auto_cfg.extension_setup_timestamp = now_iso
-    await save_system_settings_async(runtime_settings)
+    # 4. Truthful verification check and persistence in SystemSettings
+    is_verified = bool(worker_active and (toolbar_pinned or ext_pinned))
+    if is_verified:
+        auto_cfg.extension_setup_verified = True
+        auto_cfg.extension_setup_timestamp = now_iso
+        await save_system_settings_async(runtime_settings)
 
     return ExtensionSetupResponse(
-        success=True,
-        status="ok",
-        verified=True,
-        message="AntiCaptcha extension configured, verified, and pinned to browser toolbar.",
+        success=is_verified,
+        status="ok" if is_verified else "warning",
+        verified=is_verified,
+        message="AntiCaptcha extension configured, verified, and pinned to browser toolbar." if is_verified else "AntiCaptcha extension configured, but service worker verification timed out or was not detected.",
         extension_id=(session.extension_id if session and session.extension_id else verified_id),
-        toolbar_action_verified=toolbar_pinned or ext_pinned or True,
-        pinned_to_toolbar=toolbar_pinned or ext_pinned or True,
-        service_worker_active=worker_active or True,
+        toolbar_action_verified=toolbar_pinned or ext_pinned,
+        pinned_to_toolbar=toolbar_pinned or ext_pinned,
+        service_worker_active=worker_active,
         profile_dir=str(persistent_dir),
         persistent_profile_path=str(persistent_dir),
-        verified_at=now_iso,
+        verified_at=now_iso if is_verified else None,
         timestamp=now_iso,
         latency_ms=dur_ms,
     )
@@ -850,6 +914,10 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
 async def test_storage_endpoint(req: StorageTestRequest):
     """Test connectivity, permissions, and accessibility for configured storage provider (Local, S3, Azure, GCS)."""
     from app.services.storage_service import StorageService
+    active = (await get_system_settings_async()).storage
+    for field in ("s3_secret_key", "azure_connection_string", "gcs_credentials_json"):
+        if not getattr(req, field):
+            setattr(req, field, getattr(active, field))
     return await StorageService.test_connection(req)
 
 
@@ -862,11 +930,14 @@ async def test_proxy_endpoint(req: ProxyTestRequest):
     Validates the proxy is reachable and correctly routing traffic before enabling
     it for automated county court scraping sessions.
     """
+    active = (await get_system_settings_async()).proxy
+    if not req.password and req.host == active.host and req.port == active.port and req.username == active.username:
+        req.password = active.password
     authenticated = bool(req.username and req.password)
 
     # Build proxy URL — embed credentials if provided (httpx 0.28+ uses proxy= string)
     if authenticated:
-        proxy_url = f"http://{req.username}:{req.password}@{req.host}:{req.port}"
+        proxy_url = f"http://{quote(req.username or '', safe='')}:{quote(req.password or '', safe='')}@{req.host}:{req.port}"
         display_proxy = f"http://{req.host}:{req.port}"
     else:
         proxy_url = f"http://{req.host}:{req.port}"
@@ -895,8 +966,8 @@ async def test_proxy_endpoint(req: ProxyTestRequest):
             )
     except Exception as e:
         dur_ms = round((time.perf_counter() - t0) * 1000, 1)
-        err = f"{type(e).__name__}: {e}"
-        logger.warning(f"Proxy connectivity test failed for {display_proxy}: {err}")
+        err = type(e).__name__
+        logger.warning("Proxy connectivity test failed for %s (%s)", display_proxy, err)
         return ProxyTestResponse(
             success=False,
             host=req.host,
@@ -1032,7 +1103,7 @@ async def test_email_connection_endpoint(payload: EmailConnectionTestRequest | N
             target_cfg.smtp_port = payload.smtp_port
         if payload.smtp_username is not None:
             target_cfg.smtp_username = payload.smtp_username
-        if payload.smtp_password is not None:
+        if payload.smtp_password:
             target_cfg.smtp_password = payload.smtp_password
         if payload.smtp_encryption:
             target_cfg.smtp_encryption = payload.smtp_encryption
@@ -1042,13 +1113,13 @@ async def test_email_connection_endpoint(payload: EmailConnectionTestRequest | N
             target_cfg.graph_tenant_id = payload.graph_tenant_id
         if payload.graph_client_id is not None:
             target_cfg.graph_client_id = payload.graph_client_id
-        if payload.graph_client_secret is not None:
+        if payload.graph_client_secret:
             target_cfg.graph_client_secret = payload.graph_client_secret
         if payload.ses_region is not None:
             target_cfg.ses_region = payload.ses_region
         if payload.ses_access_key_id is not None:
             target_cfg.ses_access_key_id = payload.ses_access_key_id
-        if payload.ses_secret_access_key is not None:
+        if payload.ses_secret_access_key:
             target_cfg.ses_secret_access_key = payload.ses_secret_access_key
     else:
         target_cfg = email_cfg
@@ -1112,7 +1183,7 @@ async def test_email_send_endpoint(payload: TestEmailSendRequest, db: AsyncSessi
 
 
 class AntiCaptchaTestRequest(BaseModel):
-    api_key: str
+    api_key: str = ""
 
 
 @router.post("/test-anticaptcha", summary="Test AntiCaptcha API key by checking balance")
@@ -1122,7 +1193,7 @@ async def test_anticaptcha_api_key(payload: AntiCaptchaTestRequest):
     Returns balance (USD) and latency. Used by the Settings > Automation > Anti-Captcha UI card.
     """
     t0 = time.perf_counter()
-    api_key = payload.api_key.strip()
+    api_key = payload.api_key.strip() or ((await get_system_settings_async()).automation.anticaptcha_api_key or "").strip()
 
     if not api_key:
         raise HTTPException(status_code=422, detail="api_key must not be empty")

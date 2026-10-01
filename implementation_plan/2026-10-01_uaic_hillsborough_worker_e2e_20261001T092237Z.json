@@ -1,0 +1,27 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T09:21:55.131941+00:00",
+  "portal": "hillsborough",
+  "synthetic_claim": "John Smith, 01/01/2024",
+  "browser": "headless Chromium, isolated profile, no extension",
+  "storage": "temporary SQLite, Redis DB 11",
+  "guidewire": "mock only",
+  "runtime_settings": {
+    "scorer_algorithm": "partial_ratio",
+    "page_timeout_seconds": 90,
+    "captcha_wait_seconds": 5,
+    "max_captcha_attempts": 1,
+    "action_pacing_ms": 100
+  },
+  "scrape": "FAILED",
+  "fuzzy": "not_attempted",
+  "mock_guidewire": "not_attempted",
+  "scrape_duration_seconds": 41.9,
+  "claim_status_after_scrape": "FAILED",
+  "claim_json_row_count": 0,
+  "court_case_row_count": 0,
+  "exact_json_fields": true,
+  "first_json_fields": [],
+  "all_rows_have_number_style_date": true,
+  "fuzzy_task_queued": false
+}

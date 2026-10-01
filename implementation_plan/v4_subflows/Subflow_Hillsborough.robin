@@ -1,0 +1,185 @@
+FUNCTION Subflow_Hillsborough GLOBAL
+
+    WebAutomation.Click.ClickCloseDialog BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Button \'Search by Party or Business Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=40' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['HillsBorough']['Label \'First Name *\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Detailsenterstarttimehills
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("spFirstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("spLastName").value = "${VarLastName}"; }' Result=> ResultLastName
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById(\'spDateFiledAfter\').value = "${VarDOL}"; }' Result=> ResultDOL
+
+    ON ERROR
+
+
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtimeHills
+
+    DateTime.Subtract FromDate: $fx'=Detailsenterstarttimehills' SubstractDate: $fx'=DetailsEnterendtimeHills' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEnteringHills
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnterHills' Message: $fx'=TimeDifferenceDetailsEnteringHills' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['HillsBorough']['Button \'Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.BottomCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+    WAIT $fx'=Int(10)'
+
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElementInState BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... sults.html\'']['Hillsborough No match'] State: WebAutomation.ElementState.Enabled) FOR $fx'=50' 
+
+    ON ERROR
+
+
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionstarttimeHills
+
+    IF (WebAutomation.IfWebPageContains.WebPageDoesNotContainElement BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... sults.html\'']['Table data cell \'No data available in table\'']) THEN
+
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=HillsboroughBrowser' Control: $fx'html > body > main > div:eq(1) > div:eq(1) > div > div:eq(1) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(4)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(6)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(5)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(7) > span', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'120' ExtractedData=> DataFromWebPageHills
+
+        ON ERROR
+
+
+
+        END
+
+        LOOP FOREACH CurrentRowHb IN $fx'=DataFromWebPageHills'
+
+            SET CaseNumberHb TO $fx'=CurrentRowHb.\'value #1\''
+
+            SET CaseStyleHb TO $fx'=CurrentRowHb.\'Value #2\''
+
+            SET FilingDateHb TO $fx'=CurrentRowHb.\'Value #3\''
+
+            SET CaseStatusHb TO $fx'=CurrentRowHb.\'Value #4\''
+
+            SET CaseTypeHb TO $fx'=CurrentRowHb.\'Value #5\''
+
+            IF $fx'=IsBlank(JSONListHill)' THEN
+
+                SET JSONListHill TO $fx'{
+
+    "CaseNumber": "${CaseNumberHb}",
+
+    "CaseStyle": "${CaseStyleHb}",
+
+    "FilingDate": "${FilingDateHb}",
+
+    "CaseStatus": "${CaseStatusHb}",
+
+    "CaseType": "${CaseTypeHb}"
+
+  }'
+
+            ELSE
+
+                SET JSONListHill TO $fx'${JSONListHill},
+
+{
+
+    "CaseNumber": "${CaseNumberHb}",
+
+    "CaseStyle": "${CaseStyleHb}",
+
+    "FilingDate": "${FilingDateHb}",
+
+    "CaseStatus": "${CaseStatusHb}",
+
+    "CaseType": "${CaseTypeHb}"
+
+  }'
+
+            END
+
+        END
+
+    ELSE
+
+        WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { var closeBtn = document.getElementById("messageClose").click(); }' Result=> ResultClose
+
+        ON ERROR
+
+
+
+        END
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionendtimeHills
+
+    DateTime.Subtract FromDate: $fx'=ExtractionstarttimeHills' SubstractDate: $fx'=ExtractionendtimeHills' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifferenceHills
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings Hills' Message: $fx'=ExtractionTimeDifferenceHills' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    WAIT $fx'=Int(8)'
+
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHills'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { var closeBtn = document.getElementById("messageClose").click(); }' Result=> ResultClose
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Anchor \'Case Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=100' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=HillsboroughBrowser' Url: $fx'https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab' WaitForPageToLoadTimeout: $fx'=60'
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Button \'Search by Party or Business Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+END FUNCTION

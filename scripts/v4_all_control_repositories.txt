@@ -1,0 +1,583 @@
+================================================================================
+FILE: PowerAutomateSolutions/BotCreation_1_0_0_7\desktopflowbinaries\0776b30b-0124-479d-9461-f59938cb7783\data\ControlRepository_5afd2566-e252-4f66-a3a6-1e9e9270b55c.json
+================================================================================
+
+SCREEN: HillsBorough
+  CONTROL: Button 'Search' (tag: button, id: )
+    SELECTOR: body > div > div > div[Id='nav-tabContent'] > div[Id='nav-Party'] > div[Id='myTabContent'] > div > div > button[Id='btnSubmitPartySearch']
+  CONTROL: Label 'First Name *' (tag: label, id: )
+    SELECTOR: body > div > div > div[Id='nav-tabContent'] > div[Id='nav-Party'] > div[Id='myTabContent'] > div[Id='formParty'] > div[Id='xformParty'] > div > label
+
+SCREEN: Dallas 
+  CONTROL: Label '* Enter a  ...  Suffix Format' (tag: label, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_0'] > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > div[Id='SearchCriteriaContainer'] > fieldset > label[Text='* Enter a Record Number or Name in Last, First Middle Suffix Format']
+  CONTROL: Paragraph 'No cases match your search' (tag: p, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > p[Text='No cases match your search']
+
+SCREEN: Web Page 'h ... ceMode?p=0' 2
+  CONTROL: Heading 1 'Smart Search' (tag: h1, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_0'] > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > h1[Text='Smart Search']
+
+SCREEN: Web Page 'h ... earch.aspx'
+  CONTROL: Span 'Search Our Records and Documents' (tag: span, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div > div > h1 > span[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_lblPgTit']
+  CONTROL: Input button 'Party Inquiry' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_pnlSearch'] > section[Id='sTabs'] > nav[Id='tabs'] > input[Id='tabParty']
+  CONTROL: Input date  ... yStartDate' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_pnlSearch'] > section[Id='sTabs'] > div[Id='content'] > div > div[Id='partyTabContent'] > section[Id='secParty'] > div > div > div > div > div > input[Id='txtPartyStartDate']
+
+SCREEN: Web Page 'h ... earch.html'
+  CONTROL: Anchor 'Case Search' (tag: a, id: )
+    SELECTOR: body > nav[Id='nav'] > nav > div > div[Id='navbarNavDropdown'] > ul > li > a[Ordinal='1']
+  CONTROL: Button 'Search by Party or Business Name' (tag: button, id: )
+    SELECTOR: body > div > div > nav > div[Id='nav-tab'] > button[Id='nav-Party-tab']
+
+SCREEN: Web Page 'h ... EE2QBJQ==#'
+  CONTROL: Input submit 'Clear' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > input[Id='ctl00_ContentPlaceHolder1_btnClear']
+
+SCREEN: Web Page 'h ... eSupport=1'
+  CONTROL: Label 'Party Name' (tag: label, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > h2[Text='NAVIGATION MENU']
+
+SCREEN: Travis
+  CONTROL: Span '11/06/2007' (tag: span, id: )
+    SELECTOR: body > div[Id='app'] > div[Id='div1'] > div[Id='top'] > div > md-content[Id='roa-content'] > div > section > md-card > md-card-content > ng-include > div > div > div > div > div > span[Text='^(0[1-9]|1[0-2])/([0-2][0-9]|3[01])/([0-9]{4})$']
+  CONTROL: Span 'IN THE INTEREST OF M. M. CHILD(REN)' (tag: span, id: )
+    SELECTOR: body > div[Id='app'] > div[Id='div1'] > div[Id='top'] > div > md-content[Id='roa-content'] > div > section > md-card > md-card-content > ng-include > div > div > div > span
+
+SCREEN: Web Page 'h ... shboard/29'
+  CONTROL: BrowardCaptcha (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div[Id='RecaptchaField1'] > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: TravisCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: Travis AntiCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div
+  CONTROL: TravisClick (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div
+
+SCREEN: Web Page 'h ... shboard/29' 2
+  CONTROL: Div 'AntiCaptcha' (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Middle Name']
+  CONTROL: DallasCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div[Class='rc-anchor-content'] > div > div > div
+  CONTROL: DallasAntiCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+
+SCREEN: Web Page 'h ... tabIndex=3'
+  CONTROL: Paragraph ' ... , MARTIN /' (tag: p, id: )
+    SELECTOR: body > div[Id='PortletSummaryROA'] > div > form > div[Id='caseInformationDiv'] > div > div > div[Class='row'] > div[Class='col-md-12'] > p[Class='text-primary']
+
+SCREEN: CClerk
+  CONTROL: Input submit 'Search' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > input[Id='ctl00_ContentPlaceHolder1_btnParty']
+  CONTROL: Input text 'File Date from' 4 (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > div > input[Id='ctl00_ContentPlaceHolder1_txtFrom2'] > body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > div > input[Id='ctl00_ContentPlaceHolder1_txtDateFrom2']
+
+SCREEN: Broward
+  CONTROL: Anchor 'Case Search' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > ul > li[Id='mnuSearch'] > a[Text='CASE SEARCH']
+  CONTROL: Label 'Last Name' (tag: label, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Last Name']
+  CONTROL: Div (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div[Id='RecaptchaField1'] > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div[Ordinal='3']
+  CONTROL: Label 'Middle Name' (tag: label, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Middle Name']
+  CONTROL: Anchor 'Party Name' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='myTabStandard'] > div > div > ul > li > a[Text='Party Name']
+
+SCREEN: Miami
+  CONTROL: Anchor 'Back to Standard Search' (tag: a, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > a[Id='ctl00_ContentPlaceHolder1_lnk', Title='Back to Search']
+  CONTROL: Button 'Reset' (tag: button, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div > div > button[Id='btnNameReset']
+  CONTROL: MiamiClick (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div
+  CONTROL: Div 'Recaptcha  ... cy - Terms' 4 (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: MiamiAntiCaptcha (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div
+
+SCREEN: Pane 'Office of  ...  - Google Chrome'
+  CONTROL: Group (tag: group, id: )
+    SELECTOR: document[Class='Chrome_RenderWidgetHostHWND'] > group[Id='content'] > custom[Id='filingDateFrom']
+
+SCREEN: Web Page 'h ... shboard/29' 3
+  CONTROL: HarrisCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: HarrisClick (tag: h2, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > h2
+
+SCREEN: Web Page 'h ... sults.html'
+  CONTROL: Hillborough Positive (tag: span, id: )
+    SELECTOR: body > div > div > div[Id='mycasesdata_wrapper'] > div > div > div > button > span[Text='Excel']
+  CONTROL: Hillsborough No match (tag: a, id: )
+    SELECTOR: body > div[Id='messageDialog'] > div[Id='hoverMessage'] > div > div > div > a[Id='messageClose', Text='Close']
+  CONTROL: Table data cell 'No data available in table' (tag: td, id: )
+    SELECTOR: body > div > div > div[Id='mycasesdata_wrapper'] > div > div > table[Id='mycasesdata'] > tbody > tr > td[Text='No data available in table']
+
+SCREEN: Web Page 'h ... zYUw%3D%3D'
+  CONTROL: Anchor 'Go to the next page' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div[Id='SearchResultsGrid'] > div > a[Class='disabled', Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 2 (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div[Id='SearchResultsGrid'] > div > a[Class='k-link k-pager-nav', Title='Go to the next page']
+
+SCREEN: Web Page 'h ... ceMode?p=0'
+  CONTROL: Anchor 'Go to the next page' 2 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 3 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Class='k-link', Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 6 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Title='Go to the next page']
+  CONTROL: Paragraph 'Case Status Appeal' (tag: p, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_2'] > div > div[Id='PortletSummaryROA'] > div > form > div[Id='caseInformationDiv'] > div > div[Id='divCaseInformation_body'] > div > div > p[Ordinal='6']
+
+SCREEN: Web Page 'https://www2.miamidadeclerk.gov/ocs/'
+  CONTROL: Span 'Party Name' (tag: span, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > div > span[Text='Party Name']
+
+SCREEN: Web Page 'https://www2.miamidadeclerk.gov/ocs'
+  CONTROL: Button 'Search' (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button
+  CONTROL: Input date 'filingDateFrom' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > div > input[Id='filingDateFrom']
+  CONTROL: Button 'Search' 2 (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button
+  CONTROL: Button 'Refresh' (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button[Ordinal='1']
+  CONTROL: Anchor 'View account information for Apoorv Nigam' 5 (tag: a, id: )
+    SELECTOR: body > div[Id='root'] > div > span > header > div > div > div > nav > div > a[Text='Welcome,']
+  CONTROL: Anchor 'View account information for Apoorv Nigam' (tag: a, id: )
+    SELECTOR: body > div[Id='root'] > div > span > header > div > div > div > nav > div > a[Text='Welcome,']
+
+SCREEN: Web Page 'h ... aseType=0#'
+  CONTROL: Input text 'partyFirstName' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > input[Id='partyFirstName']
+  CONTROL: Input text 'partyLastName' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > input[Id='partyLastName']
+
+SCREEN: Web Page 'h ... bp4NNyORD3'
+  CONTROL: Span 'OCS Home' (tag: span, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > nav[Id='breadcrumb'] > ol > li > span[Text='OCS Home']
+
+SCREEN: Window 'OCS Home – Miami-Dade County OCS - Google Chrome'
+  CONTROL: Edit 'Filing Date Range From' (tag: edit, id: )
+    SELECTOR: pane[Class='BrowserRootView', Name='OCS Home – Miami-Dade County OCS - Google Chrome'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='ContentsContainerView'] > document[Id='RootWebArea'] > group[Id='root'] > group[Id='content'] > edit[Class='form-control ', Id='filingDateFrom']
+  CONTROL: Hyperlink 'Register/Login' (tag: hyperlink, id: )
+    SELECTOR: pane[Class='BrowserRootView'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='Chrome_WidgetWin_1'] > document[Id='RootWebArea'] > group[Id='root'] > group[Class='header'] > group[Class='header__nav d-flex', Name='header navigation'] > hyperlink[Class='header__nav-link', Name='Register/Login']
+
+SCREEN: Web Page 'h ... g8540R%2BK'
+  CONTROL: Paragraph 'Search Results' (tag: p, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > p[Text='SEARCH RESULTS']
+
+SCREEN: Web Page 'h ... tDiQ%3D%3D'
+  CONTROL: Div 'Case Details' (tag: div, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div[Text='CASE DETAILS']
+
+SCREEN: Window 'Office of  ...  - Google Chrome'
+  CONTROL: Edit 'Filed Date Range: (mm/dd/yyyy)' (tag: edit, id: )
+    SELECTOR: pane[Class='BrowserRootView', Name='Office of Harris County District Clerk - Marilyn Burgess | Search Our Records - Google Chrome'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > document[Id='RootWebArea'] > group[Id='aspnetForm'] > group[Id='cpl'] > pane[Class='tabc collapse show', Id='partyTabContent'] > group[Id='secParty'] > edit[Id='txtPartyStartDate']
+
+SCREEN: Web Page 'h ... s/?hs=OCSB'
+  CONTROL: Input text 'userName' (tag: input, id: )
+    SELECTOR: body > div > div > main[Id='content'] > form > div > div > div > div > div > input[Id='userName']
+  CONTROL: Input password 'password' (tag: input, id: )
+    SELECTOR: body > div > div > main[Id='content'] > form > div > div > div > div > div > input[Id='password']
+
+SCREEN: Window 'Home Page User Management Services - Google Chrome'
+  CONTROL: Button 'Login' (tag: button, id: )
+    SELECTOR: pane[Class='BrowserRootView'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='Chrome_WidgetWin_1'] > document[Id='RootWebArea'] > group[Class='pb-3', Id='content'] > button[Class='btn coc-button--primary col-md-3 m-2', Name='Login']
+
+SCREEN: Web Page 'h ... QRdQMvqyaN'
+  CONTROL: Bold text 'Party Name:' (tag: strong, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > strong[Text='Party Name:']
+================================================================================
+FILE: PowerAutomateSolutions/BotCreation_1_0_0_7\desktopflowbinaries\b85f1bfd-d92b-4e25-ac23-a9e18e3d0606\data\ControlRepository_104c291e-5233-425c-bde4-e4db1c27a012.json
+================================================================================
+
+SCREEN: HillsBorough
+  CONTROL: Button 'Search' (tag: button, id: )
+    SELECTOR: body > div > div > div[Id='nav-tabContent'] > div[Id='nav-Party'] > div[Id='myTabContent'] > div > div > button[Id='btnSubmitPartySearch']
+  CONTROL: Label 'First Name *' (tag: label, id: )
+    SELECTOR: body > div > div > div[Id='nav-tabContent'] > div[Id='nav-Party'] > div[Id='myTabContent'] > div[Id='formParty'] > div[Id='xformParty'] > div > label
+
+SCREEN: Dallas 
+  CONTROL: Label '* Enter a  ...  Suffix Format' (tag: label, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_0'] > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > div[Id='SearchCriteriaContainer'] > fieldset > label[Text='* Enter a Record Number or Name in Last, First Middle Suffix Format']
+  CONTROL: Paragraph 'No cases match your search' (tag: p, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > p[Text='No cases match your search']
+
+SCREEN: Web Page 'h ... ceMode?p=0' 2
+  CONTROL: Heading 1 'Smart Search' (tag: h1, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_0'] > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > h1[Text='Smart Search']
+
+SCREEN: Web Page 'h ... earch.aspx'
+  CONTROL: Span 'Search Our Records and Documents' (tag: span, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div > div > h1 > span[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_lblPgTit']
+  CONTROL: Input button 'Party Inquiry' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_pnlSearch'] > section[Id='sTabs'] > nav[Id='tabs'] > input[Id='tabParty']
+  CONTROL: Input date  ... yStartDate' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_pnlSearch'] > section[Id='sTabs'] > div[Id='content'] > div > div[Id='partyTabContent'] > section[Id='secParty'] > div > div > div > div > div > input[Id='txtPartyStartDate']
+
+SCREEN: Web Page 'h ... earch.html'
+  CONTROL: Anchor 'Case Search' (tag: a, id: )
+    SELECTOR: body > nav[Id='nav'] > nav > div > div[Id='navbarNavDropdown'] > ul > li > a[Ordinal='1']
+  CONTROL: Button 'Search by Party or Business Name' (tag: button, id: )
+    SELECTOR: body > div > div > nav > div[Id='nav-tab'] > button[Id='nav-Party-tab']
+
+SCREEN: Web Page 'h ... EE2QBJQ==#'
+  CONTROL: Input submit 'Clear' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > input[Id='ctl00_ContentPlaceHolder1_btnClear']
+
+SCREEN: Web Page 'h ... eSupport=1'
+  CONTROL: Label 'Party Name' (tag: label, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > h2[Text='NAVIGATION MENU']
+
+SCREEN: Travis
+  CONTROL: Span '11/06/2007' (tag: span, id: )
+    SELECTOR: body > div[Id='app'] > div[Id='div1'] > div[Id='top'] > div > md-content[Id='roa-content'] > div > section > md-card > md-card-content > ng-include > div > div > div > div > div > span[Text='^(0[1-9]|1[0-2])/([0-2][0-9]|3[01])/([0-9]{4})$']
+  CONTROL: Span 'IN THE INTEREST OF M. M. CHILD(REN)' (tag: span, id: )
+    SELECTOR: body > div[Id='app'] > div[Id='div1'] > div[Id='top'] > div > md-content[Id='roa-content'] > div > section > md-card > md-card-content > ng-include > div > div > div > span
+
+SCREEN: Web Page 'h ... shboard/29'
+  CONTROL: BrowardCaptcha (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div[Id='RecaptchaField1'] > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: TravisCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: Travis AntiCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div
+  CONTROL: TravisClick (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div
+
+SCREEN: Web Page 'h ... shboard/29' 2
+  CONTROL: Div 'AntiCaptcha' (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Middle Name']
+  CONTROL: DallasCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div[Class='rc-anchor-content'] > div > div > div
+  CONTROL: DallasAntiCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+
+SCREEN: Web Page 'h ... tabIndex=3'
+  CONTROL: Paragraph ' ... , MARTIN /' (tag: p, id: )
+    SELECTOR: body > div[Id='PortletSummaryROA'] > div > form > div[Id='caseInformationDiv'] > div > div > div[Class='row'] > div[Class='col-md-12'] > p[Class='text-primary']
+
+SCREEN: CClerk
+  CONTROL: Input submit 'Search' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > input[Id='ctl00_ContentPlaceHolder1_btnParty']
+  CONTROL: Input text 'File Date from' 4 (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > div > input[Id='ctl00_ContentPlaceHolder1_txtFrom2'] > body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > div > input[Id='ctl00_ContentPlaceHolder1_txtDateFrom2']
+
+SCREEN: Broward
+  CONTROL: Anchor 'Case Search' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > ul > li[Id='mnuSearch'] > a[Text='CASE SEARCH']
+  CONTROL: Label 'Last Name' (tag: label, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Last Name']
+  CONTROL: Div (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div[Id='RecaptchaField1'] > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div[Ordinal='3']
+  CONTROL: Label 'Middle Name' (tag: label, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Middle Name']
+  CONTROL: Anchor 'Party Name' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='myTabStandard'] > div > div > ul > li > a[Text='Party Name']
+  CONTROL: Div 2 (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div > div > div[Ordinal='2']
+
+SCREEN: Miami
+  CONTROL: Anchor 'Back to Standard Search' (tag: a, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > a[Id='ctl00_ContentPlaceHolder1_lnk', Title='Back to Search']
+  CONTROL: Button 'Reset' (tag: button, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div > div > button[Id='btnNameReset']
+  CONTROL: MiamiClick (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div
+  CONTROL: Div 'Recaptcha  ... cy - Terms' 4 (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: MiamiAntiCaptcha (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div
+
+SCREEN: Pane 'Office of  ...  - Google Chrome'
+  CONTROL: Group (tag: group, id: )
+    SELECTOR: document[Class='Chrome_RenderWidgetHostHWND'] > group[Id='content'] > custom[Id='filingDateFrom']
+
+SCREEN: Web Page 'h ... shboard/29' 3
+  CONTROL: HarrisCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: HarrisClick (tag: h2, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > h2
+
+SCREEN: Web Page 'h ... sults.html'
+  CONTROL: Hillborough Positive (tag: span, id: )
+    SELECTOR: body > div > div > div[Id='mycasesdata_wrapper'] > div > div > div > button > span[Text='Excel']
+  CONTROL: Hillsborough No match (tag: a, id: )
+    SELECTOR: body > div[Id='messageDialog'] > div[Id='hoverMessage'] > div > div > div > a[Id='messageClose', Text='Close']
+  CONTROL: Table data cell 'No data available in table' (tag: td, id: )
+    SELECTOR: body > div > div > div[Id='mycasesdata_wrapper'] > div > div > table[Id='mycasesdata'] > tbody > tr > td[Text='No data available in table']
+
+SCREEN: Web Page 'h ... zYUw%3D%3D'
+  CONTROL: Anchor 'Go to the next page' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div[Id='SearchResultsGrid'] > div > a[Class='disabled', Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 2 (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div[Id='SearchResultsGrid'] > div > a[Class='k-link k-pager-nav', Title='Go to the next page']
+
+SCREEN: Web Page 'h ... ceMode?p=0'
+  CONTROL: Anchor 'Go to the next page' 2 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 3 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Class='k-link', Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 6 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Title='Go to the next page']
+  CONTROL: Paragraph 'Case Status Appeal' (tag: p, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_2'] > div > div[Id='PortletSummaryROA'] > div > form > div[Id='caseInformationDiv'] > div > div[Id='divCaseInformation_body'] > div > div > p[Ordinal='6']
+
+SCREEN: Web Page 'https://www2.miamidadeclerk.gov/ocs/'
+  CONTROL: Span 'Party Name' (tag: span, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > div > span[Text='Party Name']
+
+SCREEN: Web Page 'https://www2.miamidadeclerk.gov/ocs'
+  CONTROL: Button 'Search' (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button
+  CONTROL: Input date 'filingDateFrom' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > div > input[Id='filingDateFrom']
+  CONTROL: Button 'Search' 2 (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button
+  CONTROL: Button 'Refresh' (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button[Ordinal='1']
+  CONTROL: Anchor 'View account information for Apoorv Nigam' 5 (tag: a, id: )
+    SELECTOR: body > div[Id='root'] > div > span > header > div > div > div > nav > div > a[Text='Welcome,']
+  CONTROL: Anchor 'View account information for Apoorv Nigam' (tag: a, id: )
+    SELECTOR: body > div[Id='root'] > div > span > header > div > div > div > nav > div > a[Text='Welcome,']
+
+SCREEN: Web Page 'h ... aseType=0#'
+  CONTROL: Input text 'partyFirstName' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > input[Id='partyFirstName']
+  CONTROL: Input text 'partyLastName' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > input[Id='partyLastName']
+
+SCREEN: Web Page 'h ... bp4NNyORD3'
+  CONTROL: Span 'OCS Home' (tag: span, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > nav[Id='breadcrumb'] > ol > li > span[Text='OCS Home']
+
+SCREEN: Window 'OCS Home – Miami-Dade County OCS - Google Chrome'
+  CONTROL: Edit 'Filing Date Range From' (tag: edit, id: )
+    SELECTOR: pane[Class='BrowserRootView', Name='OCS Home – Miami-Dade County OCS - Google Chrome'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='ContentsContainerView'] > document[Id='RootWebArea'] > group[Id='root'] > group[Id='content'] > edit[Class='form-control ', Id='filingDateFrom']
+  CONTROL: Hyperlink 'Register/Login' (tag: hyperlink, id: )
+    SELECTOR: pane[Class='BrowserRootView'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='Chrome_WidgetWin_1'] > document[Id='RootWebArea'] > group[Id='root'] > group[Class='header'] > group[Class='header__nav d-flex', Name='header navigation'] > hyperlink[Class='header__nav-link', Name='Register/Login']
+
+SCREEN: Web Page 'h ... g8540R%2BK'
+  CONTROL: Paragraph 'Search Results' (tag: p, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > p[Text='SEARCH RESULTS']
+
+SCREEN: Web Page 'h ... tDiQ%3D%3D'
+  CONTROL: Div 'Case Details' (tag: div, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div[Text='CASE DETAILS']
+
+SCREEN: Window 'Office of  ...  - Google Chrome'
+  CONTROL: Edit 'Filed Date Range: (mm/dd/yyyy)' (tag: edit, id: )
+    SELECTOR: pane[Class='BrowserRootView', Name='Office of Harris County District Clerk - Marilyn Burgess | Search Our Records - Google Chrome'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > document[Id='RootWebArea'] > group[Id='aspnetForm'] > group[Id='cpl'] > pane[Class='tabc collapse show', Id='partyTabContent'] > group[Id='secParty'] > edit[Id='txtPartyStartDate']
+
+SCREEN: Web Page 'h ... s/?hs=OCSB'
+  CONTROL: Input text 'userName' (tag: input, id: )
+    SELECTOR: body > div > div > main[Id='content'] > form > div > div > div > div > div > input[Id='userName']
+  CONTROL: Input password 'password' (tag: input, id: )
+    SELECTOR: body > div > div > main[Id='content'] > form > div > div > div > div > div > input[Id='password']
+
+SCREEN: Window 'Home Page User Management Services - Google Chrome'
+  CONTROL: Button 'Login' (tag: button, id: )
+    SELECTOR: pane[Class='BrowserRootView'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='Chrome_WidgetWin_1'] > document[Id='RootWebArea'] > group[Class='pb-3', Id='content'] > button[Class='btn coc-button--primary col-md-3 m-2', Name='Login']
+
+SCREEN: Web Page 'h ... QRdQMvqyaN'
+  CONTROL: Bold text 'Party Name:' (tag: strong, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > strong[Text='Party Name:']
+================================================================================
+FILE: PowerAutomateSolutions/BotCreation_1_0_0_7\desktopflowbinaries\e8dfd60d-b69f-f111-aaac-002248255e83\data\ControlRepository_7bdb415f-2aae-45a6-96a0-7ad7cf77de42.json
+================================================================================
+
+SCREEN: HillsBorough
+  CONTROL: Button 'Search' (tag: button, id: )
+    SELECTOR: body > div > div > div[Id='nav-tabContent'] > div[Id='nav-Party'] > div[Id='myTabContent'] > div > div > button[Id='btnSubmitPartySearch']
+  CONTROL: Label 'First Name *' (tag: label, id: )
+    SELECTOR: body > div > div > div[Id='nav-tabContent'] > div[Id='nav-Party'] > div[Id='myTabContent'] > div[Id='formParty'] > div[Id='xformParty'] > div > label
+
+SCREEN: Dallas 
+  CONTROL: Label '* Enter a  ...  Suffix Format' (tag: label, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_0'] > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > div[Id='SearchCriteriaContainer'] > fieldset > label[Text='* Enter a Record Number or Name in Last, First Middle Suffix Format']
+  CONTROL: Paragraph 'No cases match your search' (tag: p, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > p[Text='No cases match your search']
+
+SCREEN: Web Page 'h ... ceMode?p=0' 2
+  CONTROL: Heading 1 'Smart Search' (tag: h1, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_0'] > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > h1[Text='Smart Search']
+
+SCREEN: Web Page 'h ... earch.aspx'
+  CONTROL: Span 'Search Our Records and Documents' (tag: span, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div > div > h1 > span[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_lblPgTit']
+  CONTROL: Input button 'Party Inquiry' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_pnlSearch'] > section[Id='sTabs'] > nav[Id='tabs'] > input[Id='tabParty']
+  CONTROL: Input date  ... yStartDate' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div[Id='backgroundWrapper'] > div[Id='outerWrapper'] > main[Id='cpl'] > div[Id='detailContentWrapper1'] > div > div[Id='content1'] > div[Id='searchPage'] > div[Id='ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_pnlSearch'] > section[Id='sTabs'] > div[Id='content'] > div > div[Id='partyTabContent'] > section[Id='secParty'] > div > div > div > div > div > input[Id='txtPartyStartDate']
+
+SCREEN: Web Page 'h ... earch.html'
+  CONTROL: Anchor 'Case Search' (tag: a, id: )
+    SELECTOR: body > nav[Id='nav'] > nav > div > div[Id='navbarNavDropdown'] > ul > li > a[Ordinal='1']
+  CONTROL: Button 'Search by Party or Business Name' (tag: button, id: )
+    SELECTOR: body > div > div > nav > div[Id='nav-tab'] > button[Id='nav-Party-tab']
+
+SCREEN: Web Page 'h ... EE2QBJQ==#'
+  CONTROL: Input submit 'Clear' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > input[Id='ctl00_ContentPlaceHolder1_btnClear']
+
+SCREEN: Web Page 'h ... eSupport=1'
+  CONTROL: Label 'Party Name' (tag: label, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > h2[Text='NAVIGATION MENU']
+
+SCREEN: Travis
+  CONTROL: Span '11/06/2007' (tag: span, id: )
+    SELECTOR: body > div[Id='app'] > div[Id='div1'] > div[Id='top'] > div > md-content[Id='roa-content'] > div > section > md-card > md-card-content > ng-include > div > div > div > div > div > span[Text='^(0[1-9]|1[0-2])/([0-2][0-9]|3[01])/([0-9]{4})$']
+  CONTROL: Span 'IN THE INTEREST OF M. M. CHILD(REN)' (tag: span, id: )
+    SELECTOR: body > div[Id='app'] > div[Id='div1'] > div[Id='top'] > div > md-content[Id='roa-content'] > div > section > md-card > md-card-content > ng-include > div > div > div > span
+
+SCREEN: Web Page 'h ... shboard/29'
+  CONTROL: BrowardCaptcha (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div[Id='RecaptchaField1'] > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: TravisCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: Travis AntiCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div
+  CONTROL: TravisClick (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div
+
+SCREEN: Web Page 'h ... shboard/29' 2
+  CONTROL: Div 'AntiCaptcha' (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Middle Name']
+  CONTROL: DallasCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div[Class='rc-anchor-content'] > div > div > div
+  CONTROL: DallasAntiCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+
+SCREEN: Web Page 'h ... tabIndex=3'
+  CONTROL: Paragraph ' ... , MARTIN /' (tag: p, id: )
+    SELECTOR: body > div[Id='PortletSummaryROA'] > div > form > div[Id='caseInformationDiv'] > div > div > div[Class='row'] > div[Class='col-md-12'] > p[Class='text-primary']
+
+SCREEN: CClerk
+  CONTROL: Input submit 'Search' (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > input[Id='ctl00_ContentPlaceHolder1_btnParty']
+  CONTROL: Input text 'File Date from' 4 (tag: input, id: )
+    SELECTOR: body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > div > input[Id='ctl00_ContentPlaceHolder1_txtFrom2'] > body > form[Id='aspnetForm'] > div > div > div > div[Id='ctl00_ContentPlaceHolder1_PgImg'] > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_UpdatePanel1'] > div[Id='ctl00_ContentPlaceHolder1_Panel1'] > div > div > div > input[Id='ctl00_ContentPlaceHolder1_txtDateFrom2']
+
+SCREEN: Broward
+  CONTROL: Anchor 'Case Search' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > ul > li[Id='mnuSearch'] > a[Text='CASE SEARCH']
+  CONTROL: Label 'Last Name' (tag: label, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Last Name']
+  CONTROL: Div (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div[Id='RecaptchaField1'] > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div[Ordinal='3']
+  CONTROL: Label 'Middle Name' (tag: label, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > label[Text='Middle Name']
+  CONTROL: Anchor 'Party Name' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='myTabStandard'] > div > div > ul > li > a[Text='Party Name']
+  CONTROL: Div 2 (tag: div, id: )
+    SELECTOR: body > div > div > div > div > div > div[Id='dvMainBody'] > div[Id='my-tab-content'] > div[Id='nameSearch'] > form[Id='personSearchForm'] > div > div > div > div > div > div[Ordinal='2']
+
+SCREEN: Miami
+  CONTROL: Anchor 'Back to Standard Search' (tag: a, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > a[Id='ctl00_ContentPlaceHolder1_lnk', Title='Back to Search']
+  CONTROL: Button 'Reset' (tag: button, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div > div > button[Id='btnNameReset']
+  CONTROL: MiamiClick (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div
+  CONTROL: Div 'Recaptcha  ... cy - Terms' 4 (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: MiamiAntiCaptcha (tag: div, id: )
+    SELECTOR: body > main[Id='content'] > form[Id='form1'] > div > div > div > div > div > div > div > div > div[Id='ctl00_ContentPlaceHolder1_CaptchaContainer'] > div > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container'] > div > div > div > div > span[Id='recaptcha-anchor'] > div
+
+SCREEN: Pane 'Office of  ...  - Google Chrome'
+  CONTROL: Group (tag: group, id: )
+    SELECTOR: document[Class='Chrome_RenderWidgetHostHWND'] > group[Id='content'] > custom[Id='filingDateFrom']
+
+SCREEN: Web Page 'h ... shboard/29' 3
+  CONTROL: HarrisCaptcha (tag: div, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > fieldset > div > div > div > iframe[Title='reCAPTCHA'] > html > body > div[Id='rc-anchor-container']
+  CONTROL: HarrisClick (tag: h2, id: )
+    SELECTOR: body > div[Id='main'] > div > div > div > div > div > form[Id='frmSS'] > div > div[Id='SSColumn'] > div > div > div > div > h2
+
+SCREEN: Web Page 'h ... sults.html'
+  CONTROL: Hillborough Positive (tag: span, id: )
+    SELECTOR: body > div > div > div[Id='mycasesdata_wrapper'] > div > div > div > button > span[Text='Excel']
+  CONTROL: Hillsborough No match (tag: a, id: )
+    SELECTOR: body > div[Id='messageDialog'] > div[Id='hoverMessage'] > div > div > div > a[Id='messageClose', Text='Close']
+  CONTROL: Table data cell 'No data available in table' (tag: td, id: )
+    SELECTOR: body > div > div > div[Id='mycasesdata_wrapper'] > div > div > table[Id='mycasesdata'] > tbody > tr > td[Text='No data available in table']
+
+SCREEN: Web Page 'h ... zYUw%3D%3D'
+  CONTROL: Anchor 'Go to the next page' (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div[Id='SearchResultsGrid'] > div > a[Class='disabled', Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 2 (tag: a, id: )
+    SELECTOR: body > div > div > div > div > div[Id='SearchResultsGrid'] > div > a[Class='k-link k-pager-nav', Title='Go to the next page']
+
+SCREEN: Web Page 'h ... ceMode?p=0'
+  CONTROL: Anchor 'Go to the next page' 2 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 3 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Class='k-link', Title='Go to the next page']
+  CONTROL: Anchor 'Go to the next page' 6 (tag: a, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='ui-tabs-1'] > div > div[Id='PartyResultSection'] > div > div > div[Id='SmartSearchResults'] > div[Id='searchResultsDiv'] > div[Id='Grid'] > div > a[Title='Go to the next page']
+  CONTROL: Paragraph 'Case Status Appeal' (tag: p, id: )
+    SELECTOR: body > div[Id='main'] > div[Id='tab-control'] > div > div[Id='tcBody_2'] > div > div[Id='PortletSummaryROA'] > div > form > div[Id='caseInformationDiv'] > div > div[Id='divCaseInformation_body'] > div > div > p[Ordinal='6']
+
+SCREEN: Web Page 'https://www2.miamidadeclerk.gov/ocs/'
+  CONTROL: Span 'Party Name' (tag: span, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > div > span[Text='Party Name']
+
+SCREEN: Web Page 'https://www2.miamidadeclerk.gov/ocs'
+  CONTROL: Button 'Search' (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button
+  CONTROL: Input date 'filingDateFrom' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > div > input[Id='filingDateFrom']
+  CONTROL: Button 'Search' 2 (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button
+  CONTROL: Button 'Refresh' (tag: button, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > button[Ordinal='1']
+  CONTROL: Anchor 'View account information for Apoorv Nigam' 5 (tag: a, id: )
+    SELECTOR: body > div[Id='root'] > div > span > header > div > div > div > nav > div > a[Text='Welcome,']
+  CONTROL: Anchor 'View account information for Apoorv Nigam' (tag: a, id: )
+    SELECTOR: body > div[Id='root'] > div > span > header > div > div > div > nav > div > a[Text='Welcome,']
+
+SCREEN: Web Page 'h ... aseType=0#'
+  CONTROL: Input text 'partyFirstName' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > input[Id='partyFirstName']
+  CONTROL: Input text 'partyLastName' (tag: input, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > form > div > div > div > input[Id='partyLastName']
+
+SCREEN: Web Page 'h ... bp4NNyORD3'
+  CONTROL: Span 'OCS Home' (tag: span, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > nav[Id='breadcrumb'] > ol > li > span[Text='OCS Home']
+
+SCREEN: Window 'OCS Home – Miami-Dade County OCS - Google Chrome'
+  CONTROL: Edit 'Filing Date Range From' (tag: edit, id: )
+    SELECTOR: pane[Class='BrowserRootView', Name='OCS Home – Miami-Dade County OCS - Google Chrome'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='ContentsContainerView'] > document[Id='RootWebArea'] > group[Id='root'] > group[Id='content'] > edit[Class='form-control ', Id='filingDateFrom']
+  CONTROL: Hyperlink 'Register/Login' (tag: hyperlink, id: )
+    SELECTOR: pane[Class='BrowserRootView'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='Chrome_WidgetWin_1'] > document[Id='RootWebArea'] > group[Id='root'] > group[Class='header'] > group[Class='header__nav d-flex', Name='header navigation'] > hyperlink[Class='header__nav-link', Name='Register/Login']
+
+SCREEN: Web Page 'h ... g8540R%2BK'
+  CONTROL: Paragraph 'Search Results' (tag: p, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > div > p[Text='SEARCH RESULTS']
+
+SCREEN: Web Page 'h ... tDiQ%3D%3D'
+  CONTROL: Div 'Case Details' (tag: div, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div[Text='CASE DETAILS']
+
+SCREEN: Window 'Office of  ...  - Google Chrome'
+  CONTROL: Edit 'Filed Date Range: (mm/dd/yyyy)' (tag: edit, id: )
+    SELECTOR: pane[Class='BrowserRootView', Name='Office of Harris County District Clerk - Marilyn Burgess | Search Our Records - Google Chrome'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > document[Id='RootWebArea'] > group[Id='aspnetForm'] > group[Id='cpl'] > pane[Class='tabc collapse show', Id='partyTabContent'] > group[Id='secParty'] > edit[Id='txtPartyStartDate']
+
+SCREEN: Web Page 'h ... s/?hs=OCSB'
+  CONTROL: Input text 'userName' (tag: input, id: )
+    SELECTOR: body > div > div > main[Id='content'] > form > div > div > div > div > div > input[Id='userName']
+  CONTROL: Input password 'password' (tag: input, id: )
+    SELECTOR: body > div > div > main[Id='content'] > form > div > div > div > div > div > input[Id='password']
+
+SCREEN: Window 'Home Page User Management Services - Google Chrome'
+  CONTROL: Button 'Login' (tag: button, id: )
+    SELECTOR: pane[Class='BrowserRootView'] > pane[Class='NonClientView'] > pane[Class='BrowserFrameViewWin'] > pane[Class='BrowserView'] > pane[Class='View', Ordinal='1'] > pane[Class='Chrome_WidgetWin_1'] > document[Id='RootWebArea'] > group[Class='pb-3', Id='content'] > button[Class='btn coc-button--primary col-md-3 m-2', Name='Login']
+
+SCREEN: Web Page 'h ... QRdQMvqyaN'
+  CONTROL: Bold text 'Party Name:' (tag: strong, id: )
+    SELECTOR: body > div[Id='root'] > div > main[Id='content'] > div > div > div > div > div > strong[Text='Party Name:']

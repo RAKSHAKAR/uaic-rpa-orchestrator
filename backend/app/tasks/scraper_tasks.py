@@ -1,11 +1,14 @@
 """Distributed Celery Tasks for County Court Scraping (Single-Session Multi-Tab Runner)."""
 
 import asyncio
+import copy
+import inspect
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import delete, select
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import StaleDataError
 
 from app.automation.base import (
@@ -33,14 +36,49 @@ from app.models.court_case import ScrapedCourtCase
 from app.models.error_screenshot import ErrorScreenshot
 from app.services.audit_service import log_audit_event_async
 from app.services.cooldown_service import (
+    is_portal_in_cooldown,
     set_portal_cooldown,
 )
 from app.services.fuzzy_engine import (
     generate_unique_names_for_claim,
 )
-from app.services.settings_service import get_system_settings_async
+from app.services.settings_service import get_system_settings_async, get_system_settings_sync
 
 logger = logging.getLogger("uaic_orchestrator.tasks.scrapers")
+
+
+PORTAL_CASE_FIELDS: dict[str, tuple[str, ...]] = {
+    key: ("CaseNumber", "CaseStyle", "FilingDate", "CaseStatus", "CaseType")
+    for key in ("broward", "hillsborough", "miami", "dallas", "travis", "harris_district")
+}
+PORTAL_CASE_FIELDS.update({
+    "harris_jp": ("CaseNumber", "CaseStyle", "FilingDate", "CaseStatus"),
+    "harris_cclerk": ("CaseNumber", "CaseStyle", "FilingDate", "CaseStatus"),
+})
+
+
+def canonical_portal_case(portal_key: str, case: dict) -> dict[str, str]:
+    """Keep V4 field shape and validate rows, preserving observed blank-detail rows."""
+    fields = PORTAL_CASE_FIELDS[portal_key]
+    result = {field: str(case.get(field) or "").strip() for field in fields}
+    if not result["CaseNumber"]:
+        raise ValueError(f"{portal_key} returned a case without its number")
+    # V4 Hillsborough ExtractTable appends every source row. The live HOVER
+    # table can contain a numbered row whose remaining cells are all blank.
+    # Preserve that row exactly; the matcher rejects its missing filing date.
+    if portal_key == "hillsborough" and not any(
+        result[field] for field in ("CaseStyle", "FilingDate", "CaseStatus", "CaseType")
+    ):
+        return result
+    if not result["CaseStyle"]:
+        raise ValueError(f"{portal_key} returned a case without its style")
+    filing_date = normalize_court_date(result["FilingDate"])
+    try:
+        datetime.strptime(filing_date or "", "%m/%d/%Y")
+    except ValueError as exc:
+        raise ValueError(f"{portal_key} returned a case without a valid filing date") from exc
+    result["FilingDate"] = filing_date
+    return result
 
 
 def normalize_court_date(val: str | None) -> str | None:
@@ -197,6 +235,8 @@ async def _async_orchestrate_scrapers(
             "captcha_wait_seconds": auto_cfg.captcha_wait_seconds,
             "reload_backoff_seconds": auto_cfg.reload_backoff_seconds,
             "use_chrome": auto_cfg.use_chrome_browser,
+            "browser_engine": getattr(auto_cfg, "browser_engine", "chrome"),
+            "chrome_binary_path": getattr(auto_cfg, "chrome_binary_path", None),
             "extension_dir": auto_cfg.chrome_extension_dir,
             "user_data_dir": auto_cfg.chrome_user_data_dir,
             "anticaptcha_api_key": auto_cfg.anticaptcha_api_key,
@@ -207,34 +247,35 @@ async def _async_orchestrate_scrapers(
             "stealth_clicks": getattr(auto_cfg, "stealth_clicks", False),
         }
 
-        # Map active county scrapers based on routing flags and portal toggles
+        # Power Automate V4 ExtractDataFlow order applies to explicit flags and
+        # auto-resolved state routes alike.
         scrapers_to_run = []
         if claim.fl_website_broward == "Yes" and portals_cfg.broward_enabled:
             scrapers_to_run.append(("broward", BrowardScraper(base_url=portals_cfg.broward_url, **scraper_kw), "fl_botstatus_broward", "fl_jsonbody_broward"))
-        if claim.fl_website_hillsborough == "Yes" and portals_cfg.hillsborough_enabled:
-            scrapers_to_run.append(("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough"))
-        if claim.fl_website_miami == "Yes" and portals_cfg.miami_enabled:
-            scrapers_to_run.append(("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami"))
-        if claim.te_website_travis == "Yes" and portals_cfg.travis_enabled:
-            scrapers_to_run.append(("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis"))
         if claim.te_website_dallas == "Yes" and portals_cfg.dallas_enabled:
             scrapers_to_run.append(("dallas", DallasScraper(base_url=portals_cfg.dallas_url, **scraper_kw), "te_botstatus_dallas", "te_jsonbody_dallas"))
+        if claim.te_website_travis == "Yes" and portals_cfg.travis_enabled:
+            scrapers_to_run.append(("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis"))
         if claim.te_website_harris == "Yes" and portals_cfg.harris_jp_enabled:
             scrapers_to_run.append(("harris_jp", HarrisJPScraper(base_url=portals_cfg.harris_jp_url, **scraper_kw), "te_botstatus_harris", "te_jsonbody_harris"))
+        if claim.fl_website_miami == "Yes" and portals_cfg.miami_enabled:
+            scrapers_to_run.append(("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami"))
         if claim.te_website_cclerk == "Yes" and portals_cfg.harris_cclerk_enabled:
             scrapers_to_run.append(("harris_cclerk", HarrisCountyClerkScraper(base_url=portals_cfg.harris_cclerk_url, **scraper_kw), "te_botstatus_cclerk", "te_jsonbody_cclerk"))
+        if claim.fl_website_hillsborough == "Yes" and portals_cfg.hillsborough_enabled:
+            scrapers_to_run.append(("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough"))
         if claim.te_website_hcdistrict == "Yes" and portals_cfg.harris_district_enabled:
             scrapers_to_run.append(("harris_district", HarrisDistrictClerkScraper(base_url=portals_cfg.harris_district_url, **scraper_kw), "te_botstatus_hcdistrict", "te_jsonbody_hcdistrict"))
 
         all_bot_list = [
             bot for bot in [
                 ("broward", BrowardScraper(base_url=portals_cfg.broward_url, **scraper_kw), "fl_botstatus_broward", "fl_jsonbody_broward") if portals_cfg.broward_enabled else None,
-                ("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough") if portals_cfg.hillsborough_enabled else None,
-                ("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami") if portals_cfg.miami_enabled else None,
-                ("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis") if portals_cfg.travis_enabled else None,
                 ("dallas", DallasScraper(base_url=portals_cfg.dallas_url, **scraper_kw), "te_botstatus_dallas", "te_jsonbody_dallas") if portals_cfg.dallas_enabled else None,
+                ("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis") if portals_cfg.travis_enabled else None,
                 ("harris_jp", HarrisJPScraper(base_url=portals_cfg.harris_jp_url, **scraper_kw), "te_botstatus_harris", "te_jsonbody_harris") if portals_cfg.harris_jp_enabled else None,
+                ("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami") if portals_cfg.miami_enabled else None,
                 ("harris_cclerk", HarrisCountyClerkScraper(base_url=portals_cfg.harris_cclerk_url, **scraper_kw), "te_botstatus_cclerk", "te_jsonbody_cclerk") if portals_cfg.harris_cclerk_enabled else None,
+                ("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough") if portals_cfg.hillsborough_enabled else None,
                 ("harris_district", HarrisDistrictClerkScraper(base_url=portals_cfg.harris_district_url, **scraper_kw), "te_botstatus_hcdistrict", "te_jsonbody_hcdistrict") if portals_cfg.harris_district_enabled else None,
             ] if bot is not None
         ]
@@ -290,29 +331,41 @@ async def _async_orchestrate_scrapers(
             claim.te_website_hcdistrict = resolved_targets.get("te_hcdistrict", "No")
             await session.commit()
 
+            # Canonical Power Automate V4 Execution Order (ExtractDataFlow.robin):
+            # 1. Broward -> 2. Dallas -> 3. Travis -> 4. Harris JP -> 5. Miami -> 6. Harris CClerk -> 7. Hillsborough -> 8. Harris District
             if claim.fl_website_broward == "Yes" and portals_cfg.broward_enabled:
                 scrapers_to_run.append(("broward", BrowardScraper(base_url=portals_cfg.broward_url, **scraper_kw), "fl_botstatus_broward", "fl_jsonbody_broward"))
-            if claim.fl_website_hillsborough == "Yes" and portals_cfg.hillsborough_enabled:
-                scrapers_to_run.append(("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough"))
-            if claim.fl_website_miami == "Yes" and portals_cfg.miami_enabled:
-                scrapers_to_run.append(("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami"))
-            if claim.te_website_travis == "Yes" and portals_cfg.travis_enabled:
-                scrapers_to_run.append(("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis"))
             if claim.te_website_dallas == "Yes" and portals_cfg.dallas_enabled:
                 scrapers_to_run.append(("dallas", DallasScraper(base_url=portals_cfg.dallas_url, **scraper_kw), "te_botstatus_dallas", "te_jsonbody_dallas"))
+            if claim.te_website_travis == "Yes" and portals_cfg.travis_enabled:
+                scrapers_to_run.append(("travis", TravisScraper(base_url=portals_cfg.travis_url, **scraper_kw), "te_botstatus_travis", "te_jsonbody_travis"))
             if claim.te_website_harris == "Yes" and portals_cfg.harris_jp_enabled:
                 scrapers_to_run.append(("harris_jp", HarrisJPScraper(base_url=portals_cfg.harris_jp_url, **scraper_kw), "te_botstatus_harris", "te_jsonbody_harris"))
+            if claim.fl_website_miami == "Yes" and portals_cfg.miami_enabled:
+                scrapers_to_run.append(("miami", MiamiDadeScraper(base_url=portals_cfg.miami_url, username=portals_cfg.miami_username, password=portals_cfg.miami_password, requires_login=portals_cfg.miami_requires_login, **scraper_kw), "fl_botstatus_miami", "fl_jsonbody_miami"))
             if claim.te_website_cclerk == "Yes" and portals_cfg.harris_cclerk_enabled:
                 scrapers_to_run.append(("harris_cclerk", HarrisCountyClerkScraper(base_url=portals_cfg.harris_cclerk_url, **scraper_kw), "te_botstatus_cclerk", "te_jsonbody_cclerk"))
+            if claim.fl_website_hillsborough == "Yes" and portals_cfg.hillsborough_enabled:
+                scrapers_to_run.append(("hillsborough", HillsboroughScraper(base_url=portals_cfg.hillsborough_url, **scraper_kw), "fl_botstatus_hillsborough", "fl_jsonbody_hillsborough"))
             if claim.te_website_hcdistrict == "Yes" and portals_cfg.harris_district_enabled:
                 scrapers_to_run.append(("harris_district", HarrisDistrictClerkScraper(base_url=portals_cfg.harris_district_url, **scraper_kw), "te_botstatus_hcdistrict", "te_jsonbody_hcdistrict"))
 
+
+        if not scrapers_to_run:
+            claim.record_status = RecordStatusEnum.FAILED
+            claim.last_error = "No enabled county portal is available for this claim. Check Settings > Portals."
+            await session.commit()
+            from app.tasks.queue_runner import is_auto_queue_enabled, remove_active_queue_item_id
+
+            remove_active_queue_item_id(claim.id)
+            if is_auto_queue_enabled():
+                celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+            return
 
         # Check if ALL scrapers_to_run are currently in cooldown
         all_in_cooldown = True
         min_remaining = 0
         for name, *_ in scrapers_to_run:
-            from app.services.cooldown_service import is_portal_in_cooldown
             in_cooldown, remaining, _ = is_portal_in_cooldown(name)
             if not in_cooldown:
                 all_in_cooldown = False
@@ -349,6 +402,17 @@ async def _async_orchestrate_scrapers(
             (p["party_type"], p.get("first_name"), p.get("last_name"))
             for p in unique_name_items
         ]
+        if not any(str(last_name or "").strip() for _, _, last_name in party_pairs):
+            claim.record_status = RecordStatusEnum.FAILED
+            claim.last_error = "No searchable party surname was provided for court discovery."
+            await session.commit()
+            logger.error("Claim %s has no searchable party surname", claim.claim_number)
+            from app.tasks.queue_runner import is_auto_queue_enabled, remove_active_queue_item_id
+
+            remove_active_queue_item_id(claim.id)
+            if is_auto_queue_enabled():
+                celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+            return
 
         targets_preview = "\n".join([f"  -> Target {p['search_order']}: [{p['party_type']}] '{p['full_name']}'" for p in unique_name_items])
         logger.info(
@@ -435,8 +499,38 @@ async def _async_orchestrate_scrapers(
                 pass
             return
 
+        # Automated Pre-Flight: Ensure AntiCaptcha is verified, configured, and pinned before automation begins
+        try:
+            from app.automation.browser_manager import ChromeSession, ExtensionManager
+            ext_path = ExtensionManager.resolve_extension_path(auto_cfg.chrome_extension_dir)
+            engine_key = (auto_cfg.browser_engine or "chrome").lower()
+            persistent_dir = ChromeSession.get_persistent_profile_dir(engine_key)
+            ChromeSession.configure_and_pin_profile(
+                profile_dir=persistent_dir,
+                api_key=auto_cfg.anticaptcha_api_key,
+                extension_path=ext_path,
+                auto_cfg=auto_cfg,
+            )
+            logger.info(
+                f"[ScraperTasks] Pre-flight: AntiCaptcha extension automatically configured & pinned "
+                f"for claim {claim.claim_number}"
+            )
+        except Exception as e_pre_ext:
+            logger.warning(f"[ScraperTasks] Note during automated pre-flight extension pinning: {e_pre_ext}")
+
         # Launch single Chrome browser session across all enabled portals for this claim
         try:
+            rpa_mode_label = "ATTENDED (VISIBLE GUI)" if not auto_cfg.headless_mode else "UNATTENDED (HEADLESS BACKGROUND)"
+            engine_label = getattr(auto_cfg, "browser_engine", "chrome").upper()
+            portals_list_str = ", ".join([s[0] for s in scrapers_to_run])
+            logger.info(
+                f"\n=======================================================\n"
+                f" CLAIM {claim.claim_number} - RPA AUTOMATION LAUNCHING\n"
+                f" MODE:    {rpa_mode_label}\n"
+                f" ENGINE:  {engine_label}\n"
+                f" PORTALS ({len(scrapers_to_run)}): {portals_list_str}\n"
+                f"======================================================="
+            )
             browser_session_runner = SingleSessionBrowserRunner(
                 headless=auto_cfg.headless_mode,
                 timeout_ms=auto_cfg.page_timeout_seconds * 1000,
@@ -453,6 +547,8 @@ async def _async_orchestrate_scrapers(
                 typing_delay_ms=getattr(auto_cfg, "typing_delay_ms", 0),
                 action_pacing_ms=getattr(auto_cfg, "action_pacing_ms", 100),
                 stealth_clicks=getattr(auto_cfg, "stealth_clicks", False),
+                browser_engine=getattr(auto_cfg, "browser_engine", "chrome"),
+                chrome_binary_path=getattr(auto_cfg, "chrome_binary_path", None),
             )
 
             async with browser_session_runner as browser_session:
@@ -513,114 +609,96 @@ async def _async_orchestrate_scrapers(
 
                 # Accumulate results per portal across all names
                 portal_results: dict[str, list[dict]] = {name: [] for name, *_ in scrapers_to_run}
-                portal_seen: dict[str, set] = {name: set() for name, *_ in scrapers_to_run}
                 portal_stages: dict[str, dict] = {name: {} for name, *_ in scrapers_to_run}
                 portal_start_t: dict[str, float] = {}
                 portal_start_iso: dict[str, str] = {}
+                database_save_seconds = 0.0
+                database_save_started_at = None
+                database_save_finished_at = None
                 for name, *_ in scrapers_to_run:
                     portal_start_t[name] = time.perf_counter()
                     portal_start_iso[name] = datetime.now().isoformat()
 
-                # Pre-purge previous cases for target counties in this run to ensure clean incremental accumulation
-                for name, scraper, *_ in scrapers_to_run:
-                    await session.execute(
-                        delete(ScrapedCourtCase).where(
-                            ScrapedCourtCase.claim_id == claim.id,
-                            ScrapedCourtCase.county_name == scraper.county_name,
-                        )
-                    )
-                await session.commit()
+                # Preserve the last complete extraction until this portal has
+                # successfully searched every party. Replacement is atomic below.
 
-                # Step 2: For each unique name → search all portals sequentially (Name A across Tab 1, Tab 2, ... -> Store)
-                for party_label, f_name, l_name in party_pairs:
-                    if not l_name or not str(l_name).strip():
+                # Step 2: PORTAL-BY-PORTAL Execution Order (Power Automate V4 Parity):
+                # Iterate through portals one-by-one in canonical V4 order (Broward -> Dallas -> Travis -> Harris JP -> Miami -> Harris CClerk -> Hillsborough -> Harris District).
+                # For each portal, search all unique parties sequentially on that portal's dedicated tab,
+                # resetting the search form between parties, and persisting results immediately upon portal completion.
+                for portal_idx, (name, scraper, status_attr, json_attr) in enumerate(scrapers_to_run, start=1):
+                    if getattr(claim, status_attr) == BotStatusEnum.BLOCKED:
+                        logger.info(f"Claim {claim.claim_number}: Skipping portal '{name}' (portal BLOCKED / in cooldown)")
                         continue
+
+                    in_cooldown, remaining_seconds, *_ = is_portal_in_cooldown(name)
+                    if in_cooldown:
+                        logger.warning(
+                            f"Claim {claim.claim_number}: Portal '{name}' entered cooldown "
+                            f"({remaining_seconds:.1f}s remaining). Marking BLOCKED."
+                        )
+                        setattr(claim, status_attr, BotStatusEnum.BLOCKED)
+                        portal_timings[name]["status"] = "BLOCKED"
+                        portal_timings[name]["error"] = f"Cooldown active ({int(remaining_seconds)}s)"
+                        continue
+
                     logger.info(
-                        f"Claim {claim.claim_number}: ── Searching party '{party_label}: {f_name} {l_name}' "
-                        f"across {len(scrapers_to_run)} portal(s) ──"
+                        f"Claim {claim.claim_number}: ════ Starting PORTAL {portal_idx}/{len(scrapers_to_run)}: "
+                        f"[{name} - {scraper.county_name}] across {len(party_pairs)} party name(s) ════"
                     )
-                    for name, scraper, status_attr, json_attr in scrapers_to_run:
-                        if getattr(claim, status_attr) == BotStatusEnum.BLOCKED:
-                            logger.info(
-                                f"Claim {claim.claim_number}: Skipping portal '{name}' "
-                                f"(currently BLOCKED / in cooldown)"
-                            )
+                    append_portal_execution_log(
+                        claim.id, name,
+                        f"Starting Portal {portal_idx}/{len(scrapers_to_run)}: [{scraper.county_name}] for {len(party_pairs)} party name(s)"
+                    )
+
+                    # Switch to existing open tab for this portal and bring to front
+                    tab = await browser_session.get_or_create_tab(portal_key=name, url=scraper.base_url)
+                    try:
+                        await tab.bring_to_front()
+                    except Exception:
+                        pass
+
+
+                    # Inner loop: iterate through unique party names sequentially on this portal's tab
+                    for name_idx, (party_label, f_name, l_name) in enumerate(party_pairs, start=1):
+                        if not l_name or not str(l_name).strip():
                             continue
 
-                        in_cooldown, remaining_seconds, *_ = is_portal_in_cooldown(name)
-                        if in_cooldown:
-                            logger.warning(
-                                f"Claim {claim.claim_number}: Portal '{name}' entered cooldown "
-                                f"({remaining_seconds:.1f}s remaining). Marking BLOCKED."
-                            )
-                            setattr(claim, status_attr, BotStatusEnum.BLOCKED)
-                            portal_timings[name]["status"] = "BLOCKED"
-                            portal_timings[name]["error"] = f"Cooldown active ({int(remaining_seconds)}s)"
-                            continue
+                        party_full = f"{f_name or ''} {l_name or ''}".strip()
 
-                        # Enforce 10-year lookback
+                        # V4 searches from the claim's actual DOL. The configured
+                        # matcher cutoff applies after extraction, not to this input.
                         search_dol = claim.dol
-                        if search_dol:
-                            try:
-                                dt = datetime.strptime(search_dol, "%m/%d/%Y")
-                                ten_years_ago = datetime.now() - timedelta(days=365*10)
-                                if dt < ten_years_ago:
-                                    search_dol = ten_years_ago.strftime("%m/%d/%Y")
-                                    logger.info(f"Claim {claim.claim_number}: Capped DOL {claim.dol} to {search_dol} (10-year lookback)")
-                            except Exception:
-                                pass
 
                         logger.info(
-                            f"Claim {claim.claim_number}: [{party_label}: {f_name} {l_name}] → {scraper.county_name}"
+                            f"Claim {claim.claim_number}: [{scraper.county_name}] Searching Unique Name {name_idx}/{len(party_pairs)} "
+                            f"[{party_label}: {f_name} {l_name}] (DOL: {search_dol or 'None'})"
                         )
-                        append_portal_execution_log(claim.id, name, f"Searching party [{party_label}] '{f_name} {l_name}' (DOL: {search_dol or 'None'})")
-                        try:
-                            tab = await browser_session.get_or_create_tab(portal_key=name, url=scraper.base_url)
+                        append_portal_execution_log(
+                            claim.id, name,
+                            f"Searching Unique Name {name_idx}/{len(party_pairs)} [{party_label}] '{f_name} {l_name}' (DOL: {search_dol or 'None'})"
+                        )
 
+                        try:
                             cases = await scraper.search_on_page(
                                 page=tab,
                                 first_name=f_name,
                                 last_name=l_name,
                                 date_of_loss=search_dol,
                             )
-                            append_portal_execution_log(claim.id, name, f"Party search [{party_label}] returned {len(cases)} case(s)")
-                            # Incremental store: save freshly extracted cases for this party/tab immediately
+                            append_portal_execution_log(
+                                claim.id, name,
+                                f"Completed search for Unique Name {name_idx} [{party_label}] '{f_name} {l_name}'. Returned {len(cases)} case(s)"
+                            )
+
+                            # Accumulate V4-shaped cases. A later party failure must
+                            # not replace the previous complete portal extraction.
                             for c in cases:
-                                c_num = c.get("CaseNumber") or c.get("case_number") or ""
-                                if c_num and c_num not in portal_seen[name]:
-                                    portal_seen[name].add(c_num)
-                                    portal_results[name].append(c)
-                                    raw_f_date = (
-                                        c.get("FilingDate")
-                                        or c.get("filing_date")
-                                        or c.get("Filing Date")
-                                        or c.get("SuitFiledDate")
-                                        or c.get("suit_filed_date")
-                                        or c.get("filed_date")
-                                        or c.get("DateFiled")
-                                        or c.get("date_filed")
-                                        or c.get("Filed")
-                                        or c.get("filed")
-                                    )
-                                    f_date = normalize_court_date(raw_f_date) or (claim.dol if claim and claim.dol else "")
-                                    c["FilingDate"] = f_date or ""
-                                    c["PartyNameSearched"] = f"{f_name} {l_name}".strip() if (f_name or l_name) else party_label
-                                    scraped_case = ScrapedCourtCase(
-                                        claim_id=claim.id,
-                                        county_name=scraper.county_name,
-                                        county_website=scraper.base_url,
-                                        case_number=c_num,
-                                        case_style=c.get("CaseStyle") or c.get("case_style") or "",
-                                        filing_date=f_date,
-                                        case_status=c.get("CaseStatus") or c.get("case_status"),
-                                        case_type=c.get("CaseType") or c.get("case_type"),
-                                        raw_payload=c,
-                                    )
-                                    session.add(scraped_case)
-                                    total_scraped_cases.append(scraped_case)
-                                elif not c_num:
-                                    portal_results[name].append(c)
-                            await session.commit()
+                                clean_case = canonical_portal_case(name, c)
+                                # V4 appends every CurrentRow for every searched
+                                # party. The same case number may represent
+                                # distinct role rows or repeat across names.
+                                portal_results[name].append(clean_case)
 
                             # Merge per-name stage timings into aggregate
                             if hasattr(scraper, "stage_timings") and scraper.stage_timings:
@@ -630,17 +708,27 @@ async def _async_orchestrate_scrapers(
                                 # Reset scraper timings so next name gets fresh telemetry
                                 scraper.stage_timings = {}
 
+                            # V4 Parity: If more parties remain to search on this portal tab, ensure tab is returned to search state
+                            if name_idx < len(party_pairs):
+                                try:
+                                    if hasattr(scraper, "return_to_search_state"):
+                                        res_rst = scraper.return_to_search_state(tab)
+                                        if inspect.isawaitable(res_rst):
+                                            await res_rst
+                                except Exception as e_reset:
+                                    logger.warning(f"Claim {claim.claim_number}: [{scraper.county_name}] return_to_search_state notice: {e_reset}")
+
                         except SecurityBlockException as sbe:
                             logger.warning(
                                 f"Claim {claim.claim_number}: Security block detected on {name} "
-                                f"during '{party_label}: {f_name} {l_name}': {sbe.message}"
+                                f"during Unique Name {name_idx} [{party_label}: {f_name} {l_name}]: {sbe.message}"
                             )
                             setattr(claim, status_attr, BotStatusEnum.BLOCKED)
-                            claim.last_error = f"{name} blocked by security check: {sbe.message}"
+                            claim.last_error = f"{name} blocked by security check on Unique Name {name_idx}: {sbe.message}"
                             portal_timings[name]["status"] = "BLOCKED"
                             portal_timings[name]["error"] = sbe.message
                             set_portal_cooldown(name, sbe.cooldown_seconds, sbe.message)
-                            append_portal_execution_log(claim.id, name, f"Security block detected: {sbe.message}", level="ERROR")
+                            append_portal_execution_log(claim.id, name, f"Security block detected on Unique Name {name_idx}: {sbe.message}", level="ERROR")
 
                             # Auto-capture error screenshot for security block
                             tab = browser_session.tabs.get(name)
@@ -666,21 +754,23 @@ async def _async_orchestrate_scrapers(
                                             file_path=ss_meta["file_path"],
                                         )
                                         session.add(screenshot_record)
+                                        await session.commit()
                                 except Exception as ss_ex:
                                     logger.warning(f"Could not capture security block screenshot for {name}: {ss_ex}")
+                            break
 
                         except Exception as e:
                             logger.error(
                                 f"Claim {claim.claim_number}: Scraper error for {name} "
-                                f"on party '{party_label}: {f_name} {l_name}': {e}"
+                                f"on Unique Name {name_idx} [{party_label}: {f_name} {l_name}]: {e}"
                             )
-                            # Mark portal FAILED but continue processing other portals for this name
+                            # Mark portal FAILED
                             setattr(claim, status_attr, BotStatusEnum.FAILED)
-                            claim.last_error = f"{name} scraping failure on '{party_label}': {e!s}"
+                            claim.last_error = f"{name} scraping failure on Unique Name {name_idx} '{party_label}': {e!s}"
                             claim.modified_by = "worker:scrapers"
                             portal_timings[name]["status"] = "FAILED"
                             portal_timings[name]["error"] = str(e)
-                            append_portal_execution_log(claim.id, name, f"Error during party search: {e}", level="ERROR")
+                            append_portal_execution_log(claim.id, name, f"Error during search for Unique Name {name_idx}: {e}", level="ERROR")
 
                             # Log structured exception audit event
                             try:
@@ -689,7 +779,7 @@ async def _async_orchestrate_scrapers(
                                     session=session,
                                     action="PORTAL_SCRAPING_EXCEPTION",
                                     entity_type="CLAIM",
-                                    description=f"{scraper.county_name} scraper failure on party '{party_label}': {e}",
+                                    description=f"{scraper.county_name} scraper failure on Unique Name {name_idx} '{party_label}': {e}",
                                     entity_id=claim.id,
                                     claim_number=claim.claim_number,
                                     user_id="celery_worker",
@@ -698,8 +788,9 @@ async def _async_orchestrate_scrapers(
                                     details={
                                         "portal_key": name,
                                         "portal_name": scraper.county_name,
+                                        "unique_name_index": name_idx,
                                         "party": party_label,
-                                        "party_name": f"{f_name} {l_name}".strip(),
+                                        "party_name": party_full,
                                         "error": str(e),
                                         "exception_type": type(e).__name__,
                                         "traceback": traceback.format_exc(),
@@ -732,12 +823,12 @@ async def _async_orchestrate_scrapers(
                                             file_path=ss_meta["file_path"],
                                         )
                                         session.add(screenshot_record)
+                                        await session.commit()
                                 except Exception as ss_ex:
                                     logger.warning(f"Could not capture error screenshot for {name}: {ss_ex}")
-                    await session.commit()
+                            break
 
-                # Step 3: All names processed — persist results per portal
-                for name, scraper, status_attr, json_attr in scrapers_to_run:
+                    # Finalize portal status, timing, and DB fields
                     cases = portal_results[name]
                     duration = round(time.perf_counter() - portal_start_t[name], 2)
 
@@ -753,20 +844,39 @@ async def _async_orchestrate_scrapers(
                         "cases_found": len(cases),
                         "status": final_status_str,
                     })
-                    append_portal_execution_log(claim.id, name, f"Completed portal scraping with status {final_status_str}. Total cases found: {len(cases)}. Duration: {duration}s")
+                    append_portal_execution_log(
+                        claim.id, name,
+                        f"Completed portal scraping with status {final_status_str}. Total cases found: {len(cases)}. Duration: {duration}s"
+                    )
 
-                    setattr(claim, json_attr, cases)
-                    t_db_start = datetime.now()
-
-                    if cases:
-                        if getattr(claim, status_attr) not in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
-                            setattr(claim, status_attr, BotStatusEnum.COMPLETED)
-                    else:
-                        if getattr(claim, status_attr) not in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
-                            setattr(claim, status_attr, BotStatusEnum.NO_MATCH_FOUND)
-
-                    await session.commit()
-                    t_db_end = datetime.now()
+                    if current_portal_status not in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
+                        # One short transaction replaces the last complete result.
+                        # Failed or blocked attempts retain both prior rows and JSON.
+                        save_started = time.perf_counter()
+                        if database_save_started_at is None:
+                            database_save_started_at = datetime.now()
+                        await session.execute(
+                            delete(ScrapedCourtCase).where(
+                                ScrapedCourtCase.claim_id == claim.id,
+                                ScrapedCourtCase.county_name == scraper.county_name,
+                            )
+                        )
+                        for case in cases:
+                            scraped_case = ScrapedCourtCase(
+                                claim_id=claim.id,
+                                county_name=scraper.county_name,
+                                county_website=scraper.base_url,
+                                case_number=case["CaseNumber"],
+                                case_style=case["CaseStyle"],
+                                filing_date=case["FilingDate"],
+                                case_status=case["CaseStatus"],
+                                case_type=case.get("CaseType"),
+                                raw_payload=case,
+                            )
+                            session.add(scraped_case)
+                            total_scraped_cases.append(scraped_case)
+                        setattr(claim, json_attr, cases)
+                        setattr(claim, status_attr, BotStatusEnum.COMPLETED if cases else BotStatusEnum.NO_MATCH_FOUND)
 
                     scraper_stages = dict(portal_stages.get(name, {}))
                     if hasattr(scraper, "stage_timings") and scraper.stage_timings:
@@ -775,22 +885,28 @@ async def _async_orchestrate_scrapers(
                     if scraper_stages:
                         stages.update(scraper_stages)
 
-                    stages["database_save"] = {
-                        "name": "Database Save",
-                        "start_time": t_db_start.strftime("%H:%M:%S.%f")[:-3],
-                        "end_time": t_db_end.strftime("%H:%M:%S.%f")[:-3],
-                        "duration_seconds": max(round((t_db_end - t_db_start).total_seconds(), 3), 0.001),
-                        "status": "SUCCESS",
-                        "cases_saved": len(cases),
-                    }
-
-                    timings["portals"] = portal_timings
-                    timings["total_scraping_seconds"] = round(
-                        sum(p.get("duration_seconds", 0.0) for p in portal_timings.values()), 2
-                    )
-                    claim.total_duration_seconds = timings["total_scraping_seconds"]
-                    claim.action_timings = timings
                     await session.commit()
+                    if current_portal_status not in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED):
+                        database_save_seconds += time.perf_counter() - save_started
+                        database_save_finished_at = datetime.now()
+
+                stages["database_save"] = {
+                    "name": "Database Save",
+                    "start_time": database_save_started_at.strftime("%H:%M:%S.%f")[:-3] if database_save_started_at else None,
+                    "end_time": database_save_finished_at.strftime("%H:%M:%S.%f")[:-3] if database_save_finished_at else None,
+                    "duration_seconds": round(database_save_seconds, 3),
+                    "status": "SUCCESS" if database_save_started_at else "SKIPPED",
+                    "cases_saved": len(total_scraped_cases),
+                }
+
+                timings["portals"] = copy.deepcopy(portal_timings)
+                timings["total_scraping_seconds"] = round(
+                    sum(p.get("duration_seconds", 0.0) for p in portal_timings.values()), 2
+                )
+                claim.total_duration_seconds = timings["total_scraping_seconds"]
+                claim.action_timings = copy.deepcopy(timings)
+                flag_modified(claim, "action_timings")
+                await session.commit()
 
             # Determine overall claim status across all configured scrapers
             has_failed_portals = any(
@@ -888,7 +1004,7 @@ async def _async_orchestrate_scrapers(
             await _release_browser_slot(claim.claim_number)
 
 
-@celery_app.task(name="app.tasks.scraper_tasks.orchestrate_court_scrapers_task", bind=True, max_retries=3)
+@celery_app.task(name="app.tasks.scraper_tasks.orchestrate_court_scrapers_task", bind=True)
 def orchestrate_court_scrapers_task(
     self,
     claim_id: str,
@@ -904,5 +1020,9 @@ def orchestrate_court_scrapers_task(
         return
     except Exception as exc:
         logger.error(f"Error in orchestrate_court_scrapers_task: {exc}")
-        raise self.retry(exc=exc, countdown=30)
-
+        queue_cfg = get_system_settings_sync().queue
+        raise self.retry(
+            exc=exc,
+            countdown=queue_cfg.task_retry_delay_seconds,
+            max_retries=queue_cfg.max_task_retries,
+        )

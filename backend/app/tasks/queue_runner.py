@@ -128,7 +128,9 @@ async def _async_advance_auto_queue():
     runtime_settings = await get_system_settings_async()
     queue_cfg = runtime_settings.queue
     auto_cfg = runtime_settings.automation
-    max_concurrency = getattr(auto_cfg, "max_concurrent_claims", None) or getattr(queue_cfg, "max_concurrent_claims", 1) or 1
+    # Browser Automation & RPA Execution Fleet is the single operator-facing
+    # concurrency control. The legacy queue copy is kept only for migration.
+    max_concurrency = auto_cfg.max_concurrent_claims
     max_concurrency = max(1, min(10, int(max_concurrency)))
 
     async with TaskAsyncSessionLocal() as session:
@@ -158,6 +160,7 @@ async def _async_advance_auto_queue():
             .where(ClaimRecord.record_status == RecordStatusEnum.NEW)
             .order_by(ClaimRecord.created_at.asc())
             .limit(available_slots)
+            .with_for_update(skip_locked=True)
         )
         res = await session.execute(query)
         claims_to_run = list(res.scalars().all())
@@ -175,6 +178,7 @@ async def _async_advance_auto_queue():
                 )
                 .order_by(ClaimRecord.created_at.asc())
                 .limit(needed)
+                .with_for_update(skip_locked=True)
             )
             res_failed = await session.execute(failed_q)
             failed_claims = list(res_failed.scalars().all())
@@ -186,7 +190,9 @@ async def _async_advance_auto_queue():
                 clear_all_active_queue_items()
             return
 
-        # Mark selected claims and dispatch Celery tasks concurrently
+        # Claim rows are committed before dispatch so a second queue runner
+        # cannot select them while a broker publish is in flight.
+        dispatches: list[tuple[str, bool]] = []
         for claim in claims_to_run:
             logger.info(f"Automatic Queue: Dispatching parallel worker for Claim {claim.claim_number} (ID: {claim.id})")
             is_retry = claim.record_status == RecordStatusEnum.FAILED
@@ -194,13 +200,25 @@ async def _async_advance_auto_queue():
             if is_retry:
                 claim.retry_count += 1
             add_active_queue_item_id(claim.id)
-            celery_app.send_task(
-                "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
-                kwargs={"claim_id": claim.id, "retry_failed_only": is_retry},
-                queue="scrapers",
-            )
+            dispatches.append((claim.id, is_retry))
 
         await session.commit()
+        for dispatch_index, (claim_id, is_retry) in enumerate(dispatches):
+            try:
+                celery_app.send_task(
+                    "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
+                    kwargs={"claim_id": claim_id, "retry_failed_only": is_retry},
+                    queue="scrapers",
+                )
+            except Exception:
+                for unsent_id, unsent_is_retry in dispatches[dispatch_index:]:
+                    claim = next(item for item in claims_to_run if item.id == unsent_id)
+                    claim.record_status = RecordStatusEnum.FAILED if unsent_is_retry else RecordStatusEnum.NEW
+                    if unsent_is_retry:
+                        claim.retry_count -= 1
+                    remove_active_queue_item_id(unsent_id)
+                await session.commit()
+                raise
 
 
 @celery_app.task(name="app.tasks.queue_runner.advance_auto_queue_task")

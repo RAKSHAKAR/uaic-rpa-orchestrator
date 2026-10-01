@@ -1,7 +1,6 @@
 """Celery Application and Distributed Task Queue Configuration."""
 
 from celery import Celery
-from celery.schedules import crontab
 from kombu import Exchange, Queue
 
 from app.core.config import settings
@@ -78,7 +77,12 @@ celery_app.conf.update(
         },
         "retrigger-failed-cases-periodic": {
             "task": "app.tasks.retry_tasks.retrigger_failed_cases_task",
-            "schedule": crontab(minute=0, hour="*/12"),  # Every 12 hours (configurable)
+            "schedule": 60.0,  # Runtime settings control retry delay and limits.
+            "args": (),
+        },
+        "dispatch-due-email-digests": {
+            "task": "app.tasks.notification_tasks.dispatch_due_digests_task",
+            "schedule": 60.0,
             "args": (),
         },
     },

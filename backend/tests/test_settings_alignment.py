@@ -1,9 +1,15 @@
 """Tests verifying complete system alignment with the dynamic settings configuration."""
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.api.v1.endpoints.claims import _build_bot_details
+from app.core.database import Base
 from app.models.claim import BotStatusEnum, ClaimRecord
+from app.models.guidewire import AutomationSetting, SettingsAuditLog
+from app.schemas.settings import SystemSettings
+from app.services import settings_service as settings_service_module
 from app.services.fuzzy_engine import (
     calculate_match_score,
     clean_case_style,
@@ -11,10 +17,46 @@ from app.services.fuzzy_engine import (
     evaluate_case_against_parties,
 )
 from app.services.settings_service import (
+    get_default_settings,
     get_system_settings_async,
     reset_system_settings_async,
     save_system_settings_async,
 )
+
+
+@pytest.fixture(autouse=True)
+async def isolated_settings_store(tmp_path, monkeypatch):
+    """Never let this module's save/reset tests touch operator settings."""
+    test_engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path / 'settings.db'}", poolclass=NullPool
+    )
+    async with test_engine.begin() as connection:
+        await connection.run_sync(
+            Base.metadata.create_all,
+            tables=[AutomationSetting.__table__, SettingsAuditLog.__table__],
+        )
+
+    class MemoryRedis:
+        value = None
+
+        async def get(self, _key):
+            return self.value
+
+        async def set(self, _key, value):
+            self.value = value
+
+        async def aclose(self):
+            pass
+
+    cache = MemoryRedis()
+    monkeypatch.setattr(
+        settings_service_module,
+        "TaskAsyncSessionLocal",
+        async_sessionmaker(test_engine, expire_on_commit=False),
+    )
+    monkeypatch.setattr(settings_service_module.aioredis, "from_url", lambda *_a, **_kw: cache)
+    yield
+    await test_engine.dispose()
 
 
 def test_scorer_algorithm_selection():
@@ -35,9 +77,27 @@ def test_scorer_algorithm_selection():
     # 'john doe' (8 chars) vs 'john doe vs state farm' (22 chars) -> 2 * 8 / (8 + 22) = 16/30 ~= 0.5333
     assert 0.40 <= score_ratio <= 0.65
 
-    # token_sort_ratio default with composite matching
+    # Explicit token_sort_ratio uses composite matching when selected in Settings.
     score_token_sort = calculate_match_score(party, case_caption, scorer_algorithm="token_sort_ratio")
     assert score_token_sort >= 0.85
+
+
+def test_v4_partial_ratio_is_fresh_and_reset_default():
+    """Fresh/reset settings and direct matching default to V4 partial_ratio."""
+    assert SystemSettings().matcher.scorer_algorithm == "partial_ratio"
+    assert get_default_settings().matcher.scorer_algorithm == "partial_ratio"
+
+    party = "Alice Smith"
+    caption = "SMYTH ALICE VS CORPORATION"
+    partial_score = calculate_match_score(party, caption, scorer_algorithm="partial_ratio")
+    token_sort_score = calculate_match_score(party, caption, scorer_algorithm="token_sort_ratio")
+    assert calculate_match_score(party, caption) == partial_score
+    assert partial_score < token_sort_score
+
+    evaluations = evaluate_case_against_parties(
+        {"CaseStyle": caption}, claimant_name=party, insured_name="", driver_name="",
+    )
+    assert evaluations[0]["similarity_score"] == partial_score
 
 
 def test_noise_pattern_stripping():
@@ -113,8 +173,9 @@ async def test_claims_bot_details_uses_configured_portal_urls():
         assert broward_bot.website_url == "https://custom-portal.browardclerk.org/TestWeb"
     finally:
         # Restore settings
-        settings.portals.broward_url = original_broward_url
-        await save_system_settings_async(settings)
+        current = await get_system_settings_async()
+        current.portals.broward_url = original_broward_url
+        await save_system_settings_async(current)
 
 
 @pytest.mark.asyncio
@@ -122,17 +183,20 @@ async def test_settings_save_and_retrieve_persistence():
     """Verify settings can be saved and reloaded via settings_service without loss of fidelity."""
     current = await get_system_settings_async()
     current.matcher.auto_match_threshold = 0.72
+    current.matcher.scorer_algorithm = "token_set_ratio"
     current.integration.auto_push_on_match = False
     current.queue.batch_chunk_size = 50
 
     saved = await save_system_settings_async(current)
     assert saved.matcher.auto_match_threshold == 0.72
+    assert saved.matcher.scorer_algorithm == "token_set_ratio"
     assert saved.integration.auto_push_on_match is False
     assert saved.queue.batch_chunk_size == 50
 
     # Reload from storage
     reloaded = await get_system_settings_async()
     assert reloaded.matcher.auto_match_threshold == 0.72
+    assert reloaded.matcher.scorer_algorithm == "token_set_ratio"
     assert reloaded.integration.auto_push_on_match is False
     assert reloaded.queue.batch_chunk_size == 50
 
@@ -140,6 +204,7 @@ async def test_settings_save_and_retrieve_persistence():
     await reset_system_settings_async()
     reset_settings = await get_system_settings_async()
     assert reset_settings.matcher.auto_match_threshold == 0.60
+    assert reset_settings.matcher.scorer_algorithm == "partial_ratio"
     assert reset_settings.integration.auto_push_on_match is True
 
 
@@ -210,7 +275,7 @@ async def test_browser_engine_setting_persistence():
     # Reset to default
     await reset_system_settings_async()
     reset_settings = await get_system_settings_async()
-    assert reset_settings.automation.browser_engine == "chrome"
+    assert reset_settings.automation.browser_engine == "chromium"
 
 
 @pytest.mark.asyncio
@@ -342,5 +407,3 @@ async def test_upload_logo_endpoint_oversize_limit():
         response = await client.post("/api/v1/settings/upload-logo", files=files)
         assert response.status_code == 400
         assert "File exceeds maximum allowed size" in response.json()["detail"]
-
-

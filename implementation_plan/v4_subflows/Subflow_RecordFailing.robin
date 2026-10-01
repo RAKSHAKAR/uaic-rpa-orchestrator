@@ -1,0 +1,49 @@
+FUNCTION Subflow_RecordFailing GLOBAL
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> CurrentDatetime
+
+    Text.ConvertDateTimeToText.FromDateTime DateTime: $fx'${CurrentDatetime}' StandardFormat: Text.WellKnownDateTimeFormat.FullDateTimeShortTime Result=> FormattedDateTime
+
+    Text.Replace.ReplaceTextWithRegex Text: $fx'${FormattedDateTime}' TextToFind: $fx'[^\\w\\.@-]' IgnoreCase: False ReplaceWith: $fx'-' ActivateEscapeSequences: False Result=> Replaced
+
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotAndSaveToFile File: $fx'C:\\Users\\pdadmin\\Desktop\\Error Screenshots\\%Replaced%.jpg' ImageFormat: System.ImageFormat.Jpg
+
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotAndSaveToFile File: $fx'C:\\Users\\Apoorvn1\\Desktop\\Error Screenshots\\${Replaced}.jpg' ImageFormat: System.ImageFormat.Jpg
+
+    @@organization: '(Current)'
+
+@@entityName: 'UAIC_Bot_Creation_Databases'
+
+@@'item/uaic_fl_botstatus_broward': ''
+
+@@'item/uaic_fl_botstatus_hillsborough': ''
+
+@@'item/uaic_fl_botstatus_miami': ''
+
+@@'item/uaic_fuzzymatchflowstatus': ''
+
+@@'item/uaic_record_status': 'Failed'
+
+@@'item/statecode': ''
+
+@@'item/statuscode': ''
+
+@@'item/uaic_te_botstatus_cclerk': ''
+
+@@'item/uaic_te_botstatus_dallas': ''
+
+@@'item/uaic_te_botstatus_harris': ''
+
+@@'item/uaic_te_botstatus_hcdistrict': ''
+
+@@'item/uaic_te_botstatus_travis': ''
+
+@@'InputSchema:item': '371446517'
+
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-1558051472'
+
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_record_status': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+
+END FUNCTION

@@ -387,6 +387,23 @@ export default function QueueMonitorPage() {
     return n.split(" ")[0];
   };
 
+  const getBotBadgeLabel = (name: string): string => {
+    const n = name.toLowerCase();
+    // Florida: Bro, Hil, Mia (user confirmed Florida looks correct)
+    if (n.includes("broward")) return "Bro";
+    if (n.includes("hillsborough")) return "Hil";
+    if (n.includes("miami")) return "Mia";
+
+    // Texas: Travis, Dallas, Harris JP, CClerk, HCDistrict (disambiguates 3 Harris courts)
+    if (n.includes("travis")) return "Travis";
+    if (n.includes("dallas")) return "Dallas";
+    if (n.includes("jp")) return "Harris JP";
+    if (n.includes("district")) return "HCDistrict";
+    if (n.includes("clerk") || n.includes("cclerk")) return "CClerk";
+
+    return name.split(" ")[0].slice(0, 3);
+  };
+
   return (
     <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={fetchData} isRefreshing={isLoading} />
@@ -923,7 +940,7 @@ export default function QueueMonitorPage() {
                                 <span
                                   key={b.name}
                                   title={`${b.name}: ${b.status} (${b.cases_found} cases)`}
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap ${
                                     b.target === "No"
                                       ? "bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-600"
                                       : b.status === "COMPLETED"
@@ -935,7 +952,7 @@ export default function QueueMonitorPage() {
                                       : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400"
                                   }`}
                                 >
-                                  {b.name.split(" ")[0].slice(0, 3)}
+                                  {getBotBadgeLabel(b.name)}
                                 </span>
                               ))}
                             </div>
@@ -948,7 +965,7 @@ export default function QueueMonitorPage() {
                                 <span
                                   key={b.name}
                                   title={`${b.name}: ${b.status} (${b.cases_found} cases)`}
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap ${
                                     b.target === "No"
                                       ? "bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-600"
                                       : b.status === "COMPLETED"
@@ -960,7 +977,7 @@ export default function QueueMonitorPage() {
                                       : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400"
                                   }`}
                                 >
-                                  {b.name.split(" ")[0].slice(0, 3)}
+                                  {getBotBadgeLabel(b.name)}
                                 </span>
                               ))}
                             </div>
@@ -1262,7 +1279,8 @@ export default function QueueMonitorPage() {
                       {(activeState === "Florida" ? flBots : txBots).map((b) => (
                         <span
                           key={b.name}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                          title={`${b.name}: ${b.status} (${b.cases_found} cases)`}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap ${
                             b.status === "COMPLETED"
                               ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400"
                               : b.status === "IN_PROGRESS"
@@ -1272,7 +1290,7 @@ export default function QueueMonitorPage() {
                               : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                           }`}
                         >
-                          {b.name.slice(0, 3)}
+                          {getBotBadgeLabel(b.name)}
                         </span>
                       ))}
                     </div>

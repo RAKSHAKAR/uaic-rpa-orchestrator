@@ -1,7 +1,7 @@
 """Test Scraper CAPTCHA behavior (TC-CAP-001 through TC-CAP-007).
 
-Validates that scrapers handle CAPTCHA timeouts gracefully (returning empty results
-instead of raising fatal RuntimeErrors) and that the base class handles detection correctly.
+Validates that scrapers report unresolved CAPTCHA attempts as failures, while the
+base class detects a resolved challenge within its configured deadline.
 """
 
 import inspect
@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.automation.base import BaseCourtScraper
+from app.automation.base import BaseCourtScraper, CaptchaResolutionError
 from app.automation.florida import BrowardScraper
 from app.automation.texas import DallasScraper, HarrisJPScraper, TravisScraper
 
@@ -37,58 +37,57 @@ def _build_mock_page():
 
 
 @pytest.mark.asyncio
-async def test_tc_cap_001_broward_captcha_timeout_returns_empty():
-    """TC-CAP-001: Broward returns [] on CAPTCHA timeout, does NOT raise RuntimeError."""
+async def test_tc_cap_001_broward_captcha_timeout_raises():
+    """TC-CAP-001: Broward reports an exhausted CAPTCHA attempt."""
     scraper = BrowardScraper()
     page = _build_mock_page()
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = False
-        res = await scraper.search_by_party_name("John", "Doe", page)
-        assert res == []
+        with pytest.raises(CaptchaResolutionError):
+            await scraper.search_by_party_name("John", "Doe", page)
 
 
 @pytest.mark.asyncio
-async def test_tc_cap_002_travis_captcha_timeout_returns_empty():
-    """TC-CAP-002: Travis returns [] on CAPTCHA timeout, does NOT raise RuntimeError."""
+async def test_tc_cap_002_travis_captcha_timeout_raises():
+    """TC-CAP-002: Travis reports an exhausted CAPTCHA attempt."""
     scraper = TravisScraper()
     page = _build_mock_page()
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = False
-        res = await scraper.search_by_party_name("Jane", "Smith", page)
-        assert res == []
+        with pytest.raises(CaptchaResolutionError):
+            await scraper.search_by_party_name("Jane", "Smith", page)
 
 
 @pytest.mark.asyncio
-async def test_tc_cap_003_dallas_captcha_timeout_returns_empty():
-    """TC-CAP-003: Dallas returns [] on CAPTCHA timeout, does NOT raise RuntimeError."""
+async def test_tc_cap_003_dallas_captcha_timeout_raises():
+    """TC-CAP-003: Dallas reports an exhausted CAPTCHA attempt."""
     scraper = DallasScraper()
     page = _build_mock_page()
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = False
-        res = await scraper.search_by_party_name("Alice", "Johnson", page)
-        assert res == []
+        with pytest.raises(CaptchaResolutionError):
+            await scraper.search_by_party_name("Alice", "Johnson", page)
 
 
 @pytest.mark.asyncio
-async def test_tc_cap_004_harris_jp_captcha_timeout_returns_empty():
-    """TC-CAP-004: Harris JP returns [] on CAPTCHA timeout, does NOT raise RuntimeError."""
+async def test_tc_cap_004_harris_jp_captcha_timeout_raises():
+    """TC-CAP-004: Harris JP reports an exhausted CAPTCHA attempt."""
     scraper = HarrisJPScraper()
     page = _build_mock_page()
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap:
         mock_cap.return_value = False
-        res = await scraper.search_by_party_name("Bob", "Williams", page)
-        assert res == []
+        with pytest.raises(CaptchaResolutionError):
+            await scraper.search_by_party_name("Bob", "Williams", page)
 
 
 def test_tc_cap_005_broward_redundant_still_solving_removed():
     """TC-CAP-005: Broward source does not contain redundant 'still_solving' loop."""
     src = inspect.getsource(BrowardScraper)
     assert "while still_solving" not in src
-    assert "raise RuntimeError" not in src
 
 
 @pytest.mark.asyncio
@@ -139,3 +138,26 @@ async def test_tc_cap_007_base_captcha_unsolved_timeout_returns_false():
 
     result = await scraper.detect_and_handle_captcha(page, wait_seconds=1)
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_tc_cap_008_dismiss_captcha_challenge_popup():
+    """TC-CAP-008: BaseCourtScraper.dismiss_captcha_challenge_popup simulates outside click and Escape."""
+    class SimpleScraper(BaseCourtScraper):
+        async def search_by_party_name(self, first_name, last_name, page, **kwargs):
+            return []
+
+    scraper = SimpleScraper(county_name="Mock County", base_url="https://example.com")
+    page = MagicMock()
+    page.mouse = MagicMock()
+    page.mouse.click = AsyncMock()
+    page.keyboard = MagicMock()
+    page.keyboard.press = AsyncMock()
+    page.evaluate = AsyncMock()
+    page.wait_for_timeout = AsyncMock()
+
+    await scraper.dismiss_captcha_challenge_popup(page)
+
+    page.mouse.click.assert_awaited_once_with(50, 50)
+    page.keyboard.press.assert_awaited_once_with("Escape")
+    assert page.evaluate.await_count >= 1

@@ -59,7 +59,20 @@ async def test_end_to_end_orchestration_and_guidewire_trigger():
         "Court": "SD 04",
     }]
 
+    mock_tab = MagicMock()
+    mock_tab.is_closed = MagicMock(return_value=False)
+    mock_tab.bring_to_front = AsyncMock()
+    mock_browser_session = MagicMock()
+    mock_browser_session.stage_timings = {}
+    mock_browser_session.tabs = {}
+    mock_browser_session.get_or_create_tab = AsyncMock(return_value=mock_tab)
+
+    mock_runner_cm = AsyncMock()
+    mock_runner_cm.__aenter__.return_value = mock_browser_session
+    mock_runner_cm.__aexit__.return_value = None
+
     with patch("app.core.celery_app.celery_app.send_task", MagicMock()), \
+         patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner_cm), \
          patch("app.automation.florida.miami.MiamiDadeScraper.search_by_party_name", AsyncMock(return_value=miami_cases)), \
          patch("app.automation.florida.hillsborough.HillsboroughScraper.search_by_party_name", AsyncMock(return_value=[])):
         
@@ -70,8 +83,9 @@ async def test_end_to_end_orchestration_and_guidewire_trigger():
         q = select(ClaimRecord).where(ClaimRecord.id == claim_id).options(selectinload(ClaimRecord.scraped_cases))
         res = await session.execute(q)
         claim_after_scrape = res.scalar_one()
-        assert len(claim_after_scrape.scraped_cases) == 1
-        assert claim_after_scrape.scraped_cases[0].case_number == "2026-111719-CC-26"
+        # V4 appends the same portal row once for each distinct party search.
+        assert len(claim_after_scrape.scraped_cases) == 2
+        assert [case.case_number for case in claim_after_scrape.scraped_cases] == ["2026-111719-CC-26"] * 2
 
     # 4. Run Fuzzy Matching
     with patch("app.core.celery_app.celery_app.send_task", MagicMock()):

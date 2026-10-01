@@ -2,9 +2,10 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 def get_default_chrome_binary() -> str:
@@ -54,7 +55,7 @@ class AutomationSettings(BaseModel):
     use_chrome_browser: bool = Field(default=True, description="Always launch Google Chrome browser (supports Chrome extensions like AntiCaptcha)")
     chrome_binary_path: str | None = Field(default_factory=get_default_chrome_binary, description="Google Chrome executable path (default: Windows Program Files)")
     chrome_extension_dir: str | None = Field(default_factory=get_default_extension_dir, description="AntiCaptcha Chrome Extension Directory Path (default: relative)")
-    anticaptcha_api_key: str | None = Field(default="28b486b8f31f74c6bf4453735815aa53", description="AntiCaptcha API Key for auto-solving")
+    anticaptcha_api_key: str | None = Field(default="", description="AntiCaptcha API Key for auto-solving")
     chrome_user_data_dir: str | None = Field(default="", description="Path to Chrome User Data for persistent extension settings (optional, keep blank by default)")
     user_agent: str = Field(
         default=CHROME_USER_AGENT,
@@ -143,37 +144,63 @@ class AutomationSettings(BaseModel):
         description="Solve GeeTest slider / puzzle CAPTCHA challenges.",
     )
 
+    @field_validator("browser_engine")
+    @classmethod
+    def valid_browser_engine(cls, value: str) -> str:
+        if value not in {"chrome", "chromium", "msedge"}:
+            raise ValueError("browser_engine must be chrome, chromium, or msedge")
+        return value
+
+    @field_validator("typing_speed_mode")
+    @classmethod
+    def valid_typing_speed_mode(cls, value: str) -> str:
+        if value not in {"turbo", "fast", "balanced", "cautious"}:
+            raise ValueError("typing_speed_mode must be turbo, fast, balanced, or cautious")
+        return value
+
 
 class PortalsSettings(BaseModel):
     """Court scraper portal endpoints and activation toggles."""
     # Florida
-    broward_url: str = Field(default="https://www.browardclerk.org/", description="Broward County Clerk Portal URL")
+    broward_url: str = Field(default="https://www.browardclerk.org/Web2", description="Broward County Clerk Portal URL")
     broward_enabled: bool = Field(default=True, description="Enable Broward County Scraper")
 
-    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/", description="Hillsborough County Clerk Portal URL")
+    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab", description="Hillsborough County Clerk Portal URL")
     hillsborough_enabled: bool = Field(default=True, description="Enable Hillsborough County Scraper")
 
     miami_url: str = Field(default="https://www2.miamidadeclerk.gov/ocs", description="Miami-Dade County Clerk Portal URL")
     miami_enabled: bool = Field(default=True, description="Enable Miami-Dade County Scraper")
-    miami_username: str = Field(default="apoorvnigam07@gmail.com", description="Miami-Dade OCS Portal Login Username/Email")
-    miami_password: str = Field(default="Apoorv@12345", description="Miami-Dade OCS Portal Login Password")
+    miami_username: str = Field(default="", description="Miami-Dade OCS Portal Login Username/Email")
+    miami_password: str = Field(default="", description="Miami-Dade OCS Portal Login Password")
     miami_requires_login: bool = Field(default=True, description="Requires authentication to scrape Miami-Dade OCS portal")
 
     # Texas
-    travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/", description="Travis County Odyssey Portal URL")
+    travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29", description="Travis County Odyssey Portal URL (V4 CountyWebsite)")
     travis_enabled: bool = Field(default=True, description="Enable Travis County Scraper")
 
-    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/", description="Dallas County Courts Portal URL")
+    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29", description="Dallas County Courts Portal URL (V4 CountyWebsite)")
     dallas_enabled: bool = Field(default=True, description="Enable Dallas County Scraper")
 
-    harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/", description="Harris County JP Courts Portal URL")
+    harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29", description="Harris County JP Courts Portal URL (V4 CountyWebsite)")
     harris_jp_enabled: bool = Field(default=True, description="Enable Harris County JP Scraper")
 
     harris_cclerk_url: str = Field(default="https://www.cclerk.hctx.net/Applications/WebSearch/", description="Harris County Clerk Portal URL")
     harris_cclerk_enabled: bool = Field(default=True, description="Enable Harris County Clerk Scraper")
 
-    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/", description="Harris County District Clerk Portal URL")
+    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx", description="Harris County District Clerk Portal URL (V4 CountyWebsite)")
     harris_district_enabled: bool = Field(default=True, description="Enable Harris District Clerk Scraper")
+
+    @field_validator(
+        "broward_url", "hillsborough_url", "miami_url", "travis_url",
+        "dallas_url", "harris_jp_url", "harris_cclerk_url", "harris_district_url",
+    )
+    @classmethod
+    def valid_portal_url(cls, value: str) -> str:
+        value = value.strip()
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("portal URL must be an absolute HTTP(S) URL without credentials")
+        return value
 
 
 class FuzzyMatcherSettings(BaseModel):
@@ -181,12 +208,13 @@ class FuzzyMatcherSettings(BaseModel):
     auto_match_threshold: float = Field(default=0.60, ge=0.0, le=1.0, description="Similarity score threshold for automatic match approval")
     manual_review_threshold: float = Field(default=0.40, ge=0.0, le=1.0, description="Similarity score threshold for sending to human review")
     scorer_algorithm: str = Field(
-        default="token_sort_ratio",
+        default="partial_ratio",
         description="Fuzzy matching algorithm (token_sort_ratio, token_set_ratio, partial_ratio, ratio)",
     )
     min_filing_date: str = Field(default="2010-01-01", description="Minimum court case filing date (YYYY-MM-DD)")
     unique_names_threshold: float = Field(
-        default=0.85, ge=0.0, le=1.0, description="Deduplication threshold for unique search names generation"
+        default=0.60, ge=0.60, le=0.60,
+        description="Power Automate V4 party deduplication threshold (fixed at 0.60)",
     )
     clean_party_name_patterns: list[str] = Field(
         default_factory=lambda: [
@@ -234,6 +262,13 @@ class FuzzyMatcherSettings(BaseModel):
         description="Case types eligible for automatic matching",
     )
 
+    @field_validator("scorer_algorithm")
+    @classmethod
+    def valid_scorer_algorithm(cls, value: str) -> str:
+        if value not in {"partial_ratio", "token_sort_ratio", "token_set_ratio", "ratio"}:
+            raise ValueError("scorer_algorithm must be a supported RapidFuzz method")
+        return value
+
 
 class IntegrationSettings(BaseModel):
     """Guidewire ClaimCenter integration and downstream sync settings."""
@@ -246,9 +281,9 @@ class IntegrationSettings(BaseModel):
         default="Bearer",
         description="Auth method: Bearer, ApiKey, Basic, OAuth2, None",
     )
-    guidewire_api_key: str = Field(default="gw_demo_token_xyz890", description="Bearer token or API Key header value")
+    guidewire_api_key: str = Field(default="", description="Bearer token or API Key header value")
     guidewire_client_id: str = Field(default="uaic_service_account", description="Client ID / Username for Basic or OAuth2 auth")
-    guidewire_client_secret: str = Field(default="sec_gw_secret_9981", description="Client Secret / Password for Basic or OAuth2 auth")
+    guidewire_client_secret: str = Field(default="", description="Client Secret / Password for Basic or OAuth2 auth")
     guidewire_timeout_seconds: int = Field(default=30, ge=5, le=120, description="Guidewire HTTP timeout in seconds")
     auto_push_on_match: bool = Field(default=True, description="Automatically trigger Guidewire notification when match is confirmed")
     notification_dispatch_mode: str = Field(
@@ -257,12 +292,26 @@ class IntegrationSettings(BaseModel):
     )
     notification_email: str = Field(default="test@test.com", description="Alert email recipient for failed push notifications")
 
+    @field_validator("guidewire_auth_type")
+    @classmethod
+    def valid_guidewire_auth_type(cls, value: str) -> str:
+        if value not in {"Bearer", "ApiKey", "Basic", "OAuth2", "None"}:
+            raise ValueError("guidewire_auth_type must be a supported authentication method")
+        return value
+
+    @field_validator("notification_dispatch_mode")
+    @classmethod
+    def valid_notification_dispatch_mode(cls, value: str) -> str:
+        if value not in {"direct_system", "guidewire_activity", "both"}:
+            raise ValueError("notification_dispatch_mode must be direct_system, guidewire_activity, or both")
+        return value
+
 
 class TaskQueueSettings(BaseModel):
     """Celery task queue & operational retry limits."""
     max_task_retries: int = Field(default=3, ge=0, le=10, description="Maximum Celery task retry attempts on unhandled exceptions")
     task_retry_delay_seconds: int = Field(default=30, ge=5, le=300, description="Exponential backoff delay in seconds between task retries")
-    batch_chunk_size: int = Field(default=25, ge=5, le=100, description="Number of claims to process per Celery worker chunk")
+    batch_chunk_size: int = Field(default=25, ge=5, le=100, description="Claims per ingestion database flush batch")
     auto_retry_failed_scrapes: bool = Field(default=True, description="Automatically retrigger failed scraping tasks via Celery Beat")
     max_concurrent_claims: int = Field(
         default=1,
@@ -371,11 +420,18 @@ class StorageSettings(BaseModel):
     gcs_project_id: str = Field(default="", description="GCP Project ID")
     gcs_credentials_json: str = Field(default="", description="Google Cloud Service Account JSON credentials")
 
+    @field_validator("storage_provider")
+    @classmethod
+    def valid_storage_provider(cls, value: str) -> str:
+        if value not in {"local", "s3", "azure_blob", "gcs"}:
+            raise ValueError("storage_provider must be local, s3, azure_blob, or gcs")
+        return value
+
 
 class EmailSettings(BaseModel):
     """Enterprise email notification service and provider configuration."""
     email_notifications_enabled: bool = Field(default=True, description="Master toggle to enable/disable automated email notifications")
-    provider: str = Field(default="local_mock", description="Email provider: local_mock, maildev, direct_mx, smtp, graph, sendgrid, ses")
+    provider: str = Field(default="local_mock", description="Email provider: local_mock, maildev, direct_mx, smtp, graph, ses")
     maildev_web_url: str = Field(default="http://localhost:1080", description="URL for local MailDev web interface")
     smtp_host: str = Field(default="localhost", description="SMTP server hostname or IP")
     smtp_port: int = Field(default=587, description="SMTP server port (e.g. 587, 465, 25, 1025)")
@@ -411,18 +467,48 @@ class EmailSettings(BaseModel):
         description="Per-event notification enablement rules",
     )
 
+    @field_validator("digest_mode")
+    @classmethod
+    def valid_digest_mode(cls, value: str) -> str:
+        if value not in {"immediate", "hourly_digest", "daily_digest"}:
+            raise ValueError("digest_mode must be immediate, hourly_digest, or daily_digest")
+        return value
+
+    @field_validator("provider")
+    @classmethod
+    def valid_provider(cls, value: str) -> str:
+        if value not in {"local_mock", "maildev", "direct_mx", "smtp", "graph", "ses"}:
+            raise ValueError("provider must be a supported email transport")
+        return value
+
+    @field_validator("smtp_encryption")
+    @classmethod
+    def valid_smtp_encryption(cls, value: str) -> str:
+        if value not in {"tls", "ssl", "none"}:
+            raise ValueError("smtp_encryption must be tls, ssl, or none")
+        return value
+
 
 class ProxySettings(BaseModel):
     """Dedicated self-hosted proxy pool settings."""
     enabled: bool = Field(default=False, description="Route Playwright traffic through dedicated proxy pool")
     host: str = Field(default="", description="Proxy server IP or hostname (e.g., 10.0.0.5)")
-    port: int = Field(default=3128, description="Proxy server port (e.g., 3128 for Squid)")
+    port: int = Field(default=3128, ge=1, le=65535, description="Proxy server port (e.g., 3128 for Squid)")
     username: str = Field(default="", description="Proxy authentication username")
     password: str = Field(default="", description="Proxy authentication password")
+
+    @field_validator("host")
+    @classmethod
+    def valid_proxy_host(cls, value: str, info: ValidationInfo) -> str:
+        value = value.strip()
+        if info.data.get("enabled") and (not value or "://" in value or "/" in value or "@" in value):
+            raise ValueError("enabled proxy requires a hostname or IP address")
+        return value
 
 
 class SystemSettings(BaseModel):
     """Root configuration model containing all subsystem configurations."""
+    version: int = Field(default=0, ge=0, description="Durable settings revision for conflict detection")
     automation: AutomationSettings = Field(default_factory=AutomationSettings)
     portals: PortalsSettings = Field(default_factory=PortalsSettings)
     matcher: FuzzyMatcherSettings = Field(default_factory=FuzzyMatcherSettings)
@@ -432,6 +518,74 @@ class SystemSettings(BaseModel):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
     proxy: ProxySettings = Field(default_factory=ProxySettings)
+
+
+SECRET_PATHS = (
+    "automation.anticaptcha_api_key",
+    "portals.miami_password",
+    "integration.guidewire_api_key",
+    "integration.guidewire_client_secret",
+    "email.smtp_password",
+    "email.graph_client_secret",
+    "email.ses_secret_access_key",
+    "storage.s3_secret_key",
+    "storage.azure_connection_string",
+    "storage.gcs_credentials_json",
+    "proxy.password",
+)
+
+
+class SettingsResponse(SystemSettings):
+    """Public settings view with write-only secrets and presence metadata."""
+    configured_secrets: dict[str, bool] = Field(default_factory=dict)
+
+
+class SettingsUpdateRequest(SystemSettings):
+    """Full settings document plus explicit requests to clear secrets."""
+    clear_secrets: list[Literal[
+        "automation.anticaptcha_api_key",
+        "portals.miami_password",
+        "integration.guidewire_api_key",
+        "integration.guidewire_client_secret",
+        "email.smtp_password",
+        "email.graph_client_secret",
+        "email.ses_secret_access_key",
+        "storage.s3_secret_key",
+        "storage.azure_connection_string",
+        "storage.gcs_credentials_json",
+        "proxy.password",
+    ]] = Field(default_factory=list)
+
+    @field_validator("clear_secrets")
+    @classmethod
+    def unique_clear_paths(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(value))
+
+
+def redact_system_settings(document: SystemSettings) -> SettingsResponse:
+    """Return no secret values while preserving whether each is configured."""
+    public = document.model_dump()
+    presence: dict[str, bool] = {}
+    for path in SECRET_PATHS:
+        category, field = path.split(".", 1)
+        presence[path] = bool(public[category].get(field))
+        public[category][field] = ""
+    public["configured_secrets"] = presence
+    return SettingsResponse.model_validate(public)
+
+
+def merge_settings_update(current: SystemSettings, payload: SettingsUpdateRequest) -> SystemSettings:
+    """A blank secret means retain; only clear_secrets can erase an existing key."""
+    updated = payload.model_dump(exclude={"clear_secrets"})
+    for path in SECRET_PATHS:
+        category, field = path.split(".", 1)
+        incoming = updated[category].get(field)
+        if path in payload.clear_secrets:
+            updated[category][field] = ""
+        elif not incoming:
+            updated[category][field] = getattr(getattr(current, category), field)
+    updated["queue"]["max_concurrent_claims"] = updated["automation"]["max_concurrent_claims"]
+    return SystemSettings.model_validate(updated)
 
 
 # Test Connection Request & Response DTOs
@@ -488,6 +642,8 @@ class BrowserTestRequest(BaseModel):
     timeout_seconds: int | None = 25
     chrome_binary_path: str | None = None
     chrome_extension_dir: str | None = None
+    force_kill: bool = False
+    test_extension: bool = True
 
 
 class BrowserTestResponse(BaseModel):
@@ -651,7 +807,7 @@ class ExtensionSetupResponse(BaseModel):
     toolbar_action_verified: bool = False
     service_worker_active: bool = False
     profile_dir: str
-    verified_at: str
+    verified_at: str | None = None
     latency_ms: float = 0.0
 
     timestamp: str | None = None
@@ -691,6 +847,3 @@ class FleetTestResponse(BaseModel):
     message: str
     proxy_enabled: bool = False
     proxy_server: str | None = None
-
-
-

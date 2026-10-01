@@ -77,9 +77,9 @@ def test_is_case_eligible_filing_date():
     assert is_case_eligible(filing_date="05/10/2021", case_status="OPEN", case_type="CIVIL") is True
     assert is_case_eligible(filing_date="2026/08/21", case_status="OPEN", case_type="CIVIL") is True
 
-    # 2010 and pre-2010 filing dates -> Ineligible
-    assert is_case_eligible(filing_date="2010-12-31", case_status="OPEN", case_type="CIVIL") is False
-    assert is_case_eligible(filing_date="2010-01-01", case_status="OPEN", case_type="CIVIL") is False
+    # The configured minimum includes filings from 2010-01-01 onward.
+    assert is_case_eligible(filing_date="2010-12-31", case_status="OPEN", case_type="CIVIL") is True
+    assert is_case_eligible(filing_date="2010-01-01", case_status="OPEN", case_type="CIVIL") is True
     assert is_case_eligible(filing_date="2008-11-20", case_status="OPEN", case_type="CIVIL") is False
     assert is_case_eligible(filing_date="01/01/1999", case_status="OPEN", case_type="CIVIL") is False
 
@@ -93,14 +93,14 @@ def test_tc_fuz_001_filing_date_2011_01_01_passes():
     assert is_case_eligible("2011-01-01", "OPEN", "CIVIL") is True
 
 
-def test_tc_fuz_002_filing_date_2010_12_31_excluded():
-    """TC-FUZ-002: Filing date 2010-12-31 is excluded (filed in year 2010)."""
-    assert is_case_eligible("2010-12-31", "OPEN", "CIVIL") is False
+def test_tc_fuz_002_filing_date_2010_12_31_included():
+    """TC-FUZ-002: Filing date 2010-12-31 meets the configured minimum."""
+    assert is_case_eligible("2010-12-31", "OPEN", "CIVIL") is True
 
 
-def test_tc_fuz_003_filing_date_2010_01_01_excluded():
-    """TC-FUZ-003: Filing date 2010-01-01 is excluded."""
-    assert is_case_eligible("2010-01-01", "OPEN", "CIVIL") is False
+def test_tc_fuz_003_filing_date_2010_01_01_included():
+    """TC-FUZ-003: The minimum filing date itself is eligible."""
+    assert is_case_eligible("2010-01-01", "OPEN", "CIVIL") is True
 
 
 def test_tc_fuz_004_filing_date_2009_06_15_excluded():

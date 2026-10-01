@@ -71,9 +71,11 @@ class NotificationService:
             result = await db.execute(stmt)
             existing = result.scalar_one_or_none()
             if existing:
-                if existing.status in ["SENT", "QUEUED", "SENDING"]:
-                    logger.info(f"[NotificationService] Idempotency match: {idempotency_key} already in status '{existing.status}'. Skipping duplicate.")
-                    return existing
+                logger.info(
+                    "[NotificationService] Idempotency match: %s already in status '%s'. Skipping duplicate.",
+                    idempotency_key, existing.status,
+                )
+                return existing
 
         # 4. Resolve Recipients
         recipients = [override_recipient] if override_recipient else email_settings.to_recipients

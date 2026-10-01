@@ -46,7 +46,7 @@ async def test_persistent_profile_toolbar_pinning_preferences(tmp_path: Path):
 
     # 3. Verify browser toolbar menu is enabled
     assert prefs.get("browser", {}).get("show_extensions_toolbar_menu") is True
-    assert prefs.get("extensions", {}).get("developer_mode") is True
+    assert prefs.get("extensions", {}).get("ui", {}).get("developer_mode") is True
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_setup_extension_endpoint_success(mocker, tmp_path):
 
     mock_session_cls = MagicMock()
     mock_session_cls.get_persistent_profile_dir.return_value = mock_profile
-    mock_session_cls.configure_and_pin_profile.return_value = mock_profile
+    mock_session_cls.configure_and_pin_profile.side_effect = ChromeSession.configure_and_pin_profile
     mock_session_cls.return_value = mock_session
     mocker.patch("app.api.v1.endpoints.settings.ChromeSession", mock_session_cls)
 
@@ -105,3 +105,35 @@ def test_scraper_runtime_selects_persistent_profile(tmp_path: Path):
     (tmp_path / "custom_profile").mkdir()
     # The runner must use the configured user_data_dir rather than creating a random temp dir
     assert runner.user_data_dir == str(tmp_path / "custom_profile")
+
+
+@pytest.mark.asyncio
+async def test_automatic_preflight_pinning_on_automation_startup(mocker, tmp_path: Path):
+    """Verify SingleSessionBrowserRunner automatically invokes ChromeSession.configure_and_pin_profile on enter."""
+    mock_pin = mocker.patch("app.automation.browser_manager.ChromeSession.configure_and_pin_profile")
+    mocker.patch("app.automation.session_runner.async_playwright")
+
+    custom_profile = tmp_path / "auto_profile"
+    custom_profile.mkdir()
+
+    runner = SingleSessionBrowserRunner(
+        headless=True,
+        user_data_dir=str(custom_profile),
+        anticaptcha_api_key="test_api_key_456",
+    )
+
+    # Mock playwright launch
+    mock_pw = AsyncMock()
+    mock_context = AsyncMock()
+    mock_context.service_workers = []
+    mock_context.background_pages = []
+    mock_pw.chromium.launch_persistent_context = AsyncMock(return_value=mock_context)
+
+    mock_pw_starter = AsyncMock(return_value=mock_pw)
+    mocker.patch("app.automation.session_runner.async_playwright", return_value=MagicMock(start=mock_pw_starter))
+
+    async with runner:
+        pass
+
+    # Verify configure_and_pin_profile was automatically called before context launch
+    assert mock_pin.called, "ChromeSession.configure_and_pin_profile must be called automatically on startup"

@@ -1,0 +1,11 @@
+FUNCTION Subflow_MiamiError GLOBAL
+
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=MiamiBrowser' Url: $fx'https://www2.miamidadeclerk.gov/ocs' WaitForPageToLoadTimeout: $fx'=60'
+
+    ON ERROR
+
+
+
+    END
+
+END FUNCTION

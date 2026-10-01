@@ -1,0 +1,25 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T08:11:06.798718+00:00",
+  "synthetic_search": {
+    "first": "Audit",
+    "last": "Zyxqtest",
+    "date_of_loss": "01/01/2020"
+  },
+  "findings": [
+    {
+      "portal": "hillsborough",
+      "configured_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "navigation": "loaded",
+      "search": "failed",
+      "case_count": null,
+      "first_case_fields": [],
+      "final_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "page_title": "Case Search",
+      "captcha_visible": false,
+      "error": "search: RuntimeError: [Hillsborough County (FL)] Search completed without results or a verified no-match message",
+      "http_status": 200,
+      "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_hillsborough_live_probe.png"
+    }
+  ]
+}

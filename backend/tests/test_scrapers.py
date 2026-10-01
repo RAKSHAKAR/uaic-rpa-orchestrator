@@ -133,7 +133,12 @@ async def test_miami_scraper_card_view_extraction():
     mock_card.inner_text = AsyncMock(return_value=card_text)
     mock_tds = MagicMock()
     mock_tds.count = AsyncMock(return_value=0)
-    mock_card.locator.return_value = mock_tds
+    mock_tds.inner_text = AsyncMock(return_value="")
+    mock_v4_style = MagicMock()
+    mock_v4_style.inner_text = AsyncMock(return_value="MIGUEL TOLEDO ET AL VS SERGIO GONZALEZ ET AL")
+    mock_card.locator.side_effect = (
+        lambda selector: mock_v4_style if selector.startswith("div:nth-child(1) > p,") else mock_tds
+    )
 
     mock_cards = MagicMock()
     mock_cards.count = AsyncMock(return_value=1)
@@ -168,7 +173,7 @@ async def test_miami_scraper_card_view_extraction():
     assert record["FilingDate"] == "08/21/2026"
     assert record["CaseStatus"] == "OPEN"
     assert record["CaseType"] == "EVR"
-    assert record["Court"] == "SD 04 - South Dade 04"
+    assert set(record) == {"CaseNumber", "CaseStyle", "FilingDate", "CaseStatus", "CaseType"}
 
 
 def test_hillsborough_scraper_initialization():
@@ -241,7 +246,7 @@ async def test_hillsborough_scraper_table_extraction():
             return mock_last
         elif "partyFirstName" in selector:
             return mock_first
-        elif "partySearchBtn" in selector:
+        elif "btnSubmitPartySearch" in selector:
             return mock_btn
         elif "dataTables_empty" in selector:
             return mock_empty
@@ -265,11 +270,11 @@ async def test_hillsborough_scraper_table_extraction():
     assert len(results) == 1
     res = results[0]
     assert res["CaseNumber"] == "26-TR-067231"
-    assert res["Citation"] == "ANNPQME"
     assert "GONZALEZ, SERGIO" in res["CaseStyle"]
     assert res["CaseStatus"] == "CLOSED"
     assert res["FilingDate"] == "2026-05-14"
     assert res["CaseType"] == "CIVIL TRAFFIC"
+    assert set(res) == {"CaseNumber", "CaseStyle", "FilingDate", "CaseStatus", "CaseType"}
 
 
 def test_broward_scraper_initialization():
@@ -397,4 +402,3 @@ async def test_turnstile_detection_and_interactive_click():
     assert solved is True
     # Verify checkbox inside turnstile challenge was clicked
     mock_checkbox.click.assert_awaited_once()
-

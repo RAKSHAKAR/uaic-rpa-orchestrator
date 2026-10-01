@@ -92,6 +92,23 @@ import { useBranding, DEFAULT_BRANDING } from "../../components/BrandingContext"
 
 type SettingsTab = "guidewire" | "portals" | "automation" | "extension" | "email" | "storage" | "matcher" | "queue" | "proxy";
 
+const SECRET_FIELDS = [
+  { section: "automation", field: "anticaptcha_api_key", label: "AntiCaptcha API key" },
+  { section: "portals", field: "miami_password", label: "Miami portal password" },
+  { section: "integration", field: "guidewire_api_key", label: "Guidewire API key" },
+  { section: "integration", field: "guidewire_client_secret", label: "Guidewire client secret" },
+  { section: "email", field: "smtp_password", label: "SMTP password" },
+  { section: "email", field: "graph_client_secret", label: "Graph client secret" },
+  { section: "email", field: "ses_secret_access_key", label: "SES secret access key" },
+  { section: "storage", field: "s3_secret_key", label: "S3 secret key" },
+  { section: "storage", field: "azure_connection_string", label: "Azure connection string" },
+  { section: "storage", field: "gcs_credentials_json", label: "GCS credentials JSON" },
+  { section: "proxy", field: "password", label: "Proxy password" },
+] as const;
+
+const secretDraft = (document: SystemSettings, section: string, field: string): string =>
+  String((document[section as keyof SystemSettings] as Record<string, unknown> | undefined)?.[field] || "");
+
 const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   email_notifications_enabled: true,
   provider: "local_mock",
@@ -116,6 +133,7 @@ const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   timeout_seconds: 15,
   retry_count: 3,
   retry_delay_seconds: 30,
+  digest_mode: "immediate",
   rules: {
     court_case_matched: true,
     guidewire_activity_created: true,
@@ -137,6 +155,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [clearSecrets, setClearSecrets] = useState<string[]>([]);
   const [isResetting, setIsResetting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -189,9 +208,7 @@ export default function SettingsPage() {
   const [isValidatingExtension, setIsValidatingExtension] = useState(false);
   const [extensionValidationResult, setExtensionValidationResult] = useState<any | null>(null);
 
-  // One-time Extension Setup & Pinning states
-  const [isSettingUpExtension, setIsSettingUpExtension] = useState(false);
-  const [extensionSetupResult, setExtensionSetupResult] = useState<ExtensionSetupResponse | null>(null);
+  // One-time Extension Setup & Pinning (automated on startup)
 
   // AntiCaptcha API key balance test state (new /test-anticaptcha endpoint)
   const [isTestingAntiCaptchaBalance, setIsTestingAntiCaptchaBalance] = useState(false);
@@ -436,9 +453,7 @@ export default function SettingsPage() {
     setUniqueNamesResult(null);
     try {
       const payload: UniqueNamesRequest = JSON.parse(testUniqueNamesPayload);
-      if (payload.threshold === undefined && settings?.matcher?.unique_names_threshold !== undefined) {
-        payload.threshold = settings.matcher.unique_names_threshold;
-      }
+      payload.threshold = 0.60;
       if (!payload.noise_patterns && settings?.matcher?.clean_party_name_patterns) {
         payload.noise_patterns = settings.matcher.clean_party_name_patterns;
       }
@@ -446,7 +461,7 @@ export default function SettingsPage() {
       setUniqueNamesResult(res);
       setFeedback({
         type: "success",
-        msg: `Generated ${res.unique_names.length} unique names successfully (threshold: ${Math.round((payload.threshold ?? settings?.matcher?.unique_names_threshold ?? 0.60) * 100)}%).`,
+        msg: `Generated ${res.unique_names.length} unique names successfully (threshold: 60%).`,
       });
     } catch (err: any) {
       setFeedback({ type: "error", msg: err?.response?.data?.detail || err.message || "Failed to generate unique names." });
@@ -476,7 +491,7 @@ export default function SettingsPage() {
   const handleTestAntiCaptchaBalance = async () => {
     if (!settings) return;
     const apiKey = settings.automation.anticaptcha_api_key || "";
-    if (!apiKey.trim()) {
+    if (!apiKey.trim() && !settings.configured_secrets?.["automation.anticaptcha_api_key"]) {
       setFeedback({ type: "error", msg: "Enter an AntiCaptcha API key first." });
       return;
     }
@@ -524,45 +539,9 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSetupExtension = async () => {
-    if (!settings) return;
-    setIsSettingUpExtension(true);
-    try {
-      const res = await api.setupExtension({ force_reconfigure: true });
-      setExtensionSetupResult(res);
-      const isVerified = Boolean(res.verified || res.success);
-      if (isVerified) {
-        const profilePath = res.persistent_profile_path || res.profile_dir || "backend/data/browser_profile/";
-        const setupTime = res.timestamp || res.verified_at || new Date().toISOString();
-        setSettings({
-          ...settings,
-          automation: {
-            ...settings.automation,
-            extension_setup_verified: true,
-            extension_setup_timestamp: setupTime,
-          },
-        });
-        setFeedback({
-          type: "success",
-          msg: `Anti-Captcha extension pinned to toolbar & persistent profile configured! (${profilePath})`,
-        });
-      } else {
-        setFeedback({
-          type: "error",
-          msg: `Extension setup failed: ${res.message}`,
-        });
-      }
-    } catch (err: any) {
-      setFeedback({
-        type: "error",
-        msg: err?.response?.data?.detail || "Failed to configure and pin extension.",
-      });
-    } finally {
-      setIsSettingUpExtension(false);
-    }
-  };
 
-  const handleTestBrowser = async (forceHeadless?: boolean) => {
+
+  const handleTestBrowser = async (forceHeadless?: boolean, forceKill: boolean = false, testExtension: boolean = true) => {
     if (!settings) return;
     setIsTestingBrowser(true);
     setBrowserTestResult(null);
@@ -570,11 +549,13 @@ export default function SettingsPage() {
       const modeToTest = forceHeadless !== undefined ? forceHeadless : settings.automation.headless_mode;
       const res = await api.testBrowserLaunch({
         headless: modeToTest,
-        browser_engine: settings.automation.browser_engine || "chrome",
+        browser_engine: settings.automation.browser_engine || "chromium",
         test_url: "https://example.com",
         timeout_seconds: 25,
         chrome_binary_path: settings.automation.chrome_binary_path || undefined,
         chrome_extension_dir: settings.automation.chrome_extension_dir || undefined,
+        force_kill: forceKill,
+        test_extension: testExtension,
       });
       setBrowserTestResult(res);
       if (res.success) {
@@ -618,7 +599,7 @@ export default function SettingsPage() {
       const res = await api.testFleet({
         concurrency,
         headless: settings.automation.headless_mode,
-        browser_engine: (settings.automation.browser_engine || "chrome") as any,
+        browser_engine: (settings.automation.browser_engine || "chromium") as any,
         test_url: "http://127.0.0.1:8000/api/v1/settings/browser-test-page",
         timeout_seconds: Math.min(120, Math.max(45, 30 + concurrency * 8)),
       });
@@ -828,6 +809,7 @@ export default function SettingsPage() {
         email: data.email || DEFAULT_EMAIL_SETTINGS,
       };
       setSettings(withBranding);
+      setClearSecrets([]);
       if (withBranding.matcher?.min_filing_date) {
         const loadedMinDate = withBranding.matcher.min_filing_date;
         setTestFuzzyMatchPayload((prev) => {
@@ -927,7 +909,11 @@ export default function SettingsPage() {
       testRecipientEmail.trim() ||
       emailCfg.to_recipients?.[0] ||
       settings.integration?.notification_email ||
-      "priyer@test.com";
+      "";
+    if (!recipient) {
+      setFeedback({ type: "error", msg: "Configure a test recipient before sending an email." });
+      return;
+    }
     setIsSendingTestEmail(true);
     setTestEmailResult(null);
     try {
@@ -941,7 +927,7 @@ export default function SettingsPage() {
       if (res.success) {
         setFeedback({
           type: "success",
-          msg: `Test notification sent to ${res.recipient}! (Status: ${res.status}, ${res.duration_ms}ms)`,
+          msg: `${res.message} (Status: ${res.status}, ${res.duration_ms}ms)`,
         });
         fetchRecentNotifications();
       } else {
@@ -1272,19 +1258,26 @@ export default function SettingsPage() {
     setIsSaving(true);
     setFeedback(null);
     try {
-      const updated = await api.updateSettings(settings);
+      const clear_secrets = clearSecrets.filter((path) => {
+        const [section, field] = path.split(".");
+        return !secretDraft(settings, section, field);
+      });
+      const updated = await api.updateSettings({ ...settings, clear_secrets });
       setSettings(updated);
+      setClearSecrets([]);
       if (updated.branding) {
         updateBranding(updated.branding);
       }
       setFeedback({
         type: "success",
-        msg: "System settings successfully saved and applied to all running Celery workers, scrapers, and Guidewire integration!",
+        msg: `Settings saved as revision ${updated.version}. New automation attempts will use these values.`,
       });
     } catch (err: any) {
       setFeedback({
         type: "error",
-        msg: err?.response?.data?.detail || "Failed to update system settings.",
+        msg: err?.response?.status === 409
+          ? "Settings changed elsewhere. Reload this page before saving again."
+          : err?.response?.data?.detail || "Failed to update system settings.",
       });
     } finally {
       setIsSaving(false);
@@ -1300,6 +1293,7 @@ export default function SettingsPage() {
     try {
       const def = await api.resetSettings();
       setSettings(def);
+      setClearSecrets([]);
       if (def.branding) {
         updateBranding(def.branding);
       }
@@ -1499,7 +1493,6 @@ export default function SettingsPage() {
     { id: "guidewire", label: "APIs & Matching Engine", icon: Zap },
     { id: "portals", label: "County Court Portals", icon: Globe },
     { id: "automation", label: "Browser Automation & Fleet", icon: ShieldCheck },
-    { id: "extension", label: "CAPTCHA Solver & Extension", icon: Plug },
     { id: "proxy", label: "Proxy Network", icon: Network },
     { id: "email", label: "Email & Notifications", icon: Mail },
     { id: "storage", label: "Storage & Retention", icon: HardDrive },
@@ -1572,6 +1565,47 @@ export default function SettingsPage() {
             </button>
           </div>
         )}
+
+        <details className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-xs">
+          <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200">
+            Stored credentials ({Object.values(settings.configured_secrets || {}).filter(Boolean).length} configured)
+          </summary>
+          <p className="mt-2 text-slate-500 dark:text-slate-400">
+            Saved credentials are hidden. Leave a secret input empty to keep its saved value, enter a replacement, or explicitly clear it below.
+          </p>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+            {SECRET_FIELDS.map(({ section, field, label }) => {
+              const path = `${section}.${field}`;
+              const draft = secretDraft(settings, section, field);
+              const configured = settings.configured_secrets?.[path] || false;
+              const clearing = clearSecrets.includes(path) && !draft;
+              return (
+                <div key={path} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-800 dark:text-slate-200">{label}</div>
+                    <div className="text-slate-500 dark:text-slate-400">
+                      {draft ? "Replacement pending" : clearing ? "Clear pending" : configured ? "Configured" : "Not configured"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!configured && !draft || clearing}
+                    onClick={() => {
+                      setClearSecrets((previous) => Array.from(new Set([...previous, path])));
+                      setSettings((current) => current ? {
+                        ...current,
+                        [section]: { ...(current[section] || {}), [field]: "" },
+                      } as SystemSettings : current);
+                    }}
+                    className="shrink-0 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-slate-600 dark:text-slate-300 hover:border-rose-400 disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </details>
 
         {/* Tab Navigation */}
         <div className="w-full border-b border-slate-200 dark:border-slate-800 pb-px overflow-x-hidden">
@@ -1963,28 +1997,21 @@ export default function SettingsPage() {
                       Party Deduplication Threshold
                     </label>
                     <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 px-2 py-0.5 rounded-md">
-                      {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}%
+                      60%
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="0.50"
-                    max="1.0"
+                    min="0"
+                    max="1"
                     step="0.05"
-                    value={settings.matcher.unique_names_threshold ?? 0.60}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        matcher: {
-                          ...settings.matcher,
-                          unique_names_threshold: parseFloat(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full accent-indigo-500 cursor-pointer"
+                    value={0.60}
+                    disabled
+                    aria-label="Party deduplication threshold fixed at 60 percent"
+                    className="w-full accent-indigo-500 cursor-not-allowed opacity-70"
                   />
                   <p className="text-[11px] text-slate-500">
-                    Party names across Claimants, Insureds, and Drivers with fuzzy similarity &ge; {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}% are merged into a single unique target. The robot processes the exact <code>unique_names</code> list returned.
+                    Party names across Claimants, Insureds, and Drivers with fuzzy similarity &ge; 60% are merged into a single unique target. This V4 rule is fixed.
                   </p>
                 </div>
 
@@ -2046,7 +2073,7 @@ export default function SettingsPage() {
                         Unique Names API Live Tester (<code>/api/v1/matches/unique-names</code>)
                       </h4>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Deduplicates <code>Claimants</code>, <code>Insureds</code>, and <code>Drivers</code> arrays with dynamic {(((settings.matcher.unique_names_threshold ?? 0.60)) * 100).toFixed(0)}% RapidFuzz matching.
+                        Deduplicates <code>Claimants</code>, <code>Insureds</code>, and <code>Drivers</code> arrays with the fixed 60% RapidFuzz threshold.
                       </p>
                     </div>
                   </div>
@@ -2160,7 +2187,7 @@ export default function SettingsPage() {
                 {/* Auto Match Threshold */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-xs">
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    <label htmlFor="auto-match-threshold" className="font-semibold text-slate-700 dark:text-slate-300">
                       Auto-Match Approval Threshold
                     </label>
                     <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
@@ -2168,10 +2195,11 @@ export default function SettingsPage() {
                     </span>
                   </div>
                   <input
+                    id="auto-match-threshold"
                     type="range"
-                    min="0.40"
-                    max="1.0"
-                    step="0.05"
+                    min="0"
+                    max="1"
+                    step="0.01"
                     value={settings.matcher.auto_match_threshold}
                     onChange={(e) =>
                       setSettings({
@@ -2192,7 +2220,7 @@ export default function SettingsPage() {
                 {/* Manual Review Threshold */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-xs">
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    <label htmlFor="manual-review-threshold" className="font-semibold text-slate-700 dark:text-slate-300">
                       Manual Review Lower Threshold
                     </label>
                     <span className="font-mono text-xs font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded-md">
@@ -2200,10 +2228,11 @@ export default function SettingsPage() {
                     </span>
                   </div>
                   <input
+                    id="manual-review-threshold"
                     type="range"
-                    min="0.20"
-                    max="0.80"
-                    step="0.05"
+                    min="0"
+                    max="1"
+                    step="0.01"
                     value={settings.matcher.manual_review_threshold}
                     onChange={(e) =>
                       setSettings({
@@ -2239,8 +2268,8 @@ export default function SettingsPage() {
                     }
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
                   >
-                    <option value="partial_ratio">partial_ratio (PowerAutomateSolutions/fuzzy-match-api Default)</option>
-                    <option value="token_sort_ratio">token_sort_ratio (Recommended for Reordered Legal Names)</option>
+                    <option value="partial_ratio">partial_ratio (Power Automate V4 Default)</option>
+                    <option value="token_sort_ratio">token_sort_ratio (For Reordered Legal Names)</option>
                     <option value="token_set_ratio">token_set_ratio (Best for Subset/Prefix Matches)</option>
                     <option value="ratio">ratio (Exact Levenshtein Distance)</option>
                   </select>
@@ -2716,6 +2745,25 @@ export default function SettingsPage() {
                             </button>
                           </div>
                         </div>
+                        <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={settings.portals.miami_requires_login ?? true}
+                            onChange={(e) => setSettings({
+                              ...settings,
+                              portals: { ...settings.portals, miami_requires_login: e.target.checked },
+                            })}
+                            className="accent-indigo-600"
+                          />
+                          Use Miami portal login before searching
+                        </label>
+                        {(settings.portals.miami_requires_login ?? true) && (!settings.portals.miami_username ||
+                          (!settings.portals.miami_password &&
+                            (!settings.configured_secrets?.["portals.miami_password"] || clearSecrets.includes("portals.miami_password")))) && (
+                          <p className="sm:col-span-2 text-xs text-amber-700 dark:text-amber-400" role="status">
+                            Miami login is enabled. Configure both the username and password before running this portal.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2726,9 +2774,9 @@ export default function SettingsPage() {
         )}
 
         {/* ========================================================= */}
-        {/* TAB 3: BROWSER & CAPTCHA RETRY CONTROLS                   */}
+        {/* TAB 3: BROWSER AUTOMATION & CAPTCHA FLEET CONTROLS        */}
         {/* ========================================================= */}
-        {activeTab === "automation" && (
+        {(activeTab === "automation" || activeTab === "extension") && (
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs w-full transition-colors">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
               <ShieldCheck className="w-5 h-5 text-indigo-500" />
@@ -2737,14 +2785,14 @@ export default function SettingsPage() {
                   Browser Automation &amp; RPA Execution Fleet
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Configure parallel worker concurrency fleet, navigation timeouts, browser engine, and live launch testing.
+                  Select browser engine, configure one-time Anti-Captcha setup for the assigned browser, verify attended/headless execution, and scale parallel worker fleet concurrency.
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
               {/* ========================================================================= */}
-              {/* STEP 1 OF 4: BROWSER AUTOMATION ENGINE & RUNTIME ENVIRONMENT              */}
+              {/* BROWSER AUTOMATION ENGINE & RUNTIME ENVIRONMENT                           */}
               {/* ========================================================================= */}
               <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/50 via-slate-50 to-purple-50/40 dark:from-indigo-950/20 dark:via-slate-900 dark:to-purple-950/20 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-200/70 dark:border-indigo-800/40">
@@ -2765,7 +2813,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500 dark:text-slate-400">Selected Engine:</span>
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
-                      {settings.automation.browser_engine?.toUpperCase() || "CHROME"}
+                      {settings.automation.browser_engine?.toUpperCase() || "CHROMIUM"}
                     </span>
                   </div>
                 </div>
@@ -2781,50 +2829,10 @@ export default function SettingsPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Option 1: Google Chrome (Default) */}
+                    {/* Option 1: Chromium (Bundled - Recommended) */}
                     <label
                       className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
-                        (settings.automation.browser_engine || "chrome") === "chrome"
-                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
-                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="browser_engine"
-                        value="chrome"
-                        checked={(settings.automation.browser_engine || "chrome") === "chrome"}
-                        onChange={() => {
-                          const engine = "chrome";
-                          setSettings({
-                            ...settings,
-                            automation: {
-                              ...settings.automation,
-                              browser_engine: engine,
-                              user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
-                            },
-                          });
-                        }}
-                        className="sr-only"
-                      />
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          <Laptop className="w-3.5 h-3.5 text-indigo-500" />
-                          Google Chrome
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          Default
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                        Official Google Chrome browser. Primary default engine for court portal discovery and extraction.
-                      </p>
-                    </label>
-
-                    {/* Option 2: Chromium (Bundled) */}
-                    <label
-                      className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
-                        settings.automation.browser_engine === "chromium"
+                        (settings.automation.browser_engine || "chromium") === "chromium"
                           ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
                           : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                       }`}
@@ -2833,7 +2841,7 @@ export default function SettingsPage() {
                         type="radio"
                         name="browser_engine"
                         value="chromium"
-                        checked={settings.automation.browser_engine === "chromium"}
+                        checked={(settings.automation.browser_engine || "chromium") === "chromium"}
                         onChange={() => {
                           const engine = "chromium";
                           setSettings({
@@ -2848,13 +2856,53 @@ export default function SettingsPage() {
                         className="sr-only"
                       />
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Chromium</span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          <Laptop className="w-3.5 h-3.5 text-indigo-500" />
+                          Chromium (Bundled)
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           Bundled
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                        Playwright bundled Chromium build. Fully autonomous headless fallback.
+                        Playwright bundled Chromium browser. Use Test Browser to check this machine&apos;s launch and extension setup; CAPTCHA resolution also requires a configured solver or attended action.
+                      </p>
+                    </label>
+
+                    {/* Option 2: Google Chrome */}
+                    <label
+                      className={`relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        settings.automation.browser_engine === "chrome"
+                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="browser_engine"
+                        value="chrome"
+                        checked={settings.automation.browser_engine === "chrome"}
+                        onChange={() => {
+                          const engine = "chrome";
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              browser_engine: engine,
+                              user_agent: ENGINE_USER_AGENTS[engine] || settings.automation.user_agent,
+                            },
+                          });
+                        }}
+                        className="sr-only"
+                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Google Chrome</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          External Browser
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Official Google Chrome binary. Anti-Captcha extension loads via content verification bypass flags. Requires Chrome installed at standard system path.
                       </p>
                     </label>
 
@@ -2887,7 +2935,7 @@ export default function SettingsPage() {
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Microsoft Edge</span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                          Supported
+                          Verified Support
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
@@ -2964,7 +3012,7 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const engine = settings.automation.browser_engine || "chrome";
+                        const engine = settings.automation.browser_engine || "chromium";
                         setSettings({
                           ...settings,
                           automation: {
@@ -3132,82 +3180,26 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Single Browser Test Action Button */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Verify single browser binary launch, extension loading, and window rendering before scaling to fleet:
-                    </div>
-                    <button
-                      type="button"
-                      disabled={isTestingBrowser}
-                      onClick={() => handleTestBrowser(settings.automation.headless_mode)}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 text-white shrink-0 ${
-                        !settings.automation.headless_mode
-                          ? "bg-purple-600 hover:bg-purple-500"
-                          : "bg-sky-600 hover:bg-sky-500"
-                      }`}
-                    >
-                      {isTestingBrowser ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      ) : !settings.automation.headless_mode ? (
-                        <Eye className="w-3.5 h-3.5" />
-                      ) : (
-                        <EyeOff className="w-3.5 h-3.5" />
-                      )}
-                      Test Single Browser Launch ({!settings.automation.headless_mode ? "Attended GUI" : "Headless"})
-                    </button>
-                  </div>
-
-                  {/* Single Browser Test Results Banner */}
-                  {browserTestResult && (
-                    <div
-                      className={`rounded-xl p-3.5 text-xs border space-y-2 transition-all ${
-                        browserTestResult.success
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-                          : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2.5 min-w-0 pb-2 border-b border-black/5 dark:border-white/5">
-                        <div className="flex items-center gap-2 font-bold min-w-0">
-                          {browserTestResult.success ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          ) : (
-                            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                          )}
-                          <span className="truncate">
-                            {browserTestResult.success
-                              ? `${(browserTestResult.browser_engine || "browser").toUpperCase()} Launch Test Passed Successfully`
-                              : `${(browserTestResult.browser_engine || "browser").toUpperCase()} Launch Test Failed`}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono text-[10px] opacity-70 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded">
-                            {browserTestResult.duration_ms.toFixed(0)} ms
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setBrowserTestResult(null)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                  {/* Engine & Mode Confirmation Notice */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
+                        Assigned Engine: {getBrowserEngineLabel(settings.automation.browser_engine)} ({!settings.automation.headless_mode ? "Attended GUI" : "Headless Mode"})
                       </div>
-
-                      <p className="text-[11px] leading-relaxed">{browserTestResult.message}</p>
-
-                      {browserTestResult.extension_path && (
-                        <div className="text-[10px] font-mono opacity-80 bg-black/5 dark:bg-white/5 p-2 rounded-lg break-all">
-                          Extension Path: {browserTestResult.extension_path}
-                        </div>
-                      )}
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Assigned profile target: <code className="font-mono text-indigo-600 dark:text-indigo-400">backend/data/browser_profile/{settings.automation.browser_engine || "chromium"}/</code>
+                      </p>
                     </div>
-                  )}
+                    <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 shrink-0">
+                      Configure Anti-Captcha Below → Verify with Live Launch
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* ========================================================================= */}
-              {/* STEP 2 OF 4: EXECUTION TIMING, SPEED & KEYSTROKE DYNAMICS                 */}
+              {/* EXECUTION TIMING, SPEED & KEYSTROKE DYNAMICS                              */}
               {/* ========================================================================= */}
               <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-r from-amber-50/50 via-indigo-50/30 to-slate-50 dark:from-amber-950/20 dark:via-indigo-950/20 dark:to-slate-900 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/70 dark:border-amber-900/40">
@@ -3222,7 +3214,7 @@ export default function SettingsPage() {
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Controls data entry speed for party search fields (First Name, Last Name, Dates). Instant mode eliminates character delays for 700x faster execution.
+                      Controls data entry speed for party search fields (First Name, Last Name, Dates). Instant mode fills fields without per-character delays.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3246,7 +3238,7 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-700 dark:text-slate-300">Speed Presets:</span>
                     <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      Click to auto-calibrate Keystroke Delay &amp; Action Pacing
+                      Choose paired Keystroke Delay &amp; Action Pacing values
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -3256,7 +3248,7 @@ export default function SettingsPage() {
                         label: "Turbo / Instant",
                         delay: 0,
                         pacing: 50,
-                        desc: "0ms delay (Direct DOM fill, ~700x faster)",
+                        desc: "0ms delay (Direct DOM fill)",
                         badge: "Recommended",
                       },
                       {
@@ -3280,7 +3272,7 @@ export default function SettingsPage() {
                         label: "Cautious",
                         delay: 100,
                         pacing: 500,
-                        desc: "100ms/char (Stealth bot evasion)",
+                        desc: "100ms/char (Slower simulated typing)",
                         badge: "Stealth",
                       },
                     ].map((p) => {
@@ -3326,7 +3318,7 @@ export default function SettingsPage() {
                   {/* Keystroke Delay Slider */}
                   <div className="space-y-2 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between items-center text-xs">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      <label htmlFor="typing-delay-ms" className="font-semibold text-slate-700 dark:text-slate-300">
                         Keystroke Input Delay
                       </label>
                       <span className="font-mono text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900">
@@ -3334,10 +3326,11 @@ export default function SettingsPage() {
                       </span>
                     </div>
                     <input
+                      id="typing-delay-ms"
                       type="range"
                       min="0"
-                      max="150"
-                      step="5"
+                      max="200"
+                      step="1"
                       value={settings.automation.typing_delay_ms ?? 0}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10) || 0;
@@ -3356,14 +3349,14 @@ export default function SettingsPage() {
                     <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                       <span>0ms (Instant Fill)</span>
                       <span>50ms (Human)</span>
-                      <span>150ms (Slow)</span>
+                      <span>200ms (Slow)</span>
                     </div>
                   </div>
 
                   {/* Action Pacing Delay Slider */}
                   <div className="space-y-2 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between items-center text-xs">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      <label htmlFor="action-pacing-ms" className="font-semibold text-slate-700 dark:text-slate-300">
                         Action Pacing Interval
                       </label>
                       <span className="font-mono text-xs font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-900">
@@ -3371,10 +3364,11 @@ export default function SettingsPage() {
                       </span>
                     </div>
                     <input
+                      id="action-pacing-ms"
                       type="range"
                       min="0"
-                      max="1000"
-                      step="50"
+                      max="1500"
+                      step="1"
                       value={settings.automation.action_pacing_ms ?? 100}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10) || 0;
@@ -3391,57 +3385,94 @@ export default function SettingsPage() {
                     <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                       <span>0ms (No Delay)</span>
                       <span>250ms (Balanced)</span>
-                      <span>1000ms (Generous)</span>
+                      <span>1500ms (Generous)</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Biometric Stealth Clicks Toggle */}
+                <div className="flex items-center justify-between p-3.5 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                  <div className="space-y-0.5 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        Biometric Mouse Jitter (Stealth Clicks)
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                        Mouse Simulation
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Adds randomized mouse movement and brief pauses before supported portal clicks.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={settings.automation.stealth_clicks ?? false}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          automation: {
+                            ...settings.automation,
+                            stealth_clicks: e.target.checked,
+                          },
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                  </label>
                 </div>
 
                 {/* Page Timeout and Reload Backoff Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   {/* Page Timeout */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between items-center text-xs">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300">
-                        Portal Navigation Timeout (Seconds)
+                      <label htmlFor="portal-navigation-timeout" className="font-semibold text-slate-700 dark:text-slate-300">
+                        Portal Navigation Timeout
                       </label>
-                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                      <span className="font-mono text-xs font-extrabold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                         {settings.automation.page_timeout_seconds}s
                       </span>
                     </div>
                     <input
+                      id="portal-navigation-timeout"
                       type="number"
                       min="5"
-                      max="120"
+                      max="180"
                       value={settings.automation.page_timeout_seconds}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
-                            page_timeout_seconds: parseInt(e.target.value) || 30,
+                            page_timeout_seconds: parseInt(e.target.value) || 60,
                           },
                         })
                       }
                       className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
                     />
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      Maximum network idle wait time before scraper fails over or attempts recovery.
-                    </p>
+                    <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <span>5s (Min)</span>
+                      <span>60s (Default)</span>
+                      <span>180s (Max)</span>
+                    </div>
                   </div>
 
                   {/* Page Reload Backoff Delay */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between items-center text-xs">
                       <label className="font-semibold text-slate-700 dark:text-slate-300">
-                        Page Reload Backoff Delay (Seconds)
+                        Reload Backoff Delay
                       </label>
-                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                      <span className="font-mono text-xs font-extrabold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                         {settings.automation.reload_backoff_seconds}s
                       </span>
                     </div>
                     <input
                       type="number"
-                      min="1"
+                      min="0"
                       max="30"
                       value={settings.automation.reload_backoff_seconds}
                       onChange={(e) =>
@@ -3449,15 +3480,17 @@ export default function SettingsPage() {
                           ...settings,
                           automation: {
                             ...settings.automation,
-                            reload_backoff_seconds: parseInt(e.target.value) || 2,
+                            reload_backoff_seconds: Number.isNaN(parseInt(e.target.value, 10)) ? 0 : parseInt(e.target.value, 10),
                           },
                         })
                       }
                       className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
                     />
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      Delay before retrying or re-navigating after CAPTCHA timeout or network reset.
-                    </p>
+                    <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <span>0s (Immediate)</span>
+                      <span>2s (Default)</span>
+                      <span>30s (Max)</span>
+                    </div>
                   </div>
                 </div>
 
@@ -3465,14 +3498,471 @@ export default function SettingsPage() {
                 <div className="flex items-start gap-2.5 p-3 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-xs">
                   <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                   <div className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
-                    <strong className="text-slate-900 dark:text-slate-100 font-semibold">Anti-Captcha Isolation Guaranteed:</strong>{" "}
-                    Execution speed controls govern form typing and DOM navigation only. Anti-Captcha challenge solving runs on an independent dedicated timeout (<code className="text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded text-[10px]">captcha_wait_seconds = {settings.automation.captcha_wait_seconds}s</code>) to ensure 100% CAPTCHA solving accuracy.
+                    <strong className="text-slate-900 dark:text-slate-100 font-semibold">CAPTCHA wait limit:</strong>{" "}
+                    Execution speed controls govern form typing and DOM navigation. CAPTCHA solving can wait up to <code className="text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded text-[10px]">{settings.automation.captcha_wait_seconds}s</code> and continues as soon as the challenge is resolved.
                   </div>
                 </div>
               </div>
 
               {/* ========================================================================= */}
-              {/* STEP 3 OF 4: PARALLEL RPA CONCURRENCY & WORKER FLEET                      */}
+              {/* CAPTCHA SOLVER & EXTENSION SETUP (ASSIGNED BROWSER)                       */}
+              {/* ========================================================================= */}
+              <div className="sm:col-span-2 space-y-5 p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/50 via-slate-50 to-purple-50/40 dark:from-indigo-950/20 dark:via-slate-900 dark:to-purple-950/20 shadow-xs">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-200/70 dark:border-indigo-800/40">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Plug className="w-4 h-4 text-indigo-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                        One-Time CAPTCHA Solver &amp; Extension Setup
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/20">
+                        {getBrowserEngineLabel(settings.automation.browser_engine)} Target
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Anti-Captcha is a one-time configuration tied directly to the assigned browser engine profile. Once configured and pinned here, credentials persist into the persistent engine profile and automatically propagate to all parallel worker profiles for real workflow execution.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg font-bold bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                      Profile: {settings.automation.browser_engine || "chromium"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* CAPTCHA Auto-Retry Parameters */}
+                <div className="bg-white/80 dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800/60">
+                    <ShieldCheck className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      CAPTCHA Challenge Detection &amp; Auto-Retry Parameters
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <div className="flex justify-between items-center text-xs">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">Max Retry &amp; Refresh Attempts</label>
+                        <span className="font-mono text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md">
+                          {settings.automation.max_captcha_attempts} Attempts
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="20"
+                        step="1"
+                        value={settings.automation.max_captcha_attempts}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              max_captcha_attempts: parseInt(e.target.value) || 1,
+                            },
+                          })
+                        }
+                        className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                        <span>1 (Min)</span>
+                        <span>3 (Recommended)</span>
+                        <span>20 (Max)</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <div className="flex justify-between items-center text-xs">
+                        <label htmlFor="captcha-resolution-wait" className="font-semibold text-slate-700 dark:text-slate-300">CAPTCHA Resolution Wait</label>
+                        <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-md">
+                          {settings.automation.captcha_wait_seconds}s
+                        </span>
+                      </div>
+                      <input
+                        id="captcha-resolution-wait"
+                        aria-describedby="captcha-resolution-wait-help"
+                        type="number"
+                        min="5"
+                        max="300"
+                        value={settings.automation.captcha_wait_seconds}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            automation: {
+                              ...settings.automation,
+                              captcha_wait_seconds: parseInt(e.target.value) || 5,
+                            },
+                          })
+                        }
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                        <span>5s (Min)</span>
+                        <span>120s (Default)</span>
+                        <span>300s (Max)</span>
+                      </div>
+                      <p id="captcha-resolution-wait-help" className="text-xs text-slate-500 dark:text-slate-400">
+                        Maximum time per attempt. Continue when solved; refresh and retry when the limit expires.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Plugin Path & Key Configuration */}
+                <div className="bg-white/80 dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Extension Directory */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">Extension Directory Path</label>
+                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                          Default: .\anticaptcha-plugin_v0.83\
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder=".\anticaptcha-plugin_v0.83\"
+                        value={settings.automation.chrome_extension_dir || ""}
+                        onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, chrome_extension_dir: e.target.value } })}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                      />
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Bundled v0.83 folder with Turnstile and reCAPTCHA support.
+                      </p>
+                    </div>
+
+                    {/* API Key */}
+                    <div className="space-y-1.5">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">AntiCaptcha API Key</label>
+                      <div className="relative w-full">
+                        <input
+                          type={showApiKey ? "text" : "password"}
+                          placeholder="Enter your AntiCaptcha Client Key"
+                          value={settings.automation.anticaptcha_api_key || ""}
+                          onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_api_key: e.target.value } })}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-10 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                        >
+                          {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Automatically synced into the extension&apos;s <code className="font-mono text-slate-700 dark:text-slate-300">config_ac_api_key.js</code> on launch.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Plugin Behavior Toggles */}
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Plugin Solving Toggles</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSave()}
+                        disabled={isSaving}
+                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                      >
+                        <Save className="w-3 h-3" />
+                        {isSaving ? "Saving..." : "Save Extension Config"}
+                      </button>
+                    </div>
+
+                    {/* Master Switch & CAPTCHA Types */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { key: "anticaptcha_enabled" as const, label: "Master Solver Switch", defaultVal: true },
+                        { key: "anticaptcha_solve_recaptcha2" as const, label: "reCAPTCHA v2", defaultVal: true },
+                        { key: "anticaptcha_solve_turnstile" as const, label: "Cloudflare Turnstile", defaultVal: true },
+                        { key: "anticaptcha_solve_hcaptcha" as const, label: "hCaptcha", defaultVal: true },
+                        { key: "anticaptcha_solve_invisible" as const, label: "Invisible reCAPTCHA", defaultVal: true },
+                        { key: "anticaptcha_solve_recaptcha3" as const, label: "reCAPTCHA v3", defaultVal: true },
+                        { key: "anticaptcha_solve_funcaptcha" as const, label: "FunCaptcha", defaultVal: true },
+                        { key: "anticaptcha_solve_geetest" as const, label: "GeeTest", defaultVal: true },
+                      ].map(({ key, label, defaultVal }) => (
+                        <div key={key} className="flex items-center justify-between gap-1.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5">
+                          <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate">{label}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, automation: { ...settings.automation, [key]: !((settings.automation as unknown as Record<string, boolean | undefined>)[key] ?? defaultVal) } })}
+                            className={`relative w-7 h-3.5 rounded-full transition-colors cursor-pointer shrink-0 ${((settings.automation as unknown as Record<string, boolean | undefined>)[key] ?? defaultVal) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white shadow-xs transition-transform ${((settings.automation as unknown as Record<string, boolean | undefined>)[key] ?? defaultVal) ? "translate-x-3.5" : ""}`} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Auxiliary Options */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                      {[
+                        { key: "anticaptcha_auto_submit" as const, label: "Auto-Submit After Solve", desc: "Clicks the form submit button automatically", defaultVal: false },
+                        { key: "anticaptcha_play_sounds" as const, label: "Play Notification Sounds", desc: "Audio chime on successful CAPTCHA solution", defaultVal: false },
+                      ].map(({ key, label, desc, defaultVal }) => (
+                        <div key={key} className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">{label}</div>
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, automation: { ...settings.automation, [key]: !((settings.automation as unknown as Record<string, boolean | undefined>)[key] ?? defaultVal) } })}
+                            className={`relative w-7 h-3.5 rounded-full transition-colors cursor-pointer shrink-0 ${((settings.automation as unknown as Record<string, boolean | undefined>)[key] ?? defaultVal) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white shadow-xs transition-transform ${((settings.automation as unknown as Record<string, boolean | undefined>)[key] ?? defaultVal) ? "translate-x-3.5" : ""}`} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* reCAPTCHA v3 Score Slider */}
+                    {(settings.automation.anticaptcha_solve_recaptcha3 ?? true) && (
+                      <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-lg px-3 py-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-indigo-800 dark:text-indigo-300">reCAPTCHA v3 Target Score Threshold</span>
+                          <span className="text-[11px] font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
+                            {(settings.automation.anticaptcha_recaptcha3_score ?? 0.3).toFixed(1)}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.1}
+                          max={0.9}
+                          step={0.1}
+                          value={settings.automation.anticaptcha_recaptcha3_score ?? 0.3}
+                          onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_recaptcha3_score: parseFloat(e.target.value) } })}
+                          className="w-full accent-indigo-600 cursor-pointer h-1.5"
+                        />
+                        <div className="flex justify-between text-[9px] text-indigo-400 dark:text-indigo-600 font-mono">
+                          <span>0.1 (Lenient)</span><span>0.3 (V4 Default)</span><span>0.9 (Strict)</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* API Key Balance Test & One-Time Pinning Action Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Balance Test Card */}
+                  <div className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl p-3.5 flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-200">
+                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+                        API Key Balance &amp; Connectivity
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestAntiCaptchaBalance}
+                        disabled={isTestingAntiCaptchaBalance}
+                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        {isTestingAntiCaptchaBalance ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                        Test Balance
+                      </button>
+                    </div>
+                    {antiCaptchaBalanceResult ? (
+                      <div className={`rounded-lg p-2.5 text-xs border ${antiCaptchaBalanceResult.status === "ok" ? "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300" : "bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"}`}>
+                        <div className="font-bold flex items-center gap-1">
+                          {antiCaptchaBalanceResult.status === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <AlertCircle className="w-3.5 h-3.5 text-rose-600" />}
+                          {antiCaptchaBalanceResult.status === "ok" && antiCaptchaBalanceResult.balance != null ? `$${antiCaptchaBalanceResult.balance.toFixed(4)} Available` : antiCaptchaBalanceResult.message}
+                        </div>
+                        <div className="text-[10px] opacity-75 font-mono mt-1 flex items-center justify-between">
+                          <span>Latency: {antiCaptchaBalanceResult.latency_ms.toFixed(0)}ms</span>
+                          {antiCaptchaBalanceResult.error_code && <span>Code: {antiCaptchaBalanceResult.error_code}</span>}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Validates key against AntiCaptcha live <code className="font-mono">getBalance</code> endpoint.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Automated Toolbar Pinning & Profile Setup Card (Enforced on Startup) */}
+                  <div className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl p-3.5 flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-200">
+                        <Pin className="w-3.5 h-3.5 text-indigo-500" />
+                        Toolbar Pinning &amp; Profile Setup
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        Auto-Pinned on Startup
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        AntiCaptcha is automatically verified, configured, and pinned to the browser toolbar before every automation launch.
+                      </p>
+                      <div className="p-1.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                        <p className="text-[10px] font-mono text-slate-600 dark:text-slate-300 truncate">
+                          Target: backend/data/browser_profile/{settings.automation.browser_engine || "chromium"}/
+                        </p>
+                      </div>
+                      <div className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 truncate opacity-80">
+                        Action ID: kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj
+                      </div>
+                      {settings.automation.extension_setup_timestamp && (
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-mono truncate">
+                          Configured: {settings.automation.extension_setup_timestamp}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Extension Health Diagnostics Card */}
+                <div className="bg-white/80 dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      Extension Health Diagnostics
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleValidateExtension}
+                      disabled={isValidatingExtension}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isValidatingExtension ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                      Check Health
+                    </button>
+                  </div>
+                  {extensionValidationResult ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg p-2">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono">Directory</span>
+                        <div className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          {extensionValidationResult.directory_exists ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3 text-rose-500" />}
+                          {extensionValidationResult.directory_exists ? "Found on Disk" : "Missing Directory"}
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg p-2">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono">Manifest</span>
+                        <div className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          {extensionValidationResult.manifest_valid ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3 text-rose-500" />}
+                          {extensionValidationResult.manifest_valid ? "Manifest V3 Valid" : "Invalid Manifest"}
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg p-2">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono">API Key Sync</span>
+                        <div className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          {extensionValidationResult.api_key_synced ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3 text-amber-500" />}
+                          {extensionValidationResult.api_key_synced ? "Synchronized" : "Not Synchronized"}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Verifies extension folder existence, manifest.json validity, and config_ac_api_key.js synchronization.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* LIVE BROWSER LAUNCH VERIFICATION TEST                                     */}
+              {/* ========================================================================= */}
+              <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-purple-200 dark:border-purple-800/60 bg-gradient-to-r from-purple-50/50 via-slate-50 to-indigo-50/40 dark:from-purple-950/20 dark:via-slate-900 dark:to-indigo-950/20 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-purple-200/70 dark:border-purple-800/40">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Play className="w-4 h-4 text-purple-600 dark:text-purple-400 fill-current" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                        Live Browser Launch Verification Test
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-purple-600/10 text-purple-700 dark:text-purple-300 font-mono text-[10px] font-bold border border-purple-500/20">
+                        Pre-Workflow Check
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Now that browser selection, keystroke timing, and Anti-Captcha configuration are complete, launch a live verification session in <strong className="text-slate-700 dark:text-slate-300">{!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}</strong> mode for <strong className="text-purple-600 dark:text-purple-400">{getBrowserEngineLabel(settings.automation.browser_engine)}</strong> to verify window rendering, extension loading, and profile stability.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isTestingBrowser}
+                    onClick={() => handleTestBrowser(settings.automation.headless_mode, false, true)}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                    {isTestingBrowser ? "Launching Verification..." : `Launch ${!settings.automation.headless_mode ? "Attended GUI" : "Headless"} Test`}
+                  </button>
+                </div>
+
+                {/* Results Banner */}
+                {browserTestResult && (
+                  <div className={`p-4 rounded-xl border space-y-2.5 transition-all ${
+                    browserTestResult.success
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                      : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+                  }`}>
+                    <div className="flex items-start justify-between gap-2.5 pb-2 border-b border-black/5 dark:border-white/5">
+                      <div className="flex items-center gap-2 font-bold text-xs">
+                        {browserTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />}
+                        <span>
+                          {browserTestResult.success
+                            ? `${(browserTestResult.browser_engine || "browser").toUpperCase()} Live Launch Verified Successfully`
+                            : `${(browserTestResult.browser_engine || "browser").toUpperCase()} Live Launch Verification Failed`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 font-mono text-[10px]">
+                        <span className="px-2 py-0.5 rounded bg-black/10 dark:bg-white/10 uppercase font-bold">
+                          {browserTestResult.browser_engine || settings.automation.browser_engine || "chromium"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">
+                          {browserTestResult.mode}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-black/10 dark:bg-white/10 font-bold">
+                          {browserTestResult.duration_ms?.toFixed(0)}ms
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setBrowserTestResult(null)}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5 ml-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] leading-relaxed whitespace-pre-wrap break-all">{browserTestResult.message}</p>
+
+                    {/* Dedicated Force Kill & Retry Action */}
+                    {!browserTestResult.success && (
+                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleTestBrowser(settings.automation.headless_mode, true, true)}
+                          className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Force Kill Chrome &amp; Clean Profile Locks
+                        </button>
+                        <span className="text-[10px] opacity-75">
+                          Terminates orphan background processes, frees OS file handles, and retries launch.
+                        </span>
+                      </div>
+                    )}
+
+                    {browserTestResult.extension_path && (
+                      <div className="text-[10px] font-mono opacity-80 bg-black/5 dark:bg-white/5 p-2 rounded-lg break-all">
+                        Active Extension Path: {browserTestResult.extension_path}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================================= */}
+              {/* PARALLEL RPA CONCURRENCY & WORKER FLEET                                   */}
               {/* ========================================================================= */}
               <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/60 via-purple-50/40 to-slate-50 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-slate-900 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-indigo-200/70 dark:border-indigo-800/40">
@@ -3494,6 +3984,19 @@ export default function SettingsPage() {
                     <span className="text-xs text-slate-500 dark:text-slate-400">Current Fleet:</span>
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
                       {settings.automation.max_concurrent_claims ?? 1}x Parallel Workers
+                    </span>
+                  </div>
+                </div>
+
+                {/* Worker browser profile behavior */}
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-gradient-to-r from-emerald-50/80 to-indigo-50/60 dark:from-emerald-950/30 dark:to-indigo-950/20 border border-emerald-200 dark:border-emerald-800/60 text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-[11px] leading-relaxed">
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      Worker browser profiles:
+                    </span>{" "}
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Each worker launches with a separate browser profile. The app attempts to seed it from the configured profile, applies Anti-Captcha settings, and checks whether the extension loads. Review worker warnings if the extension is unavailable.
                     </span>
                   </div>
                 </div>
@@ -3624,7 +4127,7 @@ export default function SettingsPage() {
                           Live Fleet Concurrency Test
                         </span>
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                          {settings.automation.browser_engine?.toUpperCase() || "CHROME"}
+                          {settings.automation.browser_engine?.toUpperCase() || "CHROMIUM"}
                         </span>
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                           {!settings.automation.headless_mode ? "Attended (GUI)" : "Headless"}
@@ -3634,7 +4137,7 @@ export default function SettingsPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Spawns {settings.automation.max_concurrent_claims ?? 1} parallel {settings.automation.browser_engine?.toUpperCase() || "CHROME"} browsers simultaneously in {!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"} mode with isolated profiles.
+                        Spawns {settings.automation.max_concurrent_claims ?? 1} parallel {settings.automation.browser_engine?.toUpperCase() || "CHROMIUM"} browsers simultaneously in {!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"} mode with isolated profiles.
                       </p>
                     </div>
                     <button
@@ -3749,7 +4252,7 @@ export default function SettingsPage() {
               </div>
 
               {/* ========================================================================= */}
-              {/* STEP 4 OF 4: PROXY NETWORK OBSERVABILITY BANNER                           */}
+              {/* PROXY GATEWAY EGRESS STATUS                                               */}
               {/* ========================================================================= */}
               <div className="sm:col-span-2 p-4 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-gradient-to-r from-sky-50/60 via-indigo-50/40 to-slate-50 dark:from-sky-950/30 dark:via-indigo-950/20 dark:to-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -3758,7 +4261,7 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Step 4: Proxy Gateway Egress Status</span>
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Proxy Gateway Egress Status</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                         settings.proxy?.enabled
                           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
@@ -3783,514 +4286,6 @@ export default function SettingsPage() {
                   Configure Proxy Network →
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "extension" && (
-          <div className="space-y-6 w-full">
-            {/* Header Banner */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-600/20">
-              <div className="flex items-center gap-3 mb-2">
-                <Plug className="w-6 h-6" />
-                <h3 className="text-base font-bold">AntiCaptcha Chrome Extension — Install & Configure</h3>
-              </div>
-              <p className="text-sm text-indigo-100 leading-relaxed">
-                The Anti-Captcha plugin (v0.83) is bundled with this solution and automatically loaded by the automation
-                engine. Use this tab to configure the extension path, set your API key, verify the plugin health, and
-                test the live CAPTCHA-solving pipeline.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
-                {["1. Set Extension Path", "2. Enter API Key", "3. Test Balance", "4. Verify Health", "5. Run Browser Test"].map((step, i) => (
-                  <span key={i} className="px-2.5 py-1 bg-white/20 rounded-full font-semibold">{step}</span>
-                ))}
-              </div>
-            </div>
-
-            {/* CAPTCHA Auto-Click & Refresh Loop Parameters */}
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-xs">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                <ShieldCheck className="w-5 h-5 text-amber-500" />
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                    CAPTCHA Challenge Detection &amp; Auto-Retry Parameters
-                  </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Control challenge detection timeouts, page refresh retries, and token wait durations across all court scrapers.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-                {/* Max CAPTCHA Attempts */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                      Max Retry &amp; Refresh Attempts
-                    </label>
-                    <span className="font-mono text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md">
-                      {settings.automation.max_captcha_attempts} Attempts
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    step="1"
-                    value={settings.automation.max_captcha_attempts}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          max_captcha_attempts: parseInt(e.target.value) || 1,
-                        },
-                      })
-                    }
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    Attempts to click CAPTCHA checkbox, wait for token resolution, reload page on error, before gracefully skipping the portal.
-                  </p>
-                </div>
-
-                {/* CAPTCHA Wait Duration */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                      CAPTCHA Resolution Wait (Seconds)
-                    </label>
-                    <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
-                      {settings.automation.captcha_wait_seconds}s
-                    </span>
-                  </div>
-                  <input
-                    type="number"
-                    min="3"
-                    max="180"
-                    value={settings.automation.captcha_wait_seconds}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        automation: {
-                          ...settings.automation,
-                          captcha_wait_seconds: parseInt(e.target.value) || 5,
-                        },
-                      })
-                    }
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
-                  />
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    Maximum time to wait for the AntiCaptcha extension to solve reCAPTCHA or Turnstile before refreshing.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 1 & 2: Path + API Key */}
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-xs">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                <Plug className="w-4 h-4 text-indigo-500" />
-                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200">Plugin Configuration</h4>
-              </div>
-
-              {/* Extension Directory */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">AntiCaptcha Extension Directory Path</label>
-                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                    Default: .\anticaptcha-plugin_v0.83\
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  placeholder=".\anticaptcha-plugin_v0.83\"
-                  value={settings.automation.chrome_extension_dir || ""}
-                  onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, chrome_extension_dir: e.target.value } })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Relative path from the solution root. The <code className="font-mono text-slate-700 dark:text-slate-300">anticaptcha-plugin_v0.83</code> folder is already bundled. Use an absolute path only for custom external directories.
-                </p>
-              </div>
-
-              {/* API Key */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">AntiCaptcha API Key</label>
-                <div className="relative w-full">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    placeholder="Enter your AntiCaptcha Client Key"
-                    value={settings.automation.anticaptcha_api_key || ""}
-                    onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_api_key: e.target.value } })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-10 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Get your API key from <a href="https://anti-captcha.com" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">anti-captcha.com</a>. The key is automatically synced into the extension&apos;s <code className="font-mono text-slate-700 dark:text-slate-300">config_ac_api_key.js</code> on every browser launch.
-                </p>
-              </div>
-
-              {/* Plugin Behavior Toggles */}
-              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800/80">
-                <div className="flex items-center gap-2">
-                  <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Plugin Behavior Toggles</span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">Saved to DB — applied every browser launch</span>
-                </div>
-
-                {/* Master Enable */}
-                <div className="bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">AntiCaptcha Enabled (Master Switch)</div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400">When OFF, extension loads but solving is disabled for all CAPTCHA types</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_enabled: !(settings.automation.anticaptcha_enabled ?? true) } })}
-                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0 ${(settings.automation.anticaptcha_enabled ?? true) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${(settings.automation.anticaptcha_enabled ?? true) ? "translate-x-5" : ""}`} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* CAPTCHA Type Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {[
-                    { key: "anticaptcha_solve_recaptcha2" as const, label: "reCAPTCHA v2", desc: "Image challenge widgets (checkbox + select tiles)", defaultVal: true },
-                    { key: "anticaptcha_solve_invisible" as const, label: "Invisible reCAPTCHA", desc: "Score-based, no checkbox shown", defaultVal: true },
-                    { key: "anticaptcha_solve_recaptcha3" as const, label: "reCAPTCHA v3", desc: "Score-based, no visual challenge", defaultVal: true },
-                    { key: "anticaptcha_solve_hcaptcha" as const, label: "hCaptcha", desc: "Used on Harris County portals", defaultVal: true },
-                    { key: "anticaptcha_solve_turnstile" as const, label: "Cloudflare Turnstile", desc: "Modern invisible challenge", defaultVal: true },
-                    { key: "anticaptcha_solve_funcaptcha" as const, label: "FunCaptcha / Arkose", desc: "Puzzle-style challenges", defaultVal: true },
-                    { key: "anticaptcha_solve_geetest" as const, label: "GeeTest", desc: "Slider / puzzle CAPTCHA", defaultVal: true },
-                  ].map(({ key, label, desc, defaultVal }) => (
-                    <div key={key} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">{label}</div>
-                        <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSettings({ ...settings, automation: { ...settings.automation, [key]: !((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) } })}
-                        className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer flex-shrink-0 ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-xs transition-transform ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Auxiliary Options */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {[
-                    { key: "anticaptcha_auto_submit" as const, label: "Auto-Submit After Solve", desc: "Clicks the submit button automatically", defaultVal: false },
-                    { key: "anticaptcha_play_sounds" as const, label: "Play Notification Sounds", desc: "Audio alert on CAPTCHA solution", defaultVal: false },
-                  ].map(({ key, label, desc, defaultVal }) => (
-                    <div key={key} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">{label}</div>
-                        <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSettings({ ...settings, automation: { ...settings.automation, [key]: !((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) } })}
-                        className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer flex-shrink-0 ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-xs transition-transform ${((settings.automation as unknown as Record<string,boolean|undefined>)[key] ?? defaultVal) ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* reCAPTCHA v3 Score Slider */}
-                {(settings.automation.anticaptcha_solve_recaptcha3 ?? true) && (
-                  <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-lg px-3 py-2 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-indigo-800 dark:text-indigo-300">reCAPTCHA v3 Target Score</span>
-                      <span className="text-[11px] font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
-                        {(settings.automation.anticaptcha_recaptcha3_score ?? 0.3).toFixed(1)}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0.1} max={0.9} step={0.1}
-                      value={settings.automation.anticaptcha_recaptcha3_score ?? 0.3}
-                      onChange={(e) => setSettings({ ...settings, automation: { ...settings.automation, anticaptcha_recaptcha3_score: parseFloat(e.target.value) } })}
-                      className="w-full accent-indigo-600 cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[9px] text-indigo-400 dark:text-indigo-600 font-mono">
-                      <span>0.1 lenient</span><span>0.3 (V4 default)</span><span>0.9 strict</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleSave()}
-                disabled={isSaving}
-                className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs shadow-indigo-600/20"
-              >
-                <Save className="w-3.5 h-3.5" />
-                {isSaving ? "Saving..." : "Save Extension Configuration"}
-              </button>
-            </div>
-
-
-            {/* Step 3: API Key Balance Test */}
-            <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-5 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-                    Test API Key Balance & Connectivity
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Validates the key by calling the live AntiCaptcha <code className="font-mono">getBalance</code> endpoint. Shows credit balance and latency.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestAntiCaptchaBalance}
-                  disabled={isTestingAntiCaptchaBalance}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {isTestingAntiCaptchaBalance ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                  Test API Key Balance
-                </button>
-              </div>
-              {antiCaptchaBalanceResult && (
-                <div className={`rounded-xl p-3 text-xs border space-y-1 ${antiCaptchaBalanceResult.status === "ok" ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300" : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"}`}>
-                  <div className="flex items-center gap-2 font-bold">
-                    {antiCaptchaBalanceResult.status === "ok" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                    {antiCaptchaBalanceResult.message}
-                  </div>
-                  {antiCaptchaBalanceResult.status === "ok" && antiCaptchaBalanceResult.balance != null && (
-                    <div className="font-mono text-emerald-700 dark:text-emerald-400">
-                      Account Balance: <strong>${antiCaptchaBalanceResult.balance.toFixed(4)}</strong>
-                    </div>
-                  )}
-                  <div className="text-[10px] opacity-70 font-mono">
-                    Latency: {antiCaptchaBalanceResult.latency_ms.toFixed(0)}ms
-                    {antiCaptchaBalanceResult.error_code && ` • Error: ${antiCaptchaBalanceResult.error_code}`}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* One-Time Extension Toolbar Pinning & Persistent Profile Card */}
-            <div className="bg-gradient-to-r from-slate-50 to-indigo-50/40 dark:from-slate-950/60 dark:to-indigo-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                    <Pin className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    One-Time Extension Toolbar Pinning &amp; Persistent Profile Setup
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Configures Anti-Captcha into dedicated persistent browser profiles (<code>data/browser_profile/{settings.automation.browser_engine || "chrome"}/</code>) and pins it to the {getBrowserEngineLabel(settings.automation.browser_engine)} toolbar (<code>toolbar.pinned_actions</code> &amp; <code>extensions.pinned_extensions</code>).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSetupExtension}
-                  disabled={isSettingUpExtension}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {isSettingUpExtension ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Pin className="w-3.5 h-3.5" />
-                  )}
-                  Configure &amp; Pin Extension
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                {/* Card 1: Toolbar Pinning Status */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between space-y-2">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Toolbar Pinning Status</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                        settings.automation.extension_setup_verified
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                          : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                      }`}>
-                        {settings.automation.extension_setup_verified ? "Pinned & Verified" : "Pending Setup"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {settings.automation.extension_setup_verified
-                        ? `Anti-Captcha is pinned to the ${getBrowserEngineLabel(settings.automation.browser_engine)} browser toolbar and ready for instant automated CAPTCHA solving.`
-                        : "Click 'Configure & Pin Extension' to initialize toolbar action pinning in Preferences."}
-                    </p>
-                  </div>
-                  {settings.automation.extension_setup_timestamp && (
-                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate">
-                        Last Configured: {settings.automation.extension_setup_timestamp}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card 2: Persistent Profile Target & Action ID */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between space-y-2">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Persistent Profile Target</span>
-                      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">
-                        {settings.automation.browser_engine || "chrome"}
-                      </span>
-                    </div>
-                    <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                      <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300 break-all select-all">
-                        backend/data/browser_profile/{settings.automation.browser_engine || "chrome"}/
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium">Action ID:</span>
-                      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">Preferences Key</span>
-                    </div>
-                    <div className="p-1.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100/80 dark:border-indigo-900/50">
-                      <code className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono break-all select-all block leading-tight">
-                        kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj
-                      </code>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {extensionSetupResult && (
-                <div className={`rounded-xl p-3 text-xs border space-y-1 ${
-                  (extensionSetupResult.verified || extensionSetupResult.success)
-                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-                    : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
-                }`}>
-                  <div className="flex items-center gap-2 font-bold">
-                    {(extensionSetupResult.verified || extensionSetupResult.success) ? (
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    ) : (
-                      <AlertCircle className="w-3.5 h-3.5" />
-                    )}
-                    {extensionSetupResult.message}
-                  </div>
-                  <div className="text-[10px] opacity-70 font-mono">
-                    Target: {extensionSetupResult.persistent_profile_path || extensionSetupResult.profile_dir || "backend/data/browser_profile/"} • Pinned: {String(extensionSetupResult.pinned_to_toolbar ?? extensionSetupResult.toolbar_action_verified ?? true)}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Step 4: Extension Health Diagnostics (Placed immediately before Live Browser Launch Test) */}
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    Extension Health Diagnostics
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Verifies extension directory, manifest.json validity, and API key synchronization to the plugin config file.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleValidateExtension}
-                  disabled={isValidatingExtension}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {isValidatingExtension ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  Check Extension Health
-                </button>
-              </div>
-              {extensionValidationResult ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      { label: "Plugin Directory", ok: extensionValidationResult.directory_exists, okText: "Found on Disk", failText: "Directory Missing", detail: extensionValidationResult.extension_dir },
-                      { label: "Manifest & Version", ok: extensionValidationResult.manifest_valid, okText: "Manifest V3 Valid", failText: "Missing manifest.json", detail: "v0.83 (Turnstile & reCAPTCHA)" },
-                      { label: "Credentials State", ok: extensionValidationResult.api_key_synced, okText: "API Key Synchronized", failText: "Not Synchronized", detail: "config_ac_api_key.js configured", warn: !extensionValidationResult.api_key_synced },
-                    ].map((item) => (
-                      <div key={item.label} className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">{item.label}</span>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold">
-                          {item.ok ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{item.okText}</span>
-                          ) : (
-                            <span className={`flex items-center gap-1 ${item.warn ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
-                              {item.warn ? <AlertTriangle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />} {item.failText}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] font-mono text-slate-400 truncate" title={item.detail}>{item.detail}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Click &ldquo;Check Extension Health&rdquo; to verify the plugin directory, manifest integrity, and API key sync status.
-                </p>
-              )}
-            </div>
-
-            {/* Step 5: Live Browser Launch Test (Placed after Extension Health Diagnostics) */}
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-200">
-                    <Play className="w-4 h-4 text-purple-500" />
-                    Live Browser Launch Test
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Opens {getBrowserEngineLabel(settings.automation.browser_engine)} with Anti-Captcha automatically configured and pinned to the toolbar, loading the live verification console.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isTestingBrowser}
-                  onClick={() => handleTestBrowser(settings.automation.headless_mode)}
-                  className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {isTestingBrowser ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                  {isTestingBrowser ? "Opening Browser..." : "Launch Browser Test"}
-                </button>
-              </div>
-              {browserTestResult && (
-                <div className={`p-3.5 rounded-xl border ${browserTestResult.success ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300" : "bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300"}`}>
-                  <div className="flex items-center gap-2 font-bold text-xs mb-2">
-                    {browserTestResult.success ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                    {browserTestResult.success ? "Browser Launch Test Verified" : "Browser Launch Test Failed"}
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">
-                      {browserTestResult.browser_engine?.toUpperCase()} • {browserTestResult.mode} • {browserTestResult.duration_ms}ms
-                    </span>
-                  </div>
-                  <p className="text-[11px] opacity-90">{browserTestResult.message}</p>
-                  {browserTestResult.extension_path && (
-                    <div className="mt-1 text-[10px] font-mono opacity-70 break-all">Extension: {browserTestResult.extension_path}</div>
-                  )}
-                </div>
-              )}
-              {!browserTestResult && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Mode: <strong className="text-slate-700 dark:text-slate-300">{!settings.automation.headless_mode ? "Attended (Visible GUI)" : "Headless (Background)"}</strong> ({getBrowserEngineLabel(settings.automation.browser_engine)}).
-                  Change in the <button onClick={() => setActiveTab("automation")} className="text-indigo-500 hover:underline cursor-pointer">Browser &amp; CAPTCHA</button> tab.
-                </p>
-              )}
             </div>
           </div>
         )}
@@ -5281,6 +5276,49 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 space-y-4 shadow-xs w-full">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Delivery cadence and retries</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="email-digest-mode" className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">Delivery mode</label>
+                  <select
+                    id="email-digest-mode"
+                    value={emailCfg.digest_mode || "immediate"}
+                    onChange={(e) => updateEmailSettings({ digest_mode: e.target.value as EmailSettings["digest_mode"] })}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200"
+                  >
+                    <option value="immediate">Immediate</option>
+                    <option value="hourly_digest">Hourly digest</option>
+                    <option value="daily_digest">Daily digest</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="email-retry-count" className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">Delivery retries</label>
+                  <input
+                    id="email-retry-count"
+                    type="number"
+                    min="0"
+                    max="5"
+                    value={emailCfg.retry_count}
+                    onChange={(e) => updateEmailSettings({ retry_count: Number.isNaN(parseInt(e.target.value, 10)) ? 0 : parseInt(e.target.value, 10) })}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="email-retry-delay" className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">Retry delay (seconds)</label>
+                  <input
+                    id="email-retry-delay"
+                    type="number"
+                    min="5"
+                    max="300"
+                    value={emailCfg.retry_delay_seconds}
+                    onChange={(e) => updateEmailSettings({ retry_delay_seconds: parseInt(e.target.value, 10) || 5 })}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200"
+                  />
                 </div>
               </div>
             </div>
@@ -6802,6 +6840,25 @@ export default function SettingsPage() {
                         className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
                       />
                     </div>
+                    <div className="md:col-span-2">
+                      <label htmlFor="gcs-credentials-json" className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                        GCS Service Account Credentials JSON
+                      </label>
+                      <textarea
+                        id="gcs-credentials-json"
+                        rows={3}
+                        value={settings.storage?.gcs_credentials_json || ""}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storage: {
+                            ...(settings.storage || { capture_error_screenshots: true, storage_provider: "gcs" }),
+                            gcs_credentials_json: e.target.value,
+                          },
+                        })}
+                        placeholder="Paste a new service account JSON document; leave blank to retain the saved value"
+                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -7218,7 +7275,7 @@ export default function SettingsPage() {
               {/* Chunk Size */}
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                  Excel Batch Processing Chunk Size
+                  Ingestion Database Flush Batch Size
                 </label>
                 <input
                   type="number"

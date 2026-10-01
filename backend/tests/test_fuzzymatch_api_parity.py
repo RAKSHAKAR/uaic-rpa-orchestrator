@@ -210,7 +210,7 @@ def test_settings_fuzzy_matcher_schema_separated_fields():
     settings = SystemSettings()
     matcher = settings.matcher
     assert isinstance(matcher, FuzzyMatcherSettings)
-    assert matcher.unique_names_threshold == 0.85
+    assert matcher.unique_names_threshold == 0.60
     assert matcher.auto_match_threshold == 0.60
     assert matcher.manual_review_threshold == 0.40
     assert "ET AL" in matcher.clean_case_style_patterns

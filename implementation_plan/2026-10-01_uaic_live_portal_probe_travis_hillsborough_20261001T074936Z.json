@@ -1,0 +1,39 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T07:49:36.851845+00:00",
+  "synthetic_search": {
+    "first": "Audit",
+    "last": "Zyxqtest",
+    "date_of_loss": "01/01/2020"
+  },
+  "findings": [
+    {
+      "portal": "travis",
+      "configured_url": "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29",
+      "navigation": "loaded",
+      "search": "failed",
+      "case_count": null,
+      "first_case_fields": [],
+      "final_url": "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29",
+      "page_title": "Smart Search - Travis County Odyssey Portal",
+      "captcha_visible": true,
+      "error": "search: CaptchaResolutionError: [Travis County (TX)] CAPTCHA was not resolved after 1 attempts",
+      "http_status": 200,
+      "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_travis_live_probe.png"
+    },
+    {
+      "portal": "hillsborough",
+      "configured_url": "https://hover.hillsclerk.com/",
+      "navigation": "loaded",
+      "search": "timed_out",
+      "case_count": null,
+      "first_case_fields": [],
+      "final_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "page_title": "Case Search",
+      "captcha_visible": false,
+      "error": "search exceeded 40s probe budget",
+      "http_status": 200,
+      "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_hillsborough_live_probe.png"
+    }
+  ]
+}

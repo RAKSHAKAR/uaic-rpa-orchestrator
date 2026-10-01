@@ -16,8 +16,8 @@ Line-by-line verification of:
 import io
 import json
 import uuid
-from datetime import UTC, datetime
-from unittest.mock import patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
@@ -36,6 +36,7 @@ from app.models.claim import (
 )
 from app.models.court_case import ScrapedCourtCase
 from app.models.match_result import MatchPair, MatchReviewStatusEnum, PartyTypeEnum
+from app.schemas.settings import SystemSettings
 from app.services.excel_parser import resolve_county_bot_targets
 from app.services.guidewire_client import GuidewireClient, format_claim_number
 from app.tasks.ingest_tasks import _async_parse_and_ingest
@@ -371,7 +372,12 @@ async def test_claim_single_start_stop_and_guidewire_push():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Start single claim
-        with patch("app.core.celery_app.celery_app.send_task") as mock_send:
+        ready_settings = SystemSettings()
+        ready_settings.automation.anticaptcha_api_key = "test-only-key"
+        with (
+            patch("app.core.celery_app.celery_app.send_task") as mock_send,
+            patch("app.api.v1.endpoints.claims.get_system_settings_async", AsyncMock(return_value=ready_settings)),
+        ):
             res_start = await client.post(f"/api/v1/claims/{claim_id}/start")
             assert res_start.status_code == 200
             assert "queued" in res_start.json()["message"]
@@ -437,7 +443,12 @@ async def test_queue_retrigger_and_start_all():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Retrigger specific claims
-        with patch("app.core.celery_app.celery_app.send_task") as mock_retrigger:
+        ready_settings = SystemSettings()
+        ready_settings.automation.anticaptcha_api_key = "test-only-key"
+        with (
+            patch("app.core.celery_app.celery_app.send_task") as mock_retrigger,
+            patch("app.api.v1.endpoints.queue.get_system_settings_async", AsyncMock(return_value=ready_settings)),
+        ):
             res_ret = await client.post("/api/v1/queue/retrigger", json={"claim_ids": [c_id1, c_id2]})
             assert res_ret.status_code == 200
             assert res_ret.json()["count"] == 2
@@ -451,7 +462,10 @@ async def test_queue_retrigger_and_start_all():
             assert c1_updated.retry_count == 1
 
         # 2. Start-All
-        with patch("app.core.celery_app.celery_app.send_task") as mock_start_all:
+        with (
+            patch("app.core.celery_app.celery_app.send_task") as mock_start_all,
+            patch("app.api.v1.endpoints.queue.get_system_settings_async", AsyncMock(return_value=ready_settings)),
+        ):
             res_sa = await client.post("/api/v1/queue/start-all")
             assert res_sa.status_code == 200
             assert res_sa.json()["status"] == "started"
@@ -707,11 +721,15 @@ async def test_scheduled_retrigger_failed_cases():
             claim_number=f"FAIL-RETRY-{claim_id[:6]}",
             record_status=RecordStatusEnum.FAILED,
             retry_count=2,
+            updated_at=datetime.now(UTC) - timedelta(seconds=60),
         )
         session.add(c)
         await session.commit()
 
-    with patch("app.core.celery_app.celery_app.send_task") as mock_retry_task:
+    with (
+        patch("app.tasks.retry_tasks.get_system_settings_async", AsyncMock(return_value=SystemSettings())),
+        patch("app.core.celery_app.celery_app.send_task") as mock_retry_task,
+    ):
         await _async_retrigger_failed_cases()
         retriggered_ids = [
             c_args.kwargs["args"][0]
@@ -723,7 +741,7 @@ async def test_scheduled_retrigger_failed_cases():
     async with TaskAsyncSessionLocal() as session:
         q = select(ClaimRecord).where(ClaimRecord.id == claim_id)
         c_after = (await session.execute(q)).scalar_one()
-        assert c_after.record_status == RecordStatusEnum.NEW
+        assert c_after.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
         assert c_after.retry_count == 3
 
         await session.delete(c_after)

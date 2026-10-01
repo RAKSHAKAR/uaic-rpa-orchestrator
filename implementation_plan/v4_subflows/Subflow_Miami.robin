@@ -1,0 +1,207 @@
+FUNCTION Subflow_Miami GLOBAL
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... eSupport=1\'']['Label \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Anchor \'View account information for Apoorv Nigam\'']) FOR $fx'=20' 
+
+    ON ERROR
+
+
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> LoginstarttimeMiami
+
+    IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Anchor \'View account information for Apoorv Nigam\'']) THEN
+
+        SET EmailId TO $'''apoorvnigam07@gmail.com'''
+
+    ELSE
+
+        UIAutomation.Click.Click Element: appmask['Window \'OCS Home – Miami-Dade County OCS - Google Chrome\'']['Hyperlink \'Register/Login\''] ClickType: UIAutomation.ClickType.LeftClick MousePositionRelativeToElement: UIAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'0' OffsetY: $fx'0'
+
+        SET EmailId TO $'''apoorvnigam07@gmail.com'''
+
+        SET Password TO $fx'Apoorv@12345'
+
+        WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... s/?hs=OCSB\'']['Input text \'userName\''] Text: $fx'${EmailId}' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'60'
+
+        ON ERROR
+
+
+
+        END
+
+        WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... s/?hs=OCSB\'']['Input password \'password\''] Text: $fx'=Password' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'60'
+
+        ON ERROR
+
+
+
+        END
+
+        UIAutomation.Click.Click Element: appmask['Window \'Home Page User Management Services - Google Chrome\'']['Button \'Login\''] ClickType: UIAutomation.ClickType.LeftClick MousePositionRelativeToElement: UIAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'0' OffsetY: $fx'0'
+
+        WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainText BrowserInstance: $fx'=MiamiBrowser' Text: $fx'Welcome,') FOR $fx'=20'
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> LoginendtimeMiami
+
+    DateTime.Subtract FromDate: $fx'=LoginstarttimeMiami' SubstractDate: $fx'=LoginendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceLogin
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEntering' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsenterstarttimeMaimi
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs/\'']['Span \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... aseType=0#\'']['Input text \'partyFirstName\''] Text: $fx'=VarFirstName' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... aseType=0#\'']['Input text \'partyLastName\''] Text: $fx'=VarLastName' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+
+    Text.ConvertTextToDateTime.ToDateTimeCustomFormat Text: $fx'${VarDOL}' CustomFormat: $fx'MM/dd/yyyy' DateTime=> FormattedDateMiami
+
+    Text.ConvertDateTimeToText.FromCustomDateTime DateTime: $fx'=FormattedDateMiami' CustomFormat: $fx'MM\'-\'dd\'-\'yyyy' Result=> FormattedDateMiami
+
+    SET FormattedDateMiami TO $fx'${FormattedDateMiami}'
+
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Input date \'filingDateFrom\''] Text: $fx'=FormattedDateMiami' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtimeMiami
+
+    DateTime.Subtract FromDate: $fx'=DetailsenterstarttimeMaimi' SubstractDate: $fx'=DetailsEnterendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEnteringMiami
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEnteringMiami' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['Div \'Recaptcha  ... cy - Terms\' 4'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueMiami
+
+    DISABLE IF $fx'=AttributeValueMiami="true"' THEN
+
+        DISABLE LABEL Clickcaptcha
+
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['MiamiAntiCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+        DISABLE WAIT $fx'=Int(5)'
+
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['MiamiClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=9' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+ON ERROR
+
+
+
+END
+
+        DISABLE WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_4'], imgrepo['Miami11'], imgrepo['Image_11'], imgrepo['Image_12']] FindAllImages: False Tolerance: $fx'=5' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+
+ON ERROR REPEAT 3 TIMES WAIT 6
+
+END
+
+    DISABLE END
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Button \'Search\' 2'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=62' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... QRdQMvqyaN\'']['Bold text \'Party Name:\'']) FOR $fx'=150' 
+
+    ON ERROR
+
+
+
+    END
+
+    DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... tDiQ%3D%3D\'']['Div \'Case Details\''] AttributeName: $fx'Exists' AttributeValue=> AttributeValue
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionstarttimeMiami
+
+    IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... g8540R%2BK\'']['Paragraph \'Search Results\'']) THEN
+
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=MiamiBrowser' Control: $fx'html > body > div:eq(0) > div > main > div > div:eq(4) > div > div > div:eq(3) > div' ExtractionParameters: {[$fx'div:eq(0) > p', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'div:eq(1) > div > div:eq(0) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'div:eq(1) > div > div:eq(4) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'div:eq(1) > div > div:eq(5) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'div:eq(1) > div > div:eq(3) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageMiami
+
+        ON ERROR
+
+
+
+        END
+
+        LOOP FOREACH CurrentRowM IN $fx'=DataFromWebPageMiami'
+
+            SET CaseStyleM TO $fx'=CurrentRowM.\'value #1\''
+
+            SET CaseNumberM TO $fx'=CurrentRowM.\'Value #2\''
+
+            IF $fx'=IsBlank(CaseNumberM)' THEN
+
+                NEXT LOOP
+
+            END
+
+            SET FilingDateM TO $fx'=CurrentRowM.\'Value #3\''
+
+            SET CaseStatusM TO $fx'=CurrentRowM.\'Value #4\''
+
+            SET CaseTypeM TO $fx'=CurrentRowM.\'Value #5\''
+
+            IF IsEmpty($fx'=JSONListM') THEN
+
+                SET JSONListM TO $fx'{
+
+    "CaseNumber": "${(CaseNumberM)}",
+
+    "CaseStyle": "${(CaseStyleM)}",
+
+    "FilingDate": "${(FilingDateM)}",
+
+    "CaseStatus": "${(CaseStatusM)}",
+
+    "CaseType": "${(CaseTypeM)}"
+
+ }'
+
+            ELSE
+
+                SET JSONListM TO $fx'${JSONListM},
+
+{
+
+    "CaseNumber": "${(CaseNumberM)}",
+
+    "CaseStyle": "${(CaseStyleM)}",
+
+    "FilingDate": "${(FilingDateM)}",
+
+    "CaseStatus": "${(CaseStatusM)}",
+
+    "CaseType": "${(CaseTypeM)}"
+
+ }'
+
+            END
+
+        END
+
+    ELSE
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... bp4NNyORD3\'']['Span \'OCS Home\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    END
+
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionendtimeMiami
+
+    DateTime.Subtract FromDate: $fx'=ExtractionstarttimeMiami' SubstractDate: $fx'=ExtractionendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifferenceMiami
+
+    Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings Hills' Message: $fx'=ExtractionTimeDifferenceMiami' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageMiami'
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... bp4NNyORD3\'']['Span \'OCS Home\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Button \'Refresh\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR
+
+
+
+    END
+
+END FUNCTION

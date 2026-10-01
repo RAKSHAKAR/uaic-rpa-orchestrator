@@ -1,0 +1,601 @@
+================================================================================
+SUBFLOW: Broward (Subflow_Broward.robin) - 161 lines
+================================================================================
+001: FUNCTION Subflow_Broward GLOBAL
+003: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Anchor \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Label \'Last Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+007: ON ERROR
+011: END
+013: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Detailsenterstarttime
+015: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("firstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+017: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("lastName").value = "${VarLastName}"; }' Result=> ResultLastName
+019: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("filingDateOnOrAfterP").value = "${VarDOL}"; }' Result=> ResultDOL
+021: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtime
+023: DateTime.Subtract FromDate: $fx'=Detailsenterstarttime' SubstractDate: $fx'=DetailsEnterendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEntering
+025: Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEntering' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+027: DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... shboard/29\'']['BrowardCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueBroward
+029: DISABLE IF $fx'=AttributeValueBroward="true"' THEN
+031: DISABLE LABEL Clickcaptcha
+033: DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Div'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+035: DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Label \'Middle Name\''] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+037: ON ERROR
+041: END
+043: DISABLE WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Broward 13/04/26'], imgrepo['Broward 13/04'], imgrepo['Broward2007'], imgrepo['Broward200726']] FindAllImages: False Tolerance: $fx'=8' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=120'
+045: ON ERROR REPEAT 2 TIMES WAIT 3
+047: END
+049: DISABLE END
+051: WAIT $fx'=Int(10)'
+053: WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_13'], imgrepo['Image_3108']] FindAllImages: False Tolerance: $fx'=7' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X2 Y=> Y2)
+055: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("PersonSearchResults").click(); }' Result=> ResultClick
+057: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Extractionstarttime
+059: SET NextPage TO $fx'True'
+061: LOOP WHILE $fx'=NextPage = "True"'
+063: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserBroward' Control: $fx'html > body > div:eq(8) > div:eq(3) > div:eq(1) > div:eq(1) > div:eq(1) > div:eq(1) > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(0) > div > button', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(4)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageBroward
+065: ON ERROR
+069: END
+071: LOOP FOREACH CurrentRowB IN $fx'=DataFromWebPageBroward'
+073: SET CaseNumberB TO $fx'=CurrentRowB.\'value #1\''
+075: SET CaseStyleB TO $fx'=CurrentRowB.\'Value #2\''
+077: SET FilingDateB TO $fx'=CurrentRowB.\'Value #3\''
+079: SET CaseStatusB TO $fx'=CurrentRowB.\'Value #4\''
+081: SET CaseTypeB TO $fx'=CurrentRowB.\'Value #5\''
+083: IF IsEmpty($fx'=JSONListB') THEN
+085: SET JSONListB TO $fx'{
+087: "CaseNumber": "${CaseNumberB}",
+089: "CaseStyle": "${CaseStyleB}",
+091: "FilingDate": "${FilingDateB}",
+093: "CaseStatus": "${CaseStatusB}",
+095: "CaseType": "${CaseTypeB}"
+097: }'
+099: ELSE
+101: SET JSONListB TO $fx'${JSONListB},
+103: {
+105: "CaseNumber": "${CaseNumberB}",
+107: "CaseStyle": "${CaseStyleB}",
+109: "FilingDate": "${FilingDateB}",
+111: "CaseStatus": "${CaseStatusB}",
+113: "CaseType": "${CaseTypeB}"
+115: }'
+117: END
+119: END
+121: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageBroward'
+123: IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... zYUw%3D%3D\'']['Anchor \'Go to the next page\'']) THEN
+125: SET NextPage TO $fx'False'
+127: ELSE
+129: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... zYUw%3D%3D\'']['Anchor \'Go to the next page\' 2'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+131: SET NextPage TO $fx'True'
+133: END
+135: END
+137: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Extractionendtime
+139: DateTime.Subtract FromDate: $fx'=Extractionstarttime' SubstractDate: $fx'=Extractionendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifference
+141: Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings' Message: $fx'=ExtractionTimeDifference' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+143: WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://www.browardclerk.org/Web2' WaitForPageToLoadTimeout: $fx'=60'
+145: ON ERROR
+147: REPEAT ACTION
+149: END
+151: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Anchor \'Case Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+153: ON ERROR REPEAT 3 TIMES WAIT 2
+155: ON ERROR
+159: END
+161: END FUNCTION
+
+================================================================================
+SUBFLOW: Hillsborough (Subflow_Hillsborough.robin) - 185 lines
+================================================================================
+001: FUNCTION Subflow_Hillsborough GLOBAL
+003: WebAutomation.Click.ClickCloseDialog BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Button \'Search by Party or Business Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=40' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: ON ERROR
+009: END
+011: WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['HillsBorough']['Label \'First Name *\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+013: ON ERROR
+017: END
+019: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Detailsenterstarttimehills
+021: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("spFirstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+023: ON ERROR
+027: END
+029: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("spLastName").value = "${VarLastName}"; }' Result=> ResultLastName
+031: ON ERROR
+035: END
+037: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById(\'spDateFiledAfter\').value = "${VarDOL}"; }' Result=> ResultDOL
+039: ON ERROR
+043: END
+045: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtimeHills
+047: DateTime.Subtract FromDate: $fx'=Detailsenterstarttimehills' SubstractDate: $fx'=DetailsEnterendtimeHills' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEnteringHills
+049: Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnterHills' Message: $fx'=TimeDifferenceDetailsEnteringHills' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+051: WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['HillsBorough']['Button \'Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.BottomCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+053: ON ERROR
+057: END
+059: WAIT $fx'=Int(10)'
+061: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElementInState BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... sults.html\'']['Hillsborough No match'] State: WebAutomation.ElementState.Enabled) FOR $fx'=50'
+063: ON ERROR
+067: END
+069: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionstarttimeHills
+071: IF (WebAutomation.IfWebPageContains.WebPageDoesNotContainElement BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... sults.html\'']['Table data cell \'No data available in table\'']) THEN
+073: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=HillsboroughBrowser' Control: $fx'html > body > main > div:eq(1) > div:eq(1) > div > div:eq(1) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(4)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(6)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(5)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(7) > span', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'120' ExtractedData=> DataFromWebPageHills
+075: ON ERROR
+079: END
+081: LOOP FOREACH CurrentRowHb IN $fx'=DataFromWebPageHills'
+083: SET CaseNumberHb TO $fx'=CurrentRowHb.\'value #1\''
+085: SET CaseStyleHb TO $fx'=CurrentRowHb.\'Value #2\''
+087: SET FilingDateHb TO $fx'=CurrentRowHb.\'Value #3\''
+089: SET CaseStatusHb TO $fx'=CurrentRowHb.\'Value #4\''
+091: SET CaseTypeHb TO $fx'=CurrentRowHb.\'Value #5\''
+093: IF $fx'=IsBlank(JSONListHill)' THEN
+095: SET JSONListHill TO $fx'{
+097: "CaseNumber": "${CaseNumberHb}",
+099: "CaseStyle": "${CaseStyleHb}",
+101: "FilingDate": "${FilingDateHb}",
+103: "CaseStatus": "${CaseStatusHb}",
+105: "CaseType": "${CaseTypeHb}"
+107: }'
+109: ELSE
+111: SET JSONListHill TO $fx'${JSONListHill},
+113: {
+115: "CaseNumber": "${CaseNumberHb}",
+117: "CaseStyle": "${CaseStyleHb}",
+119: "FilingDate": "${FilingDateHb}",
+121: "CaseStatus": "${CaseStatusHb}",
+123: "CaseType": "${CaseTypeHb}"
+125: }'
+127: END
+129: END
+131: ELSE
+133: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { var closeBtn = document.getElementById("messageClose").click(); }' Result=> ResultClose
+135: ON ERROR
+139: END
+141: END
+143: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionendtimeHills
+145: DateTime.Subtract FromDate: $fx'=ExtractionstarttimeHills' SubstractDate: $fx'=ExtractionendtimeHills' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifferenceHills
+147: Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings Hills' Message: $fx'=ExtractionTimeDifferenceHills' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+149: WAIT $fx'=Int(8)'
+151: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHills'
+153: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { var closeBtn = document.getElementById("messageClose").click(); }' Result=> ResultClose
+155: ON ERROR
+159: END
+161: WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Anchor \'Case Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=100' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+163: ON ERROR
+167: END
+169: WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=HillsboroughBrowser' Url: $fx'https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab' WaitForPageToLoadTimeout: $fx'=60'
+171: ON ERROR
+175: END
+177: WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Button \'Search by Party or Business Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+179: ON ERROR
+183: END
+185: END FUNCTION
+
+================================================================================
+SUBFLOW: Miami (Subflow_Miami.robin) - 207 lines
+================================================================================
+001: FUNCTION Subflow_Miami GLOBAL
+003: WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... eSupport=1\'']['Label \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Anchor \'View account information for Apoorv Nigam\'']) FOR $fx'=20'
+007: ON ERROR
+011: END
+013: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> LoginstarttimeMiami
+015: IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Anchor \'View account information for Apoorv Nigam\'']) THEN
+017: SET EmailId TO $'''apoorvnigam07@gmail.com'''
+019: ELSE
+021: UIAutomation.Click.Click Element: appmask['Window \'OCS Home – Miami-Dade County OCS - Google Chrome\'']['Hyperlink \'Register/Login\''] ClickType: UIAutomation.ClickType.LeftClick MousePositionRelativeToElement: UIAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'0' OffsetY: $fx'0'
+023: SET EmailId TO $'''apoorvnigam07@gmail.com'''
+025: SET Password TO $fx'Apoorv@12345'
+027: WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... s/?hs=OCSB\'']['Input text \'userName\''] Text: $fx'${EmailId}' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'60'
+029: ON ERROR
+033: END
+035: WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... s/?hs=OCSB\'']['Input password \'password\''] Text: $fx'=Password' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'60'
+037: ON ERROR
+041: END
+043: UIAutomation.Click.Click Element: appmask['Window \'Home Page User Management Services - Google Chrome\'']['Button \'Login\''] ClickType: UIAutomation.ClickType.LeftClick MousePositionRelativeToElement: UIAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'0' OffsetY: $fx'0'
+045: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainText BrowserInstance: $fx'=MiamiBrowser' Text: $fx'Welcome,') FOR $fx'=20'
+047: END
+049: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> LoginendtimeMiami
+051: DateTime.Subtract FromDate: $fx'=LoginstarttimeMiami' SubstractDate: $fx'=LoginendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceLogin
+053: Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEntering' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+055: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsenterstarttimeMaimi
+057: WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs/\'']['Span \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+059: WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... aseType=0#\'']['Input text \'partyFirstName\''] Text: $fx'=VarFirstName' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+061: WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... aseType=0#\'']['Input text \'partyLastName\''] Text: $fx'=VarLastName' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+063: Text.ConvertTextToDateTime.ToDateTimeCustomFormat Text: $fx'${VarDOL}' CustomFormat: $fx'MM/dd/yyyy' DateTime=> FormattedDateMiami
+065: Text.ConvertDateTimeToText.FromCustomDateTime DateTime: $fx'=FormattedDateMiami' CustomFormat: $fx'MM\'-\'dd\'-\'yyyy' Result=> FormattedDateMiami
+067: SET FormattedDateMiami TO $fx'${FormattedDateMiami}'
+069: WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Input date \'filingDateFrom\''] Text: $fx'=FormattedDateMiami' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+071: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtimeMiami
+073: DateTime.Subtract FromDate: $fx'=DetailsenterstarttimeMaimi' SubstractDate: $fx'=DetailsEnterendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEnteringMiami
+075: Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEnteringMiami' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+077: DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['Div \'Recaptcha  ... cy - Terms\' 4'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueMiami
+079: DISABLE IF $fx'=AttributeValueMiami="true"' THEN
+081: DISABLE LABEL Clickcaptcha
+083: DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['MiamiAntiCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+085: DISABLE WAIT $fx'=Int(5)'
+087: DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['MiamiClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=9' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+089: ON ERROR
+093: END
+095: DISABLE WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_4'], imgrepo['Miami11'], imgrepo['Image_11'], imgrepo['Image_12']] FindAllImages: False Tolerance: $fx'=5' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100'
+097: ON ERROR REPEAT 3 TIMES WAIT 6
+099: END
+101: DISABLE END
+103: WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Button \'Search\' 2'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=62' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+105: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... QRdQMvqyaN\'']['Bold text \'Party Name:\'']) FOR $fx'=150'
+107: ON ERROR
+111: END
+113: DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... tDiQ%3D%3D\'']['Div \'Case Details\''] AttributeName: $fx'Exists' AttributeValue=> AttributeValue
+115: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionstarttimeMiami
+117: IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... g8540R%2BK\'']['Paragraph \'Search Results\'']) THEN
+119: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=MiamiBrowser' Control: $fx'html > body > div:eq(0) > div > main > div > div:eq(4) > div > div > div:eq(3) > div' ExtractionParameters: {[$fx'div:eq(0) > p', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'div:eq(1) > div > div:eq(0) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'div:eq(1) > div > div:eq(4) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'div:eq(1) > div > div:eq(5) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'div:eq(1) > div > div:eq(3) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageMiami
+121: ON ERROR
+125: END
+127: LOOP FOREACH CurrentRowM IN $fx'=DataFromWebPageMiami'
+129: SET CaseStyleM TO $fx'=CurrentRowM.\'value #1\''
+131: SET CaseNumberM TO $fx'=CurrentRowM.\'Value #2\''
+133: IF $fx'=IsBlank(CaseNumberM)' THEN
+135: NEXT LOOP
+137: END
+139: SET FilingDateM TO $fx'=CurrentRowM.\'Value #3\''
+141: SET CaseStatusM TO $fx'=CurrentRowM.\'Value #4\''
+143: SET CaseTypeM TO $fx'=CurrentRowM.\'Value #5\''
+145: IF IsEmpty($fx'=JSONListM') THEN
+147: SET JSONListM TO $fx'{
+149: "CaseNumber": "${(CaseNumberM)}",
+151: "CaseStyle": "${(CaseStyleM)}",
+153: "FilingDate": "${(FilingDateM)}",
+155: "CaseStatus": "${(CaseStatusM)}",
+157: "CaseType": "${(CaseTypeM)}"
+159: }'
+161: ELSE
+163: SET JSONListM TO $fx'${JSONListM},
+165: {
+167: "CaseNumber": "${(CaseNumberM)}",
+169: "CaseStyle": "${(CaseStyleM)}",
+171: "FilingDate": "${(FilingDateM)}",
+173: "CaseStatus": "${(CaseStatusM)}",
+175: "CaseType": "${(CaseTypeM)}"
+177: }'
+179: END
+181: END
+183: ELSE
+185: WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... bp4NNyORD3\'']['Span \'OCS Home\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+187: END
+189: DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionendtimeMiami
+191: DateTime.Subtract FromDate: $fx'=ExtractionstarttimeMiami' SubstractDate: $fx'=ExtractionendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifferenceMiami
+193: Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings Hills' Message: $fx'=ExtractionTimeDifferenceMiami' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+195: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageMiami'
+197: WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... bp4NNyORD3\'']['Span \'OCS Home\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+199: WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Button \'Refresh\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+201: ON ERROR
+205: END
+207: END FUNCTION
+
+================================================================================
+SUBFLOW: Harris County Clerk (Subflow_Cclerk.robin) - 67 lines
+================================================================================
+001: FUNCTION Subflow_Cclerk GLOBAL
+003: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserCclerk' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ContentPlaceHolder1_txtFirstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+005: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserCclerk' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ContentPlaceHolder1_txtLastName").value = "${VarLastName}"; }' Result=> ResultLastName
+007: WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=BrowserCclerk' Control: appmask['CClerk']['Input text \'File Date from\' 4'] Text: $fx'=VarDOL' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+009: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserCclerk' Control: appmask['CClerk']['Input submit \'Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+011: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserCclerk' Control: $fx'html > body > form > div:eq(5) > div > div:eq(4) > div > table:eq(1) > tbody:eq(1) > tr' ExtractionParameters: {[$fx'td:eq(0) > a', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(5) > span', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageCclerk
+013: ON ERROR
+017: END
+019: LOOP FOREACH CurrentRowC IN $fx'=DataFromWebPageCclerk'
+021: SET CaseNumberC TO $fx'=CurrentRowC.\'value #1\''
+023: SET CaseStyleC TO $fx'=CurrentRowC.\'Value #3\''
+025: SET FilingDateC TO $fx'=CurrentRowC.\'Value #2\''
+027: SET CaseStatusC TO $fx'=CurrentRowC.\'Value #4\''
+029: IF IsEmpty($fx'=JSONListC') THEN
+031: SET JSONListC TO $fx'{
+033: "CaseNumber": "${Trim(CaseNumberC)}",
+035: "CaseStyle": "${Trim(CaseStyleC)}",
+037: "FilingDate": "${Trim(FilingDateC)}",
+039: "CaseStatus": "${Trim(CaseStatusC)}"
+041: }'
+043: ELSE
+045: SET JSONListC TO $fx'${JSONListC},
+047: {
+049: "CaseNumber": "${Trim(CaseNumberC)}",
+051: "CaseStyle": "${Trim(CaseStyleC)}",
+053: "FilingDate": "${Trim(FilingDateC)}",
+055: "CaseStatus": "${Trim(CaseStatusC)}"
+057: }'
+059: END
+061: END
+063: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageCclerk'
+065: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserCclerk' Control: appmask['Web Page \'h ... EE2QBJQ==#\'']['Input submit \'Clear\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+067: END FUNCTION
+
+================================================================================
+SUBFLOW: Dallas (Subflow_Dallas.robin) - 141 lines
+================================================================================
+001: FUNCTION Subflow_Dallas GLOBAL
+003: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+007: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() {
+009: if (window.location.hostname === "localhost" || window.location.search.includes("dev=true")) {
+011: const captchaContainer = document.querySelector("#rc-anchor-container");
+013: if (captchaContainer) {
+015: captchaContainer.remove();
+017: }
+019: }
+021: }' Result=> Result
+023: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserDallas' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasAntiCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueDallas
+025: IF $fx'=AttributeValueDallas="true"' THEN
+027: LABEL Clickcaptcha
+029: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+031: WAIT $fx'=Int(5)'
+033: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=9' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.TopLeft OffsetX: $fx'=0' OffsetY: $fx'=0'
+035: ON ERROR
+039: END
+041: WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_8'], imgrepo['Dallas1'], imgrepo['dallas 15/12'], imgrepo['Dallas2007'], imgrepo['Dallas200726'], imgrepo['Image_13-24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Dallas3108'], imgrepo['Image_14_PR_Dallas']] FindAllImages: False Tolerance: $fx'=6' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100'
+043: ON ERROR REPEAT 3 TIMES WAIT 8
+045: ON ERROR
+047: GOTO Clickcaptcha
+049: END
+051: END
+053: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll(\'input[type="submit"]\')].forEach(el => {
+055: if (el.value === "Submit") {
+057: el.click();
+059: }
+061: }); }' Result=> ResultClick
+063: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=7'
+065: ON ERROR
+069: END
+071: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserDallas' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(4)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageDallas
+073: ON ERROR
+077: END
+079: LOOP FOREACH CurrentRowD IN $fx'=DataFromWebPageDallas'
+081: WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserDallas' Url: $fx'=CurrentRowD.\'value #1\'' WaitForPageToLoadTimeout: $fx'60' NewBrowserInstance=> NewBrowser
+083: ON ERROR
+085: REPEAT ACTION
+087: END
+089: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... tabIndex=3\'']['Paragraph \' ... , MARTIN /\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStyleDallas
+091: Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStyleDallas' TextToFind: $fx'[-\\/|]' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> CaseStyleFormatted
+093: Text.Trim Text: $fx'=CaseStyleFormatted' TrimOption: Text.TrimOption.Both TrimmedText=> CaseStyleD
+095: IF IsEmpty($fx'=JSONListD') THEN
+097: SET JSONListD TO $fx'{
+099: "CaseNumber": "${CurrentRowD.\'Value #2\'}",
+101: "CaseStyle": "${CaseStyleD}",
+103: "FilingDate": "${CurrentRowD.\'Value #3\'}",
+105: "CaseStatus": "${CurrentRowD.\'Value #4\'}",
+107: "CaseType": "${CurrentRowD.\'Value #5\'}"
+109: }'
+111: ELSE
+113: SET JSONListD TO $fx'${JSONListD},
+115: {
+117: "CaseNumber": "${CurrentRowD.\'Value #2\'}",
+119: "CaseStyle": "${CaseStyleD}",
+121: "FilingDate": "${CurrentRowD.\'Value #3\'}",
+123: "CaseStatus": "${CurrentRowD.\'Value #4\'}",
+125: "CaseType": "${CurrentRowD.\'Value #5\'}"
+127: }'
+129: END
+131: WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowser'
+133: END
+135: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageDallas'
+137: WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserDallas' Url: $fx'https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60'
+139: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { document.querySelector(\'#tcControllerLink_0\').click(); }' Result=> Result4
+141: END FUNCTION
+
+================================================================================
+SUBFLOW: Harris JP (Subflow_Harris.robin) - 215 lines
+================================================================================
+001: FUNCTION Subflow_Harris GLOBAL
+003: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\' 2']['Heading 1 \'Smart Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: ON ERROR REPEAT 2 TIMES WAIT 2
+007: END
+009: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserHarris' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+011: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 3']['HarrisCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueHarris
+013: IF $fx'=AttributeValueHarris="true"' THEN
+015: LABEL Clickcaptcha
+017: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+019: WAIT $fx'=Int(5)'
+021: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 3']['HarrisClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+023: ON ERROR
+027: END
+029: WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_3'], imgrepo['Image_4'], imgrepo['Harris new'], imgrepo['Harris1'], imgrepo['harris 15/12'], imgrepo['Harris_2307'], imgrepo['Travis200726'], imgrepo['Harris2307'], imgrepo['Image_13_24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Harris3108'], imgrepo['Image_14_PR_Harris']] FindAllImages: False Tolerance: $fx'=10' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100'
+031: ON ERROR REPEAT 4 TIMES WAIT 8
+033: ON ERROR
+035: GOTO Clickcaptcha
+037: END
+039: END
+041: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserHarris' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll(\'input[type="submit"]\')].forEach(el => {
+043: if (el.value === "Submit") {
+045: el.click();
+047: }
+049: }); }' Result=> ResultClick
+051: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=15'
+053: ON ERROR
+057: END
+059: IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 6']) THEN
+061: ON ERROR
+065: END
+067: SET NextPage TO $fx'True'
+069: LOOP WHILE $fx'=NextPage = "True"'
+071: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserHarris' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2) > div', $fx'Title', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHarris
+073: ON ERROR
+077: END
+079: LOOP FOREACH CurrentRowH IN $fx'=DataFromWebPageHarris'
+081: WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserHarris' Url: $fx'=CurrentRowH.\'value #4\'' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> NewBrowserH
+083: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Paragraph \'Case Status Appeal\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStatusHarris
+085: Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStatusHarris' TextToFind: $fx'Case Status' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+087: SET CaseStatusH TO $fx'=Replaced'
+089: SET CaseNumberH TO $fx'=CurrentRowH.\'value #1\''
+091: SET CaseStyleH TO $fx'=CurrentRowH.\'Value #2\''
+093: SET FilingDateH TO $fx'=CurrentRowH.\'Value #3\''
+095: IF IsEmpty($fx'=JSONListH') THEN
+097: SET JSONListH TO $fx'{
+099: "CaseNumber": "${CaseNumberH}",
+101: "CaseStyle": "${CaseStyleH}",
+103: "FilingDate": "${FilingDateH}",
+105: "CaseStatus": "${CaseStatusH}"
+107: }'
+109: ELSE
+111: SET JSONListH TO $fx'${JSONListH},
+113: {
+115: "CaseNumber": "${CaseNumberH}",
+117: "CaseStyle": "${CaseStyleH}",
+119: "FilingDate": "${FilingDateH}",
+121: "CaseStatus": "${CaseStatusH}"
+123: }'
+125: END
+127: WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserH'
+129: END
+131: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHarris'
+133: IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 2']) THEN
+135: SET NextPage TO $fx'False'
+137: ELSE
+139: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 3'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+141: SET NextPage TO $fx'True'
+143: END
+145: END
+147: ELSE
+149: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserHarris' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2) > div', $fx'Title', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHarris
+151: ON ERROR
+155: END
+157: LOOP FOREACH CurrentRowH IN $fx'=DataFromWebPageHarris'
+159: WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserHarris' Url: $fx'=CurrentRowH.\'value #4\'' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> NewBrowserH
+161: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Paragraph \'Case Status Appeal\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStatusHarris
+163: Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStatusHarris' TextToFind: $fx'Case Status' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+165: SET CaseStatusH TO $fx'=Replaced'
+167: SET CaseNumberH TO $fx'=CurrentRowH.\'value #1\''
+169: SET CaseStyleH TO $fx'=CurrentRowH.\'Value #2\''
+171: SET FilingDateH TO $fx'=CurrentRowH.\'Value #3\''
+173: IF IsEmpty($fx'=JSONListH') THEN
+175: SET JSONListH TO $fx'{
+177: "CaseNumber": "${CaseNumberH}",
+179: "CaseStyle": "${CaseStyleH}",
+181: "FilingDate": "${FilingDateH}",
+183: "CaseStatus": "${CaseStatusH}"
+185: }'
+187: ELSE
+189: SET JSONListH TO $fx'${JSONListH},
+191: {
+193: "CaseNumber": "${CaseNumberH}",
+195: "CaseStyle": "${CaseStyleH}",
+197: "FilingDate": "${FilingDateH}",
+199: "CaseStatus": "${CaseStatusH}"
+201: }'
+203: END
+205: WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserH'
+207: END
+209: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHarris'
+211: END
+213: WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserHarris' Url: $fx'https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60'
+215: END FUNCTION
+
+================================================================================
+SUBFLOW: Harris District (Subflow_HarrisDistrict.robin) - 95 lines
+================================================================================
+001: FUNCTION Subflow_HarrisDistrict GLOBAL
+003: WebAutomation.Click.Click BrowserInstance: $fx'=HcDistrictBrowser' Control: appmask['Web Page \'h ... earch.aspx\'']['Span \'Search Our Records and Documents\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: ON ERROR REPEAT 3 TIMES WAIT 10
+007: END
+009: WebAutomation.Click.Click BrowserInstance: $fx'=HcDistrictBrowser' Control: appmask['Web Page \'h ... earch.aspx\'']['Input button \'Party Inquiry\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+011: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("txtPartyName").value = "${VarLastName}, ${VarFirstName}"; }' Result=> ResultFirstName
+013: Text.ConvertTextToDateTime.ToDateTimeCustomFormat Text: $fx'${VarDOL}' CustomFormat: $fx'MM/dd/yyyy' DateTime=> FormattedDateHcDistrict
+015: Text.ConvertDateTimeToText.FromCustomDateTime DateTime: $fx'=FormattedDateHcDistrict' CustomFormat: $fx'MM/dd/yyyy' Result=> FormattedDateHc
+017: SET FormattedDateHc TO $fx'${FormattedDateHc}'
+019: MouseAndKeyboard.SendKeys.FocusAndSendKeysByControl Control: appmask['Window \'Office of  ...  - Google Chrome\'']['Edit \'Filed Date Range: (mm/dd/yyyy)\''] TextToSend: $fx'=FormattedDateHc' DelayBetweenKeystrokes: $fx'=10' SendTextAsHardwareKeys: False
+021: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_btnPartySearch").click(); }' Result=> ResultClick
+023: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=HcDistrictBrowser' Control: $fx'html > body > form > div:eq(2) > div:eq(0) > div > main > div:eq(0) > div > div:eq(1) > div:eq(0) > div:eq(2) > div:eq(3) > div > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(0)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > a > strong', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(5)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(6)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHcDistrict
+025: ON ERROR
+029: END
+031: LOOP FOREACH CurrentRowHc IN $fx'=DataFromWebPageHcDistrict'
+033: SET CaseNumberHc TO $fx'=CurrentRowHc.\'Value #1\''
+035: SET CaseStyleHc TO $fx'=CurrentRowHc.\'value #2\''
+037: SET FilingDateHc TO $fx'=CurrentRowHc.\'Value #3\''
+039: SET CaseTypeHc TO $fx'=CurrentRowHc.\'Value #4\''
+041: Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseNumberHc' TextToFind: $fx'0|1|2|3|4|5|6|7|8|9|-
+043: ' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+045: SET NewVar TO $fx'=Replaced'
+047: Text.Replace.ReplaceTextWithRegex Text: $fx'=Replaced' TextToFind: $fx'(?m)^\\s*$|^\\s*-\\s*$|^\\s*[A-Za-z]\\s*$|^\\s*\\d+\\s*$' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced1
+049: Text.Trim Text: $fx'=Replaced1' TrimOption: Text.TrimOption.Both TrimmedText=> TrimmedText
+051: SET CaseStatusHc TO $fx'=TrimmedText'
+053: IF IsEmpty($fx'=JSONListHc') THEN
+055: SET JSONListHc TO $fx'{
+057: "CaseNumber": "${Trim(CaseNumberHc)}",
+059: "CaseStyle": "${Trim(CaseStyleHc)}",
+061: "FilingDate": "${Trim(FilingDateHc)}",
+063: "CaseStatus": "${CaseStatusHc}",
+065: "CaseType": "${Trim(CaseTypeHc)}"
+067: }'
+069: ELSE
+071: SET JSONListHc TO $fx'${JSONListHc},
+073: {
+075: "CaseNumber": "${Trim(CaseNumberHc)}",
+077: "CaseStyle": "${Trim(CaseStyleHc)}",
+079: "FilingDate": "${Trim(FilingDateHc)}",
+081: "CaseStatus": "${CaseStatusHc}",
+083: "CaseType": "${Trim(CaseTypeHc)}"
+085: }'
+087: END
+089: END
+091: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHcDistrict'
+093: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_btnSearchAgain").click(); }' Result=> ResultClickHc
+095: END FUNCTION
+
+================================================================================
+SUBFLOW: Travis (Subflow_Travis.robin) - 139 lines
+================================================================================
+001: FUNCTION Subflow_Travis GLOBAL
+003: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+005: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+007: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['TravisCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueTravisCaptcha
+009: IF $fx'=AttributeValueTravisCaptcha="true"' THEN
+011: LABEL Clickcaptcha
+013: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['Travis AntiCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+015: WAIT $fx'=Int(5)'
+017: WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['TravisClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+019: ON ERROR
+023: END
+025: WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Travis new'], imgrepo['Travis1'], imgrepo['travis 15/12'], imgrepo['Travis2007'], imgrepo['Travis200726'], imgrepo['Image_13 24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Image_14 31826'], imgrepo['Travis3108'], imgrepo['Image_14_PR_Travis']] FindAllImages: False Tolerance: $fx'=10' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100'
+027: ON ERROR REPEAT 3 TIMES WAIT 8
+029: ON ERROR
+031: GOTO Clickcaptcha
+033: END
+035: END
+037: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { document.getElementById("btnSSSubmit").click(); }' Result=> ResultClick
+039: WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserTravis' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=7'
+041: ON ERROR
+045: END
+047: WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserTravis' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(4)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageTravis
+049: ON ERROR
+053: END
+055: LOOP FOREACH CurrentRowT IN $fx'=DataFromWebPageTravis'
+057: SET WebsiteUrlT TO $fx'https://odysseyweb.traviscountytx.gov'
+059: SET CaseUrlT TO $fx'=Concatenate(WebsiteUrlT,CurrentRowT.\'value #1\')'
+061: WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserTravis' Url: $fx'=CaseUrlT' WaitForPageToLoadTimeout: $fx'60' NewBrowserInstance=> NewBrowserT
+063: ON ERROR
+065: REPEAT ACTION
+067: END
+069: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowserT' Control: appmask['Travis']['Span \'IN THE INTEREST OF M. M. CHILD(REN)\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStyleInfoT
+071: ON ERROR
+075: END
+077: WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowserT' Control: appmask['Travis']['Span \'11/06/2007\''] AttributeName: $fx'Own Text' AttributeValue=> FilingDateInfoT
+079: ON ERROR
+083: END
+085: IF IsEmpty($fx'=JSONListT') THEN
+087: SET JSONListT TO $fx'{
+089: "CaseNumber": "${CurrentRowT.\'Value #2\'}",
+091: "CaseStyle": "${CaseStyleInfoT}",
+093: "FilingDate": "${FilingDateInfoT}",
+095: "CaseStatus": "${CurrentRowT.\'Value #3\'}",
+097: "CaseType": "${CurrentRowT.\'Value #4\'}"
+099: }'
+101: ELSE
+103: SET JSONListT TO $fx'${JSONListT},
+105: {
+107: "CaseNumber": "${CurrentRowT.\'Value #2\'}",
+109: "CaseStyle": "${CaseStyleInfoT}",
+111: "FilingDate": "${FilingDateInfoT}",
+113: "CaseStatus": "${CurrentRowT.\'Value #3\'}",
+115: "CaseType": "${CurrentRowT.\'Value #4\'}"
+117: }'
+119: END
+121: WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserT'
+123: END
+125: Variables.ClearDataTable DataTable: $fx'=DataFromWebPageTravis'
+127: WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll("p.step-label")].forEach(el => {
+129: if (el.textContent.trim() === "Smart Search") {
+131: el.click();
+133: }
+135: });
+137: }' Result=> ResultClickSearch
+139: END FUNCTION

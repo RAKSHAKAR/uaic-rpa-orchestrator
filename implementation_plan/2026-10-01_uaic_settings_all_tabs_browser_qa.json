@@ -1,0 +1,229 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T09:42:33.047074+00:00",
+  "url": "http://localhost:3000/settings",
+  "read_only": true,
+  "views": [
+    {
+      "viewport": "desktop",
+      "theme": "light",
+      "theme_applied": true,
+      "tabs": [
+        {
+          "tab": "guidewire",
+          "label": "APIs & Matching Engine",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 4,
+          "headings": [
+            "Guidewire ClaimCenter Integration API",
+            "Interactive Guidewire API Tester & Response Explorer",
+            "Unique Names Party Deduplication & Noise Cleaning Engine",
+            "RapidFuzz Case Matching & Guidewire Filter Engine"
+          ],
+          "content_chars": 3633,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_guidewire_desktop_light.png"
+        },
+        {
+          "tab": "portals",
+          "label": "County Court Portals",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 1,
+          "headings": [
+            "Public County Court Scraper Portals & Health Pings"
+          ],
+          "content_chars": 1186,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_portals_desktop_light.png"
+        },
+        {
+          "tab": "automation",
+          "label": "Browser Automation & Fleet",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 1,
+          "headings": [
+            "Browser Automation & RPA Execution Fleet"
+          ],
+          "content_chars": 6796,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_automation_desktop_light.png"
+        },
+        {
+          "tab": "proxy",
+          "label": "Proxy Network",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 2,
+          "headings": [
+            "Proxy Pool Settings",
+            "Proxy Connection Details"
+          ],
+          "content_chars": 914,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_proxy_desktop_light.png"
+        },
+        {
+          "tab": "email",
+          "label": "Email & Notifications",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 8,
+          "headings": [
+            "Master Email & Notification Engine Switch",
+            "Outbound Email Provider Configuration",
+            "Recipient Distribution Lists",
+            "Delivery cadence and retries"
+          ],
+          "content_chars": 7627,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_email_desktop_light.png"
+        },
+        {
+          "tab": "storage",
+          "label": "Storage & Retention",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 1,
+          "headings": [
+            "Storage Providers & Error Screenshot Diagnostics"
+          ],
+          "content_chars": 2426,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_storage_desktop_light.png"
+        },
+        {
+          "tab": "queue",
+          "label": "Task Queue & Telemetry",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 2,
+          "headings": [
+            "Live Celery Cluster Telemetry & Queue Depths",
+            "Celery Worker Queues & Failure Alerts Configuration"
+          ],
+          "content_chars": 1171,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_queue_desktop_light.png"
+        }
+      ],
+      "console_errors": [],
+      "failed_local_responses": [],
+      "failed_local_requests": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile",
+      "theme": "dark",
+      "theme_applied": true,
+      "tabs": [
+        {
+          "tab": "guidewire",
+          "label": "APIs & Matching Engine",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 4,
+          "headings": [
+            "Guidewire ClaimCenter Integration API",
+            "Interactive Guidewire API Tester & Response Explorer",
+            "Unique Names Party Deduplication & Noise Cleaning Engine",
+            "RapidFuzz Case Matching & Guidewire Filter Engine"
+          ],
+          "content_chars": 3633,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_guidewire_mobile_dark.png"
+        },
+        {
+          "tab": "portals",
+          "label": "County Court Portals",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 1,
+          "headings": [
+            "Public County Court Scraper Portals & Health Pings"
+          ],
+          "content_chars": 1186,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_portals_mobile_dark.png"
+        },
+        {
+          "tab": "automation",
+          "label": "Browser Automation & Fleet",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 1,
+          "headings": [
+            "Browser Automation & RPA Execution Fleet"
+          ],
+          "content_chars": 6796,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_automation_mobile_dark.png"
+        },
+        {
+          "tab": "proxy",
+          "label": "Proxy Network",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 2,
+          "headings": [
+            "Proxy Pool Settings",
+            "Proxy Connection Details"
+          ],
+          "content_chars": 914,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_proxy_mobile_dark.png"
+        },
+        {
+          "tab": "email",
+          "label": "Email & Notifications",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 8,
+          "headings": [
+            "Master Email & Notification Engine Switch",
+            "Outbound Email Provider Configuration",
+            "Recipient Distribution Lists",
+            "Delivery cadence and retries"
+          ],
+          "content_chars": 7627,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_email_mobile_dark.png"
+        },
+        {
+          "tab": "storage",
+          "label": "Storage & Retention",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 1,
+          "headings": [
+            "Storage Providers & Error Screenshot Diagnostics"
+          ],
+          "content_chars": 2426,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_storage_mobile_dark.png"
+        },
+        {
+          "tab": "queue",
+          "label": "Task Queue & Telemetry",
+          "selected": true,
+          "first_heading_unobscured": true,
+          "heading_count": 2,
+          "headings": [
+            "Live Celery Cluster Telemetry & Queue Depths",
+            "Celery Worker Queues & Failure Alerts Configuration"
+          ],
+          "content_chars": 1171,
+          "horizontal_overflow_px": 0,
+          "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_settings_tab_queue_mobile_dark.png"
+        }
+      ],
+      "console_errors": [],
+      "failed_local_responses": [],
+      "failed_local_requests": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

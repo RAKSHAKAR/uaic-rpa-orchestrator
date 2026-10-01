@@ -1,0 +1,141 @@
+FUNCTION Subflow_Dallas GLOBAL
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() {
+
+  if (window.location.hostname === "localhost" || window.location.search.includes("dev=true")) {
+
+    const captchaContainer = document.querySelector("#rc-anchor-container");
+
+    if (captchaContainer) {
+
+      captchaContainer.remove();
+
+    }
+
+  }
+
+}' Result=> Result
+
+    WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserDallas' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasAntiCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueDallas
+
+    IF $fx'=AttributeValueDallas="true"' THEN
+
+        LABEL Clickcaptcha
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+
+        WAIT $fx'=Int(5)'
+
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=9' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.TopLeft OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+        ON ERROR
+
+
+
+        END
+
+        WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_8'], imgrepo['Dallas1'], imgrepo['dallas 15/12'], imgrepo['Dallas2007'], imgrepo['Dallas200726'], imgrepo['Image_13-24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Dallas3108'], imgrepo['Image_14_PR_Dallas']] FindAllImages: False Tolerance: $fx'=6' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+
+        ON ERROR REPEAT 3 TIMES WAIT 8
+
+        ON ERROR
+
+            GOTO Clickcaptcha
+
+        END
+
+    END
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll(\'input[type="submit"]\')].forEach(el => {
+
+    if (el.value === "Submit") {
+
+        el.click();
+
+    }
+
+}); }' Result=> ResultClick
+
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=7' 
+
+    ON ERROR
+
+
+
+    END
+
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserDallas' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(4)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageDallas
+
+    ON ERROR
+
+
+
+    END
+
+    LOOP FOREACH CurrentRowD IN $fx'=DataFromWebPageDallas'
+
+        WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserDallas' Url: $fx'=CurrentRowD.\'value #1\'' WaitForPageToLoadTimeout: $fx'60' NewBrowserInstance=> NewBrowser
+
+        ON ERROR
+
+            REPEAT ACTION
+
+        END
+
+        WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... tabIndex=3\'']['Paragraph \' ... , MARTIN /\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStyleDallas
+
+        Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStyleDallas' TextToFind: $fx'[-\\/|]' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> CaseStyleFormatted
+
+        Text.Trim Text: $fx'=CaseStyleFormatted' TrimOption: Text.TrimOption.Both TrimmedText=> CaseStyleD
+
+        IF IsEmpty($fx'=JSONListD') THEN
+
+            SET JSONListD TO $fx'{
+
+    "CaseNumber": "${CurrentRowD.\'Value #2\'}",
+
+    "CaseStyle": "${CaseStyleD}",
+
+    "FilingDate": "${CurrentRowD.\'Value #3\'}",
+
+    "CaseStatus": "${CurrentRowD.\'Value #4\'}",
+
+    "CaseType": "${CurrentRowD.\'Value #5\'}"
+
+  }'
+
+        ELSE
+
+            SET JSONListD TO $fx'${JSONListD},
+
+{
+
+    "CaseNumber": "${CurrentRowD.\'Value #2\'}",
+
+    "CaseStyle": "${CaseStyleD}",
+
+    "FilingDate": "${CurrentRowD.\'Value #3\'}",
+
+    "CaseStatus": "${CurrentRowD.\'Value #4\'}",
+
+    "CaseType": "${CurrentRowD.\'Value #5\'}"
+
+  }'
+
+        END
+
+        WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowser'
+
+    END
+
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageDallas'
+
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserDallas' Url: $fx'https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { document.querySelector(\'#tcControllerLink_0\').click(); }' Result=> Result4
+
+END FUNCTION

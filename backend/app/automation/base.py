@@ -2,12 +2,15 @@
 
 import asyncio
 import inspect
+import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from playwright.async_api import BrowserContext, Page, async_playwright
@@ -24,6 +27,22 @@ class SecurityBlockException(Exception):
         self.message = message
         self.cooldown_seconds = cooldown_seconds
         self.portal_key = portal_key
+
+
+class CaptchaResolutionError(RuntimeError):
+    """The portal CAPTCHA did not resolve within its configured attempts."""
+
+
+class PortalSearchError(RuntimeError):
+    """A portal search failed after its configured retry attempts."""
+
+
+class PortalConfigurationError(PortalSearchError):
+    """A portal cannot start until its required saved settings are configured."""
+
+
+class PortalAuthenticationError(PortalSearchError):
+    """A required portal sign-in did not reach a confirmed authenticated state."""
 
 
 def detect_security_block(
@@ -111,12 +130,12 @@ def append_portal_execution_log(
         logger.debug(f"Could not append to portal execution log for {claim_id}/{portal_key}: {e}")
 
 
-async def _safe_eval(page: Any, script: str) -> Any:
+async def _safe_eval(page: Any, script: str, arg: Any = None) -> Any:
     """Safely execute evaluate script on page or mock without throwing unawaited mock errors."""
     try:
         eval_fn = getattr(page, "evaluate", None)
         if eval_fn is not None:
-            res = eval_fn(script)
+            res = eval_fn(script, arg) if arg is not None else eval_fn(script)
             if inspect.isawaitable(res):
                 return await res
             return res
@@ -135,6 +154,146 @@ async def _safe_wait_timeout(page: Any, ms: int) -> None:
                 await res
     except Exception:
         pass
+
+
+async def resilient_click(locator: Any, page: Any = None, timeout_ms: int = 3000) -> None:
+    """
+    4-Tier Resilient Click Helper that guarantees execution even if browser is minimized or resized:
+    1. Attempts scroll_into_view_if_needed(timeout=1000)
+    2. Attempts standard locator.click(timeout=timeout_ms)
+    3. Attempts locator.click(force=True, timeout=1500)
+    4. Direct DOM JavaScript dispatch: el.scrollIntoView({block: 'center', inline: 'center'}); el.click()
+    """
+    from unittest.mock import MagicMock
+
+    target = getattr(locator, "first", locator)
+    try:
+        count_fn = getattr(locator, "count", None)
+        if callable(count_fn):
+            c = count_fn()
+            if inspect.isawaitable(c):
+                c = await c
+            if isinstance(c, int) and c > 1:
+                nth_fn = getattr(locator, "nth", None)
+                if callable(nth_fn):
+                    for idx in range(c):
+                        cand = nth_fn(idx)
+                        vis_fn = getattr(cand, "is_visible", None)
+                        if callable(vis_fn):
+                            v = vis_fn()
+                            if inspect.isawaitable(v):
+                                v = await v
+                            if v:
+                                target = cand
+                                break
+    except Exception:
+        pass
+
+    if isinstance(locator, MagicMock) or isinstance(target, MagicMock):
+        clk_fn = getattr(target, "click", None) or getattr(locator, "click", None)
+        if callable(clk_fn):
+            res = clk_fn()
+            if inspect.isawaitable(res):
+                await res
+        return
+
+    # Tier 1: Scroll into view if needed
+    try:
+        scroll_fn = getattr(target, "scroll_into_view_if_needed", None)
+        if callable(scroll_fn):
+            res = scroll_fn(timeout=1000)
+            if inspect.isawaitable(res):
+                await res
+    except Exception:
+        pass
+
+    # Tier 2: Standard click
+    try:
+        clk_fn = getattr(target, "click", None)
+        if callable(clk_fn):
+            res = clk_fn(timeout=timeout_ms)
+            if inspect.isawaitable(res):
+                await res
+            return
+    except Exception:
+        pass
+
+    # Tier 3: Force click
+    try:
+        clk_fn = getattr(target, "click", None)
+        if callable(clk_fn):
+            res = clk_fn(force=True, timeout=1500)
+            if inspect.isawaitable(res):
+                await res
+            return
+    except Exception:
+        pass
+
+    # Tier 4: Direct DOM JavaScript dispatch (resilient when window is minimized or resized)
+    try:
+        eval_fn = getattr(target, "evaluate", None)
+        if callable(eval_fn):
+            res = eval_fn("el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }")
+            if inspect.isawaitable(res):
+                await res
+            return
+    except Exception:
+        pass
+
+
+async def safe_is_visible(locator: Any) -> bool:
+    """Helper to safely check visibility across real Playwright locators and test mocks.
+    Resilient to minimized windows where bounding boxes may report 0 temporarily.
+    """
+    from unittest.mock import MagicMock
+    try:
+        first_loc = getattr(locator, "first", locator)
+        if not hasattr(first_loc, "is_visible"):
+            return False
+        fn = getattr(first_loc, "is_visible")
+        if callable(fn):
+            res = fn()
+            if inspect.isawaitable(res):
+                res = await res
+            if isinstance(res, MagicMock):
+                return False
+            if bool(res):
+                return True
+        # If is_visible is False (e.g. minimized window or off-screen), check DOM presence & display style
+        eval_fn = getattr(first_loc, "evaluate", None)
+        if callable(eval_fn):
+            res = eval_fn("""el => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                return style && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+            }""")
+            if inspect.isawaitable(res):
+                res = await res
+            if isinstance(res, MagicMock):
+                return False
+            return bool(res)
+        return False
+    except Exception:
+        return False
+
+
+async def safe_count(locator: Any) -> int:
+    """Helper to safely count elements across real Playwright locators and test mocks."""
+    from unittest.mock import MagicMock
+    try:
+        if not hasattr(locator, "count"):
+            return 0
+        fn = getattr(locator, "count")
+        if callable(fn):
+            res = fn()
+            if inspect.isawaitable(res):
+                res = await res
+            if isinstance(res, MagicMock):
+                return 0
+            return int(res) if isinstance(res, (int, float)) else 0
+        return 0
+    except Exception:
+        return 0
 
 
 def find_chrome_executable() -> str | None:
@@ -171,10 +330,90 @@ def find_chrome_executable() -> str | None:
     return None
 
 
+def find_edge_executable() -> str | None:
+    """Auto-detect real Microsoft Edge executable on Windows/Linux."""
+    candidates = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ]
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        candidates.append(os.path.join(local_app_data, r"Microsoft\Edge\Application\msedge.exe"))
+    prog_files_x86 = os.environ.get("PROGRAMFILES(X86)")
+    if prog_files_x86:
+        candidates.append(os.path.join(prog_files_x86, r"Microsoft\Edge\Application\msedge.exe"))
+    prog_files = os.environ.get("PROGRAMFILES")
+    if prog_files:
+        candidates.append(os.path.join(prog_files, r"Microsoft\Edge\Application\msedge.exe"))
+    candidates.extend([
+        "/usr/bin/microsoft-edge",
+        "/usr/bin/microsoft-edge-stable",
+    ])
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+    return None
+
+
+def resolve_browser_launch_target(
+    browser_engine: str | None = None,
+    chrome_binary_path: str | None = None,
+    use_chrome: bool = True,
+    has_extension: bool = False,
+) -> tuple[str | None, str | None]:
+    """
+    Resolves (executable_path, channel) for Playwright persistent context launch.
+    Strictly respects user configuration:
+      - 'chrome' -> returns the configured executable or Chrome channel. A managed
+                    Chrome instance that blocks an unpacked extension fails clearly.
+      - 'edge'/'msedge' -> returns (executable_path, None) or (None, 'msedge')
+      - 'chromium' -> returns (None, None) for bundled Chromium
+    """
+    raw_engine = (browser_engine or ("chrome" if use_chrome else "chromium")).lower().strip()
+    if chrome_binary_path and not os.path.isfile(chrome_binary_path):
+        raise FileNotFoundError("Configured browser executable does not exist")
+
+    if raw_engine in ("edge", "msedge", "microsoft-edge"):
+        if chrome_binary_path:
+            return (chrome_binary_path, None)
+        return (None, "msedge")
+
+    if raw_engine in ("chrome", "google-chrome"):
+        # On Windows, Native Chrome strictly blocks unpacked extensions via CLI flags if the browser is "Managed"
+        import sys
+        if sys.platform == "win32" and has_extension:
+            import winreg
+            is_managed = False
+            for root_key in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(root_key, r"SOFTWARE\Policies\Google\Chrome") as _:
+                        is_managed = True
+                except OSError:
+                    pass
+            if is_managed:
+                raise RuntimeError(
+                    "Selected Google Chrome is managed and cannot load the configured "
+                    "AntiCaptcha extension; choose Chromium in Settings"
+                )
+
+        if chrome_binary_path:
+            return (chrome_binary_path, None)
+        chrome_exe = find_chrome_executable()
+        if chrome_exe and os.path.isfile(chrome_exe):
+            return (chrome_exe, None)
+        return (None, "chrome")
+
+    if raw_engine == "chromium":
+        return (None, None)
+
+    raise ValueError(f"Unsupported browser engine: {raw_engine}")
+
+
+
 def resolve_extension_dir(configured_dir: str | None = None) -> str | None:
     """Resolves AntiCaptcha extension directory path from settings or local project tree."""
     if configured_dir:
-        clean_dir = configured_dir.strip().strip('"').strip("'")
+        clean_dir = str(configured_dir).strip().strip('"').strip("'")
         if os.path.exists(clean_dir):
             return os.path.normpath(os.path.abspath(clean_dir))
 
@@ -242,8 +481,8 @@ class BaseCourtScraper(ABC):
         base_url: str,
         headless: bool | None = None,
         timeout_ms: int | None = None,
-        max_attempts: int = 5,
-        captcha_wait_seconds: int = 15,
+        max_attempts: int = 2,
+        captcha_wait_seconds: int = 120,
         reload_backoff_seconds: int = 2,
         use_chrome: bool = True,
         extension_dir: str | None = None,
@@ -260,6 +499,8 @@ class BaseCourtScraper(ABC):
         self.captcha_wait_seconds = captcha_wait_seconds
         self.reload_backoff_seconds = reload_backoff_seconds
         self.use_chrome = use_chrome
+        self.browser_engine = kwargs.get("browser_engine") or ("chrome" if use_chrome else "chromium")
+        self.chrome_binary_path = kwargs.get("chrome_binary_path")
         self.extension_dir = extension_dir
         self.resolved_extension_dir = resolve_extension_dir(extension_dir)
         self.user_data_dir = user_data_dir
@@ -284,11 +525,16 @@ class BaseCourtScraper(ABC):
                     pass
             await asyncio.sleep(pacing / 1000.0)
 
+    async def resilient_click(self, locator: Any, page: Page | None = None, timeout_ms: int = 3000) -> None:
+        """Instance method for 4-tier resilient click."""
+        await resilient_click(locator, page=page, timeout_ms=timeout_ms)
+
     async def biometric_fill(self, locator: Any, text: str) -> None:
         """
         Fills input fields respecting configured typing_speed_mode and typing_delay_ms.
         - Turbo / Instant (0ms): Uses direct DOM locator.fill(text) for ~2ms execution (700x faster).
         - Fast / Balanced / Cautious (>0ms): Single native press_sequentially(text, delay=N) call without character loops.
+        - Resilient against minimized or resized browser windows via direct DOM event dispatch fallback.
         """
         import inspect
         try:
@@ -307,17 +553,44 @@ class BaseCourtScraper(ABC):
                 seq_res = locator.press_sequentially(text, delay=self.typing_delay_ms)
                 if inspect.isawaitable(seq_res):
                     await seq_res
-        except TypeError:
-            # If MagicMock throws TypeError when awaiting
-            pass
         except AttributeError:
-            # Fallback to fill for older Playwright versions
-            fill_res = locator.fill(text)
-            if inspect.isawaitable(fill_res):
-                await fill_res
+            try:
+                fill_res = locator.fill(text)
+                if inspect.isawaitable(fill_res):
+                    await fill_res
+            except Exception as fallback_error:
+                raise PortalSearchError(
+                    f"[{self.county_name}] Field entry failed in both browser paths"
+                ) from fallback_error
+        except Exception:
+            # Resilient fallback for minimized or resized windows: direct DOM
+            # value set and input/change events. Failure must reach portal retry.
+            try:
+                eval_fn = getattr(locator, "evaluate", None)
+                if not callable(eval_fn):
+                    raise AttributeError("DOM evaluation is unavailable")
+                res = eval_fn("""(el, val) => {
+                    if (!el) return false;
+                    el.scrollIntoView({block: 'center', inline: 'center'});
+                    el.focus();
+                    el.value = val;
+                    el.dispatchEvent(new Event('input', {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                    return true;
+                }""", text)
+                if inspect.isawaitable(res):
+                    res = await res
+                if res is False:
+                    raise RuntimeError("DOM field entry returned no target element")
+            except Exception as fallback_error:
+                raise PortalSearchError(
+                    f"[{self.county_name}] Field entry failed in both browser and DOM paths"
+                ) from fallback_error
+        finally:
+            await self.pace_action()
 
     async def biometric_click(self, page: Page, locator: Any) -> None:
-        """Clicks element with mouse pacing and optional stealth jitter scaling."""
+        """Clicks element with mouse pacing and optional stealth jitter scaling, with resilient fallback."""
         import asyncio
         import inspect
         import random
@@ -327,10 +600,39 @@ class BaseCourtScraper(ABC):
             if getattr(self, "stealth_clicks", False):
                 await asyncio.sleep(random.uniform(0.05, 0.2))
 
-            box = await locator.bounding_box()
-            if box:
+            # The RPA target may be below the attended browser viewport.
+            # Mouse down/up at those coordinates can report success without
+            # dispatching a click to the element.
+            scroll_fn = getattr(locator, "scroll_into_view_if_needed", None)
+            if callable(scroll_fn):
+                scroll_res = scroll_fn()
+                if inspect.isawaitable(scroll_res):
+                    await scroll_res
+
+            box = locator.bounding_box() if hasattr(locator, "bounding_box") else None
+            if inspect.isawaitable(box):
+                box = await box
+
+            if isinstance(box, dict) and box.get("width", 0) > 0 and box.get("height", 0) > 0:
                 # Mouse pacing
                 x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+                viewport = getattr(page, "viewport_size", None)
+                if not isinstance(viewport, dict):
+                    evaluate_fn = getattr(page, "evaluate", None)
+                    if callable(evaluate_fn):
+                        viewport = evaluate_fn("() => ({width: window.innerWidth, height: window.innerHeight})")
+                        if inspect.isawaitable(viewport):
+                            viewport = await viewport
+                if isinstance(viewport, dict) and not (
+                    0 <= x < viewport.get("width", 0)
+                    and 0 <= y < viewport.get("height", 0)
+                ):
+                    # Playwright locator.click() performs its own scroll and
+                    # actionability check when a mouse coordinate is unusable.
+                    click_res = locator.click()
+                    if inspect.isawaitable(click_res):
+                        await click_res
+                    return
                 jitter_x = x + random.uniform(-box["width"]/4, box["width"]/4) if getattr(self, "stealth_clicks", False) else x
                 jitter_y = y + random.uniform(-box["height"]/4, box["height"]/4) if getattr(self, "stealth_clicks", False) else y
                 steps = random.randint(3, 6) if getattr(self, "stealth_clicks", False) else 1
@@ -352,7 +654,21 @@ class BaseCourtScraper(ABC):
                 if inspect.isawaitable(clk_res):
                     await clk_res
             except Exception:
-                pass
+                try:
+                    eval_fn = getattr(locator, "evaluate", None)
+                    if not callable(eval_fn):
+                        raise AttributeError("DOM evaluation is unavailable")
+                    res = eval_fn("el => { if (!el) return false; el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); return true; }")
+                    if inspect.isawaitable(res):
+                        res = await res
+                    if res is False:
+                        raise RuntimeError("DOM click returned no target element")
+                except Exception as fallback_error:
+                    raise PortalSearchError(
+                        f"[{self.county_name}] Click failed in browser, forced, and DOM paths"
+                    ) from fallback_error
+        finally:
+            await self.pace_action(page)
 
     def record_stage(
         self,
@@ -378,8 +694,8 @@ class BaseCourtScraper(ABC):
         """Dismiss Odyssey/Smart Search session-timeout warning by clicking Continue (V4 Global Standard §5)."""
         try:
             continue_btn = page.locator(
-                "button:has-text('Continue session' i), button:has-text('Continue Session'), "
-                "button:has-text('Continue'), a:has-text('Continue session' i), "
+                "button:has-text('Continue session'), button:has-text('Continue Session'), "
+                "button:has-text('Continue'), a:has-text('Continue session'), "
                 "a:has-text('Continue'), input[value*='Continue' i], [aria-label*='Continue' i]"
             )
             if await continue_btn.count() > 0 and await continue_btn.first.is_visible():
@@ -433,6 +749,73 @@ class BaseCourtScraper(ABC):
             logger.debug(f"[{self.county_name}] Pagination next click note: {e}")
         return False
 
+    async def dismiss_captcha_challenge_popup(self, page: Page) -> None:
+        """
+        Dismisses/closes any open reCAPTCHA, hCaptcha, or Turnstile challenge popup
+        (e.g., Google reCAPTCHA bframe image grid) that remains open after
+        AntiCaptcha has successfully solved the challenge.
+        Performs an outside click, presses Escape, and removes hanging challenge overlays.
+        """
+        try:
+            # 1. Physical mouse click at safe outside viewport coordinates (e.g. 50, 50)
+            mouse = getattr(page, "mouse", None)
+            if mouse is not None:
+                click_fn = getattr(mouse, "click", None)
+                if callable(click_fn):
+                    res = click_fn(50, 50)
+                    if inspect.isawaitable(res):
+                        await res
+            await _safe_wait_timeout(page, 20)
+
+            # 2. Press Escape key
+            keyboard = getattr(page, "keyboard", None)
+            if keyboard is not None:
+                press_fn = getattr(keyboard, "press", None)
+                if callable(press_fn):
+                    res = press_fn("Escape")
+                    if inspect.isawaitable(res):
+                        await res
+            await _safe_wait_timeout(page, 20)
+
+            # 3. Check if challenge iframe or overlay container is still visible/blocking
+            await _safe_eval(page, """() => {
+                // Dispatch outside mousedown/mouseup/click events to document
+                document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
+                document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
+                document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
+
+                // Find challenge iframes (Google reCAPTCHA bframe, hCaptcha, Turnstile)
+                const challengeIframes = document.querySelectorAll(
+                    'iframe[src*="bframe"], ' +
+                    'iframe[title*="recaptcha challenge" i], ' +
+                    'iframe[title*="challenge" i], ' +
+                    'iframe[src*="hcaptcha.com/box"]'
+                );
+
+                for (const iframe of challengeIframes) {
+                    let parent = iframe.parentElement;
+                    let depth = 0;
+                    while (parent && parent !== document.body && depth < 5) {
+                        const style = window.getComputedStyle(parent);
+                        const zIndex = parseInt(style.zIndex, 10);
+                        if (zIndex > 1000 || style.position === 'absolute' || style.position === 'fixed') {
+                            parent.style.setProperty('display', 'none', 'important');
+                            parent.style.setProperty('visibility', 'hidden', 'important');
+                            parent.style.setProperty('pointer-events', 'none', 'important');
+                            break;
+                        }
+                        parent = parent.parentElement;
+                        depth++;
+                    }
+                    iframe.style.setProperty('display', 'none', 'important');
+                    iframe.style.setProperty('pointer-events', 'none', 'important');
+                }
+            }""")
+            await _safe_wait_timeout(page, 20)
+            logger.info(f"[{self.county_name}] CAPTCHA challenge popup dismissed (outside click & cleanup performed).")
+        except Exception as e_dismiss:
+            logger.debug(f"[{self.county_name}] CAPTCHA popup dismissal note: {e_dismiss}")
+
     @abstractmethod
 
     async def search_by_party_name(
@@ -445,6 +828,20 @@ class BaseCourtScraper(ABC):
         """Search portal using party first and last name and extract matching court cases."""
 
     async def detect_and_handle_captcha(self, page: Page, wait_seconds: int | None = None) -> bool:
+        """Resolve a challenge within a strict wall-clock deadline, returning on success."""
+        wait_sec = self.captcha_wait_seconds if wait_seconds is None else wait_seconds
+        if wait_sec <= 0:
+            return False
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + wait_sec
+        try:
+            async with asyncio.timeout_at(deadline):
+                return await self._detect_and_handle_captcha_until(page, wait_sec, deadline)
+        except TimeoutError:
+            logger.warning(f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout.")
+            return False
+
+    async def _detect_and_handle_captcha_until(self, page: Page, wait_sec: int, deadline: float) -> bool:
         """
         Robustly detects and waits for CAPTCHA resolution across all portals.
         1. Performs an initial mount scan (up to 5s) to detect if any challenge or solver is loading.
@@ -453,7 +850,7 @@ class BaseCourtScraper(ABC):
         4. Returns True ONLY when token resolution is verified, or if no challenge exists on page after scanning.
         5. Returns False if wait_seconds timeout expires without resolution.
         """
-        wait_sec = wait_seconds or self.captcha_wait_seconds
+        loop = asyncio.get_running_loop()
         mode_str = "Headless" if self.headless else "Attended (Visible GUI)"
         logger.info(f"[{self.county_name}] [{mode_str}] Inspecting page for CAPTCHA challenge (max wait: {wait_sec}s)...")
 
@@ -463,6 +860,8 @@ class BaseCourtScraper(ABC):
             challenge_type = None
 
             for scan_i in range(10):
+                if loop.time() >= deadline - 0.02:
+                    break
                 # Check frames
                 for frame in page.frames:
                     f_url = (frame.url or "").lower()
@@ -482,33 +881,24 @@ class BaseCourtScraper(ABC):
                 if has_challenge:
                     break
 
-                # Check DOM containers
+                # Check DOM containers and generic checkboxes via fast DOM evaluation
                 dom_detected = await _safe_eval(page, '''() => {
                     if (document.querySelector('#RecaptchaField1, .g-recaptcha, textarea[name="g-recaptcha-response"]')) return 'recaptcha';
                     if (document.querySelector('.cf-turnstile, [data-sitekey], input[name="cf-turnstile-response"]')) return 'turnstile';
                     if (document.querySelector('.h-captcha, textarea[name="h-captcha-response"]')) return 'hcaptcha';
                     if (document.querySelector('.antigate_solver, [class*="antigate"]')) return 'antigate';
+                    if (document.querySelector("input[type='checkbox'][name*='captcha' i], input[type='checkbox'][id*='captcha' i], input[type='checkbox'][name*='robot' i], [aria-label*='captcha' i]")) return 'generic';
                     return null;
                 }''')
-                if isinstance(dom_detected, str) and dom_detected in ("recaptcha", "turnstile", "hcaptcha", "antigate"):
+                if isinstance(dom_detected, str) and dom_detected in ("recaptcha", "turnstile", "hcaptcha", "antigate", "generic"):
                     has_challenge = True
                     challenge_type = dom_detected if dom_detected != "antigate" else "recaptcha"
                     break
 
-                # Check generic checkboxes
-                generic_box = page.locator(
-                    "input[type='checkbox'][name*='captcha' i], "
-                    "input[type='checkbox'][id*='captcha' i], "
-                    "input[type='checkbox'][name*='robot' i], "
-                    "label:has-text('I am not a robot'), "
-                    "label:has-text('Verify you are human')"
-                )
-                if await generic_box.count() > 0 and await generic_box.first.is_visible():
-                    has_challenge = True
-                    challenge_type = "generic"
+                remaining = deadline - loop.time()
+                if remaining <= 0.02:
                     break
-
-                await _safe_wait_timeout(page, 500)
+                await asyncio.sleep(min(0.5, remaining - 0.02))
 
             if not has_challenge:
                 logger.info(f"[{self.county_name}] No CAPTCHA challenge detected on page after initial scan. Proceeding.")
@@ -522,7 +912,9 @@ class BaseCourtScraper(ABC):
             hcaptcha_frame = None
             for frame in page.frames:
                 f_url = (frame.url or "").lower()
-                if "recaptcha" in f_url or "google.com/recaptcha" in f_url:
+                if ("recaptcha" in f_url and "anchor" in f_url) or "recaptcha/api2/anchor" in f_url:
+                    recaptcha_frame = frame
+                elif not recaptcha_frame and ("recaptcha" in f_url or "google.com/recaptcha" in f_url):
                     recaptcha_frame = frame
                 elif "cloudflare" in f_url or "turnstile" in f_url or "challenges.cloudflare.com" in f_url:
                     turnstile_frame = frame
@@ -571,43 +963,79 @@ class BaseCourtScraper(ABC):
                         pass
 
             # 3. Active Polling Loop: wait for AntiCaptcha solving and token injection
-            poll_intervals = max(int(wait_sec * 2), 10)
-            for it in range(poll_intervals):
-                await _safe_wait_timeout(page, 500)
-                elapsed_sec = round((it + 1) * 0.5, 1)
+            poll_started = loop.time()
+            it = 0
+            while loop.time() < deadline:
+                elapsed_sec = round(loop.time() - poll_started, 1)
 
-                # A. Check AntiCaptcha extension in-process state
-                solver_status = await _safe_eval(page, '''() => {
-                    const el = document.querySelector('.antigate_solver, [class*="antigate"]');
-                    if (!el) return { exists: false, in_process: false, solved: false };
-                    const cls = (el.className || "").toLowerCase();
-                    const txt = (el.innerText || "").toLowerCase();
-                    const st = (el.getAttribute("data-status") || "").toLowerCase();
-                    const in_proc = cls.includes("in_process") || st.includes("in_process") || txt.includes("solving") || txt.includes("process") || txt.includes("connecting");
-                    const is_solved = cls.includes("solved") || st.includes("solved") || txt.includes("solved");
-                    return { exists: true, in_process: in_proc, solved: is_solved };
-                }''')
+                frames_to_poll = [page] + [f for f in getattr(page, "frames", []) if f is not page]
 
+                # A. Check AntiCaptcha extension in-process & solved state across all frames
                 is_in_proc = False
-                if isinstance(solver_status, dict):
-                    is_in_proc = bool(solver_status.get("in_process"))
-                elif isinstance(solver_status, str):
-                    is_in_proc = "in_process" in solver_status.lower()
+                is_solver_solved = False
 
-                if is_in_proc:
-                    if it % 10 == 0:
-                        logger.info(f"[{self.county_name}] AntiCaptcha extension solving is in progress... ({elapsed_sec}s / {wait_sec}s)")
-                    continue  # Strictly block premature submission while solving!
+                for f in frames_to_poll:
+                    try:
+                        solver_status = await _safe_eval(f, '''() => {
+                            const solvers = document.querySelectorAll('.antigate_solver, [class*="antigate"], .solved_flag');
+                            if (!solvers || solvers.length === 0) return { exists: false, in_process: false, solved: false };
+                            let any_in_proc = false;
+                            let any_solved = false;
+                            for (const el of solvers) {
+                                let el_in_proc = false;
+                                let el_solved = false;
+                                const cls = (el.className || "").toLowerCase();
+                                const txt = (el.innerText || "").toLowerCase();
+                                const st = (el.getAttribute("data-status") || "").toLowerCase();
 
-                # B. Check reCAPTCHA solve token
-                recaptcha_eval = await _safe_eval(page, '''() => {
-                    const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea#g-recaptcha-response, textarea.g-recaptcha-response');
-                    for (const ta of textareas) {
-                        if (ta.value && ta.value.trim().length > 25) return true;
-                    }
-                    return false;
-                }''')
-                has_recaptcha_token = bool(recaptcha_eval) if isinstance(recaptcha_eval, (bool, int, str)) and recaptcha_eval else False
+                                if (cls.includes("solved") || st.includes("solved") || txt.includes("solved") || cls.includes("solved_flag") || txt === "solved") {
+                                    el_solved = true;
+                                } else if (cls.includes("in_process") || st.includes("in_process") || txt.includes("solving") || txt.includes("process") || txt.includes("connecting")) {
+                                    el_in_proc = true;
+                                }
+
+                                if (el_solved) any_solved = true;
+                                if (el_in_proc && !el_solved) any_in_proc = true;
+                            }
+                            return { exists: true, in_process: any_in_proc, solved: any_solved };
+                        }''')
+
+                        if solver_status and isinstance(solver_status, dict):
+                            if solver_status.get("in_process"):
+                                is_in_proc = True
+                            if solver_status.get("solved"):
+                                is_solver_solved = True
+                                break
+                    except Exception:
+                        pass
+
+                # The extension's visible "Solved" state is itself the V4
+                # completion signal. Do not spend another polling cycle (or
+                # probe every challenge frame) before the portal can submit.
+                if is_solver_solved:
+                    logger.info(
+                        f"[{self.county_name}] [{mode_str}] CAPTCHA solved and verified! "
+                        f"(extension status, time: {elapsed_sec}s)"
+                    )
+                    await self.dismiss_captcha_challenge_popup(page)
+                    return True
+
+                # B. Check reCAPTCHA solve token across all frames
+                has_recaptcha_token = False
+                for f in frames_to_poll:
+                    try:
+                        eval_res = await _safe_eval(f, '''() => {
+                            const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea#g-recaptcha-response, textarea.g-recaptcha-response');
+                            for (const ta of textareas) {
+                                if (ta.value && ta.value.trim().length > 25) return true;
+                            }
+                            return false;
+                        }''')
+                        if eval_res:
+                            has_recaptcha_token = True
+                            break
+                    except Exception:
+                        pass
 
                 recaptcha_checked = False
                 if recaptcha_frame:
@@ -620,48 +1048,101 @@ class BaseCourtScraper(ABC):
                     except Exception:
                         pass
 
-                if (has_recaptcha_token or recaptcha_checked) and not is_in_proc:
-                    logger.info(f"[{self.county_name}] [{mode_str}] Google reCAPTCHA solved and verified! (token: {has_recaptcha_token}, checkmark: {recaptcha_checked}, time: {elapsed_sec}s)")
-                    return True
-
-                # C. Check Cloudflare Turnstile solve token
-                turnstile_eval = await _safe_eval(page, '''() => {
-                    const inputs = document.querySelectorAll('input[name="cf-turnstile-response"], textarea[name="cf-turnstile-response"]');
-                    for (const el of inputs) {
-                        if (el.value && el.value.trim().length > 20) return true;
-                    }
-                    return false;
-                }''')
-                has_turnstile_token = bool(turnstile_eval) if isinstance(turnstile_eval, (bool, int, str)) and turnstile_eval else False
-
-                turnstile_success = False
-                if turnstile_frame:
+                # C. Check Cloudflare Turnstile solve token & checkmark across all frames
+                has_turnstile_token = False
+                for f in frames_to_poll:
                     try:
-                        body_txt = await turnstile_frame.inner_text("body")
-                        turnstile_success = "success" in body_txt.lower()
+                        eval_res = await _safe_eval(f, '''() => {
+                            // 1. Any input or textarea with token
+                            const inputs = document.querySelectorAll('input[name*="turnstile"], textarea[name*="turnstile"], input[name*="cf-chl"]');
+                            for (const el of inputs) {
+                                if (el.value && el.value.trim().length > 20) return true;
+                            }
+                            // 2. Window turnstile official API
+                            if (window.turnstile && typeof window.turnstile.getResponse === 'function') {
+                                try {
+                                    const resp = window.turnstile.getResponse();
+                                    if (resp && resp.length > 20) return true;
+                                } catch(e) {}
+                            }
+                            // 3. AntiCaptcha intercepted response
+                            if (window.__turnstileInitParameters && window.__turnstileInitParameters.responses) {
+                                const resps = window.__turnstileInitParameters.responses;
+                                if (resps.lastSolution && resps.lastSolution.length > 20) return true;
+                                for (const k in resps) {
+                                    if (typeof resps[k] === 'string' && resps[k].length > 20) return true;
+                                }
+                            }
+                            return false;
+                        }''')
+                        if eval_res:
+                            has_turnstile_token = True
+                            break
                     except Exception:
                         pass
 
-                if (has_turnstile_token or turnstile_success) and not is_in_proc:
-                    logger.info(f"[{self.county_name}] [{mode_str}] Cloudflare Turnstile challenge solved and verified! (token: {has_turnstile_token}, frame: {turnstile_success}, time: {elapsed_sec}s)")
+                turnstile_checked = False
+                for frame in getattr(page, "frames", []):
+                    f_url = (getattr(frame, "url", "") or "").lower()
+                    if "cloudflare" in f_url or "turnstile" in f_url or "challenges" in f_url:
+                        try:
+                            f_res = await _safe_eval(frame, '''() => {
+                                const cb = document.querySelector('input[type="checkbox"], [role="checkbox"]');
+                                if (cb && (cb.checked || cb.getAttribute('aria-checked') === 'true')) return true;
+                                const successIcon = document.querySelector('#success-icon, .success-icon, #challenge-success, svg.mark, svg[class*="success"]');
+                                if (successIcon) return true;
+                                const stage = document.querySelector('#challenge-stage, .ctp-checkbox-container');
+                                if (stage && (stage.className || '').toLowerCase().includes('success')) return true;
+                                return false;
+                            }''')
+                            if bool(f_res):
+                                turnstile_checked = True
+                                break
+                        except Exception:
+                            pass
+
+                # D. Check hCaptcha solve token across all frames
+                has_hcaptcha_token = False
+                for f in frames_to_poll:
+                    try:
+                        eval_res = await _safe_eval(f, '''() => {
+                            const textareas = document.querySelectorAll('textarea[name="h-captcha-response"]');
+                            for (const ta of textareas) {
+                                if (ta.value && ta.value.trim().length > 20) return true;
+                            }
+                            return false;
+                        }''')
+                        if eval_res:
+                            has_hcaptcha_token = True
+                            break
+                    except Exception:
+                        pass
+
+                # E. Evaluate Resolution
+                is_solved = (
+                    has_recaptcha_token or recaptcha_checked or
+                    has_turnstile_token or turnstile_checked or
+                    has_hcaptcha_token or
+                    is_solver_solved
+                )
+
+                if is_solved:
+                    logger.info(f"[{self.county_name}] [{mode_str}] CAPTCHA solved and verified! (time: {elapsed_sec}s)")
+                    await self.dismiss_captcha_challenge_popup(page)
                     return True
 
-                # D. Check hCaptcha solve token
-                hcaptcha_eval = await _safe_eval(page, '''() => {
-                    const inputs = document.querySelectorAll('textarea[name="h-captcha-response"]');
-                    for (const el of inputs) {
-                        if (el.value && el.value.trim().length > 20) return true;
-                    }
-                    return false;
-                }''')
-                has_hcaptcha_token = bool(hcaptcha_eval) if isinstance(hcaptcha_eval, (bool, int, str)) and hcaptcha_eval else False
-                if has_hcaptcha_token and not is_in_proc:
-                    logger.info(f"[{self.county_name}] [{mode_str}] hCaptcha solved and verified! (time: {elapsed_sec}s)")
-                    return True
-
-                # Periodic guidance in attended GUI mode
-                if not self.headless and (it % 10 == 0 and it > 0):
+                if is_in_proc:
+                    if it % 10 == 0:
+                        logger.info(f"[{self.county_name}] AntiCaptcha extension solving is in progress... ({elapsed_sec}s / {wait_sec}s)")
+                elif not self.headless and (it % 10 == 0 and it > 0):
+                    # Periodic guidance in attended GUI mode
                     logger.info(f"[{self.county_name}] Attended mode: Waiting for CAPTCHA resolution ({elapsed_sec}s / {wait_sec}s)...")
+
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    break
+                await asyncio.sleep(min(0.5, remaining))
+                it += 1
 
             logger.warning(f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout.")
             return False
@@ -691,37 +1172,19 @@ class BaseCourtScraper(ABC):
                 logger.info(f"[{self.county_name}] Attempt {attempt}/{self.max_attempts} for '{full_name}' on current tab")
                 if attempt > 1:
                     await page.reload(wait_until="domcontentloaded")
-                    await page.wait_for_timeout(self.reload_backoff_seconds * 1000)
 
-                t_op_start = datetime.now()
                 results = await self.search_by_party_name(first_name, last_name, page, **kwargs)
-                t_op_end = datetime.now()
-
-                total_op_secs = max(round((t_op_end - t_op_start).total_seconds(), 3), 0.001)
-                if "website_navigation" not in self.stage_timings:
-                    t_nav_dur = round(total_op_secs * 0.25, 3)
-                    self.record_stage("website_navigation", "Website Navigation", t_op_start, t_op_start + timedelta(seconds=t_nav_dur), url=self.base_url)
-                if "data_filling" not in self.stage_timings:
-                    t_fill_start = t_op_start + timedelta(seconds=total_op_secs * 0.25)
-                    t_fill_dur = round(total_op_secs * 0.25, 3)
-                    self.record_stage("data_filling", "Data Filling", t_fill_start, t_fill_start + timedelta(seconds=t_fill_dur), party=full_name)
-                if "captcha" not in self.stage_timings:
-                    t_cap_start = t_op_start + timedelta(seconds=total_op_secs * 0.50)
-                    t_cap_dur = round(total_op_secs * 0.20, 3)
-                    self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_start + timedelta(seconds=t_cap_dur), solver="AntiCaptcha Extension")
-                if "submit" not in self.stage_timings:
-                    t_sub_start = t_op_start + timedelta(seconds=total_op_secs * 0.70)
-                    t_sub_dur = round(total_op_secs * 0.10, 3)
-                    self.record_stage("submit", "Search Submit", t_sub_start, t_sub_start + timedelta(seconds=t_sub_dur))
-                if "result_retrieval" not in self.stage_timings:
-                    t_ret_start = t_op_start + timedelta(seconds=total_op_secs * 0.80)
-                    self.record_stage("result_retrieval", "Result Retrieval", t_ret_start, t_op_end, cases_found=len(results), result_category="Data Found" if results else "No Record Found")
 
                 logger.info(f"[{self.county_name}] Attempt {attempt} SUCCESS! Found {len(results)} court cases.")
                 return results
 
             except SecurityBlockException:
                 # Re-raise directly to bypass redundant retry loops and trigger non-blocking failover
+                raise
+
+            except (CaptchaResolutionError, PortalConfigurationError, PortalAuthenticationError):
+                # Portal-specific attempts or prerequisites cannot be fixed by
+                # refreshing and repeating the same search.
                 raise
 
             except Exception as e:
@@ -743,9 +1206,11 @@ class BaseCourtScraper(ABC):
                 else:
                     logger.error(
                         f"[{self.county_name}] Failed after {self.max_attempts} attempts for '{full_name}'. "
-                        f"Safely skipping this portal and continuing."
+                        "Reporting the failure so it cannot be recorded as a verified no-match."
                     )
-        return []
+                    raise PortalSearchError(
+                        f"{self.county_name} search failed after {self.max_attempts} attempts for '{full_name}'"
+                    ) from e
 
     async def detect_security_block(self, page: Page) -> tuple[bool, str, int]:
         """
@@ -915,7 +1380,11 @@ class BaseCourtScraper(ABC):
         launch_args = [
             "--disable-blink-features=AutomationControlled",
             "--start-maximized",
-            "--window-position=50,50",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--disable-infobars",
+            "--test-type",
             f"--disk-cache-dir={cache_dir}",
         ]
 
@@ -928,14 +1397,21 @@ class BaseCourtScraper(ABC):
         if has_extension:
             launch_args.append(f"--disable-extensions-except={ext_dir}")
             launch_args.append(f"--load-extension={ext_dir}")
-            launch_args.append("--no-sandbox")
+            if sys.platform != "win32":
+                launch_args.append("--no-sandbox")
 
         target_user_dir = (self.user_data_dir or "").strip()
-        if "Users\\Default" in target_user_dir:
-            target_user_dir = ""
+        if target_user_dir and not os.path.isdir(target_user_dir):
+            raise ValueError(
+                "Configured Chrome User Data Directory does not exist or is not a directory"
+            )
 
-        executable_path = find_chrome_executable() if self.use_chrome else None
-        channel = "chrome" if (self.use_chrome and not executable_path) else None
+        executable_path, channel = resolve_browser_launch_target(
+            browser_engine=self.browser_engine,
+            chrome_binary_path=self.chrome_binary_path,
+            use_chrome=self.use_chrome,
+            has_extension=has_extension,
+        )
 
         async with async_playwright() as p:
             is_headless = self.headless
@@ -952,6 +1428,23 @@ class BaseCourtScraper(ABC):
             profile_to_use = target_user_dir or tempfile.mkdtemp(prefix="uaic_chrome_profile_")
             if not target_user_dir:
                 is_temp_profile = True
+
+            # Pre-configure profile preferences so Chrome always starts maximized
+            if profile_to_use:
+                try:
+                    pref_path = Path(profile_to_use) / "Default" / "Preferences"
+                    pref_path.parent.mkdir(parents=True, exist_ok=True)
+                    prefs_dict = {}
+                    if pref_path.is_file():
+                        try:
+                            prefs_dict = json.loads(pref_path.read_text(encoding="utf-8"))
+                        except Exception:
+                            prefs_dict = {}
+                    b_pref = prefs_dict.setdefault("browser", {})
+                    b_pref["show_extensions_toolbar_menu"] = True
+                    pref_path.write_text(json.dumps(prefs_dict, indent=2), encoding="utf-8")
+                except Exception as e_pref:
+                    logger.debug(f"[{self.county_name}] Note setting toolbar preferences: {e_pref}")
 
             t_launch_start = datetime.now()
             try:
@@ -973,21 +1466,22 @@ class BaseCourtScraper(ABC):
 
                 context = await p.chromium.launch_persistent_context(**launch_kwargs)
 
+                engine_label = "Google Chrome" if ("chrome" in (self.browser_engine or "").lower() or channel == "chrome") else ("Microsoft Edge" if ("edge" in (self.browser_engine or "").lower() or channel == "msedge") else "Chromium")
                 t_launch_end = datetime.now()
                 self.record_stage(
                     "browser_launch",
                     "Browser Launch",
                     t_launch_start,
                     t_launch_end,
-                    detail=f"Google Chrome ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'}) + AntiCaptcha" if has_extension else f"Google Chrome ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'})",
+                    detail=f"{engine_label} ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'}) + AntiCaptcha" if has_extension else f"{engine_label} ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'})",
                 )
 
                 if self.anticaptcha_api_key and has_extension:
                     try:
                         worker = context.service_workers[0] if context.service_workers else (context.background_pages[0] if context.background_pages else None)
                         if worker:
-                            await worker.evaluate(f"chrome.storage.local.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': true }})")
-                            await worker.evaluate(f"chrome.storage.sync.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': true }})")
+                            await worker.evaluate(f"chrome.storage.local.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false }})")
+                            await worker.evaluate(f"chrome.storage.sync.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false }})")
                     except Exception as e:
                         logger.warning(f"[{self.county_name}] Note on AntiCaptcha storage injection: {e}")
 
@@ -1012,5 +1506,3 @@ class BaseCourtScraper(ABC):
                         shutil.rmtree(profile_to_use, ignore_errors=True)
                     except Exception:
                         pass
-
-

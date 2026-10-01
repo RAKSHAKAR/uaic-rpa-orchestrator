@@ -18,6 +18,8 @@ from app.schemas.settings import (
     PortalTestRequest,
     PortalTestResponse,
 )
+from app.services.portal_proxy import portal_proxy_url
+from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.guidewire_client")
 
@@ -321,8 +323,15 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
 
     start = time.perf_counter()
     try:
-        client = HTTPClient.get_client(timeout=timeout)
-        res = await client.get(url, headers=headers, follow_redirects=True)
+        proxy_url = portal_proxy_url((await get_system_settings_async()).proxy)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            verify=False,
+            follow_redirects=True,
+            proxy=proxy_url,
+            trust_env=False,
+        ) as client:
+            res = await client.get(url, headers=headers)
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         is_reachable = res.status_code < 500
 
@@ -335,7 +344,7 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
             duration_ms=duration_ms,
             error_detail=None if is_reachable else f"Server error: {res.status_code}",
         )
-    except httpx.ConnectError as e:
+    except httpx.ConnectError:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         return PortalTestResponse(
             portal_name=request_data.portal_name,
@@ -344,7 +353,7 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
             status_code=0,
             status_text="Host Unreachable",
             duration_ms=duration_ms,
-            error_detail=str(e),
+            error_detail="Could not connect to the court portal. Check the configured proxy and portal URL.",
         )
     except httpx.TimeoutException:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
@@ -357,7 +366,7 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
             duration_ms=duration_ms,
             error_detail=f"Timed out after {timeout} seconds",
         )
-    except Exception as e:
+    except Exception:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         return PortalTestResponse(
             portal_name=request_data.portal_name,
@@ -366,5 +375,5 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
             status_code=500,
             status_text="Request Error",
             duration_ms=duration_ms,
-            error_detail=str(e),
+            error_detail="Court portal request failed. Check the configured proxy and portal URL.",
         )

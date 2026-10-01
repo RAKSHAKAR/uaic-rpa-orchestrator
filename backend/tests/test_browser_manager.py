@@ -96,7 +96,7 @@ async def test_profile_preferences_pinned_extensions(tmp_path, mocker):
     pref_file = tmp_path / "Default" / "Preferences"
     assert pref_file.exists()
     prefs = json.loads(pref_file.read_text(encoding="utf-8"))
-    assert prefs["extensions"]["developer_mode"] is True
+    assert prefs["extensions"]["ui"]["developer_mode"] is True
     assert "gcpdbjbmekkdlkpldjgffhmapgpdlcpj" in prefs["extensions"]["pinned_extensions"]
 
 
@@ -247,6 +247,7 @@ async def test_chrome_profile_seeding_and_args(tmp_path, mocker):
     (mock_source_default / "Secure Preferences").write_text('{"secure": true}', encoding="utf-8")
 
     mocker.patch.object(ChromeSession, "find_default_chrome_user_data_dir", return_value=mock_source)
+    mocker.patch.object(ChromeSession, "get_persistent_profile_dir", return_value=mock_source)
     mocker.patch.object(ChromeSession, "find_chrome_executable", return_value=mock_source / "chrome.exe")
 
     captured_kwargs = {}
@@ -277,6 +278,7 @@ async def test_chrome_profile_seeding_and_args(tmp_path, mocker):
     session = ChromeSession(
         browser_engine="chrome",
         extension_path=Path(r".\anticaptcha-plugin_v0.83"),
+        isolated_profile=True,
     )
     await session.start()
 

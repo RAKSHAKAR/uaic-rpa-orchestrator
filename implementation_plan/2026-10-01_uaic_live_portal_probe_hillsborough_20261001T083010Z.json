@@ -1,0 +1,32 @@
+{
+  "implementation_id": "IMP-2026-1001-002",
+  "timestamp_utc": "2026-10-01T08:30:10.603596+00:00",
+  "synthetic_search": {
+    "first": "John",
+    "last": "Smith",
+    "date_of_loss": "01/01/2024"
+  },
+  "findings": [
+    {
+      "portal": "hillsborough",
+      "configured_url": "https://hover.hillsclerk.com/",
+      "navigation": "loaded",
+      "search": "returned",
+      "case_count": 49,
+      "first_case_fields": [
+        "CaseNumber",
+        "CaseStatus",
+        "CaseStyle",
+        "CaseType",
+        "FilingDate"
+      ],
+      "final_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "page_title": "Case Search",
+      "captcha_visible": false,
+      "error": null,
+      "http_status": 200,
+      "first_case_number": "26-CP-003327",
+      "screenshot": "implementation_plan\\Images\\IMP-2026-1001-002_hillsborough_live_probe.png"
+    }
+  ]
+}

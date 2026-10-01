@@ -1,0 +1,1498 @@
+@@ConnectionString: ''
+@@Type: 'Local'
+@@DesktopType: 'local'
+@@DisplayName: 'Local computer'
+IMPORT 'controlRepo.appmask' AS appmask
+@@IsExternal: 'True'
+@@ExternalId: '5fa7054f-2475-45d7-b3cd-d86a8461964f'
+@@VirtualGroupDisplayName: 'Local computer'
+@@ConnectionString: ''
+@@Type: 'Local'
+@@DesktopType: 'local'
+@@DisplayName: 'Broward_'
+IMPORT 'external_controlRepository.appmask' AS appmask_external_5fa7054f247545d7b3cdd86a8461964f
+IMPORT 'imageRepo.imgrepo' AS imgrepo
+@SENSITIVE: [Password]
+LABEL Restart
+SET ErrorReason TO $fx'=Blank()'
+DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Websitestarttime
+BLOCK 'Exceptional Errors on Launching Browser'
+ON BLOCK ERROR REPEAT 2 TIMES WAIT 2
+ON BLOCK ERROR all
+    CALL Subflow_SendErrorNotification
+    SET ErrorReason TO $fx'Either not able to close existing chrome session or launch new urls. Check and take the necessary action manually.'
+    THROW ERROR
+END
+    DISABLE System.TerminateProcess.TerminateProcessByName ProcessName: $fx'chrome'
+    ON ERROR REPEAT 3 TIMES WAIT 2
+    ON ERROR
+        CALL Subflow_SendErrorNotification
+        SET ErrorReason TO $fx'Not able to close existing chrome session. Check and close manually.'
+        THROW ERROR
+    END
+    WebAutomation.LaunchChrome.LaunchChrome Url: $fx'https://www.browardclerk.org/Web2' WindowState: WebAutomation.BrowserWindowState.Maximized ClearCache: False ClearCookies: False WaitForPageToLoadTimeout: $fx'60' Timeout: $fx'60' PiPUserDataFolderMode: WebAutomation.PiPUserDataFolderModeEnum.DefaultProfile TargetDesktop: $fx'{"DisplayName":"Local computer","Route":{"ServerType":"Local","ServerAddress":""},"DesktopType":"local"}' BrowserInstance=> BrowserBroward
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> BrowserDallas
+    ON ERROR
+
+    END
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> BrowserTravis
+    ON ERROR
+
+    END
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> BrowserHarris
+    ON ERROR
+
+    END
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://www2.miamidadeclerk.gov/ocs' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> MiamiBrowser
+    ON ERROR
+
+    END
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://www.cclerk.hctx.net/Applications/WebSearch/CourtSearch_R.aspx?ID=7sEuXTcTvvTGPqUccCknhoInzOeggS9/VsSkTmbvCpg5Yc4VUkSw9D2BoqhBlJX59OE2hF/v/Ic5t1p2WmfC5JJfFDNhxg09dvg+GlDfunc+mwSubP923RShNiJ00rRTesN4FSIxZ+uRHJ6EE2QBJQ==' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> BrowserCclerk
+    ON ERROR
+
+    END
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> HillsboroughBrowser
+    ON ERROR
+
+    END
+    WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> HcDistrictBrowser
+    ON ERROR
+
+    END
+END
+DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Websiteendtime
+DateTime.Subtract FromDate: $fx'=Websitestarttime' SubstractDate: $fx'=Websiteendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifference
+Display.ShowMessageDialog.ShowMessage Title: $fx'Website Open Timings' Message: $fx'=TimeDifference' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: True ButtonPressed=> ButtonPressed
+LOOP WHILE $fx'=Boolean(1)'
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> StartTime
+    @@'InputSummaryValue:WORKQUEUE': 'UAICExtractDataWorkQueue'
+LOOP WHILE (WorkQueues.ProcessWorkQueueItem.ProcessWorkQueueItem WorkQueue: $fx'13e37098-7135-f011-8c4d-6045bdf0a0d7' WorkQueueItem=> WorkQueueItem)
+        Text.SplitText.SplitWithDelimiter Text: WorkQueueItem.Value CustomDelimiter: $''',''' IsRegEx: False Result=> TextList
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'OutputSchema:GetItemWithOrganizationResponse': '-891644542'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'GetItemWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=First(TextList)' @GetItemWithOrganizationResponse=> DataverseCurrentItem
+        BLOCK DataExtractionError
+ON BLOCK ERROR
+    CALL Subflow_RecordFailing
+    GOTO Restart
+END
+            CALL ExtractDataFlow
+        END
+        WorkQueues.UpdateWorkQueueItem.UpdateWithProcessingNotes WorkQueueItem: $fx'=WorkQueueItem' Status: WorkQueues.WorkQueueItemStatus.Processed
+    END
+    Display.ShowMessageDialog.ShowMessageWithTimeout Title: $fx'Bot Processing Completed' Message: $fx'Waiting for new queue items' Icon: Display.Icon.Information Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: True Timeout: $fx'=60' ButtonPressed=> ButtonPressed2
+END
+FUNCTION Subflow_Broward GLOBAL
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Anchor \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Label \'Last Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Detailsenterstarttime
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("firstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("lastName").value = "${VarLastName}"; }' Result=> ResultLastName
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("filingDateOnOrAfterP").value = "${VarDOL}"; }' Result=> ResultDOL
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtime
+    DateTime.Subtract FromDate: $fx'=Detailsenterstarttime' SubstractDate: $fx'=DetailsEnterendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEntering
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEntering' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... shboard/29\'']['BrowardCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueBroward
+    DISABLE IF $fx'=AttributeValueBroward="true"' THEN
+        DISABLE LABEL Clickcaptcha
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Div'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Label \'Middle Name\''] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+ON ERROR
+
+END
+        DISABLE WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Broward 13/04/26'], imgrepo['Broward 13/04'], imgrepo['Broward2007'], imgrepo['Broward200726']] FindAllImages: False Tolerance: $fx'=8' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=120' 
+ON ERROR REPEAT 2 TIMES WAIT 3
+END
+    DISABLE END
+    WAIT $fx'=Int(10)'
+    WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_13'], imgrepo['Image_3108']] FindAllImages: False Tolerance: $fx'=7' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X2 Y=> Y2)
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserBroward' Javascript: $fx'function ExecuteScript() { document.getElementById("PersonSearchResults").click(); }' Result=> ResultClick
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Extractionstarttime
+    SET NextPage TO $fx'True'
+    LOOP WHILE $fx'=NextPage = "True"'
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserBroward' Control: $fx'html > body > div:eq(8) > div:eq(3) > div:eq(1) > div:eq(1) > div:eq(1) > div:eq(1) > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(0) > div > button', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(4)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageBroward
+        ON ERROR
+
+        END
+        LOOP FOREACH CurrentRowB IN $fx'=DataFromWebPageBroward'
+            SET CaseNumberB TO $fx'=CurrentRowB.\'value #1\''
+            SET CaseStyleB TO $fx'=CurrentRowB.\'Value #2\''
+            SET FilingDateB TO $fx'=CurrentRowB.\'Value #3\''
+            SET CaseStatusB TO $fx'=CurrentRowB.\'Value #4\''
+            SET CaseTypeB TO $fx'=CurrentRowB.\'Value #5\''
+            IF IsEmpty($fx'=JSONListB') THEN
+                SET JSONListB TO $fx'{
+    "CaseNumber": "${CaseNumberB}",
+    "CaseStyle": "${CaseStyleB}",
+    "FilingDate": "${FilingDateB}",
+    "CaseStatus": "${CaseStatusB}",
+    "CaseType": "${CaseTypeB}"
+  }'
+            ELSE
+                SET JSONListB TO $fx'${JSONListB},
+{
+    "CaseNumber": "${CaseNumberB}",
+    "CaseStyle": "${CaseStyleB}",
+    "FilingDate": "${FilingDateB}",
+    "CaseStatus": "${CaseStatusB}",
+    "CaseType": "${CaseTypeB}"
+  }'
+            END
+        END
+        Variables.ClearDataTable DataTable: $fx'=DataFromWebPageBroward'
+        IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... zYUw%3D%3D\'']['Anchor \'Go to the next page\'']) THEN
+            SET NextPage TO $fx'False'
+        ELSE
+            WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Web Page \'h ... zYUw%3D%3D\'']['Anchor \'Go to the next page\' 2'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+            SET NextPage TO $fx'True'
+        END
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Extractionendtime
+    DateTime.Subtract FromDate: $fx'=Extractionstarttime' SubstractDate: $fx'=Extractionendtime' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifference
+    Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings' Message: $fx'=ExtractionTimeDifference' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserBroward' Url: $fx'https://www.browardclerk.org/Web2' WaitForPageToLoadTimeout: $fx'=60'
+    ON ERROR
+        REPEAT ACTION
+    END
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserBroward' Control: appmask['Broward']['Anchor \'Case Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR REPEAT 3 TIMES WAIT 2
+    ON ERROR
+
+    END
+END FUNCTION
+FUNCTION Subflow_Dallas GLOBAL
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() {
+  if (window.location.hostname === "localhost" || window.location.search.includes("dev=true")) {
+    const captchaContainer = document.querySelector("#rc-anchor-container");
+    if (captchaContainer) {
+      captchaContainer.remove();
+    }
+  }
+}' Result=> Result
+    WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserDallas' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasAntiCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueDallas
+    IF $fx'=AttributeValueDallas="true"' THEN
+        LABEL Clickcaptcha
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+        WAIT $fx'=Int(5)'
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=9' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.TopLeft OffsetX: $fx'=0' OffsetY: $fx'=0'
+        ON ERROR
+
+        END
+        WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_8'], imgrepo['Dallas1'], imgrepo['dallas 15/12'], imgrepo['Dallas2007'], imgrepo['Dallas200726'], imgrepo['Image_13-24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Dallas3108'], imgrepo['Image_14_PR_Dallas']] FindAllImages: False Tolerance: $fx'=6' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+        ON ERROR REPEAT 3 TIMES WAIT 8
+        ON ERROR
+            GOTO Clickcaptcha
+        END
+    END
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll(\'input[type="submit"]\')].forEach(el => {
+    if (el.value === "Submit") {
+        el.click();
+    }
+}); }' Result=> ResultClick
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserDallas' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=7' 
+    ON ERROR
+
+    END
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserDallas' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(4)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageDallas
+    ON ERROR
+
+    END
+    LOOP FOREACH CurrentRowD IN $fx'=DataFromWebPageDallas'
+        WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserDallas' Url: $fx'=CurrentRowD.\'value #1\'' WaitForPageToLoadTimeout: $fx'60' NewBrowserInstance=> NewBrowser
+        ON ERROR
+            REPEAT ACTION
+        END
+        WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... tabIndex=3\'']['Paragraph \' ... , MARTIN /\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStyleDallas
+        Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStyleDallas' TextToFind: $fx'[-\\/|]' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> CaseStyleFormatted
+        Text.Trim Text: $fx'=CaseStyleFormatted' TrimOption: Text.TrimOption.Both TrimmedText=> CaseStyleD
+        IF IsEmpty($fx'=JSONListD') THEN
+            SET JSONListD TO $fx'{
+    "CaseNumber": "${CurrentRowD.\'Value #2\'}",
+    "CaseStyle": "${CaseStyleD}",
+    "FilingDate": "${CurrentRowD.\'Value #3\'}",
+    "CaseStatus": "${CurrentRowD.\'Value #4\'}",
+    "CaseType": "${CurrentRowD.\'Value #5\'}"
+  }'
+        ELSE
+            SET JSONListD TO $fx'${JSONListD},
+{
+    "CaseNumber": "${CurrentRowD.\'Value #2\'}",
+    "CaseStyle": "${CaseStyleD}",
+    "FilingDate": "${CurrentRowD.\'Value #3\'}",
+    "CaseStatus": "${CurrentRowD.\'Value #4\'}",
+    "CaseType": "${CurrentRowD.\'Value #5\'}"
+  }'
+        END
+        WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowser'
+    END
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageDallas'
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserDallas' Url: $fx'https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserDallas' Javascript: $fx'function ExecuteScript() { document.querySelector(\'#tcControllerLink_0\').click(); }' Result=> Result4
+END FUNCTION
+FUNCTION Subflow_Travis GLOBAL
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Dallas ']['Label \'* Enter a  ...  Suffix Format\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+    WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['TravisCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueTravisCaptcha
+    IF $fx'=AttributeValueTravisCaptcha="true"' THEN
+        LABEL Clickcaptcha
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['Travis AntiCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+        WAIT $fx'=Int(5)'
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserTravis' Control: appmask['Web Page \'h ... shboard/29\'']['TravisClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+        ON ERROR
+
+        END
+        WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Travis new'], imgrepo['Travis1'], imgrepo['travis 15/12'], imgrepo['Travis2007'], imgrepo['Travis200726'], imgrepo['Image_13 24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Image_14 31826'], imgrepo['Travis3108'], imgrepo['Image_14_PR_Travis']] FindAllImages: False Tolerance: $fx'=10' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+        ON ERROR REPEAT 3 TIMES WAIT 8
+        ON ERROR
+            GOTO Clickcaptcha
+        END
+    END
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { document.getElementById("btnSSSubmit").click(); }' Result=> ResultClick
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserTravis' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=7' 
+    ON ERROR
+
+    END
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserTravis' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(4)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageTravis
+    ON ERROR
+
+    END
+    LOOP FOREACH CurrentRowT IN $fx'=DataFromWebPageTravis'
+        SET WebsiteUrlT TO $fx'https://odysseyweb.traviscountytx.gov'
+        SET CaseUrlT TO $fx'=Concatenate(WebsiteUrlT,CurrentRowT.\'value #1\')'
+        WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserTravis' Url: $fx'=CaseUrlT' WaitForPageToLoadTimeout: $fx'60' NewBrowserInstance=> NewBrowserT
+        ON ERROR
+            REPEAT ACTION
+        END
+        WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowserT' Control: appmask['Travis']['Span \'IN THE INTEREST OF M. M. CHILD(REN)\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStyleInfoT
+        ON ERROR
+
+        END
+        WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowserT' Control: appmask['Travis']['Span \'11/06/2007\''] AttributeName: $fx'Own Text' AttributeValue=> FilingDateInfoT
+        ON ERROR
+
+        END
+        IF IsEmpty($fx'=JSONListT') THEN
+            SET JSONListT TO $fx'{
+    "CaseNumber": "${CurrentRowT.\'Value #2\'}",
+    "CaseStyle": "${CaseStyleInfoT}",
+    "FilingDate": "${FilingDateInfoT}",
+    "CaseStatus": "${CurrentRowT.\'Value #3\'}",
+    "CaseType": "${CurrentRowT.\'Value #4\'}"
+  }'
+        ELSE
+            SET JSONListT TO $fx'${JSONListT},
+{
+    "CaseNumber": "${CurrentRowT.\'Value #2\'}",
+    "CaseStyle": "${CaseStyleInfoT}",
+    "FilingDate": "${FilingDateInfoT}",
+    "CaseStatus": "${CurrentRowT.\'Value #3\'}",
+    "CaseType": "${CurrentRowT.\'Value #4\'}"
+  }'
+        END
+        WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserT'
+    END
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageTravis'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserTravis' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll("p.step-label")].forEach(el => {
+    if (el.textContent.trim() === "Smart Search") {
+        el.click();
+    }
+});
+ }' Result=> ResultClickSearch
+END FUNCTION
+FUNCTION Subflow_Harris GLOBAL
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\' 2']['Heading 1 \'Smart Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR REPEAT 2 TIMES WAIT 2
+    END
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserHarris' Javascript: $fx'function ExecuteScript() { document.getElementById("caseCriteria_SearchCriteria").value = "${VarLastName},${VarFirstName}"; }' Result=> ResultFirstName
+    WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 3']['HarrisCaptcha'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueHarris
+    IF $fx'=AttributeValueHarris="true"' THEN
+        LABEL Clickcaptcha
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 2']['DallasCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=5' OffsetY: $fx'=5'
+        WAIT $fx'=Int(5)'
+        WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... shboard/29\' 3']['HarrisClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+        ON ERROR
+
+        END
+        WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_3'], imgrepo['Image_4'], imgrepo['Harris new'], imgrepo['Harris1'], imgrepo['harris 15/12'], imgrepo['Harris_2307'], imgrepo['Travis200726'], imgrepo['Harris2307'], imgrepo['Image_13_24/8/2026'], imgrepo['Image_13_2482026'], imgrepo['Harris3108'], imgrepo['Image_14_PR_Harris']] FindAllImages: False Tolerance: $fx'=10' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+        ON ERROR REPEAT 4 TIMES WAIT 8
+        ON ERROR
+            GOTO Clickcaptcha
+        END
+    END
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserHarris' Javascript: $fx'function ExecuteScript() { [...document.querySelectorAll(\'input[type="submit"]\')].forEach(el => {
+    if (el.value === "Submit") {
+        el.click();
+    }
+}); }' Result=> ResultClick
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Dallas ']['Paragraph \'No cases match your search\'']) FOR $fx'=15' 
+    ON ERROR
+
+    END
+    IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 6']) THEN
+    ON ERROR
+
+    END
+        SET NextPage TO $fx'True'
+        LOOP WHILE $fx'=NextPage = "True"'
+            WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserHarris' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2) > div', $fx'Title', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHarris
+            ON ERROR
+
+            END
+            LOOP FOREACH CurrentRowH IN $fx'=DataFromWebPageHarris'
+                WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserHarris' Url: $fx'=CurrentRowH.\'value #4\'' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> NewBrowserH
+                WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Paragraph \'Case Status Appeal\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStatusHarris
+                Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStatusHarris' TextToFind: $fx'Case Status' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+                SET CaseStatusH TO $fx'=Replaced'
+                SET CaseNumberH TO $fx'=CurrentRowH.\'value #1\''
+                SET CaseStyleH TO $fx'=CurrentRowH.\'Value #2\''
+                SET FilingDateH TO $fx'=CurrentRowH.\'Value #3\''
+                IF IsEmpty($fx'=JSONListH') THEN
+                    SET JSONListH TO $fx'{
+    "CaseNumber": "${CaseNumberH}",
+    "CaseStyle": "${CaseStyleH}",
+    "FilingDate": "${FilingDateH}",
+    "CaseStatus": "${CaseStatusH}"
+  }'
+                ELSE
+                    SET JSONListH TO $fx'${JSONListH},
+{
+    "CaseNumber": "${CaseNumberH}",
+    "CaseStyle": "${CaseStyleH}",
+    "FilingDate": "${FilingDateH}",
+    "CaseStatus": "${CaseStatusH}"
+  }'
+                END
+                WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserH'
+            END
+            Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHarris'
+            IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 2']) THEN
+                SET NextPage TO $fx'False'
+            ELSE
+                WebAutomation.Click.Click BrowserInstance: $fx'=BrowserHarris' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Anchor \'Go to the next page\' 3'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+                SET NextPage TO $fx'True'
+            END
+        END
+    ELSE
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserHarris' Control: $fx'html > body > div:eq(0) > div:eq(1) > div > div:eq(2) > div > div > div > div > div:eq(1) > div:eq(0) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(2) > div', $fx'Title', $fx'', $fx'Value #2'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(3)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1) > div > div:eq(1) > div > div:eq(2) > table > tbody > tr:eq(0) > td:eq(1) > a', $fx'data-url', $fx'', $fx'Value #4'] } PostProcessData: True TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHarris
+        ON ERROR
+
+        END
+        LOOP FOREACH CurrentRowH IN $fx'=DataFromWebPageHarris'
+            WebAutomation.CreateNewTab.CreateNewTab BrowserInstance: $fx'=BrowserHarris' Url: $fx'=CurrentRowH.\'value #4\'' WaitForPageToLoadTimeout: $fx'=60' NewBrowserInstance=> NewBrowserH
+            WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=NewBrowser' Control: appmask['Web Page \'h ... ceMode?p=0\'']['Paragraph \'Case Status Appeal\''] AttributeName: $fx'Own Text' AttributeValue=> CaseStatusHarris
+            Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseStatusHarris' TextToFind: $fx'Case Status' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+            SET CaseStatusH TO $fx'=Replaced'
+            SET CaseNumberH TO $fx'=CurrentRowH.\'value #1\''
+            SET CaseStyleH TO $fx'=CurrentRowH.\'Value #2\''
+            SET FilingDateH TO $fx'=CurrentRowH.\'Value #3\''
+            IF IsEmpty($fx'=JSONListH') THEN
+                SET JSONListH TO $fx'{
+    "CaseNumber": "${CaseNumberH}",
+    "CaseStyle": "${CaseStyleH}",
+    "FilingDate": "${FilingDateH}",
+    "CaseStatus": "${CaseStatusH}"
+  }'
+            ELSE
+                SET JSONListH TO $fx'${JSONListH},
+{
+    "CaseNumber": "${CaseNumberH}",
+    "CaseStyle": "${CaseStyleH}",
+    "FilingDate": "${FilingDateH}",
+    "CaseStatus": "${CaseStatusH}"
+  }'
+            END
+            WebAutomation.CloseWebBrowser BrowserInstance: $fx'=NewBrowserH'
+        END
+        Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHarris'
+    END
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=BrowserHarris' Url: $fx'https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29' WaitForPageToLoadTimeout: $fx'=60'
+END FUNCTION
+FUNCTION Subflow_Cclerk GLOBAL
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserCclerk' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ContentPlaceHolder1_txtFirstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=BrowserCclerk' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ContentPlaceHolder1_txtLastName").value = "${VarLastName}"; }' Result=> ResultLastName
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=BrowserCclerk' Control: appmask['CClerk']['Input text \'File Date from\' 4'] Text: $fx'=VarDOL' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserCclerk' Control: appmask['CClerk']['Input submit \'Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=BrowserCclerk' Control: $fx'html > body > form > div:eq(5) > div > div:eq(4) > div > table:eq(1) > tbody:eq(1) > tr' ExtractionParameters: {[$fx'td:eq(0) > a', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(5) > span', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(1)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageCclerk
+    ON ERROR
+
+    END
+    LOOP FOREACH CurrentRowC IN $fx'=DataFromWebPageCclerk'
+        SET CaseNumberC TO $fx'=CurrentRowC.\'value #1\''
+        SET CaseStyleC TO $fx'=CurrentRowC.\'Value #3\''
+        SET FilingDateC TO $fx'=CurrentRowC.\'Value #2\''
+        SET CaseStatusC TO $fx'=CurrentRowC.\'Value #4\''
+        IF IsEmpty($fx'=JSONListC') THEN
+            SET JSONListC TO $fx'{
+   "CaseNumber": "${Trim(CaseNumberC)}",
+   "CaseStyle": "${Trim(CaseStyleC)}",
+   "FilingDate": "${Trim(FilingDateC)}",
+   "CaseStatus": "${Trim(CaseStatusC)}"
+  }'
+        ELSE
+            SET JSONListC TO $fx'${JSONListC},
+{
+   "CaseNumber": "${Trim(CaseNumberC)}",
+   "CaseStyle": "${Trim(CaseStyleC)}",
+   "FilingDate": "${Trim(FilingDateC)}",
+   "CaseStatus": "${Trim(CaseStatusC)}"
+  }'
+        END
+    END
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageCclerk'
+    WebAutomation.Click.Click BrowserInstance: $fx'=BrowserCclerk' Control: appmask['Web Page \'h ... EE2QBJQ==#\'']['Input submit \'Clear\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+END FUNCTION
+FUNCTION Subflow_Miami GLOBAL
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... eSupport=1\'']['Label \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Anchor \'View account information for Apoorv Nigam\'']) FOR $fx'=20' 
+    ON ERROR
+
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> LoginstarttimeMiami
+    IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Anchor \'View account information for Apoorv Nigam\'']) THEN
+        SET EmailId TO $'''apoorvnigam07@gmail.com'''
+    ELSE
+        UIAutomation.Click.Click Element: appmask['Window \'OCS Home – Miami-Dade County OCS - Google Chrome\'']['Hyperlink \'Register/Login\''] ClickType: UIAutomation.ClickType.LeftClick MousePositionRelativeToElement: UIAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'0' OffsetY: $fx'0'
+        SET EmailId TO $'''apoorvnigam07@gmail.com'''
+        SET Password TO $fx'Apoorv@12345'
+        WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... s/?hs=OCSB\'']['Input text \'userName\''] Text: $fx'${EmailId}' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'60'
+        ON ERROR
+
+        END
+        WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... s/?hs=OCSB\'']['Input password \'password\''] Text: $fx'=Password' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'60'
+        ON ERROR
+
+        END
+        UIAutomation.Click.Click Element: appmask['Window \'Home Page User Management Services - Google Chrome\'']['Button \'Login\''] ClickType: UIAutomation.ClickType.LeftClick MousePositionRelativeToElement: UIAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'0' OffsetY: $fx'0'
+        WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainText BrowserInstance: $fx'=MiamiBrowser' Text: $fx'Welcome,') FOR $fx'=20'
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> LoginendtimeMiami
+    DateTime.Subtract FromDate: $fx'=LoginstarttimeMiami' SubstractDate: $fx'=LoginendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceLogin
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEntering' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsenterstarttimeMaimi
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs/\'']['Span \'Party Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... aseType=0#\'']['Input text \'partyFirstName\''] Text: $fx'=VarFirstName' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... aseType=0#\'']['Input text \'partyLastName\''] Text: $fx'=VarLastName' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+    Text.ConvertTextToDateTime.ToDateTimeCustomFormat Text: $fx'${VarDOL}' CustomFormat: $fx'MM/dd/yyyy' DateTime=> FormattedDateMiami
+    Text.ConvertDateTimeToText.FromCustomDateTime DateTime: $fx'=FormattedDateMiami' CustomFormat: $fx'MM\'-\'dd\'-\'yyyy' Result=> FormattedDateMiami
+    SET FormattedDateMiami TO $fx'${FormattedDateMiami}'
+    WebAutomation.PopulateTextField.PopulateTextFieldUsePhysicalKeyboard BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Input date \'filingDateFrom\''] Text: $fx'=FormattedDateMiami' Mode: WebAutomation.PopulateTextMode.Replace UnfocusAfterPopulate: True WaitForPageToLoadTimeout: $fx'=60'
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtimeMiami
+    DateTime.Subtract FromDate: $fx'=DetailsenterstarttimeMaimi' SubstractDate: $fx'=DetailsEnterendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEnteringMiami
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnter' Message: $fx'=TimeDifferenceDetailsEnteringMiami' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['Div \'Recaptcha  ... cy - Terms\' 4'] AttributeName: $fx'Exists' AttributeValue=> AttributeValueMiami
+    DISABLE IF $fx'=AttributeValueMiami="true"' THEN
+        DISABLE LABEL Clickcaptcha
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['MiamiAntiCaptcha'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+        DISABLE WAIT $fx'=Int(5)'
+        DISABLE WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Miami']['MiamiClick'] ClickType: WebAutomation.ClickType.DoubleClick MouseClick: True WaitForPageToLoadTimeout: $fx'=9' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleRight OffsetX: $fx'=0' OffsetY: $fx'=0'
+ON ERROR
+
+END
+        DISABLE WAIT (UIAutomation.WaitForImage.ToAppearOnScreen Images: [imgrepo['Image_4'], imgrepo['Miami11'], imgrepo['Image_11'], imgrepo['Image_12']] FindAllImages: False Tolerance: $fx'=5' SearchAlgorithm: UIAutomation.ImageFinderAlgorithm.Legacy X=> X Y=> Y) FOR $fx'=100' 
+ON ERROR REPEAT 3 TIMES WAIT 6
+END
+    DISABLE END
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Button \'Search\' 2'] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=62' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... QRdQMvqyaN\'']['Bold text \'Party Name:\'']) FOR $fx'=150' 
+    ON ERROR
+
+    END
+    DISABLE WebAutomation.GetDetailsOfElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... tDiQ%3D%3D\'']['Div \'Case Details\''] AttributeName: $fx'Exists' AttributeValue=> AttributeValue
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionstarttimeMiami
+    IF (WebAutomation.IfWebPageContains.WebPageContainsElement BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... g8540R%2BK\'']['Paragraph \'Search Results\'']) THEN
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=MiamiBrowser' Control: $fx'html > body > div:eq(0) > div > main > div > div:eq(4) > div > div > div:eq(3) > div' ExtractionParameters: {[$fx'div:eq(0) > p', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'div:eq(1) > div > div:eq(0) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'div:eq(1) > div > div:eq(4) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'div:eq(1) > div > div:eq(5) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'div:eq(1) > div > div:eq(3) > p:eq(1)', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageMiami
+        ON ERROR
+
+        END
+        LOOP FOREACH CurrentRowM IN $fx'=DataFromWebPageMiami'
+            SET CaseStyleM TO $fx'=CurrentRowM.\'value #1\''
+            SET CaseNumberM TO $fx'=CurrentRowM.\'Value #2\''
+            IF $fx'=IsBlank(CaseNumberM)' THEN
+                NEXT LOOP
+            END
+            SET FilingDateM TO $fx'=CurrentRowM.\'Value #3\''
+            SET CaseStatusM TO $fx'=CurrentRowM.\'Value #4\''
+            SET CaseTypeM TO $fx'=CurrentRowM.\'Value #5\''
+            IF IsEmpty($fx'=JSONListM') THEN
+                SET JSONListM TO $fx'{
+    "CaseNumber": "${(CaseNumberM)}",
+    "CaseStyle": "${(CaseStyleM)}",
+    "FilingDate": "${(FilingDateM)}",
+    "CaseStatus": "${(CaseStatusM)}",
+    "CaseType": "${(CaseTypeM)}"
+ }'
+            ELSE
+                SET JSONListM TO $fx'${JSONListM},
+{
+    "CaseNumber": "${(CaseNumberM)}",
+    "CaseStyle": "${(CaseStyleM)}",
+    "FilingDate": "${(FilingDateM)}",
+    "CaseStatus": "${(CaseStatusM)}",
+    "CaseType": "${(CaseTypeM)}"
+ }'
+            END
+        END
+    ELSE
+        WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... bp4NNyORD3\'']['Span \'OCS Home\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionendtimeMiami
+    DateTime.Subtract FromDate: $fx'=ExtractionstarttimeMiami' SubstractDate: $fx'=ExtractionendtimeMiami' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifferenceMiami
+    Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings Hills' Message: $fx'=ExtractionTimeDifferenceMiami' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageMiami'
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'h ... bp4NNyORD3\'']['Span \'OCS Home\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.Click.Click BrowserInstance: $fx'=MiamiBrowser' Control: appmask['Web Page \'https://www2.miamidadeclerk.gov/ocs\'']['Button \'Refresh\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+END FUNCTION
+FUNCTION Subflow_HarrisDistrict GLOBAL
+    WebAutomation.Click.Click BrowserInstance: $fx'=HcDistrictBrowser' Control: appmask['Web Page \'h ... earch.aspx\'']['Span \'Search Our Records and Documents\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR REPEAT 3 TIMES WAIT 10
+    END
+    WebAutomation.Click.Click BrowserInstance: $fx'=HcDistrictBrowser' Control: appmask['Web Page \'h ... earch.aspx\'']['Input button \'Party Inquiry\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("txtPartyName").value = "${VarLastName}, ${VarFirstName}"; }' Result=> ResultFirstName
+    Text.ConvertTextToDateTime.ToDateTimeCustomFormat Text: $fx'${VarDOL}' CustomFormat: $fx'MM/dd/yyyy' DateTime=> FormattedDateHcDistrict
+    Text.ConvertDateTimeToText.FromCustomDateTime DateTime: $fx'=FormattedDateHcDistrict' CustomFormat: $fx'MM/dd/yyyy' Result=> FormattedDateHc
+    SET FormattedDateHc TO $fx'${FormattedDateHc}'
+    MouseAndKeyboard.SendKeys.FocusAndSendKeysByControl Control: appmask['Window \'Office of  ...  - Google Chrome\'']['Edit \'Filed Date Range: (mm/dd/yyyy)\''] TextToSend: $fx'=FormattedDateHc' DelayBetweenKeystrokes: $fx'=10' SendTextAsHardwareKeys: False
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_btnPartySearch").click(); }' Result=> ResultClick
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=HcDistrictBrowser' Control: $fx'html > body > form > div:eq(2) > div:eq(0) > div > main > div:eq(0) > div > div:eq(1) > div:eq(0) > div:eq(2) > div:eq(3) > div > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(0)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > a > strong', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(5)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(6)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHcDistrict
+    ON ERROR
+
+    END
+    LOOP FOREACH CurrentRowHc IN $fx'=DataFromWebPageHcDistrict'
+        SET CaseNumberHc TO $fx'=CurrentRowHc.\'Value #1\''
+        SET CaseStyleHc TO $fx'=CurrentRowHc.\'value #2\''
+        SET FilingDateHc TO $fx'=CurrentRowHc.\'Value #3\''
+        SET CaseTypeHc TO $fx'=CurrentRowHc.\'Value #4\''
+        Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseNumberHc' TextToFind: $fx'0|1|2|3|4|5|6|7|8|9|- 
+' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+        SET NewVar TO $fx'=Replaced'
+        Text.Replace.ReplaceTextWithRegex Text: $fx'=Replaced' TextToFind: $fx'(?m)^\\s*$|^\\s*-\\s*$|^\\s*[A-Za-z]\\s*$|^\\s*\\d+\\s*$' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced1
+        Text.Trim Text: $fx'=Replaced1' TrimOption: Text.TrimOption.Both TrimmedText=> TrimmedText
+        SET CaseStatusHc TO $fx'=TrimmedText'
+        IF IsEmpty($fx'=JSONListHc') THEN
+            SET JSONListHc TO $fx'{
+    "CaseNumber": "${Trim(CaseNumberHc)}",
+    "CaseStyle": "${Trim(CaseStyleHc)}",
+    "FilingDate": "${Trim(FilingDateHc)}",
+    "CaseStatus": "${CaseStatusHc}",
+    "CaseType": "${Trim(CaseTypeHc)}"
+ }'
+        ELSE
+            SET JSONListHc TO $fx'${JSONListHc},
+{
+    "CaseNumber": "${Trim(CaseNumberHc)}",
+    "CaseStyle": "${Trim(CaseStyleHc)}",
+    "FilingDate": "${Trim(FilingDateHc)}",
+    "CaseStatus": "${CaseStatusHc}",
+    "CaseType": "${Trim(CaseTypeHc)}"
+ }'
+        END
+    END
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHcDistrict'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_btnSearchAgain").click(); }' Result=> ResultClickHc
+END FUNCTION
+FUNCTION Subflow_Hillsborough GLOBAL
+    WebAutomation.Click.ClickCloseDialog BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Button \'Search by Party or Business Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=40' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['HillsBorough']['Label \'First Name *\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> Detailsenterstarttimehills
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("spFirstName").value = "${VarFirstName}"; }' Result=> ResultFirstName
+    ON ERROR
+
+    END
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("spLastName").value = "${VarLastName}"; }' Result=> ResultLastName
+    ON ERROR
+
+    END
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById(\'spDateFiledAfter\').value = "${VarDOL}"; }' Result=> ResultDOL
+    ON ERROR
+
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> DetailsEnterendtimeHills
+    DateTime.Subtract FromDate: $fx'=Detailsenterstarttimehills' SubstractDate: $fx'=DetailsEnterendtimeHills' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> TimeDifferenceDetailsEnteringHills
+    Display.ShowMessageDialog.ShowMessage Title: $fx'DetailsEnterHills' Message: $fx'=TimeDifferenceDetailsEnteringHills' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['HillsBorough']['Button \'Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.BottomCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+    WAIT $fx'=Int(10)'
+    WAIT (WebAutomation.WaitForWebPageContent.WebPageToContainElementInState BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... sults.html\'']['Hillsborough No match'] State: WebAutomation.ElementState.Enabled) FOR $fx'=50' 
+    ON ERROR
+
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionstarttimeHills
+    IF (WebAutomation.IfWebPageContains.WebPageDoesNotContainElement BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... sults.html\'']['Table data cell \'No data available in table\'']) THEN
+        WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=HillsboroughBrowser' Control: $fx'html > body > main > div:eq(1) > div:eq(1) > div > div:eq(1) > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(2)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(4)', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(6)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(5)', $fx'Own Text', $fx'', $fx'Value #4'], [$fx'td:eq(7) > span', $fx'Own Text', $fx'', $fx'Value #5'] } PostProcessData: False TimeoutInSeconds: $fx'120' ExtractedData=> DataFromWebPageHills
+        ON ERROR
+
+        END
+        LOOP FOREACH CurrentRowHb IN $fx'=DataFromWebPageHills'
+            SET CaseNumberHb TO $fx'=CurrentRowHb.\'value #1\''
+            SET CaseStyleHb TO $fx'=CurrentRowHb.\'Value #2\''
+            SET FilingDateHb TO $fx'=CurrentRowHb.\'Value #3\''
+            SET CaseStatusHb TO $fx'=CurrentRowHb.\'Value #4\''
+            SET CaseTypeHb TO $fx'=CurrentRowHb.\'Value #5\''
+            IF $fx'=IsBlank(JSONListHill)' THEN
+                SET JSONListHill TO $fx'{
+    "CaseNumber": "${CaseNumberHb}",
+    "CaseStyle": "${CaseStyleHb}",
+    "FilingDate": "${FilingDateHb}",
+    "CaseStatus": "${CaseStatusHb}",
+    "CaseType": "${CaseTypeHb}"
+  }'
+            ELSE
+                SET JSONListHill TO $fx'${JSONListHill},
+{
+    "CaseNumber": "${CaseNumberHb}",
+    "CaseStyle": "${CaseStyleHb}",
+    "FilingDate": "${FilingDateHb}",
+    "CaseStatus": "${CaseStatusHb}",
+    "CaseType": "${CaseTypeHb}"
+  }'
+            END
+        END
+    ELSE
+        WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { var closeBtn = document.getElementById("messageClose").click(); }' Result=> ResultClose
+        ON ERROR
+
+        END
+    END
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> ExtractionendtimeHills
+    DateTime.Subtract FromDate: $fx'=ExtractionstarttimeHills' SubstractDate: $fx'=ExtractionendtimeHills' TimeUnit: DateTime.DifferenceTimeUnit.Seconds TimeDifference=> ExtractionTimeDifferenceHills
+    Display.ShowMessageDialog.ShowMessage Title: $fx'Extaction Timings Hills' Message: $fx'=ExtractionTimeDifferenceHills' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+    WAIT $fx'=Int(8)'
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHills'
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HillsboroughBrowser' Javascript: $fx'function ExecuteScript() { var closeBtn = document.getElementById("messageClose").click(); }' Result=> ResultClose
+    ON ERROR
+
+    END
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Anchor \'Case Search\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=100' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=HillsboroughBrowser' Url: $fx'https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab' WaitForPageToLoadTimeout: $fx'=60'
+    ON ERROR
+
+    END
+    WebAutomation.Click.Click BrowserInstance: $fx'=HillsboroughBrowser' Control: appmask['Web Page \'h ... earch.html\'']['Button \'Search by Party or Business Name\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+    ON ERROR
+
+    END
+END FUNCTION
+FUNCTION Subflow_SendErrorNotification GLOBAL
+    DISABLE System.GetEnvironmentVariable.GetEnvironmentVariable Name: $fx'Path' Value=> EnvironmentVariableValue
+    DISABLE File.Delete Files: $fx'=Concatenate("C:", EnvironmentVariableValue, "\\Desktop\\Errors\\Image.png")'
+ON ERROR
+
+END
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotOfForegroundWindow _
+    DISABLE Variables.CreateNewList List=> ListImage
+    DISABLE Clipboard.GetText Text=> ClipboardImage
+    DISABLE Variables.AddItemToList Item: $fx'=ClipboardImage' List: $fx'=ListImage'
+    DISABLE Display.ShowMessageDialog.ShowMessage Title: $fx'Error Encountered' Message: $fx'=Concatenate("Bot encountered below error while trying to extract data. Kindly trouleshoot and trigger the bot again.","\\n",ErrorReason)' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: True ButtonPressed=> ButtonPressed
+END FUNCTION
+FUNCTION Subflow_MiamiError GLOBAL
+    WebAutomation.GoToWebPage.GoToWebPage BrowserInstance: $fx'=MiamiBrowser' Url: $fx'https://www2.miamidadeclerk.gov/ocs' WaitForPageToLoadTimeout: $fx'=60'
+    ON ERROR
+
+    END
+END FUNCTION
+FUNCTION ExtractDataFlow GLOBAL
+    SET InitialCounter TO $fx'1'
+    @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': 'In Progress'
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '2027914976'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '2138712493'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_record_status': $fx'870300001' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+    ON ERROR ConnectorExecutionError
+
+    ON ERROR ConnectorTimeoutError
+
+    END
+    Variables.IncreaseVariable Value: $fx'=InitialCounter' IncrementValue: $fx'1'
+    SET VarInsuredFirstName TO $fx'=DataverseCurrentItem.uaic_insuredfirstname'
+    SET VarInsuredLastName TO $fx'=DataverseCurrentItem.uaic_insuredlastname'
+    SET VarDriverFirstName TO $fx'=DataverseCurrentItem.uaic_driverfirstnameinsuredvehicle'
+    SET VarDriverLastName TO $fx'=DataverseCurrentItem.uaic_driverlastnameinsuredvehicle'
+    SET VarClaimantFirstName TO $fx'=DataverseCurrentItem.uaic_claimantfirstname'
+    SET VarClaimantLastName TO $fx'=DataverseCurrentItem.uaic_claimantlastname'
+    SET VarDOL TO $fx'=DataverseCurrentItem.uaic_dol'
+    IF $fx'=VarInsuredFirstName = VarDriverFirstName And VarInsuredLastName = VarDriverLastName And VarClaimantFirstName = VarInsuredFirstName And VarClaimantLastName = VarInsuredLastName' THEN
+        SET DualSearch TO $fx'=Int(1)'
+        SET TripleSearch TO $fx'=Int(1)'
+    ELSE IF $fx'=VarInsuredFirstName = VarDriverFirstName And VarInsuredLastName = VarDriverLastName And VarInsuredFirstName <> VarClaimantFirstName And VarInsuredLastName <> VarClaimantLastName' THEN
+        SET DualSearch TO $fx'=Int(1)'
+        SET TripleSearch TO $fx'=Int(3)'
+    ELSE IF $fx'=VarInsuredFirstName = VarClaimantFirstName And VarInsuredLastName = VarClaimantLastName And VarInsuredFirstName <> VarDriverFirstName And VarInsuredLastName <> VarDriverLastName' THEN
+        SET DualSearch TO $fx'=Int(2)'
+        SET TripleSearch TO $fx'=Int(1)'
+    ELSE IF $fx'=VarDriverFirstName = VarClaimantFirstName And VarDriverLastName = VarClaimantLastName And VarDriverFirstName <> VarInsuredFirstName And VarDriverLastName <> VarInsuredLastName' THEN
+        SET DualSearch TO $fx'=Int(2)'
+        SET TripleSearch TO $fx'=Int(1)'
+    ELSE
+        SET DualSearch TO $fx'=Int(2)'
+        SET TripleSearch TO $fx'=Int(3)'
+    END
+    IF $fx'=DataverseCurrentItem.uaic_fl_website_broward="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': 'In Progress'
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '217125526'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '2048199402'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_broward': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListB
+        CALL Subflow_Broward
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Broward
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Broward
+        END
+        IF IsEmpty($fx'=JSONListB') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': 'No match found'
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_broward': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListB TO $fx'[
+${JSONListB}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': 'Completed'
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1200422580'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '1708406194'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_broward': $fx'870300001' @'item/uaic_fl_jsonbody_broward': $fx'=JSONListB' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_te_website_dallas="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': 'In Progress'
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_dallas': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListD
+        CALL Subflow_Dallas
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Dallas
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Dallas
+        END
+        IF IsEmpty($fx'=JSONListD') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': 'No match found'
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_dallas': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListD TO $fx'[
+${JSONListD}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': 'Completed'
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_dallas': $fx'870300001' @'item/uaic_te_jsonbody_dallas': $fx'=JSONListD' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_te_website_travis="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': 'In Progress'
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_travis': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListT
+        CALL Subflow_Travis
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Travis
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Travis
+        END
+        IF IsEmpty($fx'=JSONListT') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': 'No match found'
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_travis': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListT TO $fx'[
+${JSONListT}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': 'Completed'
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_travis': $fx'870300001' @'item/uaic_te_jsonbody_travis': $fx'=JSONListT' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_te_website_harris="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': 'In Progress'
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_harris': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListH
+        CALL Subflow_Harris
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Harris
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Harris
+        END
+        IF IsEmpty($fx'=JSONListH') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': 'No match found'
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_harris': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR REPEAT 2 TIMES WAIT 2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListH TO $fx'[
+${JSONListH}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': 'Completed'
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_harris': $fx'870300001' @'item/uaic_te_jsonbody_harris': $fx'=JSONListH' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_fl_website_miami="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': 'In Progress'
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_miami': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListM
+        CALL Subflow_Miami
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Miami
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Miami
+        END
+        IF IsEmpty($fx'=JSONListM') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': 'No match found'
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_miami': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListM TO $fx'[
+${JSONListM}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': 'Completed'
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_miami': $fx'870300001' @'item/uaic_fl_jsonbody_miami': $fx'=JSONListM' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_te_website_cclerk="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': 'In Progress'
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_cclerk': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListC
+        CALL Subflow_Cclerk
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Cclerk
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Cclerk
+        END
+        IF IsEmpty($fx'=JSONListC') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': 'No match found'
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_cclerk': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListC TO $fx'[
+${JSONListC}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': 'Completed'
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1802803342'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '1530877906'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_cclerk': $fx'870300001' @'item/uaic_te_jsonbody_cclerk': $fx'=JSONListC' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_fl_website_hillsborough="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': 'In Progress'
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '991039785'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-726534777'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_hillsborough': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        SET JSONListHill TO $fx'=Blank()'
+        DISABLE Variables.CreateNewList List=> JSONListHill
+        CALL Subflow_Hillsborough
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_Hillsborough
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_Hillsborough
+        END
+        IF $fx'=IsBlank(JSONListHill)' THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': 'No match found'
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1492033037'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-943713683'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_hillsborough': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListHill TO $fx'[
+${JSONListHill}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': 'Completed'
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '658584627'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-839503359'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fl_botstatus_hillsborough': $fx'870300001' @'item/uaic_fl_jsonbody_hillsborough': $fx'=JSONListHill' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+            ON ERROR
+
+            END
+        END
+    END
+    IF $fx'=DataverseCurrentItem.uaic_te_website_hcdistrict="Yes"' THEN
+        @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': 'In Progress'
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '991039785'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-726534777'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_hcdistrict': $fx'870300000' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+        ON ERROR
+
+        END
+        SET VarFirstName TO $fx'=VarInsuredFirstName'
+        SET VarLastName TO $fx'=VarInsuredLastName'
+        Variables.CreateNewList List=> JSONListHc
+        CALL Subflow_HarrisDistrict
+        IF $fx'=DualSearch=2' THEN
+            SET VarFirstName TO $fx'=VarDriverFirstName'
+            SET VarLastName TO $fx'=VarDriverLastName'
+            CALL Subflow_HarrisDistrict
+        END
+        IF $fx'=TripleSearch=3' THEN
+            SET VarFirstName TO $fx'=VarClaimantFirstName'
+            SET VarLastName TO $fx'=VarClaimantLastName'
+            CALL Subflow_HarrisDistrict
+        END
+        IF IsEmpty($fx'=JSONListHc') THEN
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': 'No match found'
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '658584627'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-839503359'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_hcdistrict': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+            ON ERROR
+
+            END
+        ELSE
+            SET JSONListHc TO $fx'[
+${JSONListHc}
+]'
+            @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': ''
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': 'Completed'
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '658584627'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-839503359'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_te_botstatus_hcdistrict': $fx'870300001' @'item/uaic_te_jsonbody_hcdistrict': $fx'=JSONListHc' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse
+        END
+    END
+    @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': 'Fuzzy Match New'
+@@'item/uaic_record_status': 'Completed'
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '-1018451927'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '1405082537'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_fuzzymatchflowstatus': $fx'870300000' @'item/uaic_record_status': $fx'870300002' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+    ON ERROR
+
+    END
+    DISABLE DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> EndTime
+    DISABLE DateTime.Subtract FromDate: $fx'=EndTime' SubstractDate: $fx'=StartTime' TimeUnit: DateTime.DifferenceTimeUnit.Minutes TimeDifference=> TimeDifference
+    DISABLE Display.ShowMessageDialog.ShowMessage Title: $fx'Time Taken' Message: $fx'=TimeDifference' Icon: Display.Icon.None Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False ButtonPressed=> ButtonPressed
+END FUNCTION
+FUNCTION Subflow_ErrorImage GLOBAL
+    DISABLE IF (File.IfFile.Exists File: $fx'%ScreenshotFolderPath%') THEN
+        DISABLE File.Delete Files: $fx'%ScreenshotFolderPath%'
+    DISABLE END
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotAndSaveToFile File: $fx'%ScreenshotFolderPath%' ImageFormat: System.ImageFormat.Jpg
+    DISABLE EXIT FUNCTION
+END FUNCTION
+FUNCTION Subflow_RecordFailing GLOBAL
+    DateTime.GetCurrentDateTime.Local DateTimeFormat: DateTime.DateTimeFormat.DateAndTime CurrentDateTime=> CurrentDatetime
+    Text.ConvertDateTimeToText.FromDateTime DateTime: $fx'${CurrentDatetime}' StandardFormat: Text.WellKnownDateTimeFormat.FullDateTimeShortTime Result=> FormattedDateTime
+    Text.Replace.ReplaceTextWithRegex Text: $fx'${FormattedDateTime}' TextToFind: $fx'[^\\w\\.@-]' IgnoreCase: False ReplaceWith: $fx'-' ActivateEscapeSequences: False Result=> Replaced
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotAndSaveToFile File: $fx'C:\\Users\\pdadmin\\Desktop\\Error Screenshots\\%Replaced%.jpg' ImageFormat: System.ImageFormat.Jpg
+    DISABLE Workstation.TakeScreenshot.TakeScreenshotAndSaveToFile File: $fx'C:\\Users\\Apoorvn1\\Desktop\\Error Screenshots\\${Replaced}.jpg' ImageFormat: System.ImageFormat.Jpg
+    @@organization: '(Current)'
+@@entityName: 'UAIC_Bot_Creation_Databases'
+@@'item/uaic_fl_botstatus_broward': ''
+@@'item/uaic_fl_botstatus_hillsborough': ''
+@@'item/uaic_fl_botstatus_miami': ''
+@@'item/uaic_fuzzymatchflowstatus': ''
+@@'item/uaic_record_status': 'Failed'
+@@'item/statecode': ''
+@@'item/statuscode': ''
+@@'item/uaic_te_botstatus_cclerk': ''
+@@'item/uaic_te_botstatus_dallas': ''
+@@'item/uaic_te_botstatus_harris': ''
+@@'item/uaic_te_botstatus_hcdistrict': ''
+@@'item/uaic_te_botstatus_travis': ''
+@@'InputSchema:item': '371446517'
+@@'OutputSchema:UpdateRecordWithOrganizationResponse': '-1558051472'
+@@connectionDisplayName: 'Cr8ea14_shared_commondataserviceforapps_364ca01d'
+External.InvokeCloudConnector Connection: '635c7302-befc-4344-969a-1fd06209e8e2' ConnectorId: '/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps' OperationId: 'UpdateRecordWithOrganization' @organization: $fx'current' @entityName: $fx'uaic_uaic_bot_creation_databases' @recordId: $fx'=DataverseCurrentItem.uaic_uaic_bot_creation_databaseid' @'item/uaic_record_status': $fx'870300003' @UpdateRecordWithOrganizationResponse=> UpdateRecordWithOrganizationResponse2
+END FUNCTION

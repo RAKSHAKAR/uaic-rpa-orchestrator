@@ -127,6 +127,7 @@ async def test_capture_screenshot_toggle_behavior():
 
     # Disable toggle in settings
     curr_settings = await get_system_settings_async()
+    original_capture_setting = curr_settings.storage.capture_error_screenshots
     updated = curr_settings.model_copy(deep=True)
     updated.storage.capture_error_screenshots = False
     await save_system_settings_async(updated)
@@ -142,5 +143,6 @@ async def test_capture_screenshot_toggle_behavior():
     mock_page.screenshot.assert_not_called()
 
     # Re-enable toggle
-    updated.storage.capture_error_screenshots = True
-    await save_system_settings_async(updated)
+    current = await get_system_settings_async()
+    current.storage.capture_error_screenshots = original_capture_setting
+    await save_system_settings_async(current)

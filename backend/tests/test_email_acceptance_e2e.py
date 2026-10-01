@@ -108,10 +108,11 @@ async def test_ae006_ae007_dynamic_recipients_hot_reload():
             assert notif.cc == "supervisor@uaic.com"
             assert notif.bcc == "audit@uaic.com"
     finally:
-        sys_settings.email.to_recipients = original_to
-        sys_settings.email.cc_recipients = original_cc
-        sys_settings.email.bcc_recipients = original_bcc
-        await save_system_settings_async(sys_settings)
+        current = await get_system_settings_async()
+        current.email.to_recipients = original_to
+        current.email.cc_recipients = original_cc
+        current.email.bcc_recipients = original_bcc
+        await save_system_settings_async(current)
 
 
 @pytest.mark.asyncio
@@ -355,7 +356,7 @@ async def test_ae025_ae026_notification_rules_toggle():
     try:
         # Disable rule
         sys_settings.email.rules["guidewire_activity_created"] = False
-        await save_system_settings_async(sys_settings)
+        sys_settings = await save_system_settings_async(sys_settings)
 
         async with AsyncSessionLocal() as db:
             skipped = await NotificationService.emit_event(
@@ -368,7 +369,7 @@ async def test_ae025_ae026_notification_rules_toggle():
 
         # Re-enable rule
         sys_settings.email.rules["guidewire_activity_created"] = True
-        await save_system_settings_async(sys_settings)
+        sys_settings = await save_system_settings_async(sys_settings)
 
         async with AsyncSessionLocal() as db:
             active = await NotificationService.emit_event(
@@ -380,5 +381,6 @@ async def test_ae025_ae026_notification_rules_toggle():
             assert active is not None
             assert active.status in ["QUEUED", "SENT"]
     finally:
-        sys_settings.email.rules["guidewire_activity_created"] = orig_rule
-        await save_system_settings_async(sys_settings)
+        current = await get_system_settings_async()
+        current.email.rules["guidewire_activity_created"] = orig_rule
+        await save_system_settings_async(current)

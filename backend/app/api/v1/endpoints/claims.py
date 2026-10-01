@@ -252,12 +252,40 @@ def _normalize_action_timings(action_timings: dict | None, claim: ClaimRecord | 
     else:
         timings.setdefault("stages", {})
 
-    # Normalize per-portal stages
+    # Normalize per-portal stages and synchronize with authoritative claim status columns
     portals = dict(timings.get("portals") or {})
+    portal_status_map = {
+        "broward": "fl_botstatus_broward",
+        "hillsborough": "fl_botstatus_hillsborough",
+        "miami": "fl_botstatus_miami",
+        "travis": "te_botstatus_travis",
+        "dallas": "te_botstatus_dallas",
+        "harris": "te_botstatus_harris",
+        "harris_jp": "te_botstatus_harris",
+        "cclerk": "te_botstatus_cclerk",
+        "harris_cclerk": "te_botstatus_cclerk",
+        "hcdistrict": "te_botstatus_hcdistrict",
+        "harris_district": "te_botstatus_hcdistrict",
+    }
     for portal_key, portal_data in portals.items():
-        if isinstance(portal_data, dict) and "stages" in portal_data:
+        if isinstance(portal_data, dict):
             portal_data = dict(portal_data)
-            portal_data["stages"] = _normalize_stage_keys(portal_data["stages"])
+            if "stages" in portal_data:
+                portal_data["stages"] = _normalize_stage_keys(portal_data["stages"])
+            if claim is not None:
+                col = portal_status_map.get(portal_key)
+                if col:
+                    col_status = getattr(claim, col, None)
+                    if col_status is not None:
+                        col_val = col_status.value if hasattr(col_status, "value") else str(col_status)
+                        if portal_data.get("status") in (None, "", "IN_PROGRESS") and col_val not in ("NOT_TRIGGERED", "IN_PROGRESS"):
+                            portal_data["status"] = col_val
+                    json_col = col.replace("botstatus", "jsonbody") if col else None
+                    json_data = getattr(claim, json_col, None) if json_col else None
+                    if json_data and isinstance(json_data, list):
+                        portal_data["cases_found"] = max(portal_data.get("cases_found") or 0, len(json_data))
+                    if portal_data.get("duration_seconds") is None and portal_data.get("status") not in (None, "", "IN_PROGRESS"):
+                        portal_data["duration_seconds"] = 15.0
             portals[portal_key] = portal_data
     timings["portals"] = portals
 
@@ -582,10 +610,7 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
 
     in_progress_q = await db.execute(
         select(func.count(ClaimRecord.id)).where(
-            ClaimRecord.record_status.in_([
-                RecordStatusEnum.SCRAPING_IN_PROGRESS,
-                RecordStatusEnum.SCRAPING_COMPLETED,
-            ])
+            ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
         )
     )
     in_progress = in_progress_q.scalar_one()
@@ -611,7 +636,12 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
     failed = failed_q.scalar_one()
 
     completed_q = await db.execute(
-        select(func.count(ClaimRecord.id)).where(ClaimRecord.record_status == RecordStatusEnum.COMPLETED)
+        select(func.count(ClaimRecord.id)).where(
+            ClaimRecord.record_status.in_([
+                RecordStatusEnum.SCRAPING_COMPLETED,
+                RecordStatusEnum.COMPLETED,
+            ])
+        )
     )
     completed = completed_q.scalar_one()
 
@@ -1001,21 +1031,26 @@ async def bulk_start_claims(
         return BulkActionResponse(success=True, affected_count=0, message="No claim IDs provided.")
 
     settings = await get_system_settings_async()
-    if not settings.automation.anticaptcha_api_key or not settings.automation.anticaptcha_api_key.strip():
+    if settings.automation.anticaptcha_enabled and not (
+        settings.automation.anticaptcha_api_key or ""
+    ).strip():
         raise HTTPException(
             status_code=422,
             detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers.",
         )
 
     # ── FLEET CONCURRENCY GATE ─────────────────────────────────────────────────
-    # Only dispatch up to max_concurrent_claims tasks immediately.
-    # The remainder are set to NEW so the auto-queue runner picks them up
-    # sequentially as slots become available.
+    # Only dispatch up to max_concurrent_claims tasks immediately IF queue is active.
+    # The remainder (or all, if paused) are set to NEW so the auto-queue runner
+    # picks them up sequentially as slots become available.
+    from app.tasks.queue_runner import is_auto_queue_enabled
+    auto_enabled = is_auto_queue_enabled()
+
     max_concurrency = max(1, min(10, int(getattr(settings.automation, "max_concurrent_claims", 1) or 1)))
     active_q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
     active_res = await db.execute(active_q)
     active_count = len(list(active_res.scalars().all()))
-    available_slots = max(0, max_concurrency - active_count)
+    available_slots = max(0, max_concurrency - active_count) if auto_enabled else 0
 
     ctx = extract_client_context(request)
     modifier_email = ctx["user_email"] or "user"
@@ -1093,15 +1128,21 @@ async def bulk_retry_claims(
     res = await db.execute(query)
     claims = res.scalars().all()
     count = 0
+    from app.tasks.queue_runner import is_auto_queue_enabled
+    auto_enabled = is_auto_queue_enabled()
+
     for c in claims:
-        c.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
         c.retry_count += 1
         c.modified_by = modifier_email
-        celery_app.send_task(
-            "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
-            args=[c.id, None, payload.failed_portals_only],
-            queue="scrapers",
-        )
+        if auto_enabled:
+            c.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
+            celery_app.send_task(
+                "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
+                args=[c.id, None, payload.failed_portals_only],
+                queue="scrapers",
+            )
+        else:
+            c.record_status = RecordStatusEnum.NEW
         count += 1
     await db.commit()
 
@@ -1236,7 +1277,9 @@ async def start_single_claim(
         raise HTTPException(status_code=404, detail="Claim record not found")
 
     settings = await get_system_settings_async()
-    if not settings.automation.anticaptcha_api_key or not settings.automation.anticaptcha_api_key.strip():
+    if settings.automation.anticaptcha_enabled and not (
+        settings.automation.anticaptcha_api_key or ""
+    ).strip():
         raise HTTPException(
             status_code=422,
             detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scraper."

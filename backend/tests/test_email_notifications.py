@@ -69,7 +69,7 @@ async def test_notification_service_master_switch():
     try:
         # Disable master toggle
         sys_settings.email.email_notifications_enabled = False
-        await save_system_settings_async(sys_settings)
+        sys_settings = await save_system_settings_async(sys_settings)
 
         async with AsyncSessionLocal() as db:
             result = await NotificationService.emit_event(
@@ -82,7 +82,7 @@ async def test_notification_service_master_switch():
         # Re-enable master toggle
         sys_settings.email.email_notifications_enabled = True
         sys_settings.email.provider = "local_mock"
-        await save_system_settings_async(sys_settings)
+        sys_settings = await save_system_settings_async(sys_settings)
 
         async with AsyncSessionLocal() as db:
             result_enabled = await NotificationService.emit_event(
@@ -96,8 +96,9 @@ async def test_notification_service_master_switch():
             assert result_enabled.idempotency_key == "TEST:MASTER:TOGGLE:1"
 
     finally:
-        sys_settings.email.email_notifications_enabled = original_state
-        await save_system_settings_async(sys_settings)
+        current = await get_system_settings_async()
+        current.email.email_notifications_enabled = original_state
+        await save_system_settings_async(current)
 
 
 @pytest.mark.asyncio
@@ -658,7 +659,5 @@ async def test_notifications_search_and_filter_endpoint(mocker):
         assert resp_ev.status_code == 200
         data_ev = resp_ev.json()
         assert "items" in data_ev
-
-
 
 

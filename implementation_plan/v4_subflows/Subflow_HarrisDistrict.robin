@@ -1,0 +1,95 @@
+FUNCTION Subflow_HarrisDistrict GLOBAL
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=HcDistrictBrowser' Control: appmask['Web Page \'h ... earch.aspx\'']['Span \'Search Our Records and Documents\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    ON ERROR REPEAT 3 TIMES WAIT 10
+
+    END
+
+    WebAutomation.Click.Click BrowserInstance: $fx'=HcDistrictBrowser' Control: appmask['Web Page \'h ... earch.aspx\'']['Input button \'Party Inquiry\''] ClickType: WebAutomation.ClickType.LeftClick MouseClick: True WaitForPageToLoadTimeout: $fx'=60' MousePositionRelativeToElement: WebAutomation.RectangleEdgePoint.MiddleCenter OffsetX: $fx'=0' OffsetY: $fx'=0'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("txtPartyName").value = "${VarLastName}, ${VarFirstName}"; }' Result=> ResultFirstName
+
+    Text.ConvertTextToDateTime.ToDateTimeCustomFormat Text: $fx'${VarDOL}' CustomFormat: $fx'MM/dd/yyyy' DateTime=> FormattedDateHcDistrict
+
+    Text.ConvertDateTimeToText.FromCustomDateTime DateTime: $fx'=FormattedDateHcDistrict' CustomFormat: $fx'MM/dd/yyyy' Result=> FormattedDateHc
+
+    SET FormattedDateHc TO $fx'${FormattedDateHc}'
+
+    MouseAndKeyboard.SendKeys.FocusAndSendKeysByControl Control: appmask['Window \'Office of  ...  - Google Chrome\'']['Edit \'Filed Date Range: (mm/dd/yyyy)\''] TextToSend: $fx'=FormattedDateHc' DelayBetweenKeystrokes: $fx'=10' SendTextAsHardwareKeys: False
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_btnPartySearch").click(); }' Result=> ResultClick
+
+    WebAutomation.ExtractData.ExtractTable BrowserInstance: $fx'=HcDistrictBrowser' Control: $fx'html > body > form > div:eq(2) > div:eq(0) > div > main > div:eq(0) > div > div:eq(1) > div:eq(0) > div:eq(2) > div:eq(3) > div > div > table > tbody > tr' ExtractionParameters: {[$fx'td:eq(0)', $fx'Own Text', $fx'', $fx'Value #1'], [$fx'td:eq(1) > a > strong', $fx'Own Text', $fx'', $fx'Value #2'], [$fx'td:eq(5)', $fx'Own Text', $fx'', $fx'Value #3'], [$fx'td:eq(6)', $fx'Own Text', $fx'', $fx'Value #4'] } PostProcessData: False TimeoutInSeconds: $fx'60' ExtractedData=> DataFromWebPageHcDistrict
+
+    ON ERROR
+
+
+
+    END
+
+    LOOP FOREACH CurrentRowHc IN $fx'=DataFromWebPageHcDistrict'
+
+        SET CaseNumberHc TO $fx'=CurrentRowHc.\'Value #1\''
+
+        SET CaseStyleHc TO $fx'=CurrentRowHc.\'value #2\''
+
+        SET FilingDateHc TO $fx'=CurrentRowHc.\'Value #3\''
+
+        SET CaseTypeHc TO $fx'=CurrentRowHc.\'Value #4\''
+
+        Text.Replace.ReplaceTextWithRegex Text: $fx'=CaseNumberHc' TextToFind: $fx'0|1|2|3|4|5|6|7|8|9|- 
+
+' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced
+
+        SET NewVar TO $fx'=Replaced'
+
+        Text.Replace.ReplaceTextWithRegex Text: $fx'=Replaced' TextToFind: $fx'(?m)^\\s*$|^\\s*-\\s*$|^\\s*[A-Za-z]\\s*$|^\\s*\\d+\\s*$' IgnoreCase: False ReplaceWith: $fx'=Blank()' ActivateEscapeSequences: False Result=> Replaced1
+
+        Text.Trim Text: $fx'=Replaced1' TrimOption: Text.TrimOption.Both TrimmedText=> TrimmedText
+
+        SET CaseStatusHc TO $fx'=TrimmedText'
+
+        IF IsEmpty($fx'=JSONListHc') THEN
+
+            SET JSONListHc TO $fx'{
+
+    "CaseNumber": "${Trim(CaseNumberHc)}",
+
+    "CaseStyle": "${Trim(CaseStyleHc)}",
+
+    "FilingDate": "${Trim(FilingDateHc)}",
+
+    "CaseStatus": "${CaseStatusHc}",
+
+    "CaseType": "${Trim(CaseTypeHc)}"
+
+ }'
+
+        ELSE
+
+            SET JSONListHc TO $fx'${JSONListHc},
+
+{
+
+    "CaseNumber": "${Trim(CaseNumberHc)}",
+
+    "CaseStyle": "${Trim(CaseStyleHc)}",
+
+    "FilingDate": "${Trim(FilingDateHc)}",
+
+    "CaseStatus": "${CaseStatusHc}",
+
+    "CaseType": "${Trim(CaseTypeHc)}"
+
+ }'
+
+        END
+
+    END
+
+    Variables.ClearDataTable DataTable: $fx'=DataFromWebPageHcDistrict'
+
+    WebAutomation.ExecuteJavascript BrowserInstance: $fx'=HcDistrictBrowser' Javascript: $fx'function ExecuteScript() { document.getElementById("ctl00_ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder2_ContentPlaceHolder2_btnSearchAgain").click(); }' Result=> ResultClickHc
+
+END FUNCTION

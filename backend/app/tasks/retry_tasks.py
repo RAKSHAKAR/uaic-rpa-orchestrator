@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -9,6 +10,7 @@ from app.core.celery_app import celery_app
 from app.core.database import TaskAsyncSessionLocal
 from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
 from app.services.cooldown_service import is_portal_in_cooldown
+from app.services.settings_service import get_system_settings_async
 
 logger = logging.getLogger("uaic_orchestrator.tasks.retry")
 
@@ -26,8 +28,23 @@ PORTAL_STATUS_FIELDS = [
 
 async def _async_retrigger_failed_cases():
     """Async helper to find and retrigger failed claims honoring portal cooldowns."""
+    queue_cfg = (await get_system_settings_async()).queue
+    if not queue_cfg.auto_retry_failed_scrapes or queue_cfg.max_task_retries == 0:
+        logger.info("Scheduled retry is disabled in Settings.")
+        return
+
+    retry_threshold = datetime.now(UTC) - timedelta(seconds=queue_cfg.task_retry_delay_seconds)
     async with TaskAsyncSessionLocal() as session:
-        query = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.FAILED)
+        query = (
+            select(ClaimRecord)
+            .where(
+                ClaimRecord.record_status == RecordStatusEnum.FAILED,
+                ClaimRecord.retry_count < queue_cfg.max_task_retries,
+                ClaimRecord.updated_at <= retry_threshold,
+            )
+            .order_by(ClaimRecord.created_at.asc())
+            .with_for_update(skip_locked=True)
+        )
         res = await session.execute(query)
         failed_claims = res.scalars().all()
 
@@ -59,16 +76,29 @@ async def _async_retrigger_failed_cases():
                     )
                     continue
 
-            claim.record_status = RecordStatusEnum.NEW
+            # Mark active before dispatch so the auto-queue cannot pick the
+            # same failed claim as a separate NEW item.
+            claim.record_status = RecordStatusEnum.SCRAPING_IN_PROGRESS
             claim.retry_count += 1
             retriggered_count += 1
-            celery_app.send_task(
-                "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
-                args=[claim.id, None, True],
-                queue="scrapers",
-            )
-
         await session.commit()
+        dispatches = [
+            claim for claim in failed_claims
+            if claim.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
+        ]
+        for dispatch_index, claim in enumerate(dispatches):
+            try:
+                celery_app.send_task(
+                    "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
+                    args=[claim.id, None, True],
+                    queue="scrapers",
+                )
+            except Exception:
+                for unsent_claim in dispatches[dispatch_index:]:
+                    unsent_claim.record_status = RecordStatusEnum.FAILED
+                    unsent_claim.retry_count -= 1
+                await session.commit()
+                raise
         logger.info(f"Scheduled retry: Successfully retriggered {retriggered_count}/{len(failed_claims)} claims (failed portals only).")
 
 

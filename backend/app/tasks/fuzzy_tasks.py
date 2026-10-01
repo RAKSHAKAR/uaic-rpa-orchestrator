@@ -23,7 +23,7 @@ from app.services.fuzzy_engine import (
 )
 from app.services.guidewire_client import GuidewireClient
 from app.services.notification_service import NotificationService
-from app.services.settings_service import get_system_settings_async
+from app.services.settings_service import get_system_settings_async, get_system_settings_sync
 
 logger = logging.getLogger("uaic_orchestrator.tasks.fuzzy")
 
@@ -66,16 +66,17 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
 
         positive_matches: list[dict[str, Any]] = []
         borderline_matches: list[dict[str, Any]] = []
-        seen_positive_case_numbers = set()
-        seen_borderline_case_numbers = set()
 
         for court_case in claim.scraped_cases:
-            # Check eligibility: ONLY Minimum Case Filing Date (YYYY-MM-DD) is filtered as final data sent to Guidewire
+            # Apply the configured filing cutoff and allowed court classifications
+            # before a case can be matched or sent to Guidewire.
             if not is_case_eligible(
                 court_case.filing_date,
-                case_status=None,
-                case_type=None,
+                case_status=court_case.case_status,
+                case_type=court_case.case_type,
                 min_filing_date=matcher_cfg.min_filing_date,
+                allowed_statuses=matcher_cfg.whitelisted_statuses,
+                allowed_types=matcher_cfg.whitelisted_case_types,
             ):
                 logger.info(f"Skipping ineligible case {court_case.case_number} (Filing Date {court_case.filing_date} < minimum {matcher_cfg.min_filing_date})")
                 filtered_case = FilteredOutCase(
@@ -114,6 +115,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 borderline_threshold=matcher_cfg.manual_review_threshold,
                 scorer_algorithm=matcher_cfg.scorer_algorithm,
                 noise_patterns=matcher_cfg.clean_party_name_patterns,
+                case_style_patterns=matcher_cfg.clean_case_style_patterns,
             )
 
             # Record all evaluated pairs for auditability in MatchPair table
@@ -141,10 +143,9 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
             for p_type in [PartyTypeEnum.CLAIMANT, PartyTypeEnum.INSURED, PartyTypeEnum.DRIVER]:
                 ev = eval_map.get(p_type)
                 if ev and ev.get("is_match"):
-                    case_num = case_dict.get("CaseNumber") or ""
-                    if case_num and case_num not in seen_positive_case_numbers:
-                        seen_positive_case_numbers.add(case_num)
-                        positive_matches.append(case_dict)
+                    # V4 appends each matching source row, including repeated
+                    # case numbers from party-role rows and repeated searches.
+                    positive_matches.append(case_dict)
                     case_matched = True
                     break  # Stop checking other parties for this case!
 
@@ -153,10 +154,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 for p_type in [PartyTypeEnum.CLAIMANT, PartyTypeEnum.INSURED, PartyTypeEnum.DRIVER]:
                     ev = eval_map.get(p_type)
                     if ev and ev.get("review_status") == MatchReviewStatusEnum.PENDING_REVIEW:
-                        case_num = case_dict.get("CaseNumber") or ""
-                        if case_num and case_num not in seen_borderline_case_numbers:
-                            seen_borderline_case_numbers.add(case_num)
-                            borderline_matches.append(case_dict)
+                        borderline_matches.append(case_dict)
                         break
 
                 max_score = max((ev["similarity_score"] for ev in evaluations), default=0.0)
@@ -528,14 +526,17 @@ async def _async_notify_guidewire(claim_id: str):
 @celery_app.task(
     name="app.tasks.fuzzy_tasks.notify_guidewire_task",
     bind=True,
-    max_retries=5,
-    default_retry_delay=30,
 )
 def notify_guidewire_task(self, claim_id: str):
-    """Celery task for sending final activity payload to Guidewire with exponential backoff."""
+    """Celery task for sending final activity payload using configured retry limits."""
     logger.info(f"Triggering Guidewire notification for Claim {claim_id}")
     try:
         asyncio.run(_async_notify_guidewire(claim_id))
     except Exception as exc:
         logger.error(f"Failed to notify Guidewire for claim {claim_id}: {exc}, retrying...")
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 10)
+        queue_cfg = get_system_settings_sync().queue
+        raise self.retry(
+            exc=exc,
+            countdown=queue_cfg.task_retry_delay_seconds,
+            max_retries=queue_cfg.max_task_retries,
+        )

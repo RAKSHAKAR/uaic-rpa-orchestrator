@@ -370,6 +370,8 @@ export interface StorageSettings {
 }
 
 export interface SystemSettings {
+  version: number;
+  configured_secrets?: Record<string, boolean>;
   automation: AutomationSettings;
   portals: PortalsSettings;
   matcher: FuzzyMatcherSettings;
@@ -380,6 +382,8 @@ export interface SystemSettings {
   email?: EmailSettings;
   proxy?: ProxySettings;
 }
+
+export type SettingsUpdatePayload = SystemSettings & { clear_secrets?: string[] };
 
 export interface ProxySettings {
   enabled: boolean;
@@ -480,6 +484,8 @@ export interface BrowserTestRequest {
   timeout_seconds?: number;
   chrome_binary_path?: string | null;
   chrome_extension_dir?: string | null;
+  force_kill?: boolean;
+  test_extension?: boolean;
 }
 
 export interface BrowserTestResponse {
@@ -754,7 +760,7 @@ export interface ClaimCombinedLogsResponse {
 
 export interface EmailSettings {
   email_notifications_enabled: boolean;
-  provider: "local_mock" | "maildev" | "smtp" | "direct_mx" | "graph" | "sendgrid" | "ses" | string;
+  provider: "local_mock" | "maildev" | "smtp" | "direct_mx" | "graph" | "ses";
   maildev_web_url?: string;
   smtp_host: string;
   smtp_port: number;
@@ -778,6 +784,7 @@ export interface EmailSettings {
   timeout_seconds: number;
   retry_count: number;
   retry_delay_seconds: number;
+  digest_mode: "immediate" | "hourly_digest" | "daily_digest";
   rules: {
     guidewire_activity_created?: boolean;
     guidewire_activity_failed?: boolean;

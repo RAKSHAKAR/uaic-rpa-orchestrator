@@ -535,6 +535,21 @@ function Invoke-StartAllServices {
         try { npm install --no-audit --no-fund --loglevel=error } finally { Pop-Location }
     }
 
+    # Synchronize RPA Mode directly to Redis so Celery workers immediately inherit the chosen mode
+    try {
+        $rpaIsHeadless = if ($activeMode -eq "Unattended") { "True" } else { "False" }
+        & $pyExe -c "import json, os, redis;
+try:
+    r = redis.Redis.from_url(os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0'), socket_connect_timeout=1.5, socket_timeout=1.5)
+    data = r.get('uaic:system_settings')
+    if data:
+        d = json.loads(data)
+        d.setdefault('automation', {})['headless_mode'] = ($rpaIsHeadless)
+        r.set('uaic:system_settings', json.dumps(d))
+except Exception:
+    pass" 2>$null
+    } catch {}
+
     Write-LogMessage "Launching background service windows..." "INFO"
     Start-EncodedWindow "FastAPI Backend (port 8000)" "Set-Location '$backendDir'; & '$pyExe' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     Start-EncodedWindow "Celery Worker [$activeMode RPA]" "Set-Location '$backendDir'; & '$pyExe' -m celery -A app.core.celery_app.celery_app worker -E --loglevel=info -Q ingest,scrapers,matcher,notifications,default --pool=threads --concurrency=10"

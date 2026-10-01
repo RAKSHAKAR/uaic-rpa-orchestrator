@@ -52,6 +52,8 @@ def make_mock_button(visible: bool = True, disabled: bool = False) -> MagicMock:
 
     btn = MagicMock()
     btn.count = AsyncMock(return_value=1 if visible else 0)
+    btn.is_visible = AsyncMock(return_value=visible)
+    btn.get_attribute = AsyncMock(return_value="k-link k-state-disabled" if disabled else "k-link")
     btn.first = btn_item
     return btn
 
@@ -193,7 +195,7 @@ async def test_harris_jp_kendo_multi_page_pagination_strict_schema():
         assert "CaseStyle" in r
         assert "FilingDate" in r
         assert "CaseStatus" in r
-        assert "CountyWebsite" in r
+        assert set(r) == {"CaseNumber", "CaseStyle", "FilingDate", "CaseStatus"}
 
 
 @pytest.mark.asyncio

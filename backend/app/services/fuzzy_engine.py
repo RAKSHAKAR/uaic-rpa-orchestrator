@@ -77,20 +77,22 @@ def is_case_eligible(
     filing_date: str | None,
     case_status: str | None,
     case_type: str | None,
-    min_filing_date: str = "2011-01-01",
+    min_filing_date: str = "2010-01-01",
     allowed_statuses: list[str] | None = None,
     allowed_types: list[str] | None = None,
 ) -> bool:
     """
     Validates if court case meets business criteria:
-    1. FilingDate >= 2011-01-01 (strictly after year 2010 per V4 §5.4)
+    1. FilingDate >= configured minimum (2010-01-01 by default)
     2. CaseStatus is in allowed statuses (or empty)
     3. CaseType is in allowed types (or empty)
     """
-    allowed_statuses = allowed_statuses or settings.ALLOWED_CASE_STATUSES
-    allowed_types = allowed_types or settings.ALLOWED_CASE_TYPES
+    allowed_statuses = settings.ALLOWED_CASE_STATUSES if allowed_statuses is None else allowed_statuses
+    allowed_types = settings.ALLOWED_CASE_TYPES if allowed_types is None else allowed_types
 
-    # Check filing date if present
+    # A missing or unparseable court date is not evidence of eligibility.
+    if not filing_date:
+        return False
     if filing_date:
         f_date = str(filing_date).strip()
         date_formats = [
@@ -112,7 +114,7 @@ def is_case_eligible(
 
         if parsed_dt:
             min_dt = None
-            min_date_clean = str(min_filing_date).strip() if min_filing_date else "2011-01-01"
+            min_date_clean = str(min_filing_date).strip() if min_filing_date else "2010-01-01"
             for fmt in date_formats:
                 try:
                     min_dt = datetime.strptime(min_date_clean, fmt)
@@ -122,6 +124,10 @@ def is_case_eligible(
 
             if min_dt and parsed_dt < min_dt:
                 return False
+            if min_dt is None:
+                return False
+        else:
+            return False
 
     # Check Case Status
     if case_status:
@@ -153,7 +159,7 @@ SCORER_MAP = {
 def calculate_match_score(
     party_name: str,
     case_style: str,
-    scorer_algorithm: str = "token_sort_ratio",
+    scorer_algorithm: str = "partial_ratio",
 ) -> float:
     """
     Calculates fuzzy similarity between party name and case style based on configured scorer algorithm.
@@ -175,7 +181,7 @@ def calculate_match_score(
         matched_tokens = p_tokens.intersection(c_tokens)
         containment_score = len(matched_tokens) / len(p_tokens)
 
-    scorer_fn = SCORER_MAP.get(scorer_algorithm.lower(), fuzz.token_sort_ratio)
+    scorer_fn = SCORER_MAP.get(scorer_algorithm.lower(), fuzz.partial_ratio)
     raw_algo_score = scorer_fn(p_norm, c_norm) / 100.0
 
     if scorer_algorithm.lower() == "token_set_ratio":
@@ -201,15 +207,19 @@ def evaluate_case_against_parties(
     driver_name: str,
     threshold: float = 0.60,
     borderline_threshold: float = 0.40,
-    scorer_algorithm: str = "token_sort_ratio",
+    scorer_algorithm: str = "partial_ratio",
     noise_patterns: list[str] | None = None,
+    case_style_patterns: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Evaluates a single court case against the 3 parties (Claimant, Insured, Driver).
     Returns list of comparison results for each party adhering to configured scorer and noise patterns.
     """
     raw_style = case.get("CaseStyle") or case.get("case_style") or ""
-    cleaned_style = clean_case_style(raw_style, noise_patterns=noise_patterns)
+    cleaned_style = clean_case_style(
+        raw_style,
+        noise_patterns=case_style_patterns if case_style_patterns is not None else noise_patterns,
+    )
 
     parties = [
         (PartyTypeEnum.CLAIMANT, claimant_name),
@@ -399,4 +409,3 @@ def generate_unique_names_for_claim(
                 break
 
     return unique_parties
-
