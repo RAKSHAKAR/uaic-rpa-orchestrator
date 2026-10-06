@@ -93,7 +93,19 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onSuccess }) => {
       setStep(2); // Automatically advance to Column Mapping step
     } catch (err: any) {
       console.error("Preview failed:", err);
-      setError(err?.response?.data?.detail || "Could not analyze spreadsheet schema. Please check the file format.");
+      let message = "Could not analyze spreadsheet schema. Please check the file format.";
+      if (err?.response?.data?.detail) {
+        message = typeof err.response.data.detail === "string"
+          ? err.response.data.detail
+          : JSON.stringify(err.response.data.detail);
+      } else if (err?.response?.status === 413) {
+        message = "File is too large. Please upload a smaller file.";
+      } else if (!err?.response && (err?.code === "ERR_NETWORK" || err?.message?.includes("Network Error"))) {
+        message = "Cannot connect to orchestrator backend (http://localhost:8000). Please ensure the backend service is running.";
+      } else if (err?.message) {
+        message = err.message;
+      }
+      setError(message);
     } finally {
       setIsPreviewLoading(false);
     }
@@ -179,7 +191,13 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onSuccess }) => {
       setValidationResult(result);
       setStep(3); // Advance to Validation & Duplicate Inspection step
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Validation failed. Please verify column mappings.");
+      if (err?.code === "ERR_NETWORK" || !err?.response) {
+        setError("Cannot connect to backend server. Please verify backend is running on port 8000.");
+      } else if (err?.response?.status >= 500) {
+        setError(err?.response?.data?.detail || "Backend server error during validation. Please check server logs.");
+      } else {
+        setError(err?.response?.data?.detail || "Validation failed. Please verify column mappings.");
+      }
     } finally {
       setIsValidating(false);
     }
@@ -205,7 +223,13 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onSuccess }) => {
         onSuccess(batch);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to start file ingestion.");
+      if (err?.code === "ERR_NETWORK" || !err?.response) {
+        setError("Cannot connect to backend server. Please verify backend is running on port 8000.");
+      } else if (err?.response?.status >= 500) {
+        setError(err?.response?.data?.detail || "Backend server error during ingestion. Please check server logs.");
+      } else {
+        setError(err?.response?.data?.detail || "Failed to start file ingestion.");
+      }
       setStep(3); // Return to validation on immediate failure
       setIsUploading(false);
     }

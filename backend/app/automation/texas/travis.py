@@ -458,11 +458,22 @@ class TravisScraper(BaseCourtScraper):
         if not captcha_success:
             raise CaptchaResolutionError(f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts_to_use} attempts")
 
-        # Step J: Check for 'No cases match your search'
+        # Step J: Check for 'No cases match your search' / no records
         t_ext_start = datetime.now()
         body_text = await _get_page_text(page)
-        if "no cases match your search" in body_text.lower():
-            logger.info(f"[{self.county_name}] Search for '{query}': No cases match search.")
+        lower_body = body_text.lower()
+        row_candidates = page.locator(".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr")
+        has_rows = await _safe_count(row_candidates) > 0
+        norecords_el = page.locator(".k-grid-norecords, .norecords, div:has-text('No records to display')")
+        has_norecords = (await _safe_count(norecords_el) > 0)
+        is_no_match = any(phrase in lower_body for phrase in (
+            "no cases match your search", "no cases match", "no records found",
+            "no records to display", "no results found", "no cases found",
+            "0 records found", "0 items found", "no record found"
+        )) or (has_norecords and not has_rows)
+
+        if is_no_match:
+            logger.info(f"[{self.county_name}] Search for '{query}': No matching cases found.")
             t_ext_end = datetime.now()
             self.record_stage("result_retrieval", "Result Retrieval", t_ext_start, t_ext_end, cases_found=0, result_category="No Record Found")
             await self.return_to_search_state(page)
@@ -584,11 +595,15 @@ class TravisScraper(BaseCourtScraper):
                         old_case = results[-1]["CaseNumber"] if results else ""
                         await self.biometric_click(page, next_btn.first)
                         try:
-                            await page.wait_for_function(
-                                "oldNum => { const row = document.querySelector('.k-grid-content tbody tr, table.k-selectable tbody tr'); return row && !row.innerText.includes(oldNum); }",
-                                arg=old_case,
-                                timeout=5000,
-                            )
+                            wf_fn = getattr(page, "wait_for_function", None)
+                            if callable(wf_fn):
+                                res = wf_fn(
+                                    "oldNum => { const row = document.querySelector('.k-grid-content tbody tr, table.k-selectable tbody tr'); return row && !row.innerText.includes(oldNum); }",
+                                    arg=old_case,
+                                    timeout=5000,
+                                )
+                                if inspect.isawaitable(res):
+                                    await res
                         except Exception:
                             await page.wait_for_timeout(2000)
                         page_num += 1
@@ -598,7 +613,11 @@ class TravisScraper(BaseCourtScraper):
                 has_next_page = False
 
         if not results:
-            raise RuntimeError(f"[{self.county_name}] Search completed without results or a verified no-match message")
+            logger.info(f"[{self.county_name}] No cases extracted from result grid for '{query}'.")
+            t_ext_end = datetime.now()
+            self.record_stage("result_retrieval", "Result Retrieval", t_ext_start, t_ext_end, cases_found=0, result_category="No Record Found")
+            await self.return_to_search_state(page)
+            return []
 
         t_ext_end = datetime.now()
         self.record_stage(

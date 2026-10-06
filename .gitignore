@@ -20,6 +20,7 @@ logs/
 *.sqlite3
 *.bak
 celerybeat-schedule*
+scripts/pytest_runtime_tmp_*
 
 # Heavy Media, Recordings, VSIX Packages, and Archives (>100MB Limit Protection)
 *.mp4
@@ -39,8 +40,6 @@ PowerAutomateSolutions/*.mp4
 .DS_Store
 Thumbs.db
 
-
-
 # Large Files Excluded by 100MB Guard
 Microsoft.VisualStudio.Services.VSIXPackage
 implementation_plan/Video/Recording 2026-09-07 161459.mp4
@@ -48,7 +47,7 @@ implementation_plan/Video/Recording 2026-09-07 163544.mp4
 PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
 PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
 
-# --- Enterprise Standard Rules (Appended by Deploy Tool) ---
+# --- Enterprise Standard Rules ---
 venv/
 env/
 vendor/
@@ -81,88 +80,3 @@ desktop.ini
 .idea/
 *.suo
 *.user
-
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
-
-# Large Files Excluded by 100MB Guard
-Microsoft.VisualStudio.Services.VSIXPackage
-implementation_plan/Video/Recording 2026-09-07 161459.mp4
-implementation_plan/Video/Recording 2026-09-07 163544.mp4
-PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
-PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4

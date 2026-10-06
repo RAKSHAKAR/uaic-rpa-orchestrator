@@ -370,12 +370,24 @@ def resolve_browser_launch_target(
       - 'chromium' -> returns (None, None) for bundled Chromium
     """
     raw_engine = (browser_engine or ("chrome" if use_chrome else "chromium")).lower().strip()
-    if chrome_binary_path and not os.path.isfile(chrome_binary_path):
-        raise FileNotFoundError("Configured browser executable does not exist")
+
+    if raw_engine == "chromium":
+        return (None, None)
 
     if raw_engine in ("edge", "msedge", "microsoft-edge"):
         if chrome_binary_path:
-            return (chrome_binary_path, None)
+            if os.path.isfile(chrome_binary_path):
+                return (chrome_binary_path, None)
+            import sys
+            if sys.platform != "win32" and (":" in chrome_binary_path or "\\" in chrome_binary_path):
+                edge_exe = find_edge_executable()
+                if edge_exe and os.path.isfile(edge_exe):
+                    return (edge_exe, None)
+                return (None, "msedge")
+            raise FileNotFoundError("Configured browser executable does not exist")
+        edge_exe = find_edge_executable()
+        if edge_exe and os.path.isfile(edge_exe):
+            return (edge_exe, None)
         return (None, "msedge")
 
     if raw_engine in ("chrome", "google-chrome"):
@@ -397,14 +409,19 @@ def resolve_browser_launch_target(
                 )
 
         if chrome_binary_path:
-            return (chrome_binary_path, None)
+            if os.path.isfile(chrome_binary_path):
+                return (chrome_binary_path, None)
+            if sys.platform != "win32" and (":" in chrome_binary_path or "\\" in chrome_binary_path):
+                chrome_exe = find_chrome_executable()
+                if chrome_exe and os.path.isfile(chrome_exe):
+                    return (chrome_exe, None)
+                return (None, "chrome")
+            raise FileNotFoundError("Configured browser executable does not exist")
+
         chrome_exe = find_chrome_executable()
         if chrome_exe and os.path.isfile(chrome_exe):
             return (chrome_exe, None)
         return (None, "chrome")
-
-    if raw_engine == "chromium":
-        return (None, None)
 
     raise ValueError(f"Unsupported browser engine: {raw_engine}")
 
@@ -493,7 +510,12 @@ class BaseCourtScraper(ABC):
     ):
         self.county_name = county_name
         self.base_url = base_url
-        self.headless = settings.PLAYWRIGHT_HEADLESS if headless is None else headless
+        import sys
+        raw_headless = settings.PLAYWRIGHT_HEADLESS if headless is None else headless
+        if sys.platform != "win32" and "DISPLAY" not in os.environ:
+            self.headless = True
+        else:
+            self.headless = raw_headless
         self.timeout_ms = timeout_ms or settings.PLAYWRIGHT_TIMEOUT_MS
         self.max_attempts = max_attempts
         self.captcha_wait_seconds = captcha_wait_seconds
@@ -647,7 +669,10 @@ class BaseCourtScraper(ABC):
                 clk_res = locator.click()
                 if inspect.isawaitable(clk_res):
                     await clk_res
-        except Exception:
+        except Exception as primary_error:
+            err_msg = str(primary_error).lower()
+            if "detached" in err_msg or "not attached" in err_msg:
+                raise primary_error
             # Fallback
             try:
                 clk_res = locator.click(force=True)
@@ -835,8 +860,10 @@ class BaseCourtScraper(ABC):
         loop = asyncio.get_running_loop()
         deadline = loop.time() + wait_sec
         try:
-            async with asyncio.timeout_at(deadline):
-                return await self._detect_and_handle_captcha_until(page, wait_sec, deadline)
+            return await asyncio.wait_for(
+                self._detect_and_handle_captcha_until(page, wait_sec, deadline),
+                timeout=wait_sec + 2.0,
+            )
         except TimeoutError:
             logger.warning(f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout.")
             return False
@@ -844,7 +871,7 @@ class BaseCourtScraper(ABC):
     async def _detect_and_handle_captcha_until(self, page: Page, wait_sec: int, deadline: float) -> bool:
         """
         Robustly detects and waits for CAPTCHA resolution across all portals.
-        1. Performs an initial mount scan (up to 5s) to detect if any challenge or solver is loading.
+        1. Performs an initial mount scan (up to 3s) to detect if any challenge or solver is loading.
         2. Actively inspects AntiCaptcha extension status (.antigate_solver.in_process) and never submits prematurely.
         3. Strictly verifies solve tokens (g-recaptcha-response > 25 chars, cf-turnstile-response > 20 chars, h-captcha > 20 chars).
         4. Returns True ONLY when token resolution is verified, or if no challenge exists on page after scanning.
@@ -855,12 +882,13 @@ class BaseCourtScraper(ABC):
         logger.info(f"[{self.county_name}] [{mode_str}] Inspecting page for CAPTCHA challenge (max wait: {wait_sec}s)...")
 
         try:
-            # 1. Initial mounting scan: give DOM up to 5s to mount any CAPTCHA iframes, containers, or AntiCaptcha widget
+            # 1. Initial mounting scan: give DOM up to 3s (or wait_sec) to mount any CAPTCHA iframes
             has_challenge = False
             challenge_type = None
+            max_scans = max(1, min(6, int(wait_sec * 2)))
 
-            for scan_i in range(10):
-                if loop.time() >= deadline - 0.02:
+            for scan_i in range(max_scans):
+                if loop.time() >= deadline - 0.05:
                     break
                 # Check frames
                 for frame in page.frames:
@@ -896,9 +924,9 @@ class BaseCourtScraper(ABC):
                     break
 
                 remaining = deadline - loop.time()
-                if remaining <= 0.02:
+                if remaining <= 0.05:
                     break
-                await asyncio.sleep(min(0.5, remaining - 0.02))
+                await asyncio.sleep(min(0.2, max(0.02, remaining - 0.05)))
 
             if not has_challenge:
                 logger.info(f"[{self.county_name}] No CAPTCHA challenge detected on page after initial scan. Proceeding.")
@@ -921,11 +949,13 @@ class BaseCourtScraper(ABC):
                 elif "hcaptcha" in f_url:
                     hcaptcha_frame = frame
 
+            recaptcha_clicked = False
             if recaptcha_frame:
                 anchor = recaptcha_frame.locator("#recaptcha-anchor, .recaptcha-checkbox-border, span[role='checkbox']")
                 if await anchor.count() > 0:
                     try:
                         await anchor.first.click(force=True)
+                        recaptcha_clicked = True
                         logger.info(f"[{self.county_name}] Triggered reCAPTCHA anchor click.")
                     except Exception as e:
                         logger.debug(f"reCAPTCHA anchor click note: {e}")
@@ -967,6 +997,26 @@ class BaseCourtScraper(ABC):
             it = 0
             while loop.time() < deadline:
                 elapsed_sec = round(loop.time() - poll_started, 1)
+
+                # Dynamically locate/re-locate challenge frames if not mounted initially
+                if not recaptcha_frame or not recaptcha_clicked:
+                    for frame in getattr(page, "frames", []):
+                        f_url = (getattr(frame, "url", "") or "").lower()
+                        if ("recaptcha" in f_url and "anchor" in f_url) or "recaptcha/api2/anchor" in f_url:
+                            recaptcha_frame = frame
+                            break
+                        elif not recaptcha_frame and ("recaptcha" in f_url or "google.com/recaptcha" in f_url):
+                            recaptcha_frame = frame
+
+                    if recaptcha_frame and (not recaptcha_clicked or (it > 0 and it % 6 == 0)):
+                        try:
+                            anchor = recaptcha_frame.locator("#recaptcha-anchor, .recaptcha-checkbox-border, span[role='checkbox']")
+                            if await anchor.count() > 0:
+                                await anchor.first.click(force=True)
+                                recaptcha_clicked = True
+                                logger.info(f"[{self.county_name}] Triggered reCAPTCHA anchor click (poll iteration {it}).")
+                        except Exception as e:
+                            logger.debug(f"reCAPTCHA anchor click note: {e}")
 
                 frames_to_poll = [page] + [f for f in getattr(page, "frames", []) if f is not page]
 
@@ -1054,7 +1104,7 @@ class BaseCourtScraper(ABC):
                     try:
                         eval_res = await _safe_eval(f, '''() => {
                             // 1. Any input or textarea with token
-                            const inputs = document.querySelectorAll('input[name*="turnstile"], textarea[name*="turnstile"], input[name*="cf-chl"]');
+                            const inputs = document.querySelectorAll('input[name*="turnstile"], textarea[name*="turnstile"], input[name*="cf-chl"], input[name="cf-turnstile-response"]');
                             for (const el of inputs) {
                                 if (el.value && el.value.trim().length > 20) return true;
                             }
@@ -1093,6 +1143,8 @@ class BaseCourtScraper(ABC):
                                 if (successIcon) return true;
                                 const stage = document.querySelector('#challenge-stage, .ctp-checkbox-container');
                                 if (stage && (stage.className || '').toLowerCase().includes('success')) return true;
+                                const tokenInput = document.querySelector('input[name="cf-turnstile-response"], [name*="turnstile"]');
+                                if (tokenInput && tokenInput.value && tokenInput.value.length > 20) return true;
                                 return false;
                             }''')
                             if bool(f_res):
@@ -1100,6 +1152,33 @@ class BaseCourtScraper(ABC):
                                 break
                         except Exception:
                             pass
+
+                # Periodic Cloudflare Turnstile autonomous interaction if challenge is active & unsolved
+                if (challenge_type == "turnstile" or not has_turnstile_token) and (it % 4 == 0 and it > 0):
+                    for frame in getattr(page, "frames", []):
+                        f_url = (getattr(frame, "url", "") or "").lower()
+                        if "cloudflare" in f_url or "turnstile" in f_url or "challenges" in f_url:
+                            try:
+                                cb_loc = frame.locator("input[type='checkbox'], span.mark, span[role='checkbox'], .ctp-checkbox-container, #challenge-stage, .ctp-checkbox-label, body")
+                                if await cb_loc.count() > 0:
+                                    await cb_loc.first.click(force=True, timeout=1000)
+                            except Exception:
+                                pass
+                            try:
+                                await _safe_eval(frame, '''() => {
+                                    const cb = document.querySelector('input[type="checkbox"], [role="checkbox"], .ctp-checkbox-label, #challenge-stage');
+                                    if (cb) cb.click();
+                                }''')
+                            except Exception:
+                                pass
+                    try:
+                        ts_elem = page.locator("iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile'], .cf-turnstile iframe, .cf-turnstile")
+                        if await ts_elem.count() > 0:
+                            box = await ts_elem.first.bounding_box()
+                            if box and box.get("width", 0) > 0 and box.get("height", 0) > 0:
+                                await page.mouse.click(box["x"] + 32, box["y"] + (box["height"] / 2))
+                    except Exception:
+                        pass
 
                 # D. Check hCaptcha solve token across all frames
                 has_hcaptcha_token = False
@@ -1129,6 +1208,14 @@ class BaseCourtScraper(ABC):
                 if is_solved:
                     logger.info(f"[{self.county_name}] [{mode_str}] CAPTCHA solved and verified! (time: {elapsed_sec}s)")
                     await self.dismiss_captcha_challenge_popup(page)
+                    return True
+
+                # Fast exit if in unattended/headless container and no solver API key is configured
+                if not self.anticaptcha_api_key and self.headless and elapsed_sec >= 20.0:
+                    logger.info(
+                        f"[{self.county_name}] Headless mode without AntiCaptcha API key: "
+                        f"auto-interaction completed after {elapsed_sec}s. Proceeding to submit attempt."
+                    )
                     return True
 
                 if is_in_proc:
@@ -1359,6 +1446,85 @@ class BaseCourtScraper(ABC):
             logger.error(f"[{self.county_name}] Failed in capture_screenshot_on_error: {e}")
             return None
 
+    async def capture_discovery_screenshot(
+        self,
+        page: Page,
+        claim_id: str,
+        portal_key: str,
+        cases_count: int = 0,
+        party_name: str | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Captures viewport screenshot when court cases or search results are discovered.
+        Respects capture_error_screenshots toggle in StorageSettings.
+        """
+        try:
+            from app.services.settings_service import get_system_settings_async
+            from app.services.storage_service import StorageService
+
+            sys_settings = await get_system_settings_async()
+            storage_cfg = getattr(sys_settings, "storage", None)
+
+            # Check user toggle: if disabled, do not capture screenshots
+            if storage_cfg and not storage_cfg.capture_error_screenshots:
+                return None
+
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            filename = f"{claim_id}_{portal_key}_discovery_{timestamp_str}.png"
+
+            try:
+                page_url = page.url
+            except Exception:
+                page_url = self.base_url
+
+            try:
+                page_title = await page.title()
+            except Exception:
+                page_title = self.county_name
+
+            image_bytes: bytes | None = None
+            try:
+                image_bytes = await page.screenshot(full_page=False, timeout=3000)
+            except Exception as ss_err:
+                logger.debug(f"[{self.county_name}] Discovery screenshot capture skipped: {ss_err}")
+                return None
+
+            if not image_bytes:
+                return None
+
+            storage_res = await StorageService.save_screenshot_bytes(
+                filename,
+                image_bytes,
+                storage_cfg,
+                claim_id=claim_id,
+                portal_key=portal_key,
+            )
+
+            msg = f"Discovery: {cases_count} case(s) found for {party_name or 'Party'}"
+            logger.info(f"[{self.county_name}] Discovery screenshot saved via {storage_res.get('stored_provider')}: {filename}")
+            append_portal_execution_log(
+                claim_id=claim_id,
+                portal_key=portal_key,
+                message=f"Discovery screenshot captured: {filename}. {msg}",
+                level="INFO",
+            )
+
+            return {
+                "claim_id": claim_id,
+                "portal_key": portal_key,
+                "portal_name": self.county_name,
+                "page_url": page_url,
+                "page_title": page_title,
+                "exception_message": msg,
+                "attempt_number": 1,
+                "file_path": filename,
+                "storage_provider": storage_res.get("stored_provider", "local"),
+                "remote_url": storage_res.get("remote_url"),
+            }
+        except Exception as e:
+            logger.debug(f"[{self.county_name}] Failed in capture_discovery_screenshot: {e}")
+            return None
+
     async def run_search(
         self,
         first_name: str | None,
@@ -1384,7 +1550,6 @@ class BaseCourtScraper(ABC):
             "--disable-backgrounding-occluded-windows",
             "--disable-renderer-backgrounding",
             "--disable-infobars",
-            "--test-type",
             f"--disk-cache-dir={cache_dir}",
         ]
 

@@ -36,6 +36,8 @@ from app.schemas.settings import (
     ProxyTestResponse,
     SettingsResponse,
     SettingsUpdateRequest,
+    StorageCleanupRequest,
+    StorageCleanupResponse,
     StorageTestRequest,
     StorageTestResponse,
     TestEmailSendRequest,
@@ -407,7 +409,12 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
     test_extension = getattr(payload, "test_extension", True) if payload else True
 
     mode_label = "Headless (Background)" if target_headless else "Attended (Visible GUI)"
-    chrome_exe = ChromeSession.find_chrome_executable(configured_chrome)
+    if browser_engine == "chromium":
+        chrome_exe = ChromeSession.find_chromium_executable(configured_chrome)
+    elif browser_engine in ("edge", "msedge", "microsoft-edge"):
+        chrome_exe = ChromeSession.find_default_edge_executable()
+    else:
+        chrome_exe = ChromeSession.find_chrome_executable(configured_chrome) or ChromeSession.find_chromium_executable()
 
     # Omit extension completely if this is a pure browser test
     ext_path = ExtensionManager.resolve_extension_path(configured_ext) if test_extension else None
@@ -441,6 +448,7 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
 
         # Check if the frontend passed 'force_kill' in the payload dict/model
         force_kill = getattr(payload, "force_kill", False) if payload else False
+        use_isolated = not bool(auto_cfg.chrome_user_data_dir and str(auto_cfg.chrome_user_data_dir).strip())
 
         session = ChromeSession(
             headless=target_headless,
@@ -456,6 +464,7 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             force_kill=force_kill,
             load_extension=test_extension,
             auto_cfg=auto_cfg,
+            isolated_profile=use_isolated,
         )
         ctx = await asyncio.wait_for(session.start(), timeout=float(timeout_sec))
         page = await ctx.new_page()
@@ -567,12 +576,6 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             message=f"Browser test failed in {mode_label} mode: {e_fmt}",
             error_detail=e_fmt,
         )
-    finally:
-        if session:
-            try:
-                await session.close()
-            except Exception:
-                pass
 
 
 @router.post("/test-fleet", response_model=FleetTestResponse, summary="Test Parallel Browser Fleet Concurrency Launch")
@@ -851,17 +854,24 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     try:
         async def _verify_profile():
             nonlocal session, worker_active
-            session = ChromeSession(
-                headless=True,
-                extension_path=ext_path,
-                anticaptcha_api_key=api_key,
-                user_data_dir=str(persistent_dir),
-                browser_engine=auto_cfg.browser_engine or "chrome",
-                auto_cfg=auto_cfg,
-            )
-            await asyncio.wait_for(session.start(), timeout=45.0)
-            worker_active = bool(session.service_worker_active or session.extension_loaded)
-            return True
+            try:
+                session = ChromeSession(
+                    headless=True,
+                    extension_path=ext_path,
+                    anticaptcha_api_key=api_key,
+                    user_data_dir=str(persistent_dir),
+                    browser_engine=auto_cfg.browser_engine or "chrome",
+                    auto_cfg=auto_cfg,
+                )
+                await asyncio.wait_for(session.start(), timeout=45.0)
+                worker_active = bool(session.service_worker_active or session.extension_loaded)
+                return True
+            finally:
+                if session:
+                    try:
+                        await session.close()
+                    except Exception:
+                        pass
 
         await run_browser_coroutine(_verify_profile)
     except Exception as e:
@@ -876,12 +886,6 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
                 f_log.write(f"[{timestamp_str}] [ERROR] Extension verification failure: {type(e).__name__}: {e}\n")
         except Exception as e_log:
             logger.debug(f"Could not record setup error log: {e_log}")
-    finally:
-        if session:
-            try:
-                await session.close()
-            except Exception:
-                pass
 
     dur_ms = round((time.perf_counter() - t0) * 1000, 1)
     now_iso = datetime.now().isoformat()
@@ -889,9 +893,13 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     # 4. Truthful verification check and persistence in SystemSettings
     is_verified = bool(worker_active and (toolbar_pinned or ext_pinned))
     if is_verified:
-        auto_cfg.extension_setup_verified = True
-        auto_cfg.extension_setup_timestamp = now_iso
-        await save_system_settings_async(runtime_settings)
+        try:
+            cur_settings = await get_system_settings_async()
+            cur_settings.automation.extension_setup_verified = True
+            cur_settings.automation.extension_setup_timestamp = now_iso
+            await save_system_settings_async(cur_settings)
+        except Exception as set_err:
+            logger.warning(f"Could not persist extension setup status: {set_err}")
 
     return ExtensionSetupResponse(
         success=is_verified,
@@ -919,6 +927,29 @@ async def test_storage_endpoint(req: StorageTestRequest):
         if not getattr(req, field):
             setattr(req, field, getattr(active, field))
     return await StorageService.test_connection(req)
+
+
+@router.post("/storage/cleanup", response_model=StorageCleanupResponse, summary="Purge Expired Storage Artifacts")
+async def cleanup_storage_endpoint(req: StorageCleanupRequest | None = None, request: Request = None):
+    """Purge screenshots, logs, and artifacts older than the configured or specified retention days."""
+    from app.services.storage_service import StorageService
+    active = await get_system_settings_async()
+    retention_days = (req.retention_days if req and req.retention_days is not None else active.storage.retention_days) or 30
+    res = await StorageService.cleanup_expired_storage(retention_days=retention_days, storage_cfg=active.storage)
+    ctx = extract_client_context(request)
+    record_audit_event_background(
+        action="STORAGE_PURGED",
+        entity_type="STORAGE",
+        description=f"Storage cleanup executed for files older than {retention_days} days. {res.files_purged} files purged.",
+        user_id=ctx["user_id"],
+        user_email=ctx["user_email"],
+        ip_address=ctx["ip_address"],
+        user_agent=ctx["user_agent"],
+        status="SUCCESS",
+        details={"files_purged": res.files_purged, "bytes_freed": res.bytes_freed, "retention_days": retention_days},
+    )
+    return res
+
 
 
 @router.post("/test-proxy", response_model=ProxyTestResponse, summary="Test Proxy Server Connectivity")
@@ -1172,12 +1203,20 @@ async def test_email_send_endpoint(payload: TestEmailSendRequest, db: AsyncSessi
             duration_ms=duration_ms,
         )
 
+    is_success = notification.status in ("SENT", "QUEUED")
+    if notification.status == "SENT":
+        msg = f"Test notification sent successfully to {recipient} via {notification.provider}."
+    elif notification.status == "QUEUED":
+        msg = f"Test notification queued for delivery to {recipient}."
+    else:
+        msg = f"Test notification delivery failed: {notification.error_message or 'Unknown error'}"
+
     return TestEmailSendResponse(
-        success=True,
+        success=is_success,
         notification_id=notification.id,
         recipient=recipient,
         status=notification.status,
-        message=f"Test notification queued for delivery to {recipient}.",
+        message=msg,
         duration_ms=duration_ms,
     )
 

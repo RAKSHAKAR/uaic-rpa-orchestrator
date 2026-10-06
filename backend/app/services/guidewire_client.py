@@ -331,18 +331,27 @@ async def test_court_portal(request_data: PortalTestRequest) -> PortalTestRespon
             proxy=proxy_url,
             trust_env=False,
         ) as client:
-            res = await client.get(url, headers=headers)
-        duration_ms = round((time.perf_counter() - start) * 1000, 2)
-        is_reachable = res.status_code < 500
+            if hasattr(client, "stream"):
+                async with client.stream("GET", url, headers=headers) as res:
+                    duration_ms = round((time.perf_counter() - start) * 1000, 2)
+                    is_reachable = res.status_code < 500
+                    status_code = res.status_code
+                    reason_phrase = res.reason_phrase or "OK"
+            else:
+                res = await client.get(url, headers=headers)
+                duration_ms = round((time.perf_counter() - start) * 1000, 2)
+                is_reachable = res.status_code < 500
+                status_code = res.status_code
+                reason_phrase = getattr(res, "reason_phrase", "OK") or "OK"
 
         return PortalTestResponse(
             portal_name=request_data.portal_name,
             url=url,
             reachable=is_reachable,
-            status_code=res.status_code,
-            status_text=f"{res.status_code} {res.reason_phrase or 'OK'}",
+            status_code=status_code,
+            status_text=f"{status_code} {reason_phrase}",
             duration_ms=duration_ms,
-            error_detail=None if is_reachable else f"Server error: {res.status_code}",
+            error_detail=None if is_reachable else f"Server error: {status_code}",
         )
     except httpx.ConnectError:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)

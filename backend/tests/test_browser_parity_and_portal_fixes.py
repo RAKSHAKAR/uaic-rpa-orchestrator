@@ -104,6 +104,7 @@ async def test_miami_initiates_login_when_unauthenticated():
     )
     mock_page = MagicMock()
     mock_page.wait_for_timeout = AsyncMock()
+    mock_page.wait_for_function = AsyncMock()
     mock_page.keyboard.press = AsyncMock()
     mock_page.url = "https://www2.miamidadeclerk.gov/ocs"
     mock_page.goto = AsyncMock()

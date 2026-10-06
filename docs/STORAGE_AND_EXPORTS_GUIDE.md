@@ -141,3 +141,21 @@ The orchestrator supports dynamic corporate whitelabeling:
      }'
    ```
    *Returns `task_id` for background polling.*
+
+---
+
+## 7. Storage Retention Policies & Enterprise Cleanup
+
+The orchestrator enforces configurable lifecycle retention windows to manage disk utilization across error screenshots and exported dossiers:
+
+### Supported Retention Scopes (`TimeScopeEnum`)
+- **`OLDER_THAN_30_DAYS`**: Purges assets created more than 30 days ago (Recommended default).
+- **`OLDER_THAN_14_DAYS`**: Purges assets older than two weeks for high-throughput environments.
+- **`OLDER_THAN_7_DAYS`**: Weekly rolling purge for constrained storage environments.
+- **`ALL_TIME`**: Complete archive purge of all historical generated export files and temporary screenshots.
+
+### Manual & Automated Purge Actions
+- **API Endpoint:** `POST /api/v1/settings/cleanup/execute`
+- **UI Button:** `Purge Expired Storage Now` in **Settings → Storage & Exports**
+- **Safety Guarantee:** Transactional execution with pre-flight dry-run count verification and comprehensive audit log recording (`ActionTypeEnum.SYSTEM_CLEANUP`).
+

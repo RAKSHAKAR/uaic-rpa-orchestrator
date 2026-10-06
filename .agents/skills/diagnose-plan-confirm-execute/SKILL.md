@@ -1,12 +1,12 @@
----
+﻿---
 name: diagnose-plan-confirm-execute
 description: |
   Universal AI Engineering Governance Skill.
   Enforces the complete lifecycle: Understand → Inspect → Review README → Review History →
-  Diagnose → Gap Analysis → Plan → Save to implementation_plan → Show User → Wait for Approval →
+  Diagnose → Gap Analysis → Plan → Save to docs/ → Show User → Wait for Approval →
   Implement → Test → Validate → Document → Human Verify → Archive.
   CRITICAL: NO APPROVAL = NO IMPLEMENTATION. AI-generated documentation stays in
-  implementation_plan/ until the HUMAN explicitly verifies it.
+  docs/ until the HUMAN explicitly verifies it.
   Applies to ALL engineering activities: features, bugs, refactoring, architecture,
   database, APIs, UI/UX, auth, DevOps, integrations, automation, performance, security,
   testing, troubleshooting, documentation, migration, maintenance.
@@ -20,7 +20,7 @@ description: |
 >
 > **NO APPROVAL = NO IMPLEMENTATION.**
 >
-> **AI-GENERATED DOCUMENTATION STAYS IN `implementation_plan/` UNTIL THE HUMAN EXPLICITLY VERIFIES IT.**
+> **AI-GENERATED DOCUMENTATION STAYS IN `docs/` UNTIL THE HUMAN EXPLICITLY VERIFIES IT.**
 
 ---
 
@@ -48,8 +48,8 @@ description: |
 └──────────────┬───────────────┘
                ↓
 ┌──────────────────────────────┐
-│  REVIEW implementation_plan/ │
-│  AND implementation_plan/ HISTORY     │
+│  REVIEW docs/ │
+│  AND docs/ HISTORY     │
 └──────────────┬───────────────┘
                ↓
 ┌──────────────────────────────┐
@@ -72,8 +72,8 @@ description: |
                ↓
 ┌──────────────────────────────┐
 │ SAVE PLAN TO                 │
-│ implementation_plan/         │
-│       implementation_plan/            │
+│ docs/         │
+│       docs/            │
 │  Status: Awaiting Approval   │
 └──────────────┬───────────────┘
                ↓
@@ -109,8 +109,8 @@ description: |
            DOCUMENT DEVIATIONS
                        ↓
            FINAL DOCUMENTATION →
-          implementation_plan/
-               implementation_plan/
+          docs/
+               docs/
                        ↓
          ASK USER TO VERIFY DOCS
                        ↓
@@ -120,7 +120,7 @@ description: |
                │               │
                ↓               ↓
            KEEP IN         MOVE TO
-          implementation_plan       PERMANENT
+          docs/       PERMANENT
                             HISTORY
 ```
 
@@ -153,8 +153,8 @@ Never assume something is missing. Always inspect the actual codebase:
 - **Testing**: Pytest, Jest, mock fixtures, test coverage.
 - **Infrastructure**: Dockerfiles, docker-compose.yml, env vars, health checks.
 - **README.md**: The living technical booklet — read it fully.
-- **`implementation_plan/`**: All historical plans, walkthroughs, gap analyses.
-- **`implementation_plan/`**: Unverified AI working documents.
+- **`docs/`**: All historical plans, walkthroughs, gap analyses.
+- **`docs/`**: Unverified AI working documents.
 
 ### Search Strategy
 ```
@@ -169,8 +169,8 @@ Always check if existing code already fulfills part of the requirement.
 Before creating any new plan, inspect:
 
 ```
-implementation_plan/
-implementation_plan/
+docs/
+docs/
 ```
 
 Identify:
@@ -270,7 +270,7 @@ Required sections:
 
 ---
 
-## Stage 7 — Save Plan to `implementation_plan/`
+## Stage 7 — Save Plan to `docs/`
 
 **Before showing the plan to the user, save it.**
 
@@ -319,7 +319,7 @@ AI Verification:     Complete (100% Automated Testing Suite)
 
 ### The Plan Saved ≡ The Plan Shown
 
-> The plan saved in `implementation_plan/` MUST be the same substantive plan shown to the user. Never present one plan while secretly saving another.
+> The plan saved in `docs/` MUST be the same substantive plan shown to the user. Never present one plan while secretly saving another.
 
 ---
 
@@ -359,7 +359,7 @@ Present the plan. Then **STOP**.
 
 ---
 **No application code has been modified yet.**
-**Plan saved to:** `implementation_plan/YYYY-MM-DD_..._v1.md`
+**Plan saved to:** `docs/YYYY-MM-DD_..._v1.md`
 Please confirm if you approve this plan so I may begin execution.
 ```
 
@@ -489,9 +489,9 @@ Verify:
 
 ---
 
-## Stage 14 — Final Documentation in `implementation_plan/`
+## Stage 14 — Final Documentation in `docs/`
 
-Create or update final documents under `implementation_plan/`:
+Create or update final documents under `docs/`:
 
 | Document Type | Contents |
 |---|---|
@@ -504,8 +504,8 @@ Create or update final documents under `implementation_plan/`:
 
 ### Storage of Verification Recordings & Visual Artifacts
 - **Mandatory Homes**:
-  - `implementation_plan/Recording/`: Strictly for all browser subagent video recordings (`.webp`).
-  - `implementation_plan/Images/`: Strictly for all UI verification and inspection screenshots (`.png`).
+  - `docs/recordings/`: Strictly for all browser subagent video recordings (`.webp`).
+  - `docs/images/`: Strictly for all UI verification and inspection screenshots (`.png`).
 - Media files MUST be cleanly separated into these two folders so they are version-controlled with the repository rather than kept solely in the transient IDE brain directory.
 - All markdown walkthroughs and audit records must link directly to `Recording/<filename>.webp` or `Images/<filename>.png`.
 
@@ -527,22 +527,22 @@ When the full automated testing suite (100%) and visual evidence (recordings/scr
 
 After implementation is complete and all automated tests have passed:
 
-1. Update the document status in `implementation_plan/` to `Complete` with:
+1. Update the document status in `docs/` to `Complete` with:
    `**AI Verification:** Complete (100% Automated Testing Suite)`.
-2. Verify all browser video recordings are stored in `implementation_plan/Recording/` (`.webp`) and inspection screenshots in `implementation_plan/Images/` (`.png`).
-3. Report test results and links to created/updated files in `implementation_plan/`.
+2. Verify all browser video recordings are stored in `docs/recordings/` (`.webp`) and inspection screenshots in `docs/images/` (`.png`).
+3. Report test results and links to created/updated files in `docs/`.
 
 ```text
 AI implementation is complete.
 AI Verification: Complete (100% Automated Testing Suite)
 
-Documents updated in implementation_plan/:
+Documents updated in docs/:
 - [file 1]
 - [file 2]
 
 Visual Evidence:
-- Recordings: implementation_plan/Recording/
-- Screenshots: implementation_plan/Images/
+- Recordings: docs/recordings/
+- Screenshots: docs/images/
 ```
 
 ---
@@ -592,7 +592,7 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 2. Maintain database safety (never silently drop data).
 3. Execute all tests.
 4. Validate that the fix caused no regressions.
-5. Create documentation in `implementation_plan/` afterward.
+5. Create documentation in `docs/` afterward.
 6. Ask for human verification of documentation.
 
 ---
@@ -604,7 +604,7 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 [ ] User request understood
 [ ] Repository fully inspected
 [ ] README.md read and understood
-[ ] implementation_plan/ history reviewed
+[ ] docs/ history reviewed
 [ ] Existing implementation understood
 [ ] Root cause identified (with evidence)
 [ ] Gap analysis completed
@@ -614,7 +614,7 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 [ ] Security considerations addressed
 [ ] Testing strategy defined
 [ ] Acceptance criteria are measurable
-[ ] Plan saved to implementation_plan/
+[ ] Plan saved to docs/
 [ ] Plan matches what is shown to user
 [ ] Approval explicitly requested
 ```
@@ -628,7 +628,7 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 [ ] Regression check complete
 [ ] Acceptance criteria verified with evidence
 [ ] Deviations documented
-[ ] Final documentation created in implementation_plan/
+[ ] Final documentation created in docs/
 [ ] User notified to verify documentation
 [ ] No secrets exposed
 [ ] No fabricated test results
@@ -644,7 +644,7 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 3. Review README before substantial work.
 4. Review implementation history before substantial work.
 5. Create a detailed plan before implementation.
-6. Save the plan to `implementation_plan/`.
+6. Save the plan to `docs/`.
 7. Show the plan to the user.
 8. Wait for explicit approval.
 9. Never fabricate approval.
@@ -659,9 +659,9 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 18. Maintain implementation history.
 19. Document deviations from the approved plan.
 20. Never hide failures — preserve history with `Rejected`, `Superseded`, `Archived`.
-21. Keep AI documentation in `implementation_plan/` and store media strictly in `implementation_plan/Recording/` and `implementation_plan/Images/`.
+21. Keep AI documentation in `docs/` and store media strictly in `docs/recordings/` and `docs/images/`.
 22. Upon passing the full automated test suite (100%) and visual validation, set document status to `Complete` and AI Verification to `Complete (100% Automated Testing Suite)`.
-23. Never automatically move/delete `implementation_plan/` records.
+23. Never automatically move/delete `docs/` records.
 24. Never delete history to hide mistakes.
 25. Keep documentation synchronized with actual implementation.
 26. Use measurable acceptance evidence — not vague statements.
@@ -687,13 +687,13 @@ IMP-YYYY-MMDD-NNN
 | path/to/file | Modified | [Reason] |
 
 ### Documentation Created
-- `implementation_plan/YYYY-MM-DD_..._implementation-plan_v1.md`
-- `implementation_plan/YYYY-MM-DD_..._test-report_v1.md`
-- `implementation_plan/YYYY-MM-DD_..._validation_v1.md`
+- `docs/YYYY-MM-DD_..._implementation-plan_v1.md`
+- `docs/YYYY-MM-DD_..._test-report_v1.md`
+- `docs/YYYY-MM-DD_..._validation_v1.md`
 
 ### Visual Evidence
-- Recordings: `implementation_plan/Recording/`
-- Screenshots: `implementation_plan/Images/`
+- Recordings: `docs/recordings/`
+- Screenshots: `docs/images/`
 
 ### README Updates
 [What was added/updated and why]
@@ -719,8 +719,8 @@ IMP-YYYY-MMDD-NNN
 ---
 **Status:** Complete  
 **AI Verification:** Complete (100% Automated Testing Suite)  
-**Visual Evidence Preserved In:** `implementation_plan/Recording/` & `implementation_plan/Images/`  
-**Implementation Record:** `implementation_plan/`  
+**Visual Evidence Preserved In:** `docs/recordings/` & `docs/images/`  
+**Implementation Record:** `docs/`  
 ```
 
 ---
@@ -742,3 +742,4 @@ IMP-YYYY-MMDD-NNN
 3. **Exception to Default Skills:** If the user explicitly specifies a custom path (e.g., "Store file in root"), you must place the file *exactly* where requested and nowhere else, overriding default skill behaviors.
 4. **Verification Before Modification:** Before deleting or renaming, verify dependencies across the codebase (imports, Docker configs, scripts) and update them simultaneously.
 5. **Clean Code & Comments:** Every file MUST include a top-level Docstring/Header. Complex logic/regex MUST include inline comments explaining *why*.
+

@@ -489,8 +489,9 @@ async def test_hillsborough_sequential_unique_names_on_same_tab():
     assert processed_parties[0] == "Diana Prince"
     assert processed_parties[1] == "Bruce Wayne"
 
-    # Verify tab was created in pre-opening and retrieved once for the portal session (1 pre-open + 1 portal session = 2)
-    assert mock_browser_session.get_or_create_tab.await_count == 2
+    # Verify tab was created in pre-opening (1) and retrieved once per unique name (2) = 3 calls
+    assert mock_browser_session.get_or_create_tab.await_count == 3
+    assert mock_runner_cm.__aenter__.await_count == 1
 
     # Verify results persisted in database under fl_jsonbody_hillsborough and ScrapedCourtCase
     async with TaskAsyncSessionLocal() as session:

@@ -176,22 +176,19 @@ async def _async_parse_and_ingest(
             for claim in all_active_claims:
                 await session.refresh(claim)
 
-            # Respect auto-queue setting: only advance queue up to configured fleet concurrency.
+            # Guaranteed immediate auto-start on new record upload:
+            # Re-engages auto-queue and dispatches claims matching fleet concurrency capacity.
             # Claims exceeding current fleet capacity remain in NEW status in the Ordered Pending Queue.
-            from app.tasks.queue_runner import is_auto_queue_enabled
-            if is_auto_queue_enabled():
+            from app.tasks.queue_runner import set_auto_queue_enabled
+            if all_active_claims:
+                set_auto_queue_enabled(True)
                 celery_app.send_task(
                     "app.tasks.queue_runner.advance_auto_queue_task",
                     queue="default",
                 )
                 logger.info(
-                    f"Auto-queue is ENABLED. Ingested {len(all_active_claims)} claims as NEW status. "
-                    "Triggered advance_auto_queue_task to dispatch claims matching fleet concurrency capacity."
-                )
-            else:
-                logger.info(
-                    f"Auto-queue is DISABLED. Ingested {len(all_active_claims)} claims as NEW status. "
-                    "Scrapers will NOT be auto-started. Use Queue > Start-All or manual Start per claim."
+                    f"Auto-queue engaged on new upload. Ingested {len(all_active_claims)} claims as NEW status. "
+                    "Triggered advance_auto_queue_task to immediately process claims matching fleet concurrency capacity."
                 )
 
             batch.status = "COMPLETED"

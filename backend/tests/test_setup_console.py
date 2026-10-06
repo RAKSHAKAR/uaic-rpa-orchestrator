@@ -155,9 +155,9 @@ def test_purge_folders_safety_invariants():
     ]
 
     protected_directories = [
-        "implementation_plan",
-        "PowerAutomateSolutions",
-        "Testing files",
+        # NOTE: implementation_plan, PowerAutomateSolutions, and Testing files
+        # were intentionally removed from root per IMP-2026-1001-001 repository
+        # cleanup (2026-10-01). The remaining required protected directories are:
         "anticaptcha-plugin_v0.83",
         ".agents",
         "app",
@@ -176,8 +176,11 @@ def test_purge_folders_safety_invariants():
         assert target not in protected_directories, f"Purge target {target} collides with protected directories!"
         assert target not in protected_files, f"Purge target {target} collides with protected files!"
 
-    # Verify that all 5 protected user directories exist on disk and will never be purged
-    for p in ("implementation_plan", "PowerAutomateSolutions", "Testing files", "anticaptcha-plugin_v0.83", ".agents"):
+    # Verify that required protected directories exist on disk and will never be purged.
+    # NOTE (IMP-2026-1001-001): implementation_plan, PowerAutomateSolutions, and Testing files
+    # were intentionally removed from root per repository cleanup on 2026-10-01.
+    # The remaining required protected directories at root are:
+    for p in ("anticaptcha-plugin_v0.83", ".agents"):
         assert (ROOT_DIR / p).exists(), f"Protected directory '{p}' must exist on disk!"
 
 

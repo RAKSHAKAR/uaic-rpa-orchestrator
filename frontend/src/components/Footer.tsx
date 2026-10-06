@@ -8,15 +8,36 @@ import { api } from "../lib/api";
 export const Footer: React.FC = () => {
   const [workerCount, setWorkerCount] = useState<number>(1);
   const [isHealthy, setIsHealthy] = useState<boolean>(true);
+  const [engineName, setEngineName] = useState<string>("Chromium");
+  const [executionMode, setExecutionMode] = useState<string>("Attended GUI");
+
+  const formatEngineLabel = (rawEngine?: string): string => {
+    const eng = (rawEngine || "chromium").toLowerCase();
+    if (eng === "chromium") return "Chromium";
+    if (eng === "edge" || eng === "msedge" || eng === "microsoft-edge") return "Microsoft Edge";
+    return "Google Chrome";
+  };
+
+  const applyAutomationSettings = (auto: any) => {
+    if (!auto) return;
+    setEngineName(formatEngineLabel(auto.browser_engine));
+    setExecutionMode(auto.headless_mode ? "Headless" : "Attended GUI");
+  };
 
   useEffect(() => {
     let isMounted = true;
     const checkQueue = async () => {
       try {
-        const data = await api.getQueueStatus();
-        if (isMounted && data) {
-          setWorkerCount(data.workers_online || 1);
+        const [queueRes, settingsRes] = await Promise.allSettled([
+          api.getQueueStatus(),
+          api.getSettings(),
+        ]);
+        if (isMounted && queueRes.status === "fulfilled" && queueRes.value) {
+          setWorkerCount(queueRes.value.workers_online || 1);
           setIsHealthy(true);
+        }
+        if (isMounted && settingsRes.status === "fulfilled" && settingsRes.value?.automation) {
+          applyAutomationSettings(settingsRes.value.automation);
         }
       } catch {
         if (isMounted) {
@@ -24,11 +45,39 @@ export const Footer: React.FC = () => {
         }
       }
     };
+
     checkQueue();
-    const interval = setInterval(checkQueue, 15000);
+    const interval = setInterval(checkQueue, 10000);
+
+    const handleSettingsEvent = (e: any) => {
+      const auto = e?.detail?.automation || e?.detail;
+      if (auto) {
+        applyAutomationSettings(auto);
+      }
+    };
+
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === "uaic_automation_settings" && e.newValue) {
+        try {
+          applyAutomationSettings(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("uaic:settings-updated", handleSettingsEvent);
+      window.addEventListener("uaic:settings-preview", handleSettingsEvent);
+      window.addEventListener("storage", handleStorageEvent);
+    }
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("uaic:settings-updated", handleSettingsEvent);
+        window.removeEventListener("uaic:settings-preview", handleSettingsEvent);
+        window.removeEventListener("storage", handleStorageEvent);
+      }
     };
   }, []);
 
@@ -68,9 +117,9 @@ export const Footer: React.FC = () => {
               <span className="text-slate-300 dark:text-slate-700">•</span>
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3 text-teal-500 shrink-0" />
-                <span>Attended Mode:</span>
+                <span>Engine / Mode:</span>
                 <strong className="font-mono text-emerald-600 dark:text-emerald-400">
-                  Real Chrome
+                  {engineName} ({executionMode})
                 </strong>
               </span>
             </div>

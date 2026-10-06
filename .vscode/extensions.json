@@ -1,0 +1,27 @@
+{
+    "recommendations": [
+        // ─── Python & Testing ─────────────────────────────────────────────
+        "ms-python.python",                    // Python language support
+        "ms-python.vscode-pylance",            // Pylance type checker
+        "charliermarsh.ruff",                  // Ruff linter/formatter for Python
+        "ms-python.debugpy",                   // Python debugger
+
+        // ─── Playwright E2E Testing ───────────────────────────────────────
+        "ms-playwright.playwright",            // Playwright Test for VS Code (E2E panel)
+
+        // ─── Frontend / TypeScript ────────────────────────────────────────
+        "dbaeumer.vscode-eslint",              // ESLint for TypeScript/Next.js
+        "esbenp.prettier-vscode",              // Prettier code formatter
+        "bradlc.vscode-tailwindcss",           // Tailwind CSS IntelliSense
+
+        // ─── Docker & DevOps ──────────────────────────────────────────────
+        "ms-azuretools.vscode-docker",         // Docker file support
+
+        // ─── Git ─────────────────────────────────────────────────────────
+        "eamodio.gitlens",                     // Git lens
+
+        // ─── General DX ──────────────────────────────────────────────────
+        "usernamehw.errorlens",                // Inline error highlighting
+        "streetsidesoftware.code-spell-checker" // Spell checker
+    ]
+}

@@ -1,0 +1,82 @@
+# ==============================================================================
+# UAIC Orchestrator Root — Docker Ignore File
+# Excludes local test artifacts, node_modules, virtual environments, 
+# databases, logs, and sensitive configurations from Docker build context.
+# ==============================================================================
+
+# Version Control & IDE
+.git
+.git/**
+.github
+.github/**
+.vscode
+.vscode/**
+.idea
+.idea/**
+
+# AI & Documentation Workspace Folders
+.agents
+.agents/**
+implementation_plan
+implementation_plan/**
+Testing files
+Testing files/**
+PowerAutomateSolutions
+PowerAutomateSolutions/**
+
+# Python Backend Exclusions
+backend/.venv
+backend/.venv/**
+backend/__pycache__
+backend/__pycache__/**
+backend/.pytest_cache
+backend/.pytest_cache/**
+backend/.ruff_cache
+backend/.ruff_cache/**
+backend/data
+backend/data/**
+backend/cache
+backend/cache/**
+backend/logs
+backend/logs/**
+backend/screenshots
+backend/screenshots/**
+backend/exports
+backend/exports/**
+backend/uploads
+backend/uploads/**
+backend/test_*profile*
+backend/test_*profile*/**
+backend/test_chrome*
+backend/test_chrome*/**
+backend/celerybeat-schedule*
+backend/*.db
+backend/*.db.bak
+backend/*.sqlite
+backend/*.sqlite3
+
+# Node / Frontend Exclusions
+frontend/node_modules
+frontend/node_modules/**
+frontend/.next
+frontend/.next/**
+frontend/out
+frontend/out/**
+frontend/build
+frontend/build/**
+
+# Large Binary & Package Dumps
+*.VSIXPackage
+*.exe
+*.msi
+*.zip
+*.tar
+*.gz
+
+# Local Logs & Secrets
+*.log
+*.bak
+.env
+.env.local
+.env.*
+!.env.example

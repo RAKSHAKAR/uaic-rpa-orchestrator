@@ -1,7 +1,9 @@
 """ErrorScreenshot SQLAlchemy Model for Portal Failure Capture."""
 
+from __future__ import annotations
+
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -13,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.compat import utc_now
 from app.core.database import Base
 
 if TYPE_CHECKING:
@@ -34,7 +37,7 @@ class ErrorScreenshot(Base):
     attempt_number: Mapped[int] = mapped_column(Integer, default=1)
     storage_provider: Mapped[str] = mapped_column(String(50), default="local")
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     # Relationships
     claim: Mapped["ClaimRecord"] = relationship("ClaimRecord", back_populates="error_screenshots", lazy="selectin")

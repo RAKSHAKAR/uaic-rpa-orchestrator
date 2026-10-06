@@ -39,23 +39,63 @@ UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
+def _validate_filename(filename: str | None) -> str:
+    """Validate uploaded file extension and guard against temporary lock files."""
+    if not filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+    base_name = os.path.basename(filename)
+    if base_name.startswith("~$"):
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file appears to be a temporary Excel lock file (~$). Please close Excel or select the original spreadsheet file.",
+        )
+    fn_lower = filename.lower()
+    if not (fn_lower.endswith(".xlsx") or fn_lower.endswith(".xls") or fn_lower.endswith(".csv")):
+        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, and .csv files are supported.")
+    return fn_lower
+
+
 def _parse_content_to_dataframe(content: bytes, filename: str) -> tuple[pd.DataFrame, list[str], str]:
     """Helper to parse uploaded raw bytes into pandas DataFrame."""
+    if not content or len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded spreadsheet is empty (0 bytes).")
+
+    base_name = os.path.basename(filename)
+    if base_name.startswith("~$"):
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file appears to be a temporary Excel lock file (~$). Please select the original spreadsheet file.",
+        )
+
     sheet_names = []
     file_type = "CSV Document (.csv)"
-    if filename.endswith(".xlsx") or filename.endswith(".xls"):
-        file_type = "Microsoft Excel (.xlsx)" if filename.endswith(".xlsx") else "Microsoft Excel 97-2003 (.xls)"
+    fn_lower = filename.lower()
+    if fn_lower.endswith(".xlsx") or fn_lower.endswith(".xls"):
+        file_type = "Microsoft Excel (.xlsx)" if fn_lower.endswith(".xlsx") else "Microsoft Excel 97-2003 (.xls)"
         try:
             excel_file = pd.ExcelFile(io.BytesIO(content))
             sheet_names = excel_file.sheet_names
+            if not sheet_names:
+                raise HTTPException(status_code=400, detail="The Excel spreadsheet contains no visible sheets.")
             df = excel_file.parse(sheet_names[0])
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Could not parse Excel spreadsheet: {e}")
     else:
-        try:
-            df = pd.read_csv(io.BytesIO(content), dtype=str)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Could not parse CSV document: {e}")
+        df = None
+        last_err = None
+        for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252"]:
+            try:
+                df = pd.read_csv(io.BytesIO(content), dtype=str, encoding=enc)
+                break
+            except Exception as e:
+                last_err = e
+        if df is None:
+            raise HTTPException(status_code=400, detail=f"Could not parse CSV document: {last_err}")
+
+    if df.empty or len(df.columns) == 0:
+        raise HTTPException(status_code=400, detail="Spreadsheet contains no data rows or readable columns.")
 
     df.columns = [str(col).strip() for col in df.columns]
     return df, sheet_names, file_type
@@ -64,8 +104,7 @@ def _parse_content_to_dataframe(content: bytes, filename: str) -> tuple[pd.DataF
 @router.post("/preview", response_model=FilePreviewResponse)
 async def preview_excel_file(file: UploadFile = File(...)):
     """Inspect and preview an uploaded spreadsheet before ingesting into queue."""
-    if not (file.filename.endswith(".xlsx") or file.filename.endswith(".xls") or file.filename.endswith(".csv")):
-        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, and .csv files are supported.")
+    _validate_filename(file.filename)
 
     content = await file.read()
     filesize_bytes = len(content)
@@ -134,8 +173,7 @@ async def validate_spreadsheet_mapping(
     db: AsyncSession = Depends(get_db),
 ):
     """Validate uploaded spreadsheet against custom column mapping and database duplicate check."""
-    if not (file.filename.endswith(".xlsx") or file.filename.endswith(".xls") or file.filename.endswith(".csv")):
-        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, and .csv files are supported.")
+    _validate_filename(file.filename)
 
     try:
         column_mapping = json.loads(mapping) if mapping else {}
@@ -187,8 +225,7 @@ async def upload_excel_file(
     db: AsyncSession = Depends(get_db),
 ):
     """Accept an Excel or CSV file, persist to disk, and trigger background parsing with column mapping."""
-    if not (file.filename.endswith(".xlsx") or file.filename.endswith(".xls") or file.filename.endswith(".csv")):
-        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, and .csv files are supported.")
+    _validate_filename(file.filename)
 
     mapping_dict = None
     if mapping:

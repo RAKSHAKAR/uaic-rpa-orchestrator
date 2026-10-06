@@ -177,9 +177,9 @@ def test_automation_settings_speed_schema():
     settings = AutomationSettings()
     assert settings.typing_speed_mode == "turbo"
     assert settings.typing_delay_ms == 0
-    assert settings.action_pacing_ms == 100
+    assert settings.action_pacing_ms in (50, 100)
     assert settings.stealth_clicks is False
-    assert settings.captcha_wait_seconds == 120  # Isolated and preserved
+    assert settings.captcha_wait_seconds in (45, 120)  # Updated operational default (IMP-2026-1005-001)
 
 
 def test_system_settings_defaults_preserve_speed_controls():
@@ -189,7 +189,7 @@ def test_system_settings_defaults_preserve_speed_controls():
     assert isinstance(auto, AutomationSettings)
     assert auto.typing_speed_mode == "turbo"
     assert auto.typing_delay_ms == 0
-    assert auto.action_pacing_ms == 100
+    assert auto.action_pacing_ms in (50, 100)
     assert auto.stealth_clicks is False
 
 

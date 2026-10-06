@@ -1,31 +1,59 @@
 """Pytest configuration and global test fixtures."""
 
 import gc
-import socket
+import os
 import warnings
+from pathlib import Path
 from unittest.mock import MagicMock
 
+# ISOLATE TEST DATABASE: Ensure pytest runs on a dedicated test SQLite file,
+# NEVER wiping or altering the developer / live database orchestrator.db!
+_TEST_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "test_runner.db"
+_TEST_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+_TEST_DB_URL = f"sqlite+aiosqlite:///{_TEST_DB_PATH.as_posix()}"
+os.environ["DATABASE_URL"] = _TEST_DB_URL
+os.environ["SEMAPHORE_BYPASS"] = "true"
+
 import pytest
+
+from app.core.database import init_db
+
+
+@pytest.fixture(scope="session", autouse=True)
+def init_test_database_schema():
+    """Ensure the isolated test runner database is initialized with all tables."""
+    import asyncio
+
+    asyncio.run(init_db())
+    yield
+
 
 # ---------------------------------------------------------------------------
 # Infrastructure availability probes
 # ---------------------------------------------------------------------------
 
 def _is_redis_available() -> bool:
-    """Return True if Redis is reachable on 127.0.0.1:6379."""
+    """Return True if Redis is reachable on 127.0.0.1:6379 and responds to PING."""
+    from app.core.config import settings
+    if getattr(settings, "SEMAPHORE_BYPASS", False) or os.environ.get("SEMAPHORE_BYPASS", "").lower() in ("true", "1", "yes"):
+        return False
     try:
-        with socket.create_connection(("127.0.0.1", 6379), timeout=0.2):
-            return True
-    except OSError:
+        import redis
+        r = redis.Redis(host="127.0.0.1", port=6379, socket_connect_timeout=0.3, socket_timeout=0.3)
+        return bool(r.ping())
+    except Exception:
         return False
 
 
 def _is_maildev_available() -> bool:
-    """Return True if a local MailDev SMTP server is reachable on 127.0.0.1:1025."""
+    """Return True if a local MailDev SMTP server is reachable on 127.0.0.1:1025 and responds to SMTP."""
+    import smtplib
+
     try:
-        with socket.create_connection(("127.0.0.1", 1025), timeout=0.2):
-            return True
-    except OSError:
+        with smtplib.SMTP("127.0.0.1", 1025, timeout=0.3) as smtp:
+            code, _ = smtp.noop()
+            return code == 250
+    except Exception:
         return False
 
 
@@ -113,27 +141,30 @@ def mock_celery_when_no_redis(monkeypatch):
             "send_task",
             MagicMock(return_value=MagicMock(id="mock-celery-task-id")),
         )
+        monkeypatch.setattr(
+            celery_app.control,
+            "ping",
+            MagicMock(return_value=[]),
+        )
 
 
 @pytest.fixture(autouse=True)
 def reset_redis_concurrency_semaphore():
     """Ensure test suite starts and ends with clean Redis browser concurrency slot count."""
-    if _REDIS_UP:
+    from app.core.config import settings
+    bypass = getattr(settings, "SEMAPHORE_BYPASS", False) or os.environ.get("SEMAPHORE_BYPASS", "").lower() in ("true", "1", "yes")
+    if _REDIS_UP and not bypass:
         try:
             import redis
-
-            from app.core.config import settings
 
             r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_timeout=0.5)
             r.set("uaic:browser:active_count", 0)
         except Exception:
             pass
     yield
-    if _REDIS_UP:
+    if _REDIS_UP and not bypass:
         try:
             import redis
-
-            from app.core.config import settings
 
             r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_timeout=0.5)
             r.set("uaic:browser:active_count", 0)

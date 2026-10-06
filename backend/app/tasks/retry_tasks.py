@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import select
 
@@ -33,7 +33,25 @@ async def _async_retrigger_failed_cases():
         logger.info("Scheduled retry is disabled in Settings.")
         return
 
-    retry_threshold = datetime.now(UTC) - timedelta(seconds=queue_cfg.task_retry_delay_seconds)
+    from app.compat import utc_now
+    from app.tasks.queue_runner import (
+        add_active_queue_item_id,
+        get_active_queue_item_ids,
+        remove_active_queue_item_id,
+    )
+
+    max_concurrency = max(1, getattr(queue_cfg, "max_concurrent_claims", 10) or 10)
+    active_ids = get_active_queue_item_ids()
+    available_slots = max(0, max_concurrency - len(active_ids))
+    if available_slots <= 0:
+        logger.info(f"Scheduled retry: All {max_concurrency} worker slots are busy ({len(active_ids)} active). Deferring retry.")
+        return
+
+    interval_minutes = getattr(queue_cfg, "failed_claims_retry_interval_minutes", 0) or 0
+    if interval_minutes > 0:
+        retry_threshold = utc_now() - timedelta(minutes=interval_minutes)
+    else:
+        retry_threshold = utc_now() - timedelta(seconds=queue_cfg.task_retry_delay_seconds)
     async with TaskAsyncSessionLocal() as session:
         query = (
             select(ClaimRecord)
@@ -43,6 +61,7 @@ async def _async_retrigger_failed_cases():
                 ClaimRecord.updated_at <= retry_threshold,
             )
             .order_by(ClaimRecord.created_at.asc())
+            .limit(available_slots)
             .with_for_update(skip_locked=True)
         )
         res = await session.execute(query)
@@ -52,7 +71,7 @@ async def _async_retrigger_failed_cases():
             logger.info("Scheduled retry: No failed claims found.")
             return
 
-        logger.info(f"Scheduled retry: Found {len(failed_claims)} failed claims to inspect.")
+        logger.info(f"Scheduled retry: Found {len(failed_claims)} failed claims to inspect (slots available: {available_slots}).")
         retriggered_count = 0
         for claim in failed_claims:
             # Check if all failed/blocked portals for this claim are currently in cooldown
@@ -88,15 +107,18 @@ async def _async_retrigger_failed_cases():
         ]
         for dispatch_index, claim in enumerate(dispatches):
             try:
+                add_active_queue_item_id(claim.id)
                 celery_app.send_task(
                     "app.tasks.scraper_tasks.orchestrate_court_scrapers_task",
                     args=[claim.id, None, True],
                     queue="scrapers",
                 )
             except Exception:
+                remove_active_queue_item_id(claim.id)
                 for unsent_claim in dispatches[dispatch_index:]:
                     unsent_claim.record_status = RecordStatusEnum.FAILED
                     unsent_claim.retry_count -= 1
+                    remove_active_queue_item_id(unsent_claim.id)
                 await session.commit()
                 raise
         logger.info(f"Scheduled retry: Successfully retriggered {retriggered_count}/{len(failed_claims)} claims (failed portals only).")

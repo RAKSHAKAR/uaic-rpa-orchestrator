@@ -1,5 +1,6 @@
 """Tasks package exporting Celery background tasks."""
 
+import app.compat  # noqa: F401
 from app.tasks.fuzzy_tasks import (
     evaluate_fuzzy_matches_task,
     notify_guidewire_task,

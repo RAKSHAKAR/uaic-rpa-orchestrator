@@ -178,7 +178,36 @@ When a CAPTCHA challenge is detected:
 
 ---
 
-## 7. Attended GUI vs. Unattended Headless 1:1 Parity
+## 7. Execution Orchestration: Unique-Name-First & V4 Sequence (IMP-2026-1001-001)
+
+The scraper worker (`backend/app/tasks/scraper_tasks.py`) executes multi-portal automation following strict Power Automate V4 alignment:
+
+### A. Unique Name Outer Loop
+1. **Deduplicated Party Extraction**: Unique search targets are resolved via `generate_unique_names_for_claim(claim, fuzzy_threshold=0.60)` across Claimant, Insured, and Driver.
+2. **Browser Lifecycle per Unique Name**:
+   - For **Unique Name 1**: Launch a clean browser session (`SingleSessionBrowserRunner`), pre-open tabs for all applicable portals, iterate tab-by-tab searching Unique Name 1, finish all applicable portals, and **close the browser completely**.
+   - For **Unique Name 2**: Launch a clean browser session, pre-open applicable portal tabs, search Unique Name 2 tab-by-tab, finish all applicable portals, and **close the browser completely**.
+   - Repeat sequentially until all unique names are finished.
+3. **Tab Reuse**: Tabs are reused across portals within the single unique name's session. Each portal scraper calls `return_to_search_state()` to reset its search form after extraction.
+4. **Isolated Accumulation**: Scraped court cases accumulate across unique names in memory and are validated and persisted atomically to SQLite/PostgreSQL upon claim completion.
+
+### B. Canonical V4 Portal Sequence
+- **Florida Claims**:
+  1. Broward County Clerk (`broward`)
+  2. Hillsborough County Clerk (`hillsborough`)
+  3. Miami-Dade County Civil (`miami`)
+- **Texas Claims**:
+  1. Travis County Odyssey (`travis`)
+  2. Dallas County Odyssey (`dallas`)
+  3. Harris County JP (`harris_jp`)
+  4. Harris County Clerk (`harris_cclerk`)
+  5. Harris District Clerk (`harris_district`)
+- **Cross-State Claims**:
+  All 3 Florida portals in order, followed by all 5 Texas portals in order.
+
+---
+
+## 8. Attended GUI vs. Unattended Headless 1:1 Parity
 
 The system guarantees **100% identical scraping results** regardless of execution mode:
 
@@ -192,7 +221,7 @@ The system guarantees **100% identical scraping results** regardless of executio
 
 ---
 
-## 8. Selective Error Recovery (S66)
+## 9. Selective Error Recovery (S66)
 
 If 1 or 2 county portals fail (due to temporary portal maintenance, network blips, or CAPTCHA timeouts):
 1. The operator triggers `POST /api/v1/claims/{id}/retry-failed`.
@@ -202,7 +231,7 @@ If 1 or 2 county portals fail (due to temporary portal maintenance, network blip
 
 ---
 
-## 9. Operator Diagnostics & Reachability Testing
+## 10. Operator Diagnostics & Reachability Testing
 
 1. **Ping Single Portal**:
    ```bash

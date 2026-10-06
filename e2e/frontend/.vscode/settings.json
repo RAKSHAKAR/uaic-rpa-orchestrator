@@ -1,0 +1,8 @@
+{
+    // This tells the VS Code Playwright extension (ms-playwright.playwright)
+    // where to find the playwright.config.ts file.
+    // Without this, the Playwright panel in VS Code shows empty.
+    "playwright.reuseBrowser": false,
+    "playwright.showTrace": false,
+    "playwright.workspaceFolder": "${workspaceFolder}/e2e/frontend"
+}

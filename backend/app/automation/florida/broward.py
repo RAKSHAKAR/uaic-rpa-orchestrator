@@ -67,6 +67,22 @@ async def _safe_get_attribute(loc: Any, name: str) -> str | None:
     return None
 
 
+async def _safe_inner_text(loc: Any) -> str:
+    try:
+        first_loc = getattr(loc, "first", loc)
+        fn = getattr(first_loc, "inner_text", None)
+        if callable(fn):
+            res = fn()
+            if inspect.isawaitable(res):
+                res = await res
+            if isinstance(res, MagicMock):
+                return ""
+            return str(res) if res is not None else ""
+    except Exception:
+        pass
+    return ""
+
+
 def _normalize_date_to_mm_dd_yyyy(raw_date: str) -> str:
     """Normalize dates in any common format (M/D/YYYY, MM/DD/YYYY, YYYY-MM-DD) to strict MM/DD/YYYY required by Broward FormValidation."""
     clean = (raw_date or "").strip()
@@ -335,13 +351,33 @@ class BrowardScraper(BaseCourtScraper):
 
             if captcha_ok:
                 captcha_solved = True
-                logger.info(f"[{self.county_name}] Step E & F: CAPTCHA solved! Immediately proceeding to search submit.")
+                logger.info(f"[{self.county_name}] Step E & F: CAPTCHA solved! Waiting 2s for Turnstile token to settle...")
+                await page.wait_for_timeout(2000)
                 break
             else:
                 logger.warning(
                     f"[{self.county_name}] Exception 3: CAPTCHA challenge unsolved after {self.captcha_wait_seconds}s "
                     f"(attempt {attempt}/{max_attempts})"
                 )
+
+        if not captcha_solved:
+            # Resilient speculative submit attempt: Click Search and check if navigation proceeds to Results
+            try:
+                logger.info(f"[{self.county_name}] Attempting speculative submit of #PersonSearchResults...")
+                submit_res = await page.evaluate("""() => {
+                    const btn = document.getElementById('PersonSearchResults');
+                    if (btn) { btn.click(); return true; }
+                    return false;
+                }""")
+                if submit_res:
+                    try:
+                        await page.wait_for_url("**/CaseSearchECA/*Results*", timeout=8000)
+                        logger.info(f"[{self.county_name}] Speculative submit succeeded! Navigated to Results.")
+                        captcha_solved = True
+                    except Exception:
+                        pass
+            except Exception as e_spec:
+                logger.debug(f"Speculative submit note: {e_spec}")
 
         if not captcha_solved:
             logger.error(
@@ -398,6 +434,25 @@ class BrowardScraper(BaseCourtScraper):
         else:
             await self.pace_action(page)
 
+        # Check immediately if red error banner appeared ("Your request could not be completed. Please try again.")
+        try:
+            err_banner = page.locator(".alert-danger, .alert:has-text('could not be completed'), .alert:has-text('try again')")
+            if await _safe_count(err_banner) > 0 and await _safe_is_visible(err_banner):
+                banner_text = await _safe_inner_text(err_banner.first)
+                logger.warning(f"[{self.county_name}] Broward Turnstile submission note ({banner_text}). Attempting fast recovery...")
+                await page.reload(wait_until="domcontentloaded", timeout=self.timeout_ms)
+                await page.wait_for_timeout(1000)
+                await self.select_party_name_tab(page)
+                await self.fill_search_fields(page, l_name, f_name, date_of_loss)
+                if await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds):
+                    await page.wait_for_timeout(2000)
+                    await page.evaluate("""() => {
+                        const btn = document.getElementById('PersonSearchResults');
+                        if (btn) btn.click();
+                    }""")
+        except Exception as e_chk_banner:
+            logger.debug(f"[{self.county_name}] Banner check note: {e_chk_banner}")
+
         t_sub_end = datetime.now()
         self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
 
@@ -434,10 +489,14 @@ class BrowardScraper(BaseCourtScraper):
 
         # Step I: Check whether data is available
         body_text = await page.inner_text("body")
-        if any(
-            marker in body_text.lower()
-            for marker in ("no records found", "no cases found", "no items to display")
-        ):
+        no_match_markers = (
+            "no records found", "no cases found", "no items to display",
+            "no data found", "no data available", "0 records found",
+            "0 items found", "0 results returned", "no results found",
+            "no matching records found", "showing 0 to 0 of 0",
+            "no cases matched", "no records", "0 records",
+        )
+        if any(marker in body_text.lower() for marker in no_match_markers):
             logger.info(f"[{self.county_name}] Step I: Search for '{l_name}, {f_name}': No records found.")
             await self.return_to_search_state(page)
             return []
@@ -487,6 +546,7 @@ class BrowardScraper(BaseCourtScraper):
             row_count = await _safe_count(rows)
             logger.info(f"[{self.county_name}] Step K: Page {page_num}: Found {row_count} table rows")
 
+            page_cases: list[dict[str, Any]] = []
             for i in range(row_count):
                 row = rows.nth(i)
                 cells: list[str] = []
@@ -517,15 +577,69 @@ class BrowardScraper(BaseCourtScraper):
                     if case_style.lower() in ("civil action central", "county civil central", "felony"):
                         continue
 
-                    # Standard column layout:
-                    # td:eq(0) -> CaseNumber
-                    # td:eq(1) -> CaseStyle
-                    # td:eq(2) -> CaseType
-                    # td:eq(3) -> FilingDate
-                    # td:eq(4) -> CaseStatus
-                    case_type = cells[2].strip() if len(cells) > 2 else ""
-                    filing_date = cells[3].strip() if len(cells) > 3 else ""
-                    case_status = cells[4].strip() if len(cells) > 4 else ""
+                    # Dynamically map table cells using discovered headers if present
+                    col_map: dict[str, int] = {}
+                    for h_idx, h in enumerate(header_names):
+                        h_lower = h.lower()
+                        if "case" in h_lower and ("number" in h_lower or "no" in h_lower or "#" in h_lower):
+                            col_map["case_num"] = h_idx
+                        elif "style" in h_lower or "party" in h_lower or "title" in h_lower or "desc" in h_lower:
+                            col_map["case_style"] = h_idx
+                        elif "type" in h_lower:
+                            col_map["case_type"] = h_idx
+                        elif "date" in h_lower or "filing" in h_lower:
+                            col_map["filing_date"] = h_idx
+                        elif "status" in h_lower:
+                            col_map["case_status"] = h_idx
+
+                    idx_num = col_map.get("case_num", 0)
+                    idx_style = col_map.get("case_style", 1)
+                    idx_type = col_map.get("case_type", 2)
+                    idx_date = col_map.get("filing_date", 3)
+                    idx_status = col_map.get("case_status", 4)
+
+                    case_num = cells[idx_num].strip() if len(cells) > idx_num else cells[0].strip()
+                    case_style = cells[idx_style].strip() if len(cells) > idx_style else (cells[1].strip() if len(cells) > 1 else "")
+                    case_type = cells[idx_type].strip() if len(cells) > idx_type else (cells[2].strip() if len(cells) > 2 else "")
+                    filing_date = cells[idx_date].strip() if len(cells) > idx_date else (cells[3].strip() if len(cells) > 3 else "")
+                    case_status = cells[idx_status].strip() if len(cells) > idx_status else (cells[4].strip() if len(cells) > 4 else "")
+
+                    # Normalize filing date using regex (handling ISO YYYY-MM-DD or US MM/DD/YYYY)
+                    import re
+                    m_iso = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", filing_date)
+                    if m_iso:
+                        y, m, d = m_iso.groups()
+                        filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                    else:
+                        m_us = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", filing_date)
+                        if m_us:
+                            m, d, y = m_us.groups()
+                            if len(y) == 2:
+                                y = f"20{y}" if int(y) < 50 else f"19{y}"
+                            filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                        else:
+                            # Search across all cells for a valid date if designated column had none
+                            filing_date = ""
+                            for c_val in cells:
+                                d_match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", c_val)
+                                if d_match:
+                                    raw_d = d_match.group(1)
+                                    m, d, y = raw_d.split("/")
+                                    if len(y) == 2:
+                                        y = f"20{y}" if int(y) < 50 else f"19{y}"
+                                    filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                                    break
+                                d_iso = re.search(r"\b(\d{4}[/-]\d{1,2}[/-]\d{1,2})\b", c_val)
+                                if d_iso:
+                                    raw_d = d_iso.group(1)
+                                    y, m, d = re.split(r"[/-]", raw_d)
+                                    filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                                    break
+
+                    # If no valid filing date was found anywhere in the row, skip row as non-case
+                    if not filing_date:
+                        logger.warning(f"[{self.county_name}] Skipping row without a valid filing date: case_num={case_num}, cells={cells}")
+                        continue
 
                     # Preserve the five-field V4 Broward JSON contract.
                     case_payload: dict[str, Any] = {
@@ -536,12 +650,13 @@ class BrowardScraper(BaseCourtScraper):
                         "CaseType": case_type,
                     }
 
-                    results.append(case_payload)
+                    page_cases.append(case_payload)
 
             signature = tuple(page_signature)
             if page_num > 1 and signature in seen_page_signatures:
-                raise RuntimeError(f"[{self.county_name}] Pagination did not advance to a new result page")
+                raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
             seen_page_signatures.add(signature)
+            results.extend(page_cases)
 
             # Step K: Pagination traversal
             next_btn = page.locator("a[title*='next' i], a:has-text('Go to the next page'), a:has-text('Next'), .pagination .next:not(.disabled) a")
@@ -552,11 +667,13 @@ class BrowardScraper(BaseCourtScraper):
                     has_next_page = False
                 else:
                     if page_num > 1 and len(results) == page_start_count:
-                        raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
+                        logger.warning(f"[{self.county_name}] Pagination did not advance to new case results; ending pagination.")
+                        has_next_page = False
+                        break
                     try:
                         logger.info(f"[{self.county_name}] Step K: Advancing to page {page_num + 1}...")
                         await self.biometric_click(page, next_btn.first)
-                        await page.wait_for_timeout(2500)
+                        await page.wait_for_timeout(1500)
                         page_num += 1
                     except Exception:
                         has_next_page = False
@@ -564,6 +681,21 @@ class BrowardScraper(BaseCourtScraper):
                 has_next_page = False
 
         if not results:
+            body_text = (await page.inner_text("body")).lower()
+            if any(marker in body_text for marker in no_match_markers):
+                logger.info(f"[{self.county_name}] No matching records found after parsing.")
+                await self.return_to_search_state(page)
+                return []
+            dt_empty = page.locator(".dataTables_empty, td:has-text('No data'), td:has-text('No records')")
+            if await _safe_count(dt_empty) > 0:
+                logger.info(f"[{self.county_name}] Empty results indicator detected; returning 0 results.")
+                await self.return_to_search_state(page)
+                return []
+            is_search_form = await _safe_eval(page, "() => !!document.getElementById('personSearchForm') || !!document.getElementById('nameSearch')")
+            if is_search_form:
+                logger.info(f"[{self.county_name}] Remained on search form with 0 records; returning empty result.")
+                await self.return_to_search_state(page)
+                return []
             raise RuntimeError(f"[{self.county_name}] Search completed without results or a verified no-match message")
 
         t_ext_end = datetime.now()

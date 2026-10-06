@@ -1,0 +1,20 @@
+{
+  "include": [
+    "backend",
+    "scripts",
+    "e2e"
+  ],
+  "extraPaths": [
+    "backend"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "backend"
+      ]
+    }
+  ],
+  "venvPath": "backend",
+  "venv": ".venv"
+}

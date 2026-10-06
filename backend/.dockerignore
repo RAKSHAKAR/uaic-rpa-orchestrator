@@ -1,9 +1,100 @@
+# ==============================================================================
+# UAIC Backend — Docker Ignore File
+# Excludes local virtual environments, test profiles, runtime outputs,
+# database dumps, logs, and sensitive configurations from Docker build context.
+# ==============================================================================
+
+# Virtual Environments & Packages
 .venv
+.venv/**
+venv
+venv/**
+env
+env/**
+uaic_claim_orchestrator.egg-info
+uaic_claim_orchestrator.egg-info/**
+
+# Python Bytecode & Analysis Caches
 __pycache__
-*.pyc
+__pycache__/**
+*.py[cod]
 *.pyo
 *.pyd
 .pytest_cache
+.pytest_cache/**
 .ruff_cache
+.ruff_cache/**
+.mypy_cache
+.mypy_cache/**
+.coverage
+htmlcov
+htmlcov/**
+
+# Runtime Data, Test Artifacts & Locked Files (Prevents Docker context access errors)
+data
+data/**
+cache
+cache/**
+celerybeat-schedule*
+
+# Persistent Test Browser Profiles & Diagnostic Dumps
+test_*profile*
+test_*profile*/**
+test_chrome*
+test_chrome*/**
+test_dev_mode*
+test_dev_mode*/**
+test_load_unpacked*
+test_load_unpacked*/**
+test_pref*
+test_pref*/**
+test_two_step*
+test_two_step*/**
+test_clean_profile
+test_clean_profile/**
+
+# Runtime Files, Exports, Logs & Media
+logs
+logs/**
+screenshots
+screenshots/**
+exports
+exports/**
+uploads
+uploads/**
+*.log
+*.txt
+!requirements.txt
+*.bak
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Root-level Javascript bundles (Preserving app/scripts)
+/hillsborough_bundle*.js
+
+# Local Databases (Containers use managed PostgreSQL/Redis)
 *.db
-uploads/*
+*.db.bak
+*.sqlite
+*.sqlite3
+
+# Host Secrets & Local Environment Configs
+.env
+.env.*
+!.env.example
+
+# Version Control & IDE Workspace
+.git
+.git/**
+.github
+.github/**
+.vscode
+.vscode/**
+.idea
+.idea/**
+
+# Documentation & Implementation Plans
+implementation_plan
+implementation_plan/**

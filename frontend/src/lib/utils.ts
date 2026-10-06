@@ -48,3 +48,16 @@ export function formatDate(dateString?: string): string {
     return dateString;
   }
 }
+
+export function formatDurationHms(seconds?: number | string | null): string {
+  if (seconds === undefined || seconds === null || seconds === "" || seconds === "-") return "00:00:00";
+  const num = typeof seconds === "string" ? parseFloat(seconds) : seconds;
+  if (isNaN(num) || num <= 0) return "00:00:00";
+  const totalSecs = Math.floor(num);
+  const hrs = Math.floor(totalSecs / 3600);
+  const mins = Math.floor((totalSecs % 3600) / 60);
+  const secs = totalSecs % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+}
+

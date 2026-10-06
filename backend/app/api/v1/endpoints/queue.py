@@ -1,10 +1,14 @@
+import asyncio
 import logging
+import time
+from datetime import timedelta
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.compat import utc_now
 from app.core.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import get_db
@@ -68,6 +72,17 @@ def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> 
     claimant = f"{claim.claimant_first_name or ''} {claim.claimant_last_name or ''}".strip() or None
     driver = f"{claim.driver_first_name or ''} {claim.driver_last_name or ''}".strip() or None
 
+    started_at = None
+    if isinstance(claim.action_timings, dict):
+        raw_started = claim.action_timings.get("started_at")
+        if raw_started:
+            started_at = raw_started if (raw_started.endswith("Z") or "+" in raw_started) else f"{raw_started}Z"
+    if not started_at and str(claim.record_status.value if hasattr(claim.record_status, "value") else claim.record_status) == "SCRAPING_IN_PROGRESS":
+        ref_time = claim.updated_at or claim.created_at
+        if ref_time:
+            iso_val = ref_time.isoformat()
+            started_at = iso_val if (iso_val.endswith("Z") or "+" in iso_val) else f"{iso_val}Z"
+
     return LiveQueueItemResponse(
         id=claim.id,
         claim_number=claim.claim_number,
@@ -85,14 +100,17 @@ def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> 
         bot_statuses=bot_statuses,
         total_duration_seconds=claim.total_duration_seconds,
         current_portal=None,
+        started_at=started_at,
         created_at=claim.created_at,
         updated_at=claim.updated_at,
     )
 
 
-@router.get("/status", response_model=QueueStatusResponse)
-async def get_queue_status():
-    """Inspect active Celery workers, registered tasks, and real Redis queue lengths."""
+_REDIS_STATUS_OFFLINE_UNTIL: float = 0.0
+
+
+def _get_redis_queues_sync() -> dict[str, int]:
+    global _REDIS_STATUS_OFFLINE_UNTIL
     queues = {
         "ingest": 0,
         "scrapers": 0,
@@ -100,33 +118,70 @@ async def get_queue_status():
         "notifications": 0,
         "default": 0,
     }
-    
-    # 1. Fetch real pending queue depths from Redis
+    if time.time() < _REDIS_STATUS_OFFLINE_UNTIL or getattr(settings, "SEMAPHORE_BYPASS", False):
+        return queues
     try:
-        r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=0.5, socket_timeout=0.5)
+        r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=0.2, socket_timeout=0.2)
         for q_name in queues:
             queues[q_name] = r.llen(q_name) or 0
     except Exception as e:
+        _REDIS_STATUS_OFFLINE_UNTIL = time.time() + 5.0
         logger.warning(f"Could not read Redis queue lengths: {e}")
+    return queues
 
-    # 2. Inspect active workers and tasks
-    total_active = 0
-    workers_online = 0
-    
+
+def _get_workers_online_sync() -> int:
+    global _REDIS_STATUS_OFFLINE_UNTIL
+    if time.time() < _REDIS_STATUS_OFFLINE_UNTIL or getattr(settings, "SEMAPHORE_BYPASS", False):
+        return 0
     try:
-        ping_res = celery_app.control.ping(timeout=0.5) or []
-        workers_online = len(ping_res)
+        ping_res = celery_app.control.ping(timeout=0.2) or []
+        return len(ping_res)
     except Exception:
-        workers_online = 0
+        return 0
+
+
+@router.get("/status", response_model=QueueStatusResponse)
+async def get_queue_status(db: AsyncSession = Depends(get_db)):
+    """Inspect active Celery workers, registered tasks, and real Redis queue lengths."""
+    queues = await asyncio.to_thread(_get_redis_queues_sync)
+    workers_online = await asyncio.to_thread(_get_workers_online_sync)
+
+    counts_res = await db.execute(
+        select(ClaimRecord.record_status, func.count(ClaimRecord.id)).group_by(ClaimRecord.record_status)
+    )
+    status_counts = dict(counts_res.all())
+    active_tasks = status_counts.get(RecordStatusEnum.SCRAPING_IN_PROGRESS, 0)
+    failed_tasks = status_counts.get(RecordStatusEnum.FAILED, 0)
+    completed_tasks = (
+        status_counts.get(RecordStatusEnum.SCRAPING_COMPLETED, 0)
+        + status_counts.get(RecordStatusEnum.COMPLETED, 0)
+        + status_counts.get(RecordStatusEnum.MATCH_FOUND, 0)
+        + status_counts.get(RecordStatusEnum.NO_MATCH_FOUND, 0)
+    )
+    db_pending = status_counts.get(RecordStatusEnum.NEW, 0) + status_counts.get(RecordStatusEnum.MANUAL_REVIEW, 0)
+    redis_pending = sum(queues.values())
+    pending_tasks = max(redis_pending, db_pending)
+    total_claims = sum(status_counts.values())
+
+    try:
+        from app.models.court_case import ScrapedCourtCase
+        cases_cnt_res = await db.execute(select(func.count(ScrapedCourtCase.id)))
+        total_cases_extracted = cases_cnt_res.scalar() or 0
+    except Exception:
+        total_cases_extracted = 0
 
     return QueueStatusResponse(
-        active_tasks=total_active,
-        pending_tasks=sum(queues.values()),
-        failed_tasks=0,
-        completed_tasks=0,
+        active_tasks=active_tasks,
+        pending_tasks=pending_tasks,
+        failed_tasks=failed_tasks,
+        completed_tasks=completed_tasks,
         queues=queues,
         workers_online=workers_online,
+        total_claims=total_claims,
+        total_cases_extracted=total_cases_extracted,
     )
+
 
 
 @router.post("/retrigger")
@@ -144,10 +199,15 @@ async def retrigger_failed_claims(
         query = query.where(ClaimRecord.id.in_(payload.claim_ids))
     else:
         # Retrigger failed or stuck claims
+        # Only retrigger SCRAPING_IN_PROGRESS if the claim is genuinely stale (> 10 minutes without update)
+        stale_cutoff = utc_now() - timedelta(minutes=10)
         query = query.where(
             or_(
                 ClaimRecord.record_status == RecordStatusEnum.FAILED,
-                ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS,
+                and_(
+                    ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS,
+                    ClaimRecord.updated_at <= stale_cutoff,
+                ),
             )
         ).limit(50)
 
@@ -328,7 +388,38 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
         .order_by(ClaimRecord.updated_at.desc())
         .limit(max_concurrency)
     )
-    active_claims = list(active_res.scalars().all())
+    active_claims_raw = list(active_res.scalars().all())
+    active_claims = []
+    has_recovered = False
+    now_utc = utc_now()
+    for c in active_claims_raw:
+        ref_time = None
+        if isinstance(c.action_timings, dict):
+            raw_st = c.action_timings.get("started_at")
+            if raw_st:
+                try:
+                    from datetime import datetime
+                    clean_st = raw_st.rstrip("Z").split("+")[0]
+                    ref_time = datetime.fromisoformat(clean_st)
+                except Exception:
+                    pass
+        if not ref_time:
+            ref_time = c.updated_at or c.created_at
+        if ref_time:
+            ref_naive = ref_time.replace(tzinfo=None) if getattr(ref_time, "tzinfo", None) else ref_time
+            if abs((now_utc - ref_naive).total_seconds()) > 900:  # > 15 minutes
+                c.record_status = RecordStatusEnum.FAILED
+                c.last_error = "RPA Scraping SLA exceeded (timeout > 15m)"
+                has_recovered = True
+                continue
+        active_claims.append(c)
+
+    if has_recovered:
+        try:
+            await db.commit()
+        except Exception:
+            pass
+
     active_items = [_format_live_queue_item(c, position=0) for c in active_claims]
     active_ids = {c.id for c in active_claims}
 

@@ -29,6 +29,7 @@ export interface BotDetail {
   target: 'Yes' | 'No';
   status: BotStatus;
   cases_found: number;
+  portal_name?: string;
 }
 
 export interface ScrapedCourtCase {
@@ -94,6 +95,7 @@ export interface Claim {
   court_cases: ScrapedCourtCase[];
   final_matched_json?: Record<string, any>;
   activity_id?: string;
+  guidewire_pushed?: boolean;
   retry_count: number;
   last_error?: string;
   action_timings?: Record<string, any>;
@@ -115,6 +117,10 @@ export interface ClaimStats {
   no_match_found?: number;
   failed: number;
   completed: number;
+  total_finished?: number;
+  total_cases_extracted?: number;
+  portal_throughput?: Record<string, number>;
+  avg_scrape_seconds?: number;
 }
 
 export interface MatchPair {
@@ -158,6 +164,8 @@ export interface QueueStatus {
   completed_tasks: number;
   queues: Record<string, number>;
   workers_online: number;
+  total_claims?: number;
+  total_cases_extracted?: number;
 }
 
 export interface LiveQueueItem {
@@ -177,6 +185,7 @@ export interface LiveQueueItem {
   bot_statuses: Record<string, string>;
   total_duration_seconds?: number;
   current_portal?: string;
+  started_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -291,6 +300,7 @@ export interface FuzzyMatcherSettings {
   unique_names_threshold?: number;
   clean_party_name_patterns: string[];
   clean_case_style_patterns?: string[];
+  unsearchable_party_patterns?: string[];
   whitelisted_statuses: string[];
   whitelisted_case_types: string[];
 }
@@ -313,7 +323,9 @@ export interface TaskQueueSettings {
   task_retry_delay_seconds: number;
   batch_chunk_size: number;
   auto_retry_failed_scrapes: boolean;
+  failed_claims_retry_interval_minutes?: number;
   max_concurrent_claims?: number;
+  claim_timeout_minutes?: number;
 }
 
 export interface ThemePalette {
@@ -367,6 +379,22 @@ export interface StorageSettings {
   gcs_bucket_name?: string;
   gcs_project_id?: string;
   gcs_credentials_json?: string;
+  retention_days?: number;
+  auto_cleanup_enabled?: boolean;
+}
+
+export interface StorageCleanupRequest {
+  retention_days?: number;
+}
+
+export interface StorageCleanupResponse {
+  success: boolean;
+  message: string;
+  files_deleted: number;
+  files_purged?: number;
+  bytes_freed: number;
+  retention_days: number;
+  storage_provider: string;
 }
 
 export interface SystemSettings {
@@ -716,6 +744,8 @@ export interface AuditLogQueryParams {
   search?: string;
   start_date?: string;
   end_date?: string;
+  date_from?: string;
+  date_to?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
 }
@@ -1096,6 +1126,7 @@ export interface CleanupPreviewRequest {
 
 export interface CleanupPreviewResponse {
   time_scope: string;
+  scope?: string;
   start_time?: string | null;
   end_time?: string | null;
   categories: string[];
@@ -1103,6 +1134,11 @@ export interface CleanupPreviewResponse {
   file_counts: Record<string, number>;
   total_database_records: number;
   total_files: number;
+  total_records_to_delete?: number;
+  total_files_to_delete?: number;
+  db_records_to_delete?: number;
+  estimated_duration_seconds?: number;
+  estimated_space_freed_human?: string;
   can_proceed: boolean;
   warnings: string[];
 }

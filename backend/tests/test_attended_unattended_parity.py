@@ -144,3 +144,85 @@ async def test_parity_attended_vs_unattended_browser_session_parity(mocker):
     assert session_unattended.headless is True
     assert session_attended.browser_engine == "chromium"
     assert session_unattended.browser_engine == "chromium"
+
+
+@pytest.mark.asyncio
+async def test_parity_browser_manager_stage_detail_reflects_mode(mocker):
+    """Validates that BrowserManager stage timings dynamically reflect Attended vs. Headless mode."""
+    from pathlib import Path
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.automation.browser_manager import BrowserManager
+
+    # 1. Attended mode with Chrome
+    bm_attended = BrowserManager(headless=False, browser_engine="chrome")
+    bm_attended.session = MagicMock()
+    bm_attended.session.start = AsyncMock(return_value=MagicMock())
+    bm_attended.session.close = AsyncMock()
+    bm_attended.session.headless = False
+    bm_attended.session.browser_engine = "chrome"
+    bm_attended.session.extension_path = Path("/mock/ext")
+    async with bm_attended:
+        pass
+    launch_detail = bm_attended.stage_timings["browser_launch"]["detail"]
+    assert "Attended (Visible GUI)" in launch_detail
+    assert "Google Chrome" in launch_detail
+    assert "+ AntiCaptcha" in launch_detail
+
+    # 2. Headless mode with Chromium
+    bm_headless = BrowserManager(headless=True, browser_engine="chromium")
+    bm_headless.session = MagicMock()
+    bm_headless.session.start = AsyncMock(return_value=MagicMock())
+    bm_headless.session.close = AsyncMock()
+    bm_headless.session.headless = True
+    bm_headless.session.browser_engine = "chromium"
+    bm_headless.session.extension_path = None
+    async with bm_headless:
+        pass
+    launch_detail_hl = bm_headless.stage_timings["browser_launch"]["detail"]
+    assert "Headless (Background)" in launch_detail_hl
+    assert "Chromium" in launch_detail_hl
+
+
+def test_parity_claims_synthesized_stage_detail_reflects_settings(mocker):
+    """Validates that _normalize_action_timings in claims.py reflects dynamic settings."""
+    from unittest.mock import MagicMock
+
+    from app.api.v1.endpoints.claims import _normalize_action_timings
+    from app.models.claim import ClaimRecord, RecordStatusEnum
+
+    mock_claim = MagicMock(spec=ClaimRecord)
+    mock_claim.record_status = RecordStatusEnum.SCRAPING_COMPLETED
+    mock_claim.total_duration_seconds = 12.5
+    mock_claim.scraped_cases = []
+    for attr in [
+        "fl_jsonbody_broward", "fl_jsonbody_hillsborough", "fl_jsonbody_miami",
+        "te_jsonbody_travis", "te_jsonbody_dallas", "te_jsonbody_harris",
+        "te_jsonbody_cclerk", "te_jsonbody_hcdistrict"
+    ]:
+        setattr(mock_claim, attr, [])
+
+    # Test with Headless = True
+    mock_settings_hl = MagicMock()
+    mock_settings_hl.automation.headless_mode = True
+    mock_settings_hl.automation.browser_engine = "chrome"
+    mocker.patch("app.services.settings_service.get_system_settings_sync", return_value=mock_settings_hl)
+
+    timings = _normalize_action_timings({}, claim=mock_claim)
+    assert "stages" in timings
+    assert "browser_launch" in timings["stages"]
+    detail = timings["stages"]["browser_launch"]["detail"]
+    assert "Headless (Background)" in detail
+    assert "Google Chrome" in detail
+
+    # Test with Headless = False (Attended)
+    mock_settings_att = MagicMock()
+    mock_settings_att.automation.headless_mode = False
+    mock_settings_att.automation.browser_engine = "msedge"
+    mocker.patch("app.services.settings_service.get_system_settings_sync", return_value=mock_settings_att)
+
+    timings_att = _normalize_action_timings({}, claim=mock_claim)
+    detail_att = timings_att["stages"]["browser_launch"]["detail"]
+    assert "Attended (Visible GUI)" in detail_att
+    assert "Microsoft Edge" in detail_att
+

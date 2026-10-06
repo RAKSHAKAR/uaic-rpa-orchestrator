@@ -39,12 +39,30 @@ import { StatCard } from "../../components/StatCard";
 import { FilterPresetManager } from "../../components/FilterPresetManager";
 import { AsyncExportModal } from "../../components/AsyncExportModal";
 import { ExportActionToolbar } from "../../components/ExportActionToolbar";
+import { MultiSelectDropdown, MultiSelectOption } from "../../components/MultiSelectDropdown";
 import { api } from "../../lib/api";
-import { cn } from "../../lib/utils";
-import { Claim, QueueStatus } from "../../types";
+import { cn, formatDurationHms } from "../../lib/utils";
+import { Claim, ClaimStats, QueueStatus } from "../../types";
+
+const MONITOR_STATUS_OPTIONS: MultiSelectOption[] = [
+  { value: "NEW", label: "New / Queued" },
+  { value: "SCRAPING_IN_PROGRESS", label: "Scraping In Progress" },
+  { value: "SCRAPING_COMPLETED", label: "Scraping Completed" },
+  { value: "MATCH_FOUND", label: "Match Found" },
+  { value: "MANUAL_REVIEW", label: "Manual Review" },
+  { value: "NO_MATCH_FOUND", label: "No Match Found" },
+  { value: "FAILED", label: "Failed" },
+  { value: "COMPLETED", label: "Completed" },
+];
+
+const MONITOR_STATE_OPTIONS: MultiSelectOption[] = [
+  { value: "FL", label: "Florida (FL)" },
+  { value: "TX", label: "Texas (TX)" },
+];
 
 export default function QueueMonitorPage() {
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [stats, setStats] = useState<ClaimStats | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -52,6 +70,8 @@ export default function QueueMonitorPage() {
   const [pageSize, setPageSize] = useState(20);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [stateFilter, setStateFilter] = useState<string>("");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("created_at");
   const [sortOrder, setSortOrder] = useState<string>("desc");
@@ -101,13 +121,13 @@ export default function QueueMonitorPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [qData, cData, autoModeData] = await Promise.all([
+      const [qData, cData, autoModeData, statsData] = await Promise.all([
         api.getQueueStatus().catch(() => null),
         api.getClaims({
           page,
           page_size: pageSize,
-          status: statusFilter || undefined,
-          state: stateFilter || undefined,
+          status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter || undefined),
+          state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter || undefined),
           search: searchTerm || undefined,
           sort_by: sortBy,
           sort_order: sortOrder,
@@ -116,8 +136,10 @@ export default function QueueMonitorPage() {
           return { items: [], total: 0, total_pages: 1 };
         }),
         api.getAutoQueueMode().catch(() => ({ auto_queue_enabled: true, is_running: false })),
+        api.getClaimStats().catch(() => null),
       ]);
       setQueueStatus(qData);
+      setStats(statsData);
       setClaims(cData?.items || []);
       setTotal(cData?.total || 0);
       setTotalPages(cData?.total_pages || 1);
@@ -130,7 +152,7 @@ export default function QueueMonitorPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, statusFilter, stateFilter, searchTerm, sortBy, sortOrder]);
+  }, [page, pageSize, statusFilter, stateFilter, selectedStatuses, selectedStates, searchTerm, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchData();
@@ -389,10 +411,10 @@ export default function QueueMonitorPage() {
 
   const getBotBadgeLabel = (name: string): string => {
     const n = name.toLowerCase();
-    // Florida: Bro, Hil, Mia (user confirmed Florida looks correct)
-    if (n.includes("broward")) return "Bro";
-    if (n.includes("hillsborough")) return "Hil";
-    if (n.includes("miami")) return "Mia";
+    // Florida: Broward, Hillsborough, Miami-Dade (full county names)
+    if (n.includes("broward")) return "Broward";
+    if (n.includes("hillsborough")) return "Hillsborough";
+    if (n.includes("miami")) return "Miami-Dade";
 
     // Texas: Travis, Dallas, Harris JP, CClerk, HCDistrict (disambiguates 3 Harris courts)
     if (n.includes("travis")) return "Travis";
@@ -408,7 +430,7 @@ export default function QueueMonitorPage() {
     <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={fetchData} isRefreshing={isLoading} />
 
-      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Title & Queue Actions */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
           <div>
@@ -566,42 +588,107 @@ export default function QueueMonitorPage() {
           </div>
         )}
 
-        {/* Queue Metrics Breakdown using reusable StatCard matching Dashboard design language */}
+        {/* Real Operational Claim & Queue Telemetry StatCards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
           <StatCard
-            label="Ingest Queue"
-            value={queueStatus?.queues?.ingest ?? 0}
-            subtext="Raw batch files"
-            icon={Layers}
+            label="Total Claims"
+            value={stats?.total_claims ?? queueStatus?.total_claims ?? total}
+            subtext={`${stats?.new ?? queueStatus?.pending_tasks ?? 0} queued · ${stats?.in_progress ?? queueStatus?.active_tasks ?? 0} active`}
+            icon={FileSpreadsheet}
             gradient="blue"
+            selected={selectedStatuses.length === 0 && !statusFilter}
+            onClick={() => {
+              setSelectedStatuses([]);
+              setStatusFilter("");
+              setSearchTerm("");
+              setSelectedStates([]);
+              setStateFilter("");
+              setPage(1);
+            }}
           />
           <StatCard
-            label="Scraper Queue"
-            value={queueStatus?.queues?.scrapers ?? 0}
-            subtext="County portals"
+            label="In Progress"
+            value={stats?.in_progress ?? queueStatus?.active_tasks ?? 0}
+            subtext="Active RPA & Matching"
             icon={Zap}
             gradient="amber"
+            selected={selectedStatuses.includes("SCRAPING_IN_PROGRESS") && selectedStatuses.length === 1}
+            onClick={() => {
+              if (selectedStatuses.includes("SCRAPING_IN_PROGRESS") && selectedStatuses.length === 1) {
+                setSelectedStatuses([]);
+                setStatusFilter("");
+              } else {
+                setSelectedStatuses(["SCRAPING_IN_PROGRESS"]);
+                setStatusFilter("SCRAPING_IN_PROGRESS");
+              }
+              setSearchTerm("");
+              setSelectedStates([]);
+              setStateFilter("");
+              setPage(1);
+            }}
           />
           <StatCard
-            label="Matcher Queue"
-            value={queueStatus?.queues?.matcher ?? 0}
-            subtext="RapidFuzz cascade"
-            icon={Filter}
-            gradient="purple"
-          />
-          <StatCard
-            label="Guidewire Queue"
-            value={queueStatus?.queues?.notifications ?? 0}
-            subtext="Cloud API dispatch"
+            label="Completed & Matched"
+            value={(stats?.total_finished ?? ((stats?.completed ?? 0) + (stats?.match_found ?? 0) + (stats?.no_match_found ?? 0))) || (queueStatus?.completed_tasks ?? 0)}
+            subtext={`${stats?.match_found ?? 0} matches · ${stats?.no_match_found ?? 0} clean`}
             icon={CheckCircle2}
             gradient="emerald"
+            selected={selectedStatuses.includes("COMPLETED") && selectedStatuses.includes("MATCH_FOUND")}
+            onClick={() => {
+              if (selectedStatuses.includes("COMPLETED") && selectedStatuses.includes("MATCH_FOUND")) {
+                setSelectedStatuses([]);
+                setStatusFilter("");
+              } else {
+                setSelectedStatuses(["COMPLETED", "MATCH_FOUND", "NO_MATCH_FOUND", "SCRAPING_COMPLETED"]);
+                setStatusFilter("COMPLETED,MATCH_FOUND,NO_MATCH_FOUND,SCRAPING_COMPLETED");
+              }
+              setSearchTerm("");
+              setSelectedStates([]);
+              setStateFilter("");
+              setPage(1);
+            }}
           />
           <StatCard
-            label="Active Workers"
-            value={queueStatus?.workers_online ?? 1}
-            subtext="Celery nodes active"
-            icon={Radio}
-            gradient="cyan"
+            label="Cases Extracted"
+            value={stats?.total_cases_extracted ?? queueStatus?.total_cases_extracted ?? 0}
+            subtext="8 county portals total"
+            icon={Layers}
+            gradient="purple"
+            selected={selectedStatuses.includes("MATCH_FOUND") && selectedStatuses.length === 1}
+            onClick={() => {
+              if (selectedStatuses.includes("MATCH_FOUND") && selectedStatuses.length === 1) {
+                setSelectedStatuses([]);
+                setStatusFilter("");
+              } else {
+                setSelectedStatuses(["MATCH_FOUND", "COMPLETED"]);
+                setStatusFilter("MATCH_FOUND,COMPLETED");
+              }
+              setSearchTerm("");
+              setSelectedStates([]);
+              setStateFilter("");
+              setPage(1);
+            }}
+          />
+          <StatCard
+            label="Exceptions & Failed"
+            value={(stats?.failed ?? queueStatus?.failed_tasks ?? 0) + (stats?.manual_review ?? 0)}
+            subtext={`${stats?.manual_review ?? 0} review · ${stats?.failed ?? queueStatus?.failed_tasks ?? 0} failed`}
+            icon={AlertTriangle}
+            gradient="rose"
+            selected={selectedStatuses.includes("FAILED") || selectedStatuses.includes("MANUAL_REVIEW")}
+            onClick={() => {
+              if (selectedStatuses.includes("FAILED") || selectedStatuses.includes("MANUAL_REVIEW")) {
+                setSelectedStatuses([]);
+                setStatusFilter("");
+              } else {
+                setSelectedStatuses(["FAILED", "MANUAL_REVIEW"]);
+                setStatusFilter("FAILED,MANUAL_REVIEW");
+              }
+              setSearchTerm("");
+              setSelectedStates([]);
+              setStateFilter("");
+              setPage(1);
+            }}
           />
         </div>
 
@@ -614,12 +701,18 @@ export default function QueueMonitorPage() {
               currentState={stateFilter}
               currentSearch={searchTerm}
               onApplyPreset={(p) => {
+                const newStatuses = p.status ? [p.status] : [];
+                const newStates = p.state ? [p.state] : [];
+                setSelectedStatuses(newStatuses);
+                setSelectedStates(newStates);
                 setStatusFilter(p.status);
                 setStateFilter(p.state);
                 setSearchTerm(p.search);
                 setPage(1);
               }}
               onResetFilters={() => {
+                setSelectedStatuses([]);
+                setSelectedStates([]);
                 setStatusFilter("");
                 setStateFilter("");
                 setSearchTerm("");
@@ -647,71 +740,64 @@ export default function QueueMonitorPage() {
                 />
               </div>
 
-              {/* Status and State Filters */}
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                <div className="flex items-center gap-1.5 w-full">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value);
+              {/* Status and State Multi-Select Comboboxes */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-56">
+                  <MultiSelectDropdown
+                    label="Status"
+                    placeholder="All Statuses"
+                    options={MONITOR_STATUS_OPTIONS}
+                    selectedValues={selectedStatuses}
+                    onChange={(values) => {
+                      setSelectedStatuses(values);
+                      setStatusFilter(values.join(","));
                       setPage(1);
                     }}
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 w-full min-h-[40px]"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="NEW">New</option>
-                    <option value="SCRAPING_IN_PROGRESS">Scraping In Progress</option>
-                    <option value="SCRAPING_COMPLETED">Scraping Completed</option>
-                    <option value="MATCH_FOUND">Match Found</option>
-                    <option value="MANUAL_REVIEW">Manual Review</option>
-                    <option value="NO_MATCH_FOUND">No Match Found</option>
-                    <option value="FAILED">Failed</option>
-                    <option value="COMPLETED">Completed</option>
-                  </select>
+                  />
                 </div>
 
-                <select
-                  value={stateFilter}
-                  onChange={(e) => {
-                    setStateFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 w-full sm:w-auto min-h-[40px]"
-                >
-                  <option value="">All States</option>
-                  <option value="FL">Florida (FL)</option>
-                  <option value="TX">Texas (TX)</option>
-                </select>
+                <div className="w-full sm:w-44">
+                  <MultiSelectDropdown
+                    label="State"
+                    placeholder="All States"
+                    options={MONITOR_STATE_OPTIONS}
+                    selectedValues={selectedStates}
+                    onChange={(values) => {
+                      setSelectedStates(values);
+                      setStateFilter(values.join(","));
+                      setPage(1);
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Standardized Reusable Export Toolbar */}
             <ExportActionToolbar
               label="Export"
               onExportXlsx={() => {
                 const url = api.getExportUrl({
                   format: "xlsx",
-                  status: statusFilter,
-                  state: stateFilter,
-                  search: searchTerm,
+                  status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter || undefined),
+                  state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter || undefined),
+                  search: searchTerm || undefined,
                 });
                 window.open(url, "_blank");
               }}
               onExportCsv={() => {
                 const url = api.getExportUrl({
                   format: "csv",
-                  status: statusFilter,
-                  state: stateFilter,
-                  search: searchTerm,
+                  status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter || undefined),
+                  state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter || undefined),
+                  search: searchTerm || undefined,
                 });
                 window.open(url, "_blank");
               }}
               onExportJson={() => {
                 const url = api.getExportUrl({
                   format: "json",
-                  status: statusFilter,
-                  state: stateFilter,
-                  search: searchTerm,
+                  status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter || undefined),
+                  state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter || undefined),
+                  search: searchTerm || undefined,
                 });
                 window.open(url, "_blank");
               }}
@@ -720,6 +806,74 @@ export default function QueueMonitorPage() {
               showAsyncButton={true}
             />
           </div>
+
+          {/* Active Filter Chips */}
+          {(selectedStatuses.length > 0 || selectedStates.length > 0 || searchTerm) && (
+            <div className="flex items-center gap-2 flex-wrap text-xs pt-1 pb-1">
+              <span className="text-slate-400 font-medium text-[11px]">Active Filters:</span>
+              {selectedStatuses.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px]">
+                  <span>Status: {selectedStatuses.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStatuses([]);
+                      setStatusFilter("");
+                      setPage(1);
+                    }}
+                    className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedStates.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-semibold text-[11px]">
+                  <span>State: {selectedStates.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStates([]);
+                      setStateFilter("");
+                      setPage(1);
+                    }}
+                    className="hover:text-blue-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-semibold text-[11px]">
+                  <span>Search: &quot;{searchTerm}&quot;</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setPage(1);
+                    }}
+                    className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStatuses([]);
+                  setSelectedStates([]);
+                  setStatusFilter("");
+                  setStateFilter("");
+                  setSearchTerm("");
+                  setPage(1);
+                }}
+                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline font-medium cursor-pointer ml-1"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           {/* Floating / Sticky Bulk Action Bar */}
           {selectedIds.length > 0 && (
@@ -840,7 +994,9 @@ export default function QueueMonitorPage() {
                   <th className="py-3 px-3 cursor-pointer select-none" onClick={() => handleSort("total_duration_seconds")}>
                     Duration {renderSortIcon("total_duration_seconds")}
                   </th>
-                  <th className="py-3 px-3 text-center">Cases Extracted</th>
+                  <th className="py-3 px-3 text-center cursor-pointer select-none" onClick={() => handleSort("cases_extracted")}>
+                    Cases Extracted {renderSortIcon("cases_extracted")}
+                  </th>
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -987,11 +1143,11 @@ export default function QueueMonitorPage() {
                           <td className="py-3 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-400">
                             {claim.total_duration_seconds !== null && claim.total_duration_seconds !== undefined ? (
                               <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-200">
-                                ⏱️ {claim.total_duration_seconds}s
+                                ⏱️ {formatDurationHms(claim.total_duration_seconds)}
                               </span>
                             ) : claim.action_timings?.total_scraping_seconds ? (
                               <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                                ⏱️ {claim.action_timings.total_scraping_seconds}s
+                                ⏱️ {formatDurationHms(claim.action_timings.total_scraping_seconds)}
                               </span>
                             ) : (
                               <span className="text-slate-400">-</span>

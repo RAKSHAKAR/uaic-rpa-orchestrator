@@ -18,12 +18,15 @@
 ```
 Bot_UAIC/
 ├── backend/                   # Python FastAPI + Celery worker
+│   ├── orchestrator.db        # Active SQLite database (absolute path in .env)
 │   ├── app/
 │   │   ├── api/v1/endpoints/  # FastAPI route handlers
+│   │   │   ├── audit.py       # Audit log queries & JSON viewer
 │   │   │   ├── claims.py      # All claim CRUD + bulk ops + export
 │   │   │   ├── health.py      # /health + /health/detailed + portal ping
 │   │   │   ├── ingest.py      # Excel/CSV upload & preview
 │   │   │   ├── matches.py     # Fuzzy match review
+│   │   │   ├── notifications.py # Notification history, rules & test email
 │   │   │   ├── queue.py       # Queue start/pause/retrigger
 │   │   │   └── settings.py    # Settings CRUD + Guidewire/Portal test
 │   │   ├── automation/
@@ -41,13 +44,13 @@ Bot_UAIC/
 │   │   │       ├── harris_district.py
 │   │   │       └── harris_cclerk.py
 │   │   ├── core/
-│   │   │   ├── config.py      # Pydantic Settings (env vars)
+│   │   │   ├── config.py      # Pydantic Settings (env vars, absolute DB path)
 │   │   │   ├── database.py    # SQLAlchemy async engine + session
 │   │   │   └── celery_app.py  # Celery app + queues definition
 │   │   ├── models/
-│   │   │   ├── claim.py       # ClaimRecord ORM model
-│   │   │   ├── court_case.py  # ScrapedCourtCase ORM model
-│   │   │   └── match_result.py# FuzzyMatchResult ORM model
+│   │   │   ├── claim.py, court_case.py, match_result.py
+│   │   │   ├── audit_log.py, error_screenshot.py, notification.py
+│   │   ├── schemas/           # Pydantic validation schemas
 │   │   ├── services/
 │   │   │   ├── excel_parser.py    # openpyxl/pandas ingestion (1899-12-30 dates)
 │   │   │   ├── fuzzy_engine.py    # RapidFuzz claimant→insured→driver cascade
@@ -58,35 +61,52 @@ Bot_UAIC/
 │   │       ├── fuzzy_tasks.py     # Celery tasks for matching + Guidewire
 │   │       ├── ingest_tasks.py    # Celery tasks for file parsing
 │   │       ├── queue_runner.py    # Auto-queue sequential runner
-│   │       └── retry_tasks.py     # Retry failed/stuck claims
-│   └── tests/                 # 107 tests, all passing
+│   │       ├── retry_tasks.py     # Retry failed/stuck claims
+│   │       ├── export_tasks.py    # Async streaming export
+│   │       └── notification_tasks.py # Email alert dispatch
+│   └── tests/                 # 556 tests (75 modules), 2 pre-existing skips
+│       └── e2e/               # Mirrored to root e2e/backend/
 ├── frontend/                  # Next.js 14 App Router
 │   └── src/
 │       ├── app/
-│       │   ├── page.tsx           # Main Dashboard (claims table, stats, bulk ops)
-│       │   ├── health/page.tsx    # /health — Operational health dashboard
+│       │   ├── page.tsx           # Main Dashboard
+│       │   ├── health/page.tsx    # /health — System health
 │       │   ├── monitor/page.tsx   # /monitor — Queue monitor
-│       │   ├── settings/page.tsx  # /settings — Full settings UI
+│       │   ├── settings/page.tsx  # /settings — Robot configuration
 │       │   ├── upload/page.tsx    # /upload — Excel/CSV import
 │       │   ├── exceptions/page.tsx# /exceptions — Fuzzy review
-│       │   └── claims/[id]/page.tsx # /claims/:id — Claim detail
+│       │   ├── claims/[id]/page.tsx # /claims/:id — Claim detail
+│       │   ├── branding/page.tsx  # /branding — Brand management
+│       │   ├── audit/page.tsx     # /audit — Audit trail
+│       │   └── notifications/page.tsx # /notifications — Email console
 │       ├── components/
-│       │   ├── CommandPalette.tsx  # Ctrl+K global command palette
-│       │   ├── ResponsiveShell.tsx # Root layout shell
-│       │   ├── Sidebar.tsx         # Desktop nav sidebar
-│       │   ├── Navbar.tsx          # Top navigation bar
-│       │   ├── MobileBottomNav.tsx # Fixed mobile bottom nav
-│       │   ├── FileUploader.tsx    # Drag-drop file upload with preview
-│       │   └── StatusBadge.tsx     # Status badge component
 │       ├── lib/api.ts             # Axios API client (all endpoints typed)
 │       └── types/index.ts         # All TypeScript types
-├── PowerAutomateSolutions/    # Legacy Power Automate reference (V4 is authoritative)
-│   └── BotCreation_1_0_0_7/
-│       ├── customizations.xml     # All workflow definitions
-│       └── desktopflowbinaries/   # Robin language desktop flow definitions
-└── implementation_plan/       # Reference prompts and implementation plans
+├── e2e/                       # End-to-end test assets
+│   ├── backend/               # Playwright E2E tests (mirrored from backend/tests/e2e/)
+│   ├── frontend/              # Frontend E2E placeholder
+│   └── README.md
+├── docs/                      # Operator manuals & reference material
+│   ├── COURT_PORTALS_GUIDE.md
+│   ├── EMAIL_AND_NOTIFICATIONS_GUIDE.md
+│   ├── STORAGE_AND_EXPORTS_GUIDE.md
+│   ├── TASK_QUEUE_AND_ORCHESTRATOR_GUIDE.md
+│   ├── PROXY_NETWORK_GUIDE.md
+│   ├── APIS_AND_MATCHING_ENGINE_GUIDE.md
+│   ├── DEVELOPMENT_WORKFLOW.md
+│   ├── WALKTHROUGH.md         # Links 8 images + 2 webp recordings
+│   ├── extracted_v4_flow.robin
+│   ├── v4_all_8_subflows_annotated.txt
+│   └── v4_all_control_repositories.txt
+├── scripts/                   # Utility scripts only (scripts/, .ps1, .bat, .py)
+├── v4_subflows/               # Power Automate V4 Robin subflow reference files
+├── anticaptcha-plugin_v0.83/  # Chrome Manifest v3 AntiCaptcha extension
+└── .agents/                   # AI skills & governance
+    └── skills/
+        ├── diagnose-plan-confirm-execute/
+        ├── theme-system/
+        └── uaic-context/
 ```
-
 ---
 
 ## 3. Critical Business Rules (DO NOT CHANGE)
@@ -210,12 +230,19 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 ## 7. Test Commands
 
 ```bash
-# Backend tests (556 tests across 67 test suites, 100% pass rate)
+# Backend unit & integration tests (556 tests, 100% pass rate)
 cd backend
 .venv\Scripts\pytest --tb=short -q
 
+# Backend E2E tests (17 tests across 5 test suites, 100% pass rate)
+backend\.venv\Scripts\pytest e2e/backend -o pythonpath=backend --tb=short -q
+
+# Frontend E2E tests (Playwright)
+cd e2e/frontend
+npx playwright test
+
 # Backend lint (zero errors)
-.venv\Scripts\ruff check app tests
+.venv\Scripts\ruff check app tests ..\e2e\backend
 
 # Frontend TypeScript (0 errors)
 cd frontend
@@ -236,19 +263,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 ## 8. AI Agent Rules When Modifying This Codebase
 
 ### MUST DO
-- ✅ Follow the `diagnose-plan-confirm-execute` lifecycle: Understand → Inspect → Review README → Review History → Diagnose → Gap Analysis → Plan → Save to implementation_plan → Show User → Wait Approval → Implement → Test → Validate → Document → Human Verify
+- ✅ Follow the `diagnose-plan-confirm-execute` lifecycle: Understand → Inspect → Review README → Review History → Diagnose → Gap Analysis → Plan → Save to `docs/` → Show User → Wait Approval → Implement → Test → Validate → Document → Human Verify
 - ✅ **Definition of Done**: Implemented → Tested → Verified → Errors Fixed → Documentation Updated → Requirements Rechecked
 - ✅ **No Error Left Behind**: Check browser Developer Console (unhandled promises, React errors, failed API calls, CORS) and Terminal runtime logs (warnings, compilation, lint). Fix root causes before declaring completion
 - ✅ **Interruption Recovery**: In the event of crashes, timeouts, context limits, or interruptions, perform gap analysis and resume from the last successful checkpoint without skipping
 - ✅ Target **Python 3.14.7** across backend runtime and dependencies; preserve synchronous Playwright browser automation for Anti-Captcha extension stability
-- ✅ Strictly preserve the repository directory layout documented in `README.md` and keep all 5 protected user folders intact (`implementation_plan`, `PowerAutomateSolutions`, `Testing files`, `anticaptcha-plugin_v0.83`, `.agents`)
+- ✅ Strictly preserve the repository directory layout documented in `README.md` and keep the 2 protected directories intact (`anticaptcha-plugin_v0.83`, `.agents`)
 - ✅ Maintain `README.md` as the authoritative single-source booklet of the entire project (updating layout, routes, endpoints, storage keys, config — **never replace a comprehensive README with a simplified one**)
 - ✅ Place all utility, scratch, diagnostic, and verification scripts into `scripts/` or `backend/app/scripts/` (never loose in root)
-- ✅ Save every substantial implementation plan to `implementation_plan/` BEFORE showing it to the user (naming: `YYYY-MM-DD_uaic_<feature>_<doc-type>_v<N>.md`)
+- ✅ Save every substantial implementation plan to `docs/` BEFORE showing it to the user (naming: `YYYY-MM-DD_uaic_<feature>_<doc-type>_v<N>.md`)
 - ✅ Assign a unique Implementation ID (`IMP-YYYY-MMDD-NNN`) to every substantial task and cross-reference it in all related documents
 - ✅ Ensure dynamic automated verification: upon completing work and running the full automated testing suite (pytest, ruff, tsc, ps1) with visual/video evidence, document status must be finalized as Complete with: `**AI Verification:** Complete (100% Automated Testing Suite)`
-- ✅ Create a final implementation record (plan + change log + test report + validation) in `implementation_plan/` after every substantial task
-- ✅ Save all browser subagent recordings (.webp) into `implementation_plan/Recording/` and all visual verification screenshots (.png) into `implementation_plan/Images/` (strictly separated, never leave them exclusively in the transient IDE brain directory)
+- ✅ Create a final implementation record (plan + change log + test report + validation) in `docs/` after every substantial task
+- ✅ Save all browser subagent recordings (.webp) and visual verification screenshots (.png) into `docs/` (never leave them exclusively in the transient IDE brain directory)
 - ✅ Run `pytest` after any backend change (556 tests across 67 test suites)
 - ✅ Run `ruff check` after any Python change (0 errors)
 - ✅ Run `tsc --noEmit` after any TypeScript change (0 errors)
@@ -266,7 +293,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\check_ps1_syntax.ps
 ### MUST NOT DO
 - ❌ Do not leave completed tasks with stale, intermediate, or pending statuses such as `Approved - In Execution`, `Completed - Pending Human Verification`, or `Awaiting Human Verification` after automated testing passes
 - ❌ Do not create unnecessary, stray, or loose files/folders in the project root or scattered in the workspace
-- ❌ Do not delete, rename, or purge any of the 5 protected user directories (`implementation_plan`, `PowerAutomateSolutions`, `Testing files`, `anticaptcha-plugin_v0.83`, `.agents`)
+- ❌ Do not delete, rename, or purge the 2 protected directories (`anticaptcha-plugin_v0.83`, `.agents`)
 - ❌ Do not modify source code before presenting a detailed plan and receiving explicit user confirmation
 - ❌ Do not implement without explicit user approval of the plan (NO APPROVAL = NO IMPLEMENTATION)
 - ❌ Do not mark documentation as `Human Verified` — only the user can do that

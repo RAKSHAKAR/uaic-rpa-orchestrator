@@ -44,8 +44,8 @@ def get_default_extension_dir() -> str:
 class AutomationSettings(BaseModel):
     """Browser automation and anti-captcha settings."""
     max_captcha_attempts: int = Field(default=2, ge=1, le=20, description="Max retry attempts for CAPTCHA solving with page reload")
-    captcha_wait_seconds: int = Field(default=120, ge=5, le=300, description="Seconds to wait for CAPTCHA token resolution before timeout/reload")
-    page_timeout_seconds: int = Field(default=60, ge=5, le=180, description="Browser page navigation timeout in seconds")
+    captcha_wait_seconds: int = Field(default=45, ge=5, le=300, description="Seconds to wait for CAPTCHA token resolution before timeout/reload")
+    page_timeout_seconds: int = Field(default=35, ge=5, le=180, description="Browser page navigation timeout in seconds")
     reload_backoff_seconds: int = Field(default=2, ge=0, le=30, description="Cool-down delay in seconds before refreshing page on bot retry/throttle")
     headless_mode: bool = Field(default=False, description="Run browser in headless background mode (False for visible Chrome)")
     browser_engine: str = Field(
@@ -62,7 +62,7 @@ class AutomationSettings(BaseModel):
         description="Browser User-Agent header string",
     )
     max_concurrent_claims: int = Field(
-        default=1,
+        default=10,
         ge=1,
         le=10,
         description="Concurrent claims scraped in parallel (1 = sequential FIFO, 2-10 = parallel multi-worker)",
@@ -86,7 +86,7 @@ class AutomationSettings(BaseModel):
         description="Keystroke input delay in milliseconds (0 = instant .fill(), >0 = press_sequentially with delay)",
     )
     action_pacing_ms: int = Field(
-        default=100,
+        default=50,
         ge=0,
         le=1500,
         description="Pacing delay between consecutive browser actions in milliseconds (0 = no delay)",
@@ -228,8 +228,74 @@ class FuzzyMatcherSettings(BaseModel):
             "PA",
             "P.A.",
             "L.L.C.",
+            "LTD",
+            "LIMITED",
+            "PC",
+            "P.C.",
+            "LLP",
+            "L.L.P.",
+            "PLLC",
+            "P.L.L.C.",
+            "ENTERPRISE",
+            "PRODUCE",
+            "TRANSPORT",
+            "TRANSPORTATION",
+            "SERVICES",
+            "SOLUTIONS",
+            "PRODUCTS",
+            "HOLDINGS",
+            "GROUP",
+            "SYSTEMS",
+            "MOTORS",
+            "SALES",
+            "BAKERY",
+            "FASTENERS",
+            "TOWING",
+            "RENTAL",
+            "INSURANCE",
+            "AUTO",
+            "CARS",
         ],
         description="Corporate noise and suffix words to strip during party name normalization",
+    )
+    unsearchable_party_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^UNKNOWN\b",
+            r"\bUNKNOWN\b",
+            r"^UNIDENTIFIED\b",
+            r"^NO\s+DRIVER\b",
+            r"^NO\s+NAME\b",
+            r"\bNOT\s+PROVIDED\b",
+            r"\bNOT\s+AVAILABLE\b",
+            r"^NONE\b",
+            r"^N/?A$",
+            r"^TBD$",
+            r"^PENDING$",
+            r"UNKNOWN\s+IV\s+DRIVER",
+            r"UNKNOWN\s+CV\s+OWNER",
+            r"UNKNOWN\s+CV1\s+OWNER",
+            r"UNKNOWN\s+CV\s+OWNER\s+\d+",
+            r"UNKNOWN\s+P\d+\s+PROPERTY\s+OWNER",
+            r"UNKNOWN\s+PROPERTY\s+OWNER",
+            r"UNKNOWN\s+DRIVER",
+            r"UNKNOWN\s+OWNER",
+            r"UNKNOWN\s+PASSENGER",
+            r"UNKNOWN\s+PEDESTRIAN",
+            r"\bPOLICE\s+DEPARTMENT\b",
+            r"\bPOLICE\s+DEPT\b",
+            r"\bSHERIFF(?:'S)?\s+(?:OFFICE|DEPARTMENT)\b",
+            r"\bDEPARTMENT\s+OF\s+TRANSPORTATION\b",
+            r"\bDEPT\s+OF\s+TRANSPORTATION\b",
+            r"\bFL\s+DEPT\s+OF\s+TRANSPORTATION\b",
+            r"\bCITY\s+OF\s+[A-Z\s]+",
+            r"\bCOUNTY\s+OF\s+[A-Z\s]+",
+            r"\bSTATE\s+OF\s+[A-Z\s]+",
+            r"\bHOUSING\s+AUTHORITY\b",
+            r"\bTRANSIT\s+AUTHORITY\b",
+            r"\bMETROPOLITAN\s+TRANSIT\b",
+            r"^[A-Z0-9\s&,.-]+\b(?:LLC|INC|CORP|CORPORATION|CO\.|COMPANY|L\.L\.C\.|LTD|LIMITED|TOWING|RENTAL|ENTERPRISE)\b$",
+        ],
+        description="Exception list patterns for unsearchable / placeholder / municipal parties to skip before portal discovery",
     )
     clean_case_style_patterns: list[str] = Field(
         default_factory=lambda: [
@@ -313,11 +379,23 @@ class TaskQueueSettings(BaseModel):
     task_retry_delay_seconds: int = Field(default=30, ge=5, le=300, description="Exponential backoff delay in seconds between task retries")
     batch_chunk_size: int = Field(default=25, ge=5, le=100, description="Claims per ingestion database flush batch")
     auto_retry_failed_scrapes: bool = Field(default=True, description="Automatically retrigger failed scraping tasks via Celery Beat")
+    failed_claims_retry_interval_minutes: int = Field(
+        default=0,
+        ge=0,
+        le=1440,
+        description="Interval in minutes between automatic retriggers of failed claims via Celery Beat (0 = fallback to task_retry_delay_seconds)",
+    )
     max_concurrent_claims: int = Field(
-        default=1,
+        default=10,
         ge=1,
         le=10,
         description="Concurrent claims scraped in parallel (1 = sequential FIFO, 2-10 = parallel multi-worker)",
+    )
+    claim_timeout_minutes: int = Field(
+        default=30,
+        ge=5,
+        le=120,
+        description="Watchdog timeout in minutes before marking a stuck/interrupted claim",
     )
 
 
@@ -406,6 +484,16 @@ class StorageSettings(BaseModel):
     storage_provider: str = Field(
         default="local",
         description="Storage provider: local (server disk backend/screenshots/), s3 (AWS S3), azure_blob (Azure Blob), gcs (Google Cloud)",
+    )
+    retention_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Days to retain diagnostic error screenshots before auto-cleanup",
+    )
+    auto_cleanup_enabled: bool = Field(
+        default=True,
+        description="Enable automatic periodic purging of expired screenshot files",
     )
     # AWS S3 Settings
     s3_bucket_name: str = Field(default="", description="AWS S3 bucket name")
@@ -688,6 +776,23 @@ class StorageTestResponse(BaseModel):
     duration_ms: float = 0.0
     details: dict[str, Any] = Field(default_factory=dict)
     error_detail: str | None = None
+
+
+class StorageCleanupRequest(BaseModel):
+    """Payload to trigger storage retention cleanup."""
+    retention_days: int | None = None
+
+
+class StorageCleanupResponse(BaseModel):
+    """Result of storage retention cleanup operation."""
+    success: bool
+    files_deleted: int = 0
+    files_purged: int = 0
+    bytes_freed: int = 0
+    retention_days: int = 30
+    storage_provider: str = "local"
+    message: str
+
 
 
 # Proxy Server Connectivity Test DTOs

@@ -196,6 +196,7 @@ async def test_broward_step_e_and_f_captcha_retry_loop():
     mock_input.count = AsyncMock(return_value=1)
     mock_input.first = mock_input
     page.locator.return_value = mock_input
+    page.wait_for_url = AsyncMock(side_effect=TimeoutError("Timeout"))
 
     with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap, \
          patch.object(scraper, "return_to_search_state", new_callable=AsyncMock):
@@ -452,8 +453,9 @@ async def test_broward_sequential_unique_names_on_same_tab():
     assert processed_parties[0] == "Carlos Santana"
     assert processed_parties[1] == "Elena Rios"
 
-    # Verify tab was created in pre-opening and retrieved once for the portal session (1 pre-open + 1 portal session = 2)
-    assert mock_browser_session.get_or_create_tab.await_count == 2
+    # Verify tab was created in pre-opening (1) and retrieved once per unique name (2) = 3 calls
+    assert mock_browser_session.get_or_create_tab.await_count == 3
+    assert mock_runner_cm.__aenter__.await_count == 1
 
     # Verify results persisted in database under fl_jsonbody_broward and ScrapedCourtCase
     async with TaskAsyncSessionLocal() as session:

@@ -1,7 +1,0 @@
-{
-  "implementation_id": "IMP-2026-1001-002",
-  "timestamp_utc": "2026-10-01T09:21:05.740107+00:00",
-  "portal": "hillsborough",
-  "status": "probe_exception",
-  "exception_type": "ValidationError"
-}

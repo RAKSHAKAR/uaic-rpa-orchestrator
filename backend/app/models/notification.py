@@ -1,13 +1,16 @@
 """SQLAlchemy models for enterprise notification logs, templates, and routing rules."""
 
+from __future__ import annotations
+
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.compat import utc_now
 from app.core.database import Base
 
 
@@ -48,7 +51,7 @@ class Notification(Base):
 
     # Telemetry Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), index=True
+        DateTime, default=utc_now, index=True
     )
     queued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -80,10 +83,10 @@ class NotificationTemplate(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
+        DateTime, default=utc_now
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
     def __repr__(self) -> str:
@@ -104,7 +107,7 @@ class NotificationRule(Base):
     recipient_override: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
     def __repr__(self) -> str:

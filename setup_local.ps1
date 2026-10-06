@@ -145,12 +145,18 @@ function Invoke-KillPort {
                         if ($Port -eq 1080 -or $Port -eq 1025) {
                             docker stop -t 1 uaic_maildev 2>$null | Out-Null
                             docker rm -f uaic_maildev 2>$null | Out-Null
+                            continue
                         } elseif ($Port -eq 5432) {
                             docker stop -t 1 uaic_postgres 2>$null | Out-Null
+                            continue
                         } elseif ($Port -eq 6379) {
                             docker stop -t 1 uaic_redis 2>$null | Out-Null
+                            continue
+                        } elseif ($Port -eq 8000) {
+                            docker stop -t 1 uaic_backend 2>$null | Out-Null
+                        } elseif ($Port -eq 3000) {
+                            docker stop -t 1 uaic_frontend 2>$null | Out-Null
                         }
-                        continue
                     }
                     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
                 }
@@ -476,6 +482,8 @@ function Invoke-SetRpaMode {
         $ChosenMode = if ($choice -match '^[uU]') { "Unattended" } else { "Attended" }
     }
     $isHeadless = if ($ChosenMode -eq "Unattended") { "true" } else { "false" }
+    $pyBool = if ($ChosenMode -eq "Unattended") { "True" } else { "False" }
+
     if (-not (Test-Path $envFile)) {
         Set-Content -Path $envFile -Value "PLAYWRIGHT_HEADLESS=$isHeadless`r`n" -NoNewline
     } else {
@@ -488,6 +496,18 @@ function Invoke-SetRpaMode {
         Set-Content -Path $envFile -Value $content -NoNewline
     }
     $env:PLAYWRIGHT_HEADLESS = $isHeadless
+
+    # Persist directly into SQLite orchestrator.db and Redis cache so workers see it immediately
+    $pyExe = Get-PythonExecutable
+    if ($pyExe) {
+        try {
+            Push-Location $backendDir
+            & $pyExe -c "import asyncio; from app.services.settings_service import get_system_settings_async, save_system_settings_async; async def sync(): cfg = await get_system_settings_async(); cfg.automation.headless_mode = ($pyBool); await save_system_settings_async(cfg, updated_by='setup_local.ps1'); asyncio.run(sync())" 2>$null
+        } catch {} finally {
+            Pop-Location
+        }
+    }
+    Write-LogMessage "RPA Execution Mode set to $ChosenMode (headless_mode=$isHeadless) - synchronized to DB & .env" "SUCCESS" "Green"
     return $ChosenMode
 }
 
@@ -534,21 +554,6 @@ function Invoke-StartAllServices {
         Push-Location $frontendDir
         try { npm install --no-audit --no-fund --loglevel=error } finally { Pop-Location }
     }
-
-    # Synchronize RPA Mode directly to Redis so Celery workers immediately inherit the chosen mode
-    try {
-        $rpaIsHeadless = if ($activeMode -eq "Unattended") { "True" } else { "False" }
-        & $pyExe -c "import json, os, redis;
-try:
-    r = redis.Redis.from_url(os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0'), socket_connect_timeout=1.5, socket_timeout=1.5)
-    data = r.get('uaic:system_settings')
-    if data:
-        d = json.loads(data)
-        d.setdefault('automation', {})['headless_mode'] = ($rpaIsHeadless)
-        r.set('uaic:system_settings', json.dumps(d))
-except Exception:
-    pass" 2>$null
-    } catch {}
 
     Write-LogMessage "Launching background service windows..." "INFO"
     Start-EncodedWindow "FastAPI Backend (port 8000)" "Set-Location '$backendDir'; & '$pyExe' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

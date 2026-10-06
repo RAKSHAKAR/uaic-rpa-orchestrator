@@ -1,5 +1,7 @@
 """Guidewire integration, fuzzy filtering audit, and automation settings database models."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 

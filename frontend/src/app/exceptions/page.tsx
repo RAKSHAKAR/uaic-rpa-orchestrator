@@ -398,7 +398,7 @@ export default function ExceptionReviewPage() {
     <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={loadPending} isRefreshing={isLoading} />
 
-      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Title Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div>
@@ -507,10 +507,15 @@ export default function ExceptionReviewPage() {
             gradient="emerald"
             selected={selectedScoreTiers.includes("HIGH") && selectedScoreTiers.length === 1}
             onClick={() => {
-              setSelectedScoreTiers((prev) =>
-                prev.length === 1 && prev[0] === "HIGH" ? [] : ["HIGH"]
-              );
-              setCurrentPage(1);
+              if (selectedScoreTiers.includes("HIGH") && selectedScoreTiers.length === 1) {
+                clearFilters();
+              } else {
+                setSearchTerm("");
+                setSelectedCounties([]);
+                setSelectedPartyTypes([]);
+                setSelectedScoreTiers(["HIGH"]);
+                setCurrentPage(1);
+              }
             }}
           />
 
@@ -522,10 +527,15 @@ export default function ExceptionReviewPage() {
             gradient="amber"
             selected={selectedScoreTiers.includes("BORDERLINE") && selectedScoreTiers.length === 1}
             onClick={() => {
-              setSelectedScoreTiers((prev) =>
-                prev.length === 1 && prev[0] === "BORDERLINE" ? [] : ["BORDERLINE"]
-              );
-              setCurrentPage(1);
+              if (selectedScoreTiers.includes("BORDERLINE") && selectedScoreTiers.length === 1) {
+                clearFilters();
+              } else {
+                setSearchTerm("");
+                setSelectedCounties([]);
+                setSelectedPartyTypes([]);
+                setSelectedScoreTiers(["BORDERLINE"]);
+                setCurrentPage(1);
+              }
             }}
           />
 
@@ -537,10 +547,15 @@ export default function ExceptionReviewPage() {
             gradient="rose"
             selected={selectedScoreTiers.includes("LOW") && selectedScoreTiers.length === 1}
             onClick={() => {
-              setSelectedScoreTiers((prev) =>
-                prev.length === 1 && prev[0] === "LOW" ? [] : ["LOW"]
-              );
-              setCurrentPage(1);
+              if (selectedScoreTiers.includes("LOW") && selectedScoreTiers.length === 1) {
+                clearFilters();
+              } else {
+                setSearchTerm("");
+                setSelectedCounties([]);
+                setSelectedPartyTypes([]);
+                setSelectedScoreTiers(["LOW"]);
+                setCurrentPage(1);
+              }
             }}
           />
         </div>
@@ -624,6 +639,80 @@ export default function ExceptionReviewPage() {
               </button>
             )}
           </div>
+
+          {/* Active Filter Chips */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 flex-wrap text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-slate-400 font-medium text-[11px]">Active Filters:</span>
+              {selectedScoreTiers.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-semibold text-[11px]">
+                  <span>Tier: {selectedScoreTiers.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedScoreTiers([]);
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-purple-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedCounties.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-semibold text-[11px]">
+                  <span>Counties: {selectedCounties.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCounties([]);
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-blue-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedPartyTypes.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px]">
+                  <span>Parties: {selectedPartyTypes.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPartyTypes([]);
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-emerald-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-semibold text-[11px]">
+                  <span>Search: &quot;{searchTerm}&quot;</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline font-medium cursor-pointer ml-1"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Content View: Table or Cards */}

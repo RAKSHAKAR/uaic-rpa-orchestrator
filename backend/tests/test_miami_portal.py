@@ -435,7 +435,8 @@ async def test_search_by_party_name_with_pagination(miami_scraper, repeated_page
 
     # 2 pages: page 1 has case 1, page 2 has case 2
     row1 = MagicMock()
-    cells1 = ["CASE-P1-001", "STATE-P1-001", "DIV A", "CIVIL", "01/10/2026", "OPEN", "DOE VS ROE"]
+    # Real Miami-Dade OCS column order: [CaseStyle, LocalCaseNumber, StateCaseNumber, Section, CaseType, FilingDate, CaseStatus]
+    cells1 = ["DOE VS ROE", "CASE-P1-001", "STATE-P1-001", "DIV A", "CIVIL", "01/10/2026", "OPEN"]
     tds1 = [MagicMock(inner_text=AsyncMock(return_value=c)) for c in cells1]
     tds1_loc = MagicMock()
     tds1_loc.count = AsyncMock(return_value=len(cells1))
@@ -443,7 +444,7 @@ async def test_search_by_party_name_with_pagination(miami_scraper, repeated_page
     row1.locator.return_value = tds1_loc
 
     row2 = MagicMock()
-    cells2 = cells1 if repeated_page else ["CASE-P1-001", "STATE-P2-002", "DIV B", "CIVIL", "02/10/2026", "CLOSED", "DOE VS BAKER"]
+    cells2 = cells1 if repeated_page else ["DOE VS BAKER", "CASE-P1-001", "STATE-P2-002", "DIV B", "CIVIL", "02/10/2026", "CLOSED"]
     tds2 = [MagicMock(inner_text=AsyncMock(return_value=c)) for c in cells2]
     tds2_loc = MagicMock()
     tds2_loc.count = AsyncMock(return_value=len(cells2))
@@ -855,3 +856,170 @@ async def test_miami_filing_date_to_always_selects_today_date(miami_scraper):
     mock_search.click.assert_called_once()
     # V4 submits before CAPTCHA handling; an idle reCAPTCHA badge must not block Search.
     captcha_detector.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_search_by_party_name_direct_case_information(miami_scraper):
+    """Verifies that direct navigation to Case Information page extracts the single case properly."""
+    mock_page = MagicMock()
+    mock_page.url = "https://www2.miamidadeclerk.gov/ocs/CaseInformation.aspx"
+    mock_page.wait_for_timeout = AsyncMock()
+
+    body_html = """
+    CASE INFORMATION
+    CASE DETAILS
+    Pagan Serrano, Xiomara vs Torres De Los Santos, Victor Manuel Bookmark
+    Local Case Number: 2026-003536-FC-04
+    State Case Number: 132026DR003536A00104
+    Filing Date: 02/26/2026
+    Case Status: CLOSED
+    Case Type: Diss Of Marriage W/children
+    """
+    mock_body = MagicMock()
+    mock_body.inner_text = AsyncMock(return_value=body_html)
+
+    mock_last = MagicMock()
+    mock_last.count = AsyncMock(return_value=1)
+    mock_last.fill = AsyncMock()
+    mock_last.first = mock_last
+
+    mock_first = MagicMock()
+    mock_first.count = AsyncMock(return_value=1)
+    mock_first.fill = AsyncMock()
+    mock_first.first = mock_first
+
+    mock_date_from = MagicMock()
+    mock_date_from.count = AsyncMock(return_value=1)
+    mock_date_from.fill = AsyncMock()
+    mock_date_from.first = mock_date_from
+
+    mock_date_to = MagicMock()
+    mock_date_to.count = AsyncMock(return_value=1)
+    mock_date_to.fill = AsyncMock()
+    mock_date_to.first = mock_date_to
+
+    mock_search = MagicMock()
+    mock_search.count = AsyncMock(return_value=1)
+    mock_search.is_visible = AsyncMock(return_value=True)
+    mock_search.first = mock_search
+    mock_search.click = AsyncMock()
+
+    def locator_side_effect(selector):
+        if "body" in selector:
+            return mock_body
+        if "partyLastName" in selector:
+            return mock_last
+        if "partyFirstName" in selector:
+            return mock_first
+        if "filingDateFrom" in selector:
+            return mock_date_from
+        if "filingDateTo" in selector:
+            return mock_date_to
+        if "btnSearch" in selector or "button-green" in selector:
+            return mock_search
+        generic = MagicMock()
+        generic.count = AsyncMock(return_value=0)
+        generic.is_visible = AsyncMock(return_value=False)
+        return generic
+
+    mock_page.locator.side_effect = locator_side_effect
+
+    with patch.object(miami_scraper, "navigate_to_search", AsyncMock()), \
+         patch.object(miami_scraper, "ensure_authenticated", AsyncMock()), \
+         patch.object(miami_scraper, "verify_portal_url", AsyncMock()), \
+         patch.object(miami_scraper, "select_party_search_tab", AsyncMock()), \
+         patch.object(miami_scraper, "check_and_dismiss_search_criteria_popup", AsyncMock()), \
+         patch.object(miami_scraper, "return_to_search_state", AsyncMock()):
+
+        results = await miami_scraper.search_by_party_name(
+            first_name="EMANUEL",
+            last_name="TORRES",
+            page=mock_page,
+            date_of_loss="10/15/2022",
+        )
+
+    assert len(results) == 1
+    assert results[0]["CaseNumber"] == "2026-003536-FC-04"
+    assert results[0]["CaseStyle"] == "Pagan Serrano, Xiomara vs Torres De Los Santos, Victor Manuel"
+    assert results[0]["FilingDate"] == "02/26/2026"
+    assert results[0]["CaseStatus"] == "CLOSED"
+    assert results[0]["CaseType"] == "Diss Of Marriage W/children"
+
+
+@pytest.mark.asyncio
+async def test_search_by_party_name_no_data_found_clean_exit(miami_scraper):
+    """Verifies that 'No data found.' and '0 RESULTS RETURNED' returns empty list cleanly without error."""
+    mock_page = MagicMock()
+    mock_page.url = "https://www2.miamidadeclerk.gov/ocs/CaseList.aspx"
+    mock_page.wait_for_timeout = AsyncMock()
+
+    body_html = """
+    SEARCH RESULTS 0 RESULTS RETURNED
+    No data found.
+    """
+    mock_body = MagicMock()
+    mock_body.inner_text = AsyncMock(return_value=body_html)
+
+    mock_last = MagicMock()
+    mock_last.count = AsyncMock(return_value=1)
+    mock_last.fill = AsyncMock()
+    mock_last.first = mock_last
+
+    mock_first = MagicMock()
+    mock_first.count = AsyncMock(return_value=1)
+    mock_first.fill = AsyncMock()
+    mock_first.first = mock_first
+
+    mock_date_from = MagicMock()
+    mock_date_from.count = AsyncMock(return_value=1)
+    mock_date_from.fill = AsyncMock()
+    mock_date_from.first = mock_date_from
+
+    mock_date_to = MagicMock()
+    mock_date_to.count = AsyncMock(return_value=1)
+    mock_date_to.fill = AsyncMock()
+    mock_date_to.first = mock_date_to
+
+    mock_search = MagicMock()
+    mock_search.count = AsyncMock(return_value=1)
+    mock_search.is_visible = AsyncMock(return_value=True)
+    mock_search.first = mock_search
+    mock_search.click = AsyncMock()
+
+    def locator_side_effect(selector):
+        if "body" in selector:
+            return mock_body
+        if "partyLastName" in selector:
+            return mock_last
+        if "partyFirstName" in selector:
+            return mock_first
+        if "filingDateFrom" in selector:
+            return mock_date_from
+        if "filingDateTo" in selector:
+            return mock_date_to
+        if "btnSearch" in selector or "button-green" in selector:
+            return mock_search
+        generic = MagicMock()
+        generic.count = AsyncMock(return_value=0)
+        generic.is_visible = AsyncMock(return_value=False)
+        return generic
+
+    mock_page.locator.side_effect = locator_side_effect
+
+    with patch.object(miami_scraper, "navigate_to_search", AsyncMock()), \
+         patch.object(miami_scraper, "ensure_authenticated", AsyncMock()), \
+         patch.object(miami_scraper, "verify_portal_url", AsyncMock()), \
+         patch.object(miami_scraper, "select_party_search_tab", AsyncMock()), \
+         patch.object(miami_scraper, "check_and_dismiss_search_criteria_popup", AsyncMock()), \
+         patch.object(miami_scraper, "verify_and_enable_table_view", AsyncMock()), \
+         patch.object(miami_scraper, "return_to_search_state", AsyncMock()):
+
+        results = await miami_scraper.search_by_party_name(
+            first_name="TIFFANY",
+            last_name="YOUNG",
+            page=mock_page,
+            date_of_loss="01/04/2022",
+        )
+
+    assert results == []
+

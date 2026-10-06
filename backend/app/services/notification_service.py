@@ -1,12 +1,12 @@
 """Central Notification Orchestrator: rule checking, idempotency, template rendering, and Celery queue dispatch."""
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.compat import utc_now
 from app.core.celery_app import celery_app
 from app.models.notification import Notification, NotificationTemplate
 from app.services.email_service import TemplateRenderer
@@ -112,7 +112,7 @@ class NotificationService:
             body_text_template = body_text_template if body_text_template is not None else tpl.get("body_text", "")
 
         # Augment context with standard dynamic variables
-        context.setdefault("timestamp", datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"))
+        context.setdefault("timestamp", utc_now().strftime("%Y-%m-%d %H:%M:%S UTC"))
         context.setdefault("environment", "Production" if not sys_settings.integration.guidewire_mock_mode else "Development / Mock")
         context.setdefault("claim_number", claim_number or context.get("claim_number", "N/A"))
         context.setdefault("provider", selected_provider)
@@ -154,15 +154,27 @@ class NotificationService:
             provider=selected_provider,
             status=initial_status,
             idempotency_key=idempotency_key,
-            queued_at=datetime.now(UTC),
+            queued_at=utc_now(),
             details=context,
         )
         db.add(notification)
         await db.commit()
         await db.refresh(notification)
 
-        # 7. Enqueue Async Celery Task if not Digest
-        if is_digest:
+        # 7. Deliver directly for TEST_EMAIL or Enqueue Async Celery Task
+        if event_type == "TEST_EMAIL":
+            from app.tasks.notification_tasks import _execute_notification_delivery
+            try:
+                await _execute_notification_delivery(notification.id)
+                await db.refresh(notification)
+                logger.info(f"[NotificationService] TEST_EMAIL delivery completed directly with status: {notification.status}")
+            except Exception as e:
+                logger.error(f"[NotificationService] Failed direct TEST_EMAIL delivery: {e}")
+                notification.status = "FAILED"
+                notification.error_message = str(e)
+                notification.failed_at = utc_now()
+                await db.commit()
+        elif is_digest:
             logger.info(f"[NotificationService] Digest mode active ({email_settings.digest_mode}). Notification {notification.id} held as PENDING_DIGEST.")
         else:
             try:
@@ -177,7 +189,7 @@ class NotificationService:
                 logger.error(f"[NotificationService] Failed to enqueue Celery notification task: {e}")
                 notification.status = "FAILED"
                 notification.error_message = f"Queue error: {e}"
-                notification.failed_at = datetime.now(UTC)
+                notification.failed_at = utc_now()
                 await db.commit()
 
         return notification

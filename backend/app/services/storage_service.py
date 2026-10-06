@@ -4,13 +4,20 @@ import json
 import logging
 import os
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.schemas.settings import StorageSettings, StorageTestRequest, StorageTestResponse
+from app.schemas.settings import (
+    StorageCleanupResponse,
+    StorageSettings,
+    StorageTestRequest,
+    StorageTestResponse,
+)
 
 logger = logging.getLogger("uaic_orchestrator.storage")
+
 
 
 class StorageService:
@@ -281,3 +288,66 @@ class StorageService:
             message=f"Unknown storage provider '{provider}'.",
             error_detail="Invalid provider choice",
         )
+
+    @classmethod
+    async def cleanup_expired_storage(
+        cls, retention_days: int = 30, storage_cfg: StorageSettings | None = None
+    ) -> StorageCleanupResponse:
+        """Purges screenshot files and objects older than retention_days across storage providers."""
+        if retention_days <= 0:
+            retention_days = 30
+        cutoff_epoch = time.time() - (retention_days * 86400)
+        purged_count = 0
+        bytes_freed = 0
+        local_dir = cls.get_local_dir()
+
+        # 1. Clean local files (including hierarchical subdirectories)
+        try:
+            if local_dir.exists():
+                for p in local_dir.glob("**/*"):
+                    if p.is_file() and not p.name.startswith(".test_"):
+                        try:
+                            stat = p.stat()
+                            if stat.st_mtime < cutoff_epoch:
+                                size = stat.st_size
+                                p.unlink(missing_ok=True)
+                                purged_count += 1
+                                bytes_freed += size
+                        except Exception as e:
+                            logger.debug(f"Could not purge local file {p}: {e}")
+        except Exception as e:
+            logger.warning(f"Error during local storage cleanup: {e}")
+
+        # 2. Cloud provider retention check (if cloud configured)
+        provider = (storage_cfg.storage_provider if storage_cfg else "local").lower()
+        if provider == "s3" and storage_cfg and storage_cfg.s3_bucket_name:
+            try:
+                import boto3
+
+                s3_kwargs: dict[str, Any] = {"region_name": storage_cfg.s3_region or "us-east-1"}
+                if storage_cfg.s3_access_key and storage_cfg.s3_secret_key:
+                    s3_kwargs["aws_access_key_id"] = storage_cfg.s3_access_key
+                    s3_kwargs["aws_secret_access_key"] = storage_cfg.s3_secret_key
+                s3 = boto3.client("s3", **s3_kwargs)
+                paginator = s3.get_paginator("list_objects_v2")
+                cutoff_dt = datetime.fromtimestamp(cutoff_epoch, tz=UTC)
+
+                for page in paginator.paginate(Bucket=storage_cfg.s3_bucket_name, Prefix="screenshots/"):
+                    for obj in page.get("Contents", []):
+                        if obj["LastModified"] < cutoff_dt:
+                            s3.delete_object(Bucket=storage_cfg.s3_bucket_name, Key=obj["Key"])
+                            purged_count += 1
+                            bytes_freed += obj.get("Size", 0)
+            except Exception as e:
+                logger.warning(f"Error during S3 storage retention cleanup: {e}")
+
+        return StorageCleanupResponse(
+            success=True,
+            files_deleted=purged_count,
+            files_purged=purged_count,
+            bytes_freed=bytes_freed,
+            retention_days=retention_days,
+            storage_provider=provider,
+            message=f"Storage cleanup completed successfully. Purged {purged_count} expired files ({bytes_freed / 1024:.1f} KB freed) across {provider} storage.",
+        )
+

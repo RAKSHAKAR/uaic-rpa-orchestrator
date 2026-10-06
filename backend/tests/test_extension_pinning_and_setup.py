@@ -117,6 +117,7 @@ async def test_automatic_preflight_pinning_on_automation_startup(mocker, tmp_pat
     custom_profile.mkdir()
 
     runner = SingleSessionBrowserRunner(
+        browser_engine="chromium",
         headless=True,
         user_data_dir=str(custom_profile),
         anticaptcha_api_key="test_api_key_456",

@@ -33,6 +33,16 @@ celerybeat-schedule*
 
 # Runtime Outputs
 *.log
+data/
+cache/
+test_*profile*/
+test_chrome*/
+test_dev_mode*/
+test_load_unpacked*/
+test_pref*/
+test_two_step*/
+test_clean_profile/
+hillsborough_bundle*.js
 screenshots/*
 !screenshots/.gitkeep
 uploads/*
@@ -44,3 +54,4 @@ exports/*
 *.bak
 test_*.png
 *.png
+

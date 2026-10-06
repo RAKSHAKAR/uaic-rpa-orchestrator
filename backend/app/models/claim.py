@@ -1,8 +1,10 @@
 """ClaimRecord and IngestionBatch SQLAlchemy Models."""
 
+from __future__ import annotations
+
 import enum
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -17,6 +19,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+import app.compat  # noqa: F401
+from app.compat import utc_now
 from app.core.database import Base
 
 if TYPE_CHECKING:
@@ -72,8 +76,8 @@ class IngestionBatch(Base):
     failed_rows_data: Mapped[list | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="PROCESSING")  # PROCESSING, COMPLETED, FAILED
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
     claims: Mapped[list[ClaimRecord]] = relationship("ClaimRecord", back_populates="batch", cascade="all, delete-orphan")
@@ -161,8 +165,8 @@ class ClaimRecord(Base):
     action_timings: Mapped[dict | None] = mapped_column(JSON, default=dict, nullable=True)
     total_duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
     created_by: Mapped[str] = mapped_column(String(100), default="system", index=True)
     modified_by: Mapped[str] = mapped_column(String(100), default="system", index=True)
 

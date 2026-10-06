@@ -29,6 +29,8 @@ class QueueStatusResponse(BaseModel):
     completed_tasks: int
     queues: dict[str, int]
     workers_online: int
+    total_claims: int = 0
+    total_cases_extracted: int = 0
 
 
 class RetriggerRequest(BaseModel):
@@ -129,6 +131,7 @@ class LiveQueueItemResponse(BaseModel):
     bot_statuses: dict[str, str] = {}
     total_duration_seconds: float | None = None
     current_portal: str | None = None
+    started_at: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

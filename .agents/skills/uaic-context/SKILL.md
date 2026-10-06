@@ -23,13 +23,11 @@ Read it fully before writing or modifying code.
    - All browser failure screenshots must go to `backend/screenshots/`.
    - All generated asynchronous export packages must go to `backend/exports/`.
 
-2. **Protected User Directories (NEVER DELETE OR RENAME)**:
-   The following 5 folders must NEVER be deleted, modified without permission, or removed by cleanup scripts:
-   - `implementation_plan/` — Reference prompts, architecture roadmaps & implementation plans
-   - `PowerAutomateSolutions/` — Legacy Power Automate solution packages, Robin binaries, BRDs & screen recordings
-   - `Testing files/` — User-supplied court benchmark spreadsheets and test datasets
+2. **Protected Directories (NEVER DELETE OR RENAME)**:
+   The following directories must NEVER be deleted, modified without permission, or removed by cleanup scripts:
    - `anticaptcha-plugin_v0.83/` — Chrome Manifest v3 AntiCaptcha solver extension
    - `.agents/` — AI engineering governance protocols, skills, and rules
+   > *Note: `implementation_plan/`, `PowerAutomateSolutions/`, and `Testing files/` were intentionally removed in IMP-2026-1001-001.*
 
 3. **Master Project Booklet (`README.md`)**:
    - `README.md` is the authoritative single-source booklet for the entire platform.
@@ -47,7 +45,7 @@ Read it fully before writing or modifying code.
 
 ## Before Any Change
 
-1. Run `cd backend && .venv\Scripts\pytest -q` — must pass all 182 tests (172 passed, 10 skipped when Redis/MailDev offline)
+1. Run `cd backend && .venv\Scripts\pytest -q` — must pass all 556 tests (2 org-policy skips are pre-existing)
 2. Run `cd backend && .venv\Scripts\ruff check app tests` — must be clean (0 errors)
 3. Run `cd frontend && npx tsc --noEmit` — must be 0 TypeScript errors
 4. Check `AGENTS.md` section 8 (AI Agent Rules)

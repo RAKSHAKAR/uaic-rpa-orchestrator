@@ -13,7 +13,7 @@ _DEFAULT_DB_URL = f"sqlite+aiosqlite:///{_DEFAULT_DB_FILE.as_posix()}"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(_BACKEND_DIR / ".env", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
     CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/1"
+    SEMAPHORE_BYPASS: bool = False
 
     # Fuzzy Matching Engine Parameters
     FUZZY_MATCH_DEFAULT_THRESHOLD: float = 0.60

@@ -1,5 +1,9 @@
 # Multi-Platform Deployment Architecture & Universal CI/CD Standards
 
+> [!TIP]
+> **Complete Enterprise VPS & Cloud Runbook Available:**  
+> For the comprehensive step-by-step production hosting manual, multi-browser installation (Chromium/Chrome/Edge), Xvfb/noVNC virtual GUI setup, and switching `Environment: development` to `Environment: production`, see [DEPLOYMENT_AND_HOSTING_GUIDE.md](file:///c:/Users/priyer/.gemini/antigravity-ide/scratch/Bot_UAIC/DEPLOYMENT_AND_HOSTING_GUIDE.md).
+
 This document establishes the cloud-agnostic, microservices deployment blueprint for running the **UAIC Claim & RPA Orchestrator** across Vercel, Render, AWS, Azure, Google Cloud, Docker Compose, Kubernetes, and bare-metal VPS environments.
 
 ---

@@ -1,16 +1,75 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
-  "python.analysis.extraPaths": [
-    "${workspaceFolder}/backend",
-    "${workspaceFolder}/backend/.venv/Lib/site-packages"
-  ],
-  "css.lint.unknownAtRules": "ignore",
-  "scss.lint.unknownAtRules": "ignore",
-  "less.lint.unknownAtRules": "ignore",
-  "python.testing.pytestArgs": [
-    "backend"
-  ],
-  "python.testing.cwd": "${workspaceFolder}/backend",
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/backend"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "backend/tests"
+    ],
+    "python.testing.pytestPath": "${workspaceFolder}/backend/.venv/Scripts/pytest.exe",
+    "playwright.reuseBrowser": false,
+    "playwright.showTrace": false,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescriptreact]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.ruff_cache": true,
+        "**/node_modules": true,
+        "**/.next": true,
+        "backend/.venv": true
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/node_modules": true,
+        "**/.next": true,
+        "backend/.venv": true
+    },
+    "typescript.tsdk": "frontend/node_modules/typescript/lib",
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.organizeImports": true,
+    "cSpell.words": [
+        "antigate",
+        "asyncpg",
+        "autouse",
+        "BRHAYAN",
+        "BRYNOL",
+        "CACE",
+        "checkmark",
+        "COCE",
+        "CONO",
+        "COSO",
+        "COWE",
+        "Cornjhia",
+        "DATEFILED",
+        "Deduplicator",
+        "domcontentloaded",
+        "GUIZA",
+        "llen",
+        "loglevel",
+        "maildev",
+        "nolisten",
+        "pythonpath",
+        "RINCON",
+        "selectinload",
+        "subflow",
+        "supersecretdevelopmentkeyfororchestrator",
+        "timedelta",
+        "tmpl",
+        "uvicorn",
+        "venv"
+    ]
 }

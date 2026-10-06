@@ -1,9 +1,10 @@
 """Pydantic schemas for the Enterprise Data Cleanup & Retention Engine."""
 
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from app.compat import StrEnum
 
 
 class CleanupCategoryEnum(StrEnum):
@@ -39,6 +40,9 @@ class TimeScopeEnum(StrEnum):
     LAST_N_WEEKS = "last_n_weeks"
     LAST_N_MONTHS = "last_n_months"
     LAST_N_YEARS = "last_n_years"
+    OLDER_THAN_30_DAYS = "older_than_30_days"
+    OLDER_THAN_14_DAYS = "older_than_14_days"
+    OLDER_THAN_7_DAYS = "older_than_7_days"
     CUSTOM_RANGE = "custom_range"
     BEFORE_DATE = "before_date"
     AFTER_DATE = "after_date"
@@ -86,6 +90,7 @@ class CleanupPreviewRequest(BaseModel):
 
 class CleanupPreviewResponse(BaseModel):
     time_scope: str
+    scope: str | None = None
     start_time: str | None = None
     end_time: str | None = None
     categories: list[str]
@@ -93,6 +98,11 @@ class CleanupPreviewResponse(BaseModel):
     file_counts: dict[str, int]
     total_database_records: int
     total_files: int
+    total_records_to_delete: int = 0
+    total_files_to_delete: int = 0
+    db_records_to_delete: int = 0
+    estimated_duration_seconds: int = 1
+    estimated_space_freed_human: str | None = None
     can_proceed: bool = True
     warnings: list[str] = Field(default_factory=list)
 

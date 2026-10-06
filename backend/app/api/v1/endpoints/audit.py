@@ -7,7 +7,7 @@ import logging
 from datetime import UTC, datetime, time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -88,14 +88,20 @@ def _build_audit_filter_query(
 
     if date_from:
         try:
-            dt_from = datetime.fromisoformat(date_from)
+            clean_from = date_from.replace("Z", "+00:00")
+            dt_from = datetime.fromisoformat(clean_from)
+            if dt_from.tzinfo is not None:
+                dt_from = dt_from.astimezone(UTC).replace(tzinfo=None)
             filters.append(AuditLog.timestamp >= dt_from)
         except Exception:
             pass
 
     if date_to:
         try:
-            dt_to = datetime.fromisoformat(date_to)
+            clean_to = date_to.replace("Z", "+00:00")
+            dt_to = datetime.fromisoformat(clean_to)
+            if dt_to.tzinfo is not None:
+                dt_to = dt_to.astimezone(UTC).replace(tzinfo=None)
             # If time is 00:00:00, extend to end of day
             if dt_to.time() == time(0, 0, 0):
                 dt_to = datetime.combine(dt_to.date(), time(23, 59, 59, 999999))
@@ -107,6 +113,7 @@ def _build_audit_filter_query(
         s = f"%{search.strip()}%"
         filters.append(
             or_(
+                cast(AuditLog.timestamp, String).ilike(s),
                 func.coalesce(AuditLog.description, "").ilike(s),
                 func.coalesce(AuditLog.claim_number, "").ilike(s),
                 func.coalesce(AuditLog.action, "").ilike(s),
@@ -133,12 +140,16 @@ async def list_audit_logs(
     status: str | None = Query(None, description="Filter by status (SUCCESS, FAILURE, etc.)"),
     date_from: str | None = Query(None, description="Start date ISO string"),
     date_to: str | None = Query(None, description="End date ISO string"),
+    start_date: str | None = Query(None, description="Start date ISO string (alias for date_from)"),
+    end_date: str | None = Query(None, description="End date ISO string (alias for date_to)"),
     search: str | None = Query(None, description="Search keyword"),
     sort_by: str = Query("timestamp", description="Column to sort by: timestamp, action, entity_type, status, user_id, claim_number"),
     sort_dir: str = Query("desc", description="Sort direction: asc or desc"),
     db: AsyncSession = Depends(get_db),
 ) -> AuditLogListResponse:
     """List paginated audit log entries with multi-dimensional filtering."""
+    effective_from = date_from or start_date
+    effective_to = date_to or end_date
     filters = _build_audit_filter_query(
         action=action,
         entity_type=entity_type,
@@ -146,8 +157,8 @@ async def list_audit_logs(
         claim_number=claim_number,
         user_id=user_id,
         status_filter=status,
-        date_from=date_from,
-        date_to=date_to,
+        date_from=effective_from,
+        date_to=effective_to,
         search=search,
     )
 
@@ -246,18 +257,22 @@ async def export_audit_logs(
     status: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Export filtered audit logs in CSV, JSON, or Excel format for compliance audits."""
+    effective_from = date_from or start_date
+    effective_to = date_to or end_date
     filters = _build_audit_filter_query(
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
         claim_number=claim_number,
         status_filter=status,
-        date_from=date_from,
-        date_to=date_to,
+        date_from=effective_from,
+        date_to=effective_to,
         search=search,
     )
 

@@ -170,7 +170,6 @@ class SingleSessionBrowserRunner:
             "--disable-renderer-backgrounding",
             "--disable-dev-shm-usage",
             "--disable-infobars",
-            "--test-type",
         ]
 
         if is_headless:
@@ -228,9 +227,10 @@ class SingleSessionBrowserRunner:
         # Priority order: explicit user_data_dir -> engine persistent profile (e.g. backend/data/browser_profile/chrome)
         canonical_profile = target_user_dir or persistent_engine
 
-        # Clean stale Singleton locks or orphan processes holding the master profile
+        # Clean stale Singleton locks or orphan processes holding the master profile if using master profile
         from app.automation.browser_manager import ChromeSession
-        ChromeSession.clean_profile_locks_and_orphans(canonical_profile, force_kill=False)
+        if not self.isolated_profile and self.worker_id is None:
+            ChromeSession.clean_profile_locks_and_orphans(canonical_profile, force_kill=False)
 
         # Always check, configure, and pin AntiCaptcha to browser toolbar across profiles before starting automation
         try:
@@ -257,7 +257,9 @@ class SingleSessionBrowserRunner:
         else:
             # For parallel multi-worker concurrency or if master profile is actively locked,
             # provision an isolated profile pre-seeded with complete extension state from canonical_profile
-            self.profile_to_use = tempfile.mkdtemp(prefix=f"uaic_worker_{self.worker_id or 0}_")
+            import re
+            clean_wid = re.sub(r"[^a-zA-Z0-9_]", "_", str(self.worker_id)[:8]) if self.worker_id else "0"
+            self.profile_to_use = tempfile.mkdtemp(prefix=f"uaic_worker_{clean_wid}_")
             self.is_temp_profile = True
             logger.info(f"[SingleSessionRunner] Provisioning isolated worker profile pre-seeded from: {canonical_profile}")
             if os.path.isdir(canonical_profile):
@@ -300,11 +302,24 @@ class SingleSessionBrowserRunner:
             has_extension=has_extension,
         )
         is_headless = self.headless
+        # Auto-detect headless requirement on Linux / Docker without X11 ($DISPLAY)
+        if sys.platform != "win32" and "DISPLAY" not in os.environ:
+            if not is_headless:
+                logger.warning(
+                    "[SingleSessionRunner] Non-Windows environment without $DISPLAY detected; "
+                    "forcing headless mode for container execution."
+                )
+                is_headless = True
+
         if is_headless and has_extension:
             launch_args.append("--headless=new")
-            # In Playwright, to load extensions in headless mode, persistent context must receive headless=False
+            # In Playwright, to load extensions in headless mode, persistent context can receive headless=False
             # while Chromium executes silently via --headless=new.
-            context_headless = False
+            # However, on Linux without an X11 server, headless=False fails with missing DISPLAY.
+            if sys.platform != "win32" and "DISPLAY" not in os.environ:
+                context_headless = True
+            else:
+                context_headless = False
         else:
             context_headless = is_headless
 
@@ -397,12 +412,12 @@ class SingleSessionBrowserRunner:
 
                 return None
 
-            # Wait briefly for service worker loading
-            for _ in range(25):
+            # Wait briefly for service worker loading (fast-path max 250ms)
+            for _ in range(5):
                 detected_ext_id = _scan_for_extension()
                 if detected_ext_id:
                     break
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.05)
 
             # If not detected via dormant service worker list, probe chrome://extensions to wake it up
             if not detected_ext_id and self.context:

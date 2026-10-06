@@ -240,6 +240,18 @@ def resolve_time_window(
         end_dt = now
         return start_dt, end_dt, f"Last {n} Days ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
 
+    if scope in ("older_than_30_days", "older_than_30"):
+        cutoff = now - timedelta(days=30)
+        return None, cutoff, f"Older than 30 Days (Before {cutoff.strftime('%m/%d/%Y %H:%M:%S')})"
+
+    if scope in ("older_than_14_days", "older_than_14"):
+        cutoff = now - timedelta(days=14)
+        return None, cutoff, f"Older than 14 Days (Before {cutoff.strftime('%m/%d/%Y %H:%M:%S')})"
+
+    if scope in ("older_than_7_days", "older_than_7"):
+        cutoff = now - timedelta(days=7)
+        return None, cutoff, f"Older than 7 Days (Before {cutoff.strftime('%m/%d/%Y %H:%M:%S')})"
+
     if scope == "last_n_weeks":
         n = n_units if n_units and n_units > 0 else 4
         start_dt = now - timedelta(weeks=n)
@@ -339,8 +351,12 @@ def expand_categories(categories: list[str]) -> list[str]:
                     selected.add(ORDERED_CATEGORY_KEYS[idx - 1])
                 elif idx in (17, 18):
                     return list(ALL_OPERATIONAL_KEYS)
-            elif p == "error_screenshots":
+            elif p in ("error_screenshots", "screenshots"):
                 selected.add("bot_history")
+            elif p in ("scraper_page_cache", "scraper_cache", "scraper_logs"):
+                selected.add("scraper_logs")
+            elif p in ("export_generations", "generated_exports", "exports"):
+                selected.add("generated_exports")
             elif p in CATEGORY_DEFINITIONS:
                 if p in ("all_operational", "all_supported"):
                     return list(ALL_OPERATIONAL_KEYS)
@@ -618,6 +634,7 @@ async def calculate_cleanup_preview(
 
     return CleanupPreviewResponse(
         time_scope=scope_desc,
+        scope=scope_desc,
         start_time=start_dt.isoformat() if start_dt else None,
         end_time=end_dt.isoformat() if end_dt else None,
         categories=cats,
@@ -625,6 +642,11 @@ async def calculate_cleanup_preview(
         file_counts=file_counts,
         total_database_records=total_db,
         total_files=total_files,
+        total_records_to_delete=total_db + total_files,
+        total_files_to_delete=total_files,
+        db_records_to_delete=total_db,
+        estimated_duration_seconds=max(1, (total_db + total_files) // 100 + 1),
+        estimated_space_freed_human=f"{(total_files * 150) / 1024:.1f} MB" if total_files > 0 else "< 1 MB",
         can_proceed=True,
         warnings=warnings,
     )

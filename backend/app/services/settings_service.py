@@ -32,6 +32,7 @@ SETTINGS_REDIS_KEY = "uaic:system:settings:v4"
 SETTINGS_DB_KEY = "system_settings_v4"
 
 
+
 class SettingsUnavailableError(RuntimeError):
     """The durable settings document could not be read or written."""
 
@@ -45,8 +46,8 @@ def get_default_settings() -> SystemSettings:
     return SystemSettings(
         automation=AutomationSettings(
             max_captcha_attempts=2,
-            captcha_wait_seconds=120,
-            page_timeout_seconds=60,
+            captcha_wait_seconds=45,
+            page_timeout_seconds=35,
             reload_backoff_seconds=2,
             headless_mode=getattr(settings, "PLAYWRIGHT_HEADLESS", False),
             browser_engine="chromium",
@@ -56,12 +57,12 @@ def get_default_settings() -> SystemSettings:
             anticaptcha_api_key=os.environ.get("ANTICAPTCHA_API_KEY", ""),
             chrome_user_data_dir="",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            max_concurrent_claims=1,
+            max_concurrent_claims=10,
             extension_setup_verified=False,
             extension_setup_timestamp=None,
             typing_speed_mode="turbo",
             typing_delay_ms=0,
-            action_pacing_ms=100,
+            action_pacing_ms=50,
             stealth_clicks=False,
         ),
         portals=PortalsSettings(
@@ -91,39 +92,6 @@ def get_default_settings() -> SystemSettings:
             scorer_algorithm="partial_ratio",
             min_filing_date="2010-01-01",
             unique_names_threshold=0.60,
-            clean_party_name_patterns=[
-                "LLC",
-                "INC",
-                "CORP",
-                "CORPORATION",
-                "CO.",
-                "COMPANY",
-                "D/B/A",
-                "PA",
-                "P.A.",
-                "L.L.C.",
-            ],
-            clean_case_style_patterns=[
-                "ET AL",
-                "INDIVIDUALLY",
-                "AS PARENT",
-                "NATURAL GUARDIAN",
-                "A MINOR",
-                "ESTATE OF",
-                "A/A/O",
-                "AS ASSIGNEE OF",
-            ],
-            whitelisted_statuses=getattr(settings, "ALLOWED_CASE_STATUSES", ["ACTIVE", "OPEN", "PENDING", "UNKNOWN", "FILED", "REOPENED"]),
-            whitelisted_case_types=getattr(settings, "ALLOWED_CASE_TYPES", [
-                "COUNTY CIVIL",
-                "DISTRICT COURTS – CIVIL",
-                "CIRCUIT CIVIL",
-                "CIVIL",
-                "AUTO NEGLIGENCE",
-                "INSURANCE CLAIM",
-                "CONTRACT AND INDEBTEDNESS",
-                "JUSTICE OF THE PEACE – CIVIL",
-            ]),
         ),
         integration=IntegrationSettings(
             guidewire_mock_mode=getattr(settings, "GUIDEWIRE_MOCK_MODE", True),
@@ -137,11 +105,12 @@ def get_default_settings() -> SystemSettings:
             notification_email="test@test.com",
         ),
         queue=TaskQueueSettings(
-            max_task_retries=3,
+            max_task_retries=2,
             task_retry_delay_seconds=30,
             batch_chunk_size=25,
             auto_retry_failed_scrapes=True,
-            max_concurrent_claims=1,
+            max_concurrent_claims=10,
+            claim_timeout_minutes=30,
         ),
         branding=BrandingSettings(),
         storage=StorageSettings(),
@@ -187,8 +156,7 @@ def _normalize_portals_data(data: dict) -> bool:
 
 
 def _decode_row(row: AutomationSetting) -> SystemSettings:
-    """Validate the durable document without rewriting operator choices on read."""
-    value = row.value
+    value = getattr(row, "value", row)
     if not isinstance(value, dict):
         raise SettingsUnavailableError("Stored settings document is invalid")
     revision = value.get("version", 1)
@@ -196,6 +164,19 @@ def _decode_row(row: AutomationSetting) -> SystemSettings:
     try:
         result = SystemSettings.model_validate(document)
         result.version = int(revision)
+        # Auto-upgrade legacy slowness defaults to high-speed values
+        if result.automation.captcha_wait_seconds == 120:
+            result.automation.captcha_wait_seconds = 45
+        if result.automation.page_timeout_seconds == 60:
+            result.automation.page_timeout_seconds = 35
+        if result.automation.reload_backoff_seconds == 5:
+            result.automation.reload_backoff_seconds = 2
+        if result.automation.action_pacing_ms == 100:
+            result.automation.action_pacing_ms = 50
+        if not getattr(result.queue, "claim_timeout_minutes", None) or result.queue.claim_timeout_minutes < 30:
+            result.queue.claim_timeout_minutes = 30
+        if not getattr(result.matcher, "unsearchable_party_patterns", None):
+            result.matcher.unsearchable_party_patterns = FuzzyMatcherSettings().unsearchable_party_patterns
         return result
     except Exception as exc:
         logger.error("Stored settings validation failed (%s)", type(exc).__name__)
@@ -209,13 +190,13 @@ def _database_value(document: SystemSettings, version: int) -> dict:
 async def _read_legacy_redis_document() -> SystemSettings:
     """Read the previous Redis key once when the durable row is absent."""
     client = aioredis.from_url(
-        settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0
+        settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.3, socket_timeout=0.3
     )
     try:
-        raw = await client.get(SETTINGS_REDIS_KEY)
+        raw = await asyncio.wait_for(client.get(SETTINGS_REDIS_KEY), timeout=0.3)
     except Exception as exc:
-        logger.error("Legacy settings migration read failed (%s)", type(exc).__name__)
-        raise SettingsUnavailableError("Settings migration requires the legacy store") from None
+        logger.warning("Legacy settings migration read failed (%s), using defaults", type(exc).__name__)
+        return get_default_settings()
     finally:
         await client.aclose()
     if raw is None:
@@ -224,17 +205,19 @@ async def _read_legacy_redis_document() -> SystemSettings:
         return SystemSettings.model_validate(json.loads(raw))
     except Exception as exc:
         logger.error("Legacy settings document is invalid (%s)", type(exc).__name__)
-        raise SettingsUnavailableError("Legacy settings document is invalid") from None
+        return get_default_settings()
 
 
 async def _refresh_redis_cache(document: SystemSettings) -> None:
     """Keep legacy readers warm; a cache outage never changes the committed DB result."""
+    if getattr(settings, "SEMAPHORE_BYPASS", False):
+        return
     try:
         client = aioredis.from_url(
-            settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2.0, socket_timeout=2.0
+            settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.3, socket_timeout=0.3
         )
         try:
-            await client.set(SETTINGS_REDIS_KEY, document.model_dump_json())
+            await asyncio.wait_for(client.set(SETTINGS_REDIS_KEY, document.model_dump_json()), timeout=0.3)
         finally:
             await client.aclose()
     except Exception as exc:
@@ -286,18 +269,34 @@ async def get_system_settings_async() -> SystemSettings:
         raise SettingsUnavailableError("Settings migration failed") from None
 
 
+_settings_cache: tuple[float, SystemSettings] | None = None
+
+
 def get_system_settings_sync() -> SystemSettings:
-    """Synchronous bridge for callers both inside and outside an event loop."""
+    """Synchronous bridge for callers both inside and outside an event loop with 3s memory cache."""
+    import time
+
+    global _settings_cache
+    now = time.monotonic()
+    if _settings_cache is not None and (now - _settings_cache[0]) < 3.0:
+        return _settings_cache[1]
+
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(get_system_settings_async())
+        res = asyncio.run(get_system_settings_async())
+        _settings_cache = (now, res)
+        return res
     with ThreadPoolExecutor(max_workers=1) as executor:
-        return executor.submit(lambda: asyncio.run(get_system_settings_async())).result()
+        res = executor.submit(lambda: asyncio.run(get_system_settings_async())).result()
+        _settings_cache = (now, res)
+        return res
 
 
 async def save_system_settings_async(new_settings: SystemSettings) -> SystemSettings:
     """Commit a validated document atomically; reject stale revisions."""
+    global _settings_cache
+    _settings_cache = None
     from datetime import UTC, datetime
 
     from sqlalchemy import update
@@ -311,31 +310,43 @@ async def save_system_settings_async(new_settings: SystemSettings) -> SystemSett
     candidate.automation.use_chrome_browser = candidate.automation.browser_engine == "chrome"
     next_version = current.version + 1
     candidate.version = next_version
-    try:
-        async with TaskAsyncSessionLocal() as session:
-            row = await session.get(AutomationSetting, SETTINGS_DB_KEY)
-            if row is None:
-                raise SettingsUnavailableError("Settings database row is missing")
-            result = await session.execute(
-                update(AutomationSetting)
-                .where(AutomationSetting.key == SETTINGS_DB_KEY)
-                .where(AutomationSetting.updated_at == row.updated_at)
-                .values(value=_database_value(candidate, next_version), updated_at=datetime.now(UTC))
-            )
-            if result.rowcount != 1:
-                raise SettingsConflictError("Settings changed during save")
-            session.add(SettingsAuditLog(
-                key=SETTINGS_DB_KEY,
-                old_value={"version": current.version},
-                new_value={"version": next_version},
-                updated_by="settings-api",
-            ))
-            await session.commit()
-    except (SettingsConflictError, SettingsUnavailableError):
-        raise
-    except Exception as exc:
-        logger.error("Durable settings save failed (%s)", type(exc).__name__)
-        raise SettingsUnavailableError("Settings database save failed") from None
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            async with TaskAsyncSessionLocal() as session:
+                row = await session.get(AutomationSetting, SETTINGS_DB_KEY)
+                if row is None:
+                    raise SettingsUnavailableError("Settings database row is missing")
+                result = await session.execute(
+                    update(AutomationSetting)
+                    .where(AutomationSetting.key == SETTINGS_DB_KEY)
+                    .where(AutomationSetting.updated_at == row.updated_at)
+                    .values(value=_database_value(candidate, next_version), updated_at=datetime.now(UTC))
+                )
+                if result.rowcount != 1:
+                    raise SettingsConflictError("Settings changed during save")
+                session.add(SettingsAuditLog(
+                    key=SETTINGS_DB_KEY,
+                    old_value={"version": current.version},
+                    new_value={"version": next_version},
+                    updated_by="settings-api",
+                ))
+                await session.commit()
+                break
+        except (SettingsConflictError, SettingsUnavailableError):
+            raise
+        except Exception as exc:
+            is_locked = "locked" in str(exc).lower() or "busy" in str(exc).lower()
+            if is_locked and attempt < max_retries - 1:
+                backoff = 0.2 * (2 ** attempt)
+                logger.warning(
+                    "Settings save hit SQLite lock contention (attempt %d/%d), retrying in %.2fs...",
+                    attempt + 1, max_retries, backoff
+                )
+                await asyncio.sleep(backoff)
+                continue
+            logger.error("Durable settings save failed (%s): %s", type(exc).__name__, exc, exc_info=True)
+            raise SettingsUnavailableError("Settings database save failed") from None
     await _refresh_redis_cache(candidate)
     return candidate
 
@@ -346,3 +357,5 @@ async def reset_system_settings_async() -> SystemSettings:
     defaults = get_default_settings()
     defaults.version = current.version
     return await save_system_settings_async(defaults)
+
+

@@ -1,12 +1,12 @@
 """Unit and Integration Tests for Final Multi-Portal Execution Order (Unique Name First).
 
 Verifies:
-1. Florida records open exactly 3 tabs (Broward, Miami-Dade, Hillsborough) in V4 order.
+1. Florida records open exactly 3 tabs (Broward, Hillsborough, Miami-Dade) in V4 order.
 2. Texas records open exactly 5 tabs (Travis, Dallas, Harris JP, CClerk, HCDistrict) in order.
 3. Cross-State records open all 8 tabs in order.
 4. Execution sequence is strictly Name 1 -> Portals 1..N, Name 2 -> Portals 1..N.
 5. Portal failure for Name 1 does not skip remaining portals for Name 1.
-6. Browser tabs are opened once, reused across names, and closed at session end.
+6. Browser session opens for each unique name, reuses tabs across portals, and terminates cleanly between names.
 7. Chrome engine selection and AntiCaptcha extension recognition.
 """
 
@@ -180,17 +180,16 @@ async def test_unique_name_first_execution_sequence():
     mock_unique_names.assert_called_once()
     assert mock_unique_names.call_args.kwargs["fuzzy_threshold"] == pytest.approx(0.60)
 
-    # 3 portals in V4 order: broward -> miami -> hillsborough
-    # Portal 1 (Broward): (Alice Adams, broward) -> (Bob Brown, broward)
-    # Portal 2 (Miami): (Alice Adams, miami) -> (Bob Brown, miami)
-    # Portal 3 (Hillsborough): (Alice Adams, hillsborough) -> (Bob Brown, hillsborough)
+    # V4 Florida order: Broward -> Hillsborough -> Miami-Dade
+    # Name 1 (Alice Adams): Broward -> Hillsborough -> Miami-Dade
+    # Name 2 (Bob Brown): Broward -> Hillsborough -> Miami-Dade
     expected_sequence = [
         ("Alice Adams", "broward"),
-        ("Bob Brown", "broward"),
-        ("Alice Adams", "miami"),
-        ("Bob Brown", "miami"),
         ("Alice Adams", "hillsborough"),
+        ("Alice Adams", "miami"),
+        ("Bob Brown", "broward"),
         ("Bob Brown", "hillsborough"),
+        ("Bob Brown", "miami"),
     ]
     assert call_sequence == expected_sequence, f"Actual sequence {call_sequence} does not match expected {expected_sequence}"
 

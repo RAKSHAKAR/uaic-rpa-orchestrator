@@ -561,7 +561,7 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
                     raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
                 try:
                     await self.biometric_click(page, next_link.first)
-                    await page.wait_for_timeout(2500)
+                    await page.wait_for_timeout(1500)
                     page_num += 1
                 except Exception:
                     break

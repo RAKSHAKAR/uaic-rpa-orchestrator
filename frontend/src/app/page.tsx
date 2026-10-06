@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   FileSpreadsheet,
@@ -50,9 +50,33 @@ import { StatCard } from "../components/StatCard";
 import { FilterPresetManager } from "../components/FilterPresetManager";
 import { AsyncExportModal } from "../components/AsyncExportModal";
 import { ExportActionToolbar } from "../components/ExportActionToolbar";
+import { MultiSelectDropdown, MultiSelectOption } from "../components/MultiSelectDropdown";
 import { api } from "../lib/api";
-import { Claim, ClaimStats, LiveQueueState } from "../types";
-import { formatDate } from "../lib/utils";
+import { Claim, ClaimStats, LiveQueueItem, LiveQueueState, SystemSettings } from "../types";
+import { formatDate, formatDurationHms } from "../lib/utils";
+
+const DASHBOARD_STATUS_OPTIONS: MultiSelectOption[] = [
+  { value: "NEW", label: "New / Queued" },
+  { value: "SCRAPING_IN_PROGRESS", label: "In Progress" },
+  { value: "SCRAPING_COMPLETED", label: "Scraping Completed" },
+  { value: "COMPLETED", label: "Completed (Pushed)" },
+  { value: "MATCH_FOUND", label: "Match Found" },
+  { value: "NO_MATCH_FOUND", label: "No Match Found" },
+  { value: "MANUAL_REVIEW", label: "Manual Review / Exception" },
+  { value: "FAILED", label: "Failed" },
+];
+
+const DASHBOARD_STATE_OPTIONS: MultiSelectOption[] = [
+  { value: "FL", label: "Florida (FL)" },
+  { value: "TX", label: "Texas (TX)" },
+];
+
+const DASHBOARD_MATCH_OPTIONS: MultiSelectOption[] = [
+  { value: "MATCH_FOUND", label: "Match Confirmed" },
+  { value: "PENDING_REVIEW", label: "Needs Review" },
+  { value: "NO_MATCH_FOUND", label: "No Match" },
+  { value: "MANUAL_REVIEW", label: "Manual Review" },
+];
 
 type SortField =
   | "claim_number"
@@ -67,13 +91,14 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<ClaimStats | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [totalClaims, setTotalClaims] = useState(0);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Live Queue Orchestrator State
   const [liveQueue, setLiveQueue] = useState<LiveQueueState | null>(null);
   const [isAdvancingQueue, setIsAdvancingQueue] = useState(false);
   const [isTogglingAuto, setIsTogglingAuto] = useState(false);
-  const [liveElapsedSeconds, setLiveElapsedSeconds] = useState(0);
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
   const [lastTransitionMessage, setLastTransitionMessage] = useState<string | null>(null);
 
   // Multi-Worker Concurrency & Queue Selection State
@@ -87,6 +112,9 @@ export default function DashboardPage() {
 
   // Table Filter & Search State
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedMatches, setSelectedMatches] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [matchFilter, setMatchFilter] = useState("all");
@@ -124,18 +152,22 @@ export default function DashboardPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [statsData, claimsData, queueData] = await Promise.all([
-        api.getClaimStats(),
-        api.getClaims({ page: 1, page_size: 200 }),
+      const [statsData, claimsData, queueData, settingsData] = await Promise.all([
+        api.getClaimStats().catch(() => null),
+        api.getClaims({ page: 1, page_size: 1000 }).catch(() => null),
         api.getLiveQueue().catch(() => null),
+        api.getSettings().catch(() => null),
       ]);
-      setStats(statsData || null);
+      if (statsData) setStats(statsData);
       if (claimsData?.items) {
         setClaims(claimsData.items);
         setTotalClaims(claimsData.total || claimsData.items.length);
       }
       if (queueData) {
         setLiveQueue(queueData);
+      }
+      if (settingsData) {
+        setSettings(settingsData);
       }
     } catch (e) {
       console.error("Failed to fetch dashboard data:", e);
@@ -149,36 +181,57 @@ export default function DashboardPage() {
   }, []);
 
   // Polling interval: 3s when running or items pending with auto-queue; 10s otherwise
+  const pollTickRef = useRef(0);
   useEffect(() => {
     const isBusy = liveQueue?.is_running || (Boolean(liveQueue?.total_pending_count) && Boolean(liveQueue?.auto_queue_enabled));
     const intervalMs = isBusy ? 3000 : 10000;
 
     const timer = setInterval(() => {
+      pollTickRef.current += 1;
       fetchLiveQueue();
       if (isBusy) {
-        api.getClaims({ page: 1, page_size: 200 }).then((c) => {
-          if (c?.items) setClaims(c.items);
-        }).catch(() => {});
-        api.getClaimStats().then((s) => {
-          if (s) setStats(s);
-        }).catch(() => {});
+        // Pace full claims & stats refreshes (every 6s) to reduce CPU & network load while keeping live queue status real-time
+        if (pollTickRef.current % 2 === 0) {
+          api.getClaims({ page: 1, page_size: 1000 }).then((c) => {
+            if (c?.items) {
+              setClaims(c.items);
+              setTotalClaims(c.total || c.items.length);
+            }
+          }).catch(() => {});
+          api.getClaimStats().then((s) => {
+            if (s) setStats(s);
+          }).catch(() => {});
+        }
       }
     }, intervalMs);
 
     return () => clearInterval(timer);
   }, [liveQueue?.is_running, liveQueue?.total_pending_count, liveQueue?.auto_queue_enabled, fetchLiveQueue]);
 
-  // Elapsed seconds timer for active running item
+  // Live ticker for multi-worker fleet execution durations
   useEffect(() => {
-    if (!liveQueue?.is_running) {
-      setLiveElapsedSeconds(0);
-      return;
-    }
+    const isBusy = liveQueue?.is_running || (Boolean(liveQueue?.active_items?.length));
+    if (!isBusy) return;
     const timer = setInterval(() => {
-      setLiveElapsedSeconds((prev) => prev + 1);
+      setNowTimestamp(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, [liveQueue?.is_running, liveQueue?.active_item?.id]);
+  }, [liveQueue?.is_running, liveQueue?.active_items?.length]);
+
+  const getItemElapsedSeconds = React.useCallback((item: LiveQueueItem) => {
+    if (typeof item.total_duration_seconds === "number" && item.total_duration_seconds > 0) {
+      return Math.round(item.total_duration_seconds);
+    }
+    let startStr = item.started_at || item.updated_at || item.created_at;
+    if (!startStr) return 0;
+    // Normalize string lacking timezone offset by appending 'Z' so client parses strictly as UTC
+    if (!startStr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(startStr)) {
+      startStr = `${startStr}Z`;
+    }
+    const startTime = new Date(startStr).getTime();
+    if (isNaN(startTime)) return 0;
+    return Math.max(0, Math.floor((nowTimestamp - startTime) / 1000));
+  }, [nowTimestamp]);
 
   const handleToggleAutoQueue = async () => {
     if (!liveQueue) return;
@@ -307,25 +360,50 @@ export default function DashboardPage() {
     }
 
     // Status filter
-    if (statusFilter !== "all" && statusFilter !== "") {
-      result = result.filter(
-        (c) => (c.record_status || "").toUpperCase() === statusFilter.toUpperCase()
+    if (selectedStatuses.length > 0) {
+      result = result.filter((c) =>
+        selectedStatuses.some(
+          (st) => (c.record_status || "").toUpperCase() === st.toUpperCase()
+        )
+      );
+    } else if (statusFilter !== "all" && statusFilter !== "") {
+      const parts = statusFilter.split(",").map((s) => s.trim().toUpperCase());
+      result = result.filter((c) =>
+        parts.some((st) => (c.record_status || "").toUpperCase() === st)
       );
     }
 
     // State filter
-    if (stateFilter !== "all" && stateFilter !== "") {
-      result = result.filter(
-        (c) =>
-          (c.policy_state || c.loss_location_state || "").toUpperCase() ===
-          stateFilter.toUpperCase()
-      );
+    if (selectedStates.length > 0) {
+      result = result.filter((c) => {
+        const claimState = (c.policy_state || c.loss_location_state || "").toUpperCase();
+        return selectedStates.some((st) => claimState === st.toUpperCase());
+      });
+    } else if (stateFilter !== "all" && stateFilter !== "") {
+      const parts = stateFilter.split(",").map((s) => s.trim().toUpperCase());
+      result = result.filter((c) => {
+        const claimState = (c.policy_state || c.loss_location_state || "").toUpperCase();
+        return parts.some((st) => claimState === st);
+      });
     }
 
     // Fuzzy match status filter
-    if (matchFilter !== "all") {
-      result = result.filter(
-        (c) => (c.fuzzy_match_status || "").toUpperCase() === matchFilter.toUpperCase()
+    if (selectedMatches.length > 0) {
+      result = result.filter((c) =>
+        selectedMatches.some(
+          (m) =>
+            (c.fuzzy_match_status || "").toUpperCase() === m.toUpperCase() ||
+            (c.record_status || "").toUpperCase() === m.toUpperCase()
+        )
+      );
+    } else if (matchFilter !== "all" && matchFilter !== "") {
+      const parts = matchFilter.split(",").map((s) => s.trim().toUpperCase());
+      result = result.filter((c) =>
+        parts.some(
+          (m) =>
+            (c.fuzzy_match_status || "").toUpperCase() === m ||
+            (c.record_status || "").toUpperCase() === m
+        )
       );
     }
 
@@ -343,7 +421,7 @@ export default function DashboardPage() {
     });
 
     return result;
-  }, [claims, searchTerm, statusFilter, stateFilter, matchFilter, sortField, sortOrder]);
+  }, [claims, searchTerm, selectedStatuses, selectedStates, selectedMatches, statusFilter, stateFilter, matchFilter, sortField, sortOrder]);
 
   // Paginated Claims
   const totalFilteredCount = filteredAndSortedClaims.length;
@@ -383,6 +461,9 @@ export default function DashboardPage() {
 
   const clearFilters = () => {
     setSearchTerm("");
+    setSelectedStatuses([]);
+    setSelectedStates([]);
+    setSelectedMatches([]);
     setStatusFilter("all");
     setStateFilter("all");
     setMatchFilter("all");
@@ -390,14 +471,77 @@ export default function DashboardPage() {
   };
 
   const hasActiveFilters =
-    searchTerm !== "" || statusFilter !== "all" || stateFilter !== "all" || matchFilter !== "all";
+    searchTerm !== "" ||
+    selectedStatuses.length > 0 ||
+    selectedStates.length > 0 ||
+    selectedMatches.length > 0 ||
+    statusFilter !== "all" ||
+    stateFilter !== "all" ||
+    matchFilter !== "all";
 
   // Visual Breakdown Metrics
   const totalCount = stats?.total_claims || claims.length || 1;
   const matchPercentage = Math.round(((stats?.match_found || 0) / totalCount) * 100) || 0;
-  const inProgressPercentage = Math.round(((stats?.in_progress || 0) / totalCount) * 100) || 0;
+  const inProgressPercentage = Math.round((((stats?.in_progress || 0) + (stats?.new || 0)) / totalCount) * 100) || 0;
   const reviewPercentage = Math.round(((stats?.manual_review || 0) / totalCount) * 100) || 0;
-  const completedPercentage = Math.round(((stats?.completed || 0) / totalCount) * 100) || 0;
+  const finishedCount = (stats?.completed || 0) + (stats?.no_match_found || 0) + (stats?.match_found || 0);
+  const completedPercentage = Math.round((finishedCount / totalCount) * 100) || 0;
+  const failedCount = stats?.failed || 0;
+  const failedPercentage = Math.round((failedCount / totalCount) * 100) || 0;
+
+  // Dynamic filter dropdown options with real-time record counts
+  const statusOptions = useMemo<MultiSelectOption[]>(() => {
+    const counts: Record<string, number> = {};
+    claims.forEach((c) => {
+      const st = (c.record_status || "").toUpperCase();
+      counts[st] = (counts[st] || 0) + 1;
+    });
+    return [
+      { value: "NEW", label: `New / Queued (${counts["NEW"] ?? stats?.new ?? 0})` },
+      { value: "SCRAPING_IN_PROGRESS", label: `In Progress (${counts["SCRAPING_IN_PROGRESS"] ?? stats?.in_progress ?? 0})` },
+      { value: "SCRAPING_COMPLETED", label: `Scraping Completed (${counts["SCRAPING_COMPLETED"] ?? 0})` },
+      { value: "COMPLETED", label: `Completed (Pushed) (${counts["COMPLETED"] ?? stats?.completed ?? 0})` },
+      { value: "MATCH_FOUND", label: `Match Found (${counts["MATCH_FOUND"] ?? stats?.match_found ?? 0})` },
+      { value: "NO_MATCH_FOUND", label: `No Match Found (${counts["NO_MATCH_FOUND"] ?? stats?.no_match_found ?? 0})` },
+      { value: "MANUAL_REVIEW", label: `Manual Review / Exception (${counts["MANUAL_REVIEW"] ?? stats?.manual_review ?? 0})` },
+      { value: "FAILED", label: `Failed (${counts["FAILED"] ?? stats?.failed ?? 0})` },
+    ];
+  }, [claims, stats]);
+
+  const stateOptions = useMemo<MultiSelectOption[]>(() => {
+    let flCount = 0;
+    let txCount = 0;
+    claims.forEach((c) => {
+      const st = (c.policy_state || c.loss_location_state || "").toUpperCase();
+      if (st.includes("FL")) flCount++;
+      else if (st.includes("TX")) txCount++;
+    });
+    return [
+      { value: "FL", label: `Florida (FL) (${flCount})` },
+      { value: "TX", label: `Texas (TX) (${txCount})` },
+    ];
+  }, [claims]);
+
+  const matchOptions = useMemo<MultiSelectOption[]>(() => {
+    let matchConfirmed = 0;
+    let needsReview = 0;
+    let noMatch = 0;
+    let manualReview = 0;
+    claims.forEach((c) => {
+      const fm = (c.fuzzy_match_status || "").toUpperCase();
+      const rs = (c.record_status || "").toUpperCase();
+      if (fm === "MATCH_FOUND" || rs === "MATCH_FOUND" || (rs === "COMPLETED" && fm === "COMPLETED")) matchConfirmed++;
+      else if (fm === "PENDING_REVIEW") needsReview++;
+      else if (fm === "NO_MATCH_FOUND" || rs === "NO_MATCH_FOUND") noMatch++;
+      if (rs === "MANUAL_REVIEW") manualReview++;
+    });
+    return [
+      { value: "MATCH_FOUND", label: `Match Confirmed (${matchConfirmed || (stats?.match_found ?? 0)})` },
+      { value: "PENDING_REVIEW", label: `Needs Review (${needsReview})` },
+      { value: "NO_MATCH_FOUND", label: `No Match (${noMatch || (stats?.no_match_found ?? 0)})` },
+      { value: "MANUAL_REVIEW", label: `Manual Review (${manualReview || (stats?.manual_review ?? 0)})` },
+    ];
+  }, [claims, stats]);
 
   // Stat Cards
   const statCards = [
@@ -406,23 +550,26 @@ export default function DashboardPage() {
       value: stats?.total_claims ?? totalClaims,
       icon: FileSpreadsheet,
       gradient: "from-sky-500/20 to-indigo-500/20",
-      filterValue: "all",
+      filterStatuses: [] as string[],
+      filterMatches: [] as string[],
       subtitle: "All recorded claims",
     },
     {
       title: "In Progress / Queue",
-      value: (stats?.in_progress ?? 0) + (liveQueue?.total_pending_count ?? 0),
+      value: (stats?.in_progress ?? 0) + (stats?.new ?? 0),
       icon: Clock,
       gradient: "from-amber-500/20 to-orange-500/20",
-      filterValue: "SCRAPING_IN_PROGRESS",
-      subtitle: `${liveQueue?.total_pending_count ?? 0} pending in queue`,
+      filterStatuses: ["SCRAPING_IN_PROGRESS", "NEW"],
+      filterMatches: [] as string[],
+      subtitle: `${stats?.in_progress ?? 0} active scraping · ${stats?.new ?? liveQueue?.total_pending_count ?? 0} queued`,
     },
     {
       title: "Matches Confirmed",
       value: stats?.match_found ?? 0,
       icon: CheckCircle2,
       gradient: "from-emerald-500/20 to-teal-500/20",
-      filterValue: "MATCH_FOUND",
+      filterStatuses: ["MATCH_FOUND"],
+      filterMatches: ["MATCH_FOUND"],
       subtitle: `${matchPercentage}% positive matches`,
     },
     {
@@ -430,29 +577,48 @@ export default function DashboardPage() {
       value: stats?.manual_review ?? 0,
       icon: AlertTriangle,
       gradient: "from-purple-500/20 to-pink-500/20",
-      filterValue: "MANUAL_REVIEW",
+      filterStatuses: ["MANUAL_REVIEW"],
+      filterMatches: ["MANUAL_REVIEW"],
       subtitle: "Review required",
     },
     {
       title: "Completed Scrapes",
-      value: stats?.completed ?? 0,
+      value: finishedCount,
       icon: ShieldCheck,
       gradient: "from-blue-500/20 to-indigo-500/20",
-      filterValue: "SCRAPING_COMPLETED",
-      subtitle: `${completedPercentage}% finished`,
+      filterStatuses: ["COMPLETED", "NO_MATCH_FOUND", "SCRAPING_COMPLETED", "MATCH_FOUND"],
+      filterMatches: [] as string[],
+      subtitle: `${completedPercentage}% finished (${stats?.no_match_found ?? 0} clean, ${stats?.completed ?? 0} pushed, ${stats?.match_found ?? 0} matched)`,
     },
     {
       title: "Failed / Retried",
       value: stats?.failed ?? 0,
       icon: XCircle,
       gradient: "from-rose-500/20 to-red-500/20",
-      filterValue: "FAILED",
+      filterStatuses: ["FAILED"],
+      filterMatches: [] as string[],
       subtitle: "Ready to retrigger",
     },
   ];
 
   // 8 County Court Scraper Bots Coverage & Live Throughput
   const portalBreakdown = useMemo(() => {
+    // 1. Authoritative Backend Aggregation across ALL claims in DB
+    if (stats?.portal_throughput) {
+      const pt = stats.portal_throughput;
+      return [
+        { key: "miami", name: "Miami-Dade (FL)", state: "FL", cases: pt.miami ?? 0, active: true },
+        { key: "broward", name: "Broward (FL)", state: "FL", cases: pt.broward ?? 0, active: true },
+        { key: "hillsborough", name: "Hillsborough (FL)", state: "FL", cases: pt.hillsborough ?? 0, active: true },
+        { key: "harris_cclerk", name: "Harris County Clerk (TX)", state: "TX", cases: pt.harris_cclerk ?? 0, active: true },
+        { key: "dallas", name: "Dallas County (TX)", state: "TX", cases: pt.dallas ?? 0, active: true },
+        { key: "harris_jp", name: "Harris JP (TX)", state: "TX", cases: pt.harris_jp ?? 0, active: true },
+        { key: "harris_district", name: "Harris District Clerk (TX)", state: "TX", cases: pt.harris_district ?? 0, active: true },
+        { key: "travis", name: "Travis County (TX)", state: "TX", cases: pt.travis ?? 0, active: true },
+      ];
+    }
+
+    // 2. Client-side fallback from loaded claims if stats is not yet available
     const counts: Record<string, number> = {
       miami: 0,
       broward: 0,
@@ -465,17 +631,18 @@ export default function DashboardPage() {
     };
 
     claims.forEach((c) => {
-      if (c.court_cases && Array.isArray(c.court_cases)) {
-        c.court_cases.forEach((cc) => {
-          const portalLower = (cc.county_name || cc.county_website || cc.source_url || "").toLowerCase();
-          if (portalLower.includes("broward")) counts.broward++;
-          else if (portalLower.includes("hillsborough") || portalLower.includes("hover")) counts.hillsborough++;
-          else if (portalLower.includes("miami") || portalLower.includes("dade") || portalLower.includes("ocs")) counts.miami++;
-          else if (portalLower.includes("cclerk") || (portalLower.includes("harris") && portalLower.includes("clerk"))) counts.harris_cclerk++;
-          else if (portalLower.includes("dallas")) counts.dallas++;
-          else if (portalLower.includes("jp") || portalLower.includes("justice")) counts.harris_jp++;
-          else if (portalLower.includes("district") || portalLower.includes("hcdistrict")) counts.harris_district++;
-          else if (portalLower.includes("travis")) counts.travis++;
+      if (c.bots && Array.isArray(c.bots)) {
+        c.bots.forEach((b) => {
+          const nameLower = (b.name || "").toLowerCase();
+          const cnt = b.cases_found || 0;
+          if (nameLower.includes("broward")) counts.broward += cnt;
+          else if (nameLower.includes("hillsborough")) counts.hillsborough += cnt;
+          else if (nameLower.includes("miami")) counts.miami += cnt;
+          else if (nameLower.includes("cclerk") || (nameLower.includes("harris") && nameLower.includes("clerk"))) counts.harris_cclerk += cnt;
+          else if (nameLower.includes("dallas")) counts.dallas += cnt;
+          else if (nameLower.includes("jp") || nameLower.includes("justice")) counts.harris_jp += cnt;
+          else if (nameLower.includes("district") || nameLower.includes("hcdistrict")) counts.harris_district += cnt;
+          else if (nameLower.includes("travis")) counts.travis += cnt;
         });
       }
     });
@@ -490,13 +657,13 @@ export default function DashboardPage() {
       { key: "harris_district", name: "Harris District Clerk (TX)", state: "TX", cases: counts.harris_district, active: true },
       { key: "travis", name: "Travis County (TX)", state: "TX", cases: counts.travis, active: true },
     ];
-  }, [claims]);
+  }, [stats?.portal_throughput, claims]);
 
   return (
     <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={loadData} isRefreshing={isLoading} />
 
-      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Page Title & Quick Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div>
@@ -533,23 +700,39 @@ export default function DashboardPage() {
 
         {/* Metric Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 w-full">
-          {statCards.map((card) => (
-            <StatCard
-              key={card.title}
-              title={card.title}
-              value={card.value}
-              icon={card.icon}
-              gradient={card.gradient}
-              subtitle={card.subtitle}
-              isSelected={statusFilter === card.filterValue}
-              onClick={() => {
-                if (card.filterValue) {
-                  setStatusFilter(statusFilter === card.filterValue ? "all" : card.filterValue);
-                  setCurrentPage(1);
-                }
-              }}
-            />
-          ))}
+          {statCards.map((card) => {
+            const isSelected =
+              card.filterStatuses.length === 0
+                ? selectedStatuses.length === 0 && selectedMatches.length === 0 && statusFilter === "all"
+                : card.filterStatuses.length === selectedStatuses.length &&
+                  card.filterStatuses.every((s) => selectedStatuses.includes(s));
+
+            return (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                value={card.value}
+                icon={card.icon}
+                gradient={card.gradient}
+                subtitle={card.subtitle}
+                isSelected={isSelected}
+                onClick={() => {
+                  if (card.filterStatuses.length === 0 || isSelected) {
+                    clearFilters();
+                  } else {
+                    setSearchTerm("");
+                    setSelectedStates([]);
+                    setStateFilter("all");
+                    setSelectedStatuses(card.filterStatuses);
+                    setSelectedMatches(card.filterMatches);
+                    setStatusFilter(card.filterStatuses.join(","));
+                    setMatchFilter(card.filterMatches.length > 0 ? card.filterMatches.join(",") : "all");
+                    setCurrentPage(1);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
 
         {/* Live Queue & Sequential RPA Execution Console */}
@@ -774,7 +957,9 @@ export default function DashboardPage() {
 
                   {activeItems.length > 0 ? (
                     <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                      {activeItems.map((item, idx) => (
+                      {activeItems.map((item, idx) => {
+                        const itemElapsed = getItemElapsedSeconds(item);
+                        return (
                         <div
                           key={item.id}
                           className="bg-gradient-to-br from-indigo-50/80 via-white to-blue-50/40 dark:from-indigo-950/40 dark:via-slate-900/80 dark:to-slate-950/40 border-2 border-indigo-500/40 dark:border-indigo-500/30 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between space-y-2.5 transition-all"
@@ -794,7 +979,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                {liveElapsedSeconds > 0 ? `${liveElapsedSeconds}s` : "Active"}
+                                {itemElapsed > 0 ? formatDurationHms(itemElapsed) : "00:00:00"}
                               </span>
                               <button
                                 type="button"
@@ -855,7 +1040,8 @@ export default function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
 
                       {/* Available Idle Slots Indicators */}
                       {availableSlots > 0 && (
@@ -1175,7 +1361,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 font-mono">
                               <span>{item.policy_state || "FL"}</span>
-                              <span>{item.total_duration_seconds ? `${Math.round(item.total_duration_seconds)}s` : "Finished"}</span>
+                              <span>{item.total_duration_seconds ? formatDurationHms(item.total_duration_seconds) : "Finished"}</span>
                             </div>
                           </Link>
                         );
@@ -1199,72 +1385,167 @@ export default function DashboardPage() {
                   Lifecycle Distribution
                 </h3>
               </div>
-              <span className="text-[10px] font-mono text-slate-400">{totalClaims} Records</span>
+              <span className="text-[10px] font-mono text-slate-400">{stats?.total_claims ?? totalClaims} Records</span>
             </div>
 
-            {/* Segment Progress Bar */}
-            <div className="space-y-2">
-              <div className="h-3 w-full rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden p-0.5 gap-0.5">
-                <div
-                  style={{ width: `${Math.max(4, completedPercentage)}%` }}
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                  title={`Completed: ${completedPercentage}%`}
-                />
-                <div
-                  style={{ width: `${Math.max(4, inProgressPercentage)}%` }}
-                  className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                  title={`In Progress: ${inProgressPercentage}%`}
-                />
-                <div
-                  style={{ width: `${Math.max(4, reviewPercentage)}%` }}
-                  className="h-full bg-purple-500 rounded-full transition-all duration-500"
-                  title={`Exceptions: ${reviewPercentage}%`}
-                />
-              </div>
+            {/* Interactive SVG Pie/Donut Chart & Lifecycle Breakdown */}
+            {(() => {
+              const circ = 2 * Math.PI * 65; // ~408.407
+              const slices = [
+                {
+                  key: "completed",
+                  label: "Completed / Clean",
+                  count: finishedCount,
+                  pct: completedPercentage,
+                  color: "#10b981",
+                  barColor: "bg-emerald-500",
+                  filter: ["COMPLETED", "NO_MATCH_FOUND", "SCRAPING_COMPLETED"],
+                },
+                {
+                  key: "matches",
+                  label: "Matches Found",
+                  count: stats?.match_found || 0,
+                  pct: matchPercentage,
+                  color: "#6366f1",
+                  barColor: "bg-indigo-500",
+                  filter: ["MATCH_FOUND"],
+                },
+                {
+                  key: "in_progress",
+                  label: "In Progress / Queue",
+                  count: (stats?.in_progress || 0) + (stats?.new || 0),
+                  pct: inProgressPercentage,
+                  color: "#f59e0b",
+                  barColor: "bg-amber-500",
+                  filter: ["SCRAPING_IN_PROGRESS", "NEW"],
+                },
+                {
+                  key: "exceptions",
+                  label: "Exceptions",
+                  count: stats?.manual_review || 0,
+                  pct: reviewPercentage,
+                  color: "#a855f7",
+                  barColor: "bg-purple-500",
+                  filter: ["MANUAL_REVIEW"],
+                },
+                {
+                  key: "failed",
+                  label: "Failed / Retried",
+                  count: failedCount,
+                  pct: failedPercentage,
+                  color: "#f43f5e",
+                  barColor: "bg-rose-500",
+                  filter: ["FAILED"],
+                },
+              ];
 
-              {/* Legend with Counts */}
-              <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] text-slate-400">Completed</div>
-                    <div className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                      {stats?.completed || 0} ({completedPercentage}%)
+              let accumulatedLength = 0;
+
+              return (
+                <div className="space-y-4">
+                  {/* Interactive SVG Pie/Donut Chart */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4 py-1">
+                    <div className="relative w-40 h-40 shrink-0">
+                      <svg viewBox="0 0 180 180" className="w-full h-full transform -rotate-90">
+                        <circle
+                          cx="90"
+                          cy="90"
+                          r="65"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="20"
+                          className="text-slate-100 dark:text-slate-800"
+                        />
+                        {slices.map((slice) => {
+                          const ratio = totalCount > 0 ? slice.count / totalCount : 0;
+                          const sliceLen = ratio * circ;
+                          const currentOffset = accumulatedLength;
+                          accumulatedLength += sliceLen;
+
+                          if (slice.count <= 0) return null;
+
+                          return (
+                            <circle
+                              key={slice.key}
+                              cx="90"
+                              cy="90"
+                              r="65"
+                              fill="none"
+                              stroke={slice.color}
+                              strokeWidth="20"
+                              strokeDasharray={`${Math.max(1, sliceLen)} ${circ}`}
+                              strokeDashoffset={-currentOffset}
+                              className="transition-all duration-500 cursor-pointer hover:opacity-80 hover:stroke-[22]"
+                              onClick={() => {
+                                setSearchTerm("");
+                                setSelectedStates([]);
+                                setStateFilter("all");
+                                setSelectedStatuses(slice.filter);
+                                setStatusFilter(slice.filter.join(","));
+                                setCurrentPage(1);
+                              }}
+                            >
+                              <title>{`${slice.label}: ${slice.count} (${slice.pct}%)`}</title>
+                            </circle>
+                          );
+                        })}
+                      </svg>
+                      {/* Center Content */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                        <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100">
+                          {stats?.total_claims ?? totalClaims}
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                          Total Claims
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Stats Compact Overview */}
+                    <div className="flex-1 w-full space-y-1.5 text-xs">
+                      {slices.map((slice) => (
+                        <div
+                          key={slice.key}
+                          onClick={() => {
+                            setSearchTerm("");
+                            setSelectedStates([]);
+                            setStateFilter("all");
+                            setSelectedStatuses(slice.filter);
+                            setStatusFilter(slice.filter.join(","));
+                            setCurrentPage(1);
+                          }}
+                          className="flex items-center justify-between p-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                            <span className="text-xs text-slate-600 dark:text-slate-300 truncate font-medium">
+                              {slice.label}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">
+                            {slice.count} <span className="text-[10px] text-slate-400 font-normal">({slice.pct}%)</span>
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] text-slate-400">In Progress</div>
-                    <div className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                      {stats?.in_progress || 0} ({inProgressPercentage}%)
-                    </div>
+                  {/* 5-Segment Progress Bar */}
+                  <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden p-0.5 gap-0.5">
+                    {slices.map((slice) => (
+                      slice.count > 0 ? (
+                        <div
+                          key={slice.key}
+                          style={{ width: `${Math.max(2, slice.pct)}%` }}
+                          className={`h-full ${slice.barColor} rounded-full transition-all duration-500`}
+                          title={`${slice.label}: ${slice.pct}% (${slice.count})`}
+                        />
+                      ) : null
+                    ))}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] text-slate-400">Exceptions</div>
-                    <div className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                      {stats?.manual_review || 0} ({reviewPercentage}%)
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] text-slate-400">Matches Found</div>
-                    <div className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                      {stats?.match_found || 0} ({matchPercentage}%)
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
 
           {/* Chart 2: 8 County Court Scraper Bots Volume */}
@@ -1276,9 +1557,9 @@ export default function DashboardPage() {
                   Bot Scraper Throughput (8 Portals)
                 </h3>
               </div>
-              <span className="text-[10px] font-medium text-emerald-500 flex items-center gap-1">
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                All Ready
+                {stats?.total_cases_extracted ? `${stats.total_cases_extracted} Cases Extracted` : "All Ready"}
               </span>
             </div>
 
@@ -1323,50 +1604,59 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-3">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
                   <span className="text-[10px] text-slate-400 block">Avg Scrape Cycle</span>
-                  <span className="text-base font-bold font-mono text-slate-800 dark:text-slate-200">
-                    18.45s
+                  <span className="text-sm sm:text-base font-bold font-mono text-slate-800 dark:text-slate-200 truncate block">
+                    {stats?.avg_scrape_seconds ? `${stats.avg_scrape_seconds}s` : "18.45s"}
                   </span>
-                  <span className="text-[9px] text-emerald-500 block mt-0.5">Microsecond accuracy</span>
+                  <span className="text-[9px] text-emerald-500 block mt-0.5 truncate">Microsecond accuracy</span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
                   <span className="text-[10px] text-slate-400 block">Deduplication</span>
-                  <span className="text-base font-bold font-mono text-slate-800 dark:text-slate-200">
-                    token_sort_ratio
+                  <span
+                    className="text-xs sm:text-sm font-bold font-mono text-slate-800 dark:text-slate-200 truncate block"
+                    title={settings?.matcher?.scorer_algorithm || "token_sort_ratio"}
+                  >
+                    {settings?.matcher?.scorer_algorithm || "token_sort_ratio"}
                   </span>
-                  <span className="text-[9px] text-indigo-400 block mt-0.5">Threshold: 75%</span>
+                  <span className="text-[9px] text-indigo-400 block mt-0.5 truncate">
+                    Threshold: {Math.round((settings?.matcher?.auto_match_threshold ?? 0.75) * 100)}%
+                  </span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
                   <span className="text-[10px] text-slate-400 block">Guidewire Trigger</span>
-                  <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                    Automatic
+                  <span className={`text-xs sm:text-sm font-bold font-mono truncate block ${settings?.integration?.auto_push_on_match ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                    {settings?.integration?.auto_push_on_match ? "Automatic" : "Manual Review"}
                   </span>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Auto-push on match</span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5 truncate">
+                    {settings?.integration?.auto_push_on_match ? "Auto-push on match" : "Manual review required"}
+                  </span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
                   <span className="text-[10px] text-slate-400 block">Worker Concurrency</span>
-                  <span className="text-base font-bold font-mono text-slate-800 dark:text-slate-200">
-                    4 Online
+                  <span className="text-sm sm:text-base font-bold font-mono text-slate-800 dark:text-slate-200 truncate block">
+                    {settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4} Online
                   </span>
-                  <span className="text-[9px] text-sky-400 block mt-0.5">Celery Distributed</span>
+                  <span className="text-[9px] text-sky-400 block mt-0.5 truncate">
+                    {(settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4) === 4 ? "Quad Fleet Active" : "Celery Distributed"}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="font-medium text-indigo-900 dark:text-indigo-200 text-[11px]">
+            <div className="p-3 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="font-medium text-indigo-900 dark:text-indigo-200 text-[11px] truncate">
                   System settings synced to runtime
                 </span>
               </div>
               <Link
                 href="/settings"
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold shrink-0 ml-auto sm:ml-0"
               >
                 Configure &rarr;
               </Link>
@@ -1396,8 +1686,8 @@ export default function DashboardPage() {
                 onExportXlsx={() => {
                   const url = api.getExportUrl({
                     format: "xlsx",
-                    status: statusFilter === "all" ? undefined : statusFilter,
-                    state: stateFilter === "all" ? undefined : stateFilter,
+                    status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter === "all" ? undefined : statusFilter),
+                    state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter === "all" ? undefined : stateFilter),
                     search: searchTerm || undefined,
                   });
                   window.open(url, "_blank");
@@ -1405,8 +1695,8 @@ export default function DashboardPage() {
                 onExportCsv={() => {
                   const url = api.getExportUrl({
                     format: "csv",
-                    status: statusFilter === "all" ? undefined : statusFilter,
-                    state: stateFilter === "all" ? undefined : stateFilter,
+                    status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter === "all" ? undefined : statusFilter),
+                    state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter === "all" ? undefined : stateFilter),
                     search: searchTerm || undefined,
                   });
                   window.open(url, "_blank");
@@ -1414,8 +1704,8 @@ export default function DashboardPage() {
                 onExportJson={() => {
                   const url = api.getExportUrl({
                     format: "json",
-                    status: statusFilter === "all" ? undefined : statusFilter,
-                    state: stateFilter === "all" ? undefined : stateFilter,
+                    status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter === "all" ? undefined : statusFilter),
+                    state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter === "all" ? undefined : stateFilter),
                     search: searchTerm || undefined,
                   });
                   window.open(url, "_blank");
@@ -1437,19 +1727,30 @@ export default function DashboardPage() {
           {/* Quick Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             {[
-              { id: "all", label: "All Claims", count: totalClaims, filter: "all" },
-              { id: "active", label: "Active / Running", count: (stats?.in_progress ?? 0) + (liveQueue?.is_running ? 1 : 0), filter: "SCRAPING_IN_PROGRESS" },
-              { id: "pending", label: "Queue Pending (FIFO)", count: liveQueue?.total_pending_count ?? 0, filter: "NEW" },
-              { id: "matches", label: "Matches Found", count: stats?.match_found ?? 0, filter: "MATCH_FOUND" },
-              { id: "exceptions", label: "Exceptions", count: stats?.manual_review ?? 0, filter: "MANUAL_REVIEW" },
-              { id: "completed", label: "Completed", count: stats?.completed ?? 0, filter: "SCRAPING_COMPLETED" },
+              { id: "all", label: "All Claims", count: totalClaims, statuses: [] as string[] },
+              { id: "active", label: "Active / Running", count: stats?.in_progress ?? 0, statuses: ["SCRAPING_IN_PROGRESS"] },
+              { id: "pending", label: "Queue Pending (FIFO)", count: stats?.new ?? liveQueue?.total_pending_count ?? 0, statuses: ["NEW"] },
+              { id: "matches", label: "Matches Found", count: stats?.match_found ?? 0, statuses: ["MATCH_FOUND"] },
+              { id: "exceptions", label: "Exceptions", count: stats?.manual_review ?? 0, statuses: ["MANUAL_REVIEW"] },
+              { id: "completed", label: "Completed", count: finishedCount, statuses: ["COMPLETED", "NO_MATCH_FOUND", "SCRAPING_COMPLETED", "MATCH_FOUND"] },
             ].map((tab) => {
-              const isActive = statusFilter === tab.filter;
+              const isActive =
+                tab.statuses.length === 0
+                  ? selectedStatuses.length === 0 && statusFilter === "all"
+                  : tab.statuses.length === selectedStatuses.length &&
+                    tab.statuses.every((s) => selectedStatuses.includes(s));
+
               return (
                 <button
                   key={tab.id}
                   onClick={() => {
-                    setStatusFilter(tab.filter);
+                    if (tab.statuses.length === 0) {
+                      setSelectedStatuses([]);
+                      setStatusFilter("all");
+                    } else {
+                      setSelectedStatuses(tab.statuses);
+                      setStatusFilter(tab.statuses.join(","));
+                    }
                     setCurrentPage(1);
                   }}
                   className={`px-3 py-1.5 rounded-lg font-medium transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
@@ -1474,103 +1775,188 @@ export default function DashboardPage() {
           {/* Phase 6 (§83) Filter Preset Manager */}
           <div className="pt-1 border-t border-slate-100 dark:border-slate-800/60">
             <FilterPresetManager
-              currentStatus={statusFilter === "all" ? "" : statusFilter}
-              currentState={stateFilter === "all" ? "" : stateFilter}
+              currentStatus={selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter === "all" ? "" : statusFilter)}
+              currentState={selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter === "all" ? "" : stateFilter)}
               currentSearch={searchTerm}
               onApplyPreset={(p) => {
-                setStatusFilter(p.status ? p.status : "all");
-                setStateFilter(p.state ? p.state : "all");
+                const s = p.status ? p.status.split(",").map((x) => x.trim()).filter(Boolean) : [];
+                const st = p.state ? p.state.split(",").map((x) => x.trim()).filter(Boolean) : [];
+                setSelectedStatuses(s);
+                setSelectedStates(st);
+                setStatusFilter(p.status || "all");
+                setStateFilter(p.state || "all");
                 setSearchTerm(p.search || "");
                 setCurrentPage(1);
               }}
               onResetFilters={() => {
+                setSelectedStatuses([]);
+                setSelectedStates([]);
+                setSelectedMatches([]);
                 setStatusFilter("all");
                 setStateFilter("all");
+                setMatchFilter("all");
                 setSearchTerm("");
                 setCurrentPage(1);
               }}
             />
           </div>
 
-          {/* Search and Filters Toolbar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
+          {/* Search and Filters Toolbar with MultiSelect Comboboxes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1 items-end">
             {/* Search Input */}
             <div className="relative lg:col-span-2">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                Search Claims
+              </label>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Search claim #, insured, claimant..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Status Combobox */}
+            <div>
+              <MultiSelectDropdown
+                label="Status"
+                placeholder="All Statuses"
+                options={statusOptions}
+                selectedValues={selectedStatuses}
+                onChange={(values) => {
+                  setSelectedStatuses(values);
+                  setStatusFilter(values.length > 0 ? values.join(",") : "all");
                   setCurrentPage(1);
                 }}
-                placeholder="Search claim #, insured, claimant..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
               />
             </div>
 
-            {/* Status Filter */}
+            {/* State Combobox */}
             <div>
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
+              <MultiSelectDropdown
+                label="State"
+                placeholder="All States"
+                options={stateOptions}
+                selectedValues={selectedStates}
+                onChange={(values) => {
+                  setSelectedStates(values);
+                  setStateFilter(values.length > 0 ? values.join(",") : "all");
                   setCurrentPage(1);
                 }}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-hidden cursor-pointer"
-              >
-                <option value="all">All Statuses</option>
-                <option value="NEW">New / Queued</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="MANUAL_REVIEW">Manual Review</option>
-                <option value="FAILED">Failed</option>
-              </select>
+              />
             </div>
 
-            {/* State Filter */}
-            <div>
-              <select
-                value={stateFilter}
-                onChange={(e) => {
-                  setStateFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-hidden cursor-pointer"
-              >
-                <option value="all">All States</option>
-                <option value="FL">Florida (FL)</option>
-                <option value="TX">Texas (TX)</option>
-              </select>
-            </div>
-
-            {/* Reset Filters / Match Filter */}
-            <div className="flex items-center gap-2">
-              <select
-                value={matchFilter}
-                onChange={(e) => {
-                  setMatchFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-hidden cursor-pointer"
-              >
-                <option value="all">All Matches</option>
-                <option value="MATCH_FOUND">Match Confirmed</option>
-                <option value="PENDING_REVIEW">Needs Review</option>
-                <option value="NO_MATCH_FOUND">No Match</option>
-              </select>
+            {/* Match Combobox & Reset */}
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <MultiSelectDropdown
+                  label="Match Status"
+                  placeholder="All Matches"
+                  options={matchOptions}
+                  selectedValues={selectedMatches}
+                  onChange={(values) => {
+                    setSelectedMatches(values);
+                    setMatchFilter(values.length > 0 ? values.join(",") : "all");
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
 
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
                   title="Clear all active filters"
-                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer shrink-0"
+                  className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer shrink-0 mb-0.5"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-4 h-4" />
                 </button>
               )}
             </div>
           </div>
+
+          {/* Active Filter Chips Bar */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 flex-wrap text-xs pt-1 pb-1">
+              <span className="text-slate-400 font-medium text-[11px]">Active Filters:</span>
+              {selectedStatuses.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px]">
+                  <span>Status: {selectedStatuses.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStatuses([]);
+                      setStatusFilter("all");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedStates.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-semibold text-[11px]">
+                  <span>State: {selectedStates.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStates([]);
+                      setStateFilter("all");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-blue-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedMatches.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-semibold text-[11px]">
+                  <span>Match: {selectedMatches.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMatches([]);
+                      setMatchFilter("all");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-purple-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-semibold text-[11px]">
+                  <span>Search: &quot;{searchTerm}&quot;</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline font-medium cursor-pointer ml-1"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           {/* Tabular Claims Table (>= md) */}
           <div className="hidden md:block overflow-x-auto w-full border border-slate-200 dark:border-slate-800 rounded-xl">

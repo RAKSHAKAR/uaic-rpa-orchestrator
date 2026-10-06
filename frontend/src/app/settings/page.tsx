@@ -13,6 +13,7 @@ import {
   FleetWorkerResult,
   StorageTestRequest,
   StorageTestResponse,
+  StorageCleanupResponse,
   EmailSettings,
   EmailConnectionTestResponse,
   TestEmailSendResponse,
@@ -208,7 +209,9 @@ export default function SettingsPage() {
   const [isValidatingExtension, setIsValidatingExtension] = useState(false);
   const [extensionValidationResult, setExtensionValidationResult] = useState<any | null>(null);
 
-  // One-time Extension Setup & Pinning (automated on startup)
+  // One-time Extension Setup & Pinning (automated on startup + manual trigger)
+  const [isSettingUpExtension, setIsSettingUpExtension] = useState(false);
+  const [extensionSetupResult, setExtensionSetupResult] = useState<ExtensionSetupResponse | null>(null);
 
   // AntiCaptcha API key balance test state (new /test-anticaptcha endpoint)
   const [isTestingAntiCaptchaBalance, setIsTestingAntiCaptchaBalance] = useState(false);
@@ -306,6 +309,7 @@ export default function SettingsPage() {
 
   // Separate Noise Words Input States for Unique Names and Fuzzy Match Engines
   const [newPartyNoiseWord, setNewPartyNoiseWord] = useState("");
+  const [newUnsearchablePattern, setNewUnsearchablePattern] = useState("");
   const [newCaseNoiseWord, setNewCaseNoiseWord] = useState("");
 
   // Dynamic Presets for Fuzzy Match API Tester (PowerAutomateSolutions/fuzzy-match-api parity)
@@ -399,7 +403,7 @@ export default function SettingsPage() {
   const [cleanupPreview, setCleanupPreview] = useState<any | null>(null);
   const [cleanupResult, setCleanupResult] = useState<any | null>(null);
   const [isCleanupConfirmOpen, setIsCleanupConfirmOpen] = useState(false);
-  const [cleanupScope, setCleanupScope] = useState<"OLDER_THAN_30_DAYS" | "OLDER_THAN_7_DAYS" | "ALL_TIME">("OLDER_THAN_30_DAYS");
+  const [cleanupScope, setCleanupScope] = useState<"OLDER_THAN_30_DAYS" | "OLDER_THAN_14_DAYS" | "OLDER_THAN_7_DAYS" | "ALL_TIME">("OLDER_THAN_30_DAYS");
   const [cleanupCategories, setCleanupCategories] = useState<string[]>([
     "ERROR_SCREENSHOTS",
     "SCRAPER_PAGE_CACHE",
@@ -445,6 +449,33 @@ export default function SettingsPage() {
       });
     } finally {
       setIsCleaningUp(false);
+    }
+  };
+
+  // Storage Retention & Provider Purge State
+  const [isPurgingStorage, setIsPurgingStorage] = useState(false);
+  const [storagePurgeResult, setStoragePurgeResult] = useState<StorageCleanupResponse | null>(null);
+
+  const handlePurgeExpiredStorage = async () => {
+    setIsPurgingStorage(true);
+    setStoragePurgeResult(null);
+    try {
+      const days = settings?.storage?.retention_days ?? 30;
+      const res = await api.cleanupStorage({ retention_days: days });
+      setStoragePurgeResult(res);
+      const filesCount = res.files_deleted ?? res.files_purged ?? 0;
+      const provider = res.storage_provider || "local";
+      setFeedback({
+        type: "success",
+        msg: `Storage purge completed: ${filesCount} files removed (${(res.bytes_freed / 1024 / 1024).toFixed(2)} MB freed) across ${provider} storage.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to purge expired storage artifacts.",
+      });
+    } finally {
+      setIsPurgingStorage(false);
     }
   };
 
@@ -538,6 +569,55 @@ export default function SettingsPage() {
       setIsValidatingExtension(false);
     }
   };
+  const handleSetupExtension = async () => {
+    if (!settings) return;
+    setIsSettingUpExtension(true);
+    setExtensionSetupResult(null);
+    try {
+      const res = await api.setupExtension({
+        force_reconfigure: true,
+      });
+      setExtensionSetupResult(res);
+      if (res.success) {
+        setFeedback({
+          type: "success",
+          msg: `AntiCaptcha extension verified & pinned to toolbar in ${res.latency_ms?.toFixed(0) || 0}ms!`,
+        });
+        try {
+          const fresh = await api.getSettings();
+          setSettings(fresh);
+        } catch {
+          if (res.verified_at || res.timestamp) {
+            const ts = res.verified_at || res.timestamp || "";
+            setSettings((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    automation: {
+                      ...prev.automation,
+                      extension_setup_verified: true,
+                      extension_setup_timestamp: ts,
+                    },
+                  }
+                : prev
+            );
+          }
+        }
+      } else {
+        setFeedback({
+          type: "error",
+          msg: res.message || "AntiCaptcha extension setup failed.",
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to trigger extension setup.",
+      });
+    } finally {
+      setIsSettingUpExtension(false);
+    }
+  };
 
 
 
@@ -551,7 +631,7 @@ export default function SettingsPage() {
         headless: modeToTest,
         browser_engine: settings.automation.browser_engine || "chromium",
         test_url: "https://example.com",
-        timeout_seconds: 25,
+        timeout_seconds: 35,
         chrome_binary_path: settings.automation.chrome_binary_path || undefined,
         chrome_extension_dir: settings.automation.chrome_extension_dir || undefined,
         force_kill: forceKill,
@@ -563,6 +643,10 @@ export default function SettingsPage() {
           type: "success",
           msg: `Browser verified in ${res.mode} mode! (${res.duration_ms}ms) - Title: "${res.page_title}"`,
         });
+        try {
+          const fresh = await api.getSettings();
+          setSettings(fresh);
+        } catch {}
       } else {
         setFeedback({
           type: "error",
@@ -684,6 +768,7 @@ export default function SettingsPage() {
   // Proxy connectivity test states
   const [isTestingProxy, setIsTestingProxy] = useState(false);
   const [proxyTestResult, setProxyTestResult] = useState<ProxyTestResponse | null>(null);
+  const [showProxyPassword, setShowProxyPassword] = useState(false);
 
   const handleTestProxy = async () => {
     if (!settings?.proxy?.host?.trim()) {
@@ -826,7 +911,8 @@ export default function SettingsPage() {
         });
       }
     } catch (e: any) {
-      setFeedback({ type: "error", msg: "Failed to load active system settings." });
+      const errDetail = e?.response?.data?.detail || e?.message || "Backend server unreachable at port 8000";
+      setFeedback({ type: "error", msg: `Failed to load active system settings: ${errDetail}` });
     } finally {
       setIsLoading(false);
     }
@@ -937,6 +1023,15 @@ export default function SettingsPage() {
         });
       }
     } catch (err: any) {
+      const errRes: TestEmailSendResponse = {
+        success: false,
+        notification_id: "",
+        recipient: recipient,
+        status: "FAILED",
+        message: err?.response?.data?.detail || "Failed to dispatch test notification email.",
+        duration_ms: 0,
+      };
+      setTestEmailResult(errRes);
       setFeedback({
         type: "error",
         msg: err?.response?.data?.detail || "Failed to dispatch test notification email.",
@@ -1252,6 +1347,16 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  const previewAutomation = (partial: any) => {
+    if (typeof window !== "undefined") {
+      const merged = { ...(settings?.automation || {}), ...partial };
+      window.dispatchEvent(new CustomEvent("uaic:settings-preview", { detail: { automation: merged } }));
+      try {
+        localStorage.setItem("uaic_automation_settings", JSON.stringify(merged));
+      } catch {}
+    }
+  };
+
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!settings) return;
@@ -1262,11 +1367,31 @@ export default function SettingsPage() {
         const [section, field] = path.split(".");
         return !secretDraft(settings, section, field);
       });
-      const updated = await api.updateSettings({ ...settings, clear_secrets });
+      let updated;
+      try {
+        updated = await api.updateSettings({ ...settings, clear_secrets });
+      } catch (saveErr: any) {
+        if (saveErr?.response?.status === 409 || saveErr?.response?.status === 503) {
+          // Re-fetch current version and retry once in case of revision drift or transient lock
+          await new Promise((r) => setTimeout(r, 600));
+          const fresh = await api.getSettings();
+          updated = await api.updateSettings({ ...settings, version: fresh.version, clear_secrets });
+        } else {
+          throw saveErr;
+        }
+      }
       setSettings(updated);
       setClearSecrets([]);
       if (updated.branding) {
         updateBranding(updated.branding);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("uaic:settings-updated", { detail: updated }));
+        if (updated.automation) {
+          try {
+            localStorage.setItem("uaic_automation_settings", JSON.stringify(updated.automation));
+          } catch {}
+        }
       }
       setFeedback({
         type: "success",
@@ -1296,6 +1421,14 @@ export default function SettingsPage() {
       setClearSecrets([]);
       if (def.branding) {
         updateBranding(def.branding);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("uaic:settings-updated", { detail: def }));
+        if (def.automation) {
+          try {
+            localStorage.setItem("uaic_automation_settings", JSON.stringify(def.automation));
+          } catch {}
+        }
       }
       setFeedback({
         type: "success",
@@ -1414,6 +1547,34 @@ export default function SettingsPage() {
     });
   };
 
+  const handleAddUnsearchablePattern = () => {
+    if (!newUnsearchablePattern.trim() || !settings) return;
+    const pattern = newUnsearchablePattern.trim().toUpperCase();
+    const current = settings.matcher.unsearchable_party_patterns || [];
+    if (!current.includes(pattern)) {
+      setSettings({
+        ...settings,
+        matcher: {
+          ...settings.matcher,
+          unsearchable_party_patterns: [...current, pattern],
+        },
+      });
+    }
+    setNewUnsearchablePattern("");
+  };
+
+  const handleRemoveUnsearchablePattern = (pattern: string) => {
+    if (!settings) return;
+    const current = settings.matcher.unsearchable_party_patterns || [];
+    setSettings({
+      ...settings,
+      matcher: {
+        ...settings.matcher,
+        unsearchable_party_patterns: current.filter((p) => p !== pattern),
+      },
+    });
+  };
+
   const handleAddCaseNoiseWord = () => {
     if (!newCaseNoiseWord.trim() || !settings) return;
     const word = newCaseNoiseWord.trim().toUpperCase();
@@ -1503,7 +1664,7 @@ export default function SettingsPage() {
     <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden">
       <Navbar onRefresh={fetchSettings} isRefreshing={isLoading} />
 
-      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Title & Save Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div>
@@ -2058,6 +2219,60 @@ export default function SettingsPage() {
                       className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
                     >
                       Add Word
+                    </button>
+                  </div>
+                </div>
+
+                {/* Unsearchable & Placeholder Party Patterns Tag Chips */}
+                <div className="sm:col-span-2 space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                        Unsearchable & Placeholder Party Name Exception Patterns (Bypassed from Scraping)
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        Parties matching these regex patterns (e.g. UNKNOWN DRIVER, POLICE DEPT, TOWING) are skipped during court portal discovery to prevent bot stalls and 10+ min timeouts.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[50px] items-center">
+                    {(settings.matcher.unsearchable_party_patterns || []).map((pat) => (
+                      <span
+                        key={pat}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
+                      >
+                        {pat}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveUnsearchablePattern(pat)}
+                          className="text-amber-500 hover:text-rose-500 cursor-pointer text-xs"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newUnsearchablePattern}
+                      onChange={(e) => setNewUnsearchablePattern(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddUnsearchablePattern();
+                        }
+                      }}
+                      placeholder="Add exception pattern regex (e.g. UNKNOWN.*DRIVER, POLICE.*DEPT)..."
+                      className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 uppercase font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddUnsearchablePattern}
+                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                    >
+                      Add Pattern
                     </button>
                   </div>
                 </div>
@@ -2844,6 +3059,7 @@ export default function SettingsPage() {
                         checked={(settings.automation.browser_engine || "chromium") === "chromium"}
                         onChange={() => {
                           const engine = "chromium";
+                          previewAutomation({ browser_engine: engine });
                           setSettings({
                             ...settings,
                             automation: {
@@ -2884,6 +3100,7 @@ export default function SettingsPage() {
                         checked={settings.automation.browser_engine === "chrome"}
                         onChange={() => {
                           const engine = "chrome";
+                          previewAutomation({ browser_engine: engine });
                           setSettings({
                             ...settings,
                             automation: {
@@ -2921,6 +3138,7 @@ export default function SettingsPage() {
                         checked={settings.automation.browser_engine === "msedge"}
                         onChange={() => {
                           const engine = "msedge";
+                          previewAutomation({ browser_engine: engine });
                           setSettings({
                             ...settings,
                             automation: {
@@ -3063,15 +3281,16 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* Option 1: Attended Mode */}
                     <div
-                      onClick={() =>
+                      onClick={() => {
+                        previewAutomation({ headless_mode: false });
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
                             headless_mode: false,
                           },
-                        })
-                      }
+                        });
+                      }}
                       className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                         !settings.automation.headless_mode
                           ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 ring-2 ring-purple-600/20"
@@ -3122,15 +3341,16 @@ export default function SettingsPage() {
 
                     {/* Option 2: Headless Mode */}
                     <div
-                      onClick={() =>
+                      onClick={() => {
+                        previewAutomation({ headless_mode: true });
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
                             headless_mode: true,
                           },
-                        })
-                      }
+                        });
+                      }}
                       className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                         settings.automation.headless_mode
                           ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-sky-600/20"
@@ -3470,6 +3690,9 @@ export default function SettingsPage() {
                         {settings.automation.reload_backoff_seconds}s
                       </span>
                     </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Pause duration between portal reload attempts to let county server rate limits recover.
+                    </p>
                     <input
                       type="number"
                       min="0"
@@ -3488,11 +3711,12 @@ export default function SettingsPage() {
                     />
                     <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                       <span>0s (Immediate)</span>
-                      <span>2s (Default)</span>
+                      <span>5s (Recommended Default)</span>
                       <span>30s (Max)</span>
                     </div>
                   </div>
                 </div>
+
 
                 {/* Anti-Captcha Decoupled Notice Banner */}
                 <div className="flex items-start gap-2.5 p-3 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-xs">
@@ -3791,10 +4015,21 @@ export default function SettingsPage() {
                         <Pin className="w-3.5 h-3.5 text-indigo-500" />
                         Toolbar Pinning &amp; Profile Setup
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        Auto-Pinned on Startup
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleSetupExtension}
+                          disabled={isSettingUpExtension}
+                          className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                        >
+                          {isSettingUpExtension ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Pin className="w-2.5 h-2.5" />}
+                          {isSettingUpExtension ? "Setting up..." : "Setup & Pin Now"}
+                        </button>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                          Auto-Pinned
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 text-xs">
@@ -3809,9 +4044,9 @@ export default function SettingsPage() {
                       <div className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 truncate opacity-80">
                         Action ID: kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj
                       </div>
-                      {settings.automation.extension_setup_timestamp && (
+                      {(extensionSetupResult?.verified_at || settings.automation.extension_setup_timestamp) && (
                         <p className="text-[9px] text-slate-400 dark:text-slate-500 font-mono truncate">
-                          Configured: {settings.automation.extension_setup_timestamp}
+                          Configured: {extensionSetupResult?.verified_at || settings.automation.extension_setup_timestamp}
                         </p>
                       )}
                     </div>
@@ -4313,14 +4548,25 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <Network className="w-5 h-5 text-indigo-500" />
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Proxy Connection Details</h3>
+                    <div className="flex items-center gap-2.5">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Proxy Connection Details</h3>
+                      {settings?.proxy?.enabled ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40">
+                          Proxy Routed ({settings.proxy.host || "host"}:{settings.proxy.port || 3128})
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                          Direct Internet Egress
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Configure and validate your proxy server before enabling automation traffic routing.
                     </p>
                   </div>
                 </div>
-                {/* Test Proxy Button — shown only when enabled and host is set */}
-                {settings?.proxy?.enabled && settings?.proxy?.host?.trim() && (
+                {/* Test Proxy Button — available whenever a host is entered */}
+                {settings?.proxy?.host?.trim() && (
                   <button
                     type="button"
                     id="btn-test-proxy-connection"
@@ -4409,20 +4655,38 @@ export default function SettingsPage() {
                     </div>
                     {/* Password */}
                     <div className="w-full">
-                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password (Optional)</label>
-                      <input
-                        type="password"
-                        id="proxy-password"
-                        value={settings?.proxy?.password || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            proxy: { ...(settings?.proxy || {}), password: e.target.value },
-                          } as SystemSettings)
-                        }
-                        placeholder="Proxy Password"
-                        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-                      />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Password (Optional)</label>
+                        {settings?.configured_secrets?.["proxy.password"] && (
+                          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-1.5 py-0.5 rounded">
+                            Secret Saved
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showProxyPassword ? "text" : "password"}
+                          id="proxy-password"
+                          value={settings?.proxy?.password || ""}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              proxy: { ...(settings?.proxy || {}), password: e.target.value },
+                            } as SystemSettings)
+                          }
+                          placeholder={settings?.configured_secrets?.["proxy.password"] ? "•••••••• (Saved)" : "Proxy Password"}
+                          className="w-full text-sm px-3 py-2 pr-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                        />
+                        <button
+                          type="button"
+                          id="btn-toggle-proxy-password"
+                          onClick={() => setShowProxyPassword(!showProxyPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          title={showProxyPassword ? "Hide password" : "Show password"}
+                        >
+                          {showProxyPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -4528,6 +4792,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-3 shrink-0">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
+                      id="email-master-toggle"
                       type="checkbox"
                       checked={emailCfg.email_notifications_enabled}
                       onChange={(e) =>
@@ -4561,6 +4826,7 @@ export default function SettingsPage() {
 
                 {/* Test Connection Button */}
                 <button
+                  id="btn-test-email-connection"
                   type="button"
                   onClick={handleTestEmailConnection}
                   disabled={isTestingEmailConnection}
@@ -4574,6 +4840,7 @@ export default function SettingsPage() {
               {/* Provider Selection Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div
+                  id="provider-card-local_mock"
                   onClick={() => updateEmailSettings({ provider: "local_mock" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     emailCfg.provider === "local_mock"
@@ -4598,6 +4865,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div
+                  id="provider-card-maildev"
                   onClick={() => updateEmailSettings({ provider: "maildev" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     emailCfg.provider === "maildev"
@@ -4634,6 +4902,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div
+                  id="provider-card-direct_mx"
                   onClick={() => updateEmailSettings({ provider: "direct_mx" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     emailCfg.provider === "direct_mx"
@@ -4658,6 +4927,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div
+                  id="provider-card-smtp"
                   onClick={() => updateEmailSettings({ provider: "smtp" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     emailCfg.provider === "smtp"
@@ -4682,6 +4952,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div
+                  id="provider-card-graph"
                   onClick={() => updateEmailSettings({ provider: "graph" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     emailCfg.provider === "graph"
@@ -4706,6 +4977,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div
+                  id="provider-card-ses"
                   onClick={() => updateEmailSettings({ provider: "ses" })}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     emailCfg.provider === "ses"
@@ -5039,6 +5311,7 @@ export default function SettingsPage() {
               {/* Connection Test Result Card */}
               {emailConnectionResult && (
                 <div
+                  id="email-connection-result-card"
                   className={`p-4 rounded-xl border space-y-2 transition-all ${
                     emailConnectionResult.success
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
@@ -5122,6 +5395,7 @@ export default function SettingsPage() {
                     ))}
                     <div className="flex items-center gap-1 flex-1 min-w-[220px]">
                       <input
+                        id="input-new-to-recipient"
                         type="email"
                         value={newToRecipient}
                         onChange={(e) => setNewToRecipient(e.target.value)}
@@ -5135,6 +5409,7 @@ export default function SettingsPage() {
                         className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
                       />
                       <button
+                        id="btn-add-to-recipient"
                         type="button"
                         onClick={() => handleAddRecipient("to")}
                         className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
@@ -5149,6 +5424,7 @@ export default function SettingsPage() {
                 {/* COLLAPSIBLE CC & BCC RECIPIENTS ACCORDION */}
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/30">
                   <button
+                    id="btn-toggle-cc-bcc"
                     type="button"
                     onClick={() => setIsCcBccOpen(!isCcBccOpen)}
                     className="w-full p-3.5 flex items-center justify-between hover:bg-slate-100/60 dark:hover:bg-slate-900/50 transition-colors text-left cursor-pointer"
@@ -5199,6 +5475,7 @@ export default function SettingsPage() {
                           ))}
                           <div className="flex items-center gap-1 flex-1 min-w-[180px]">
                             <input
+                              id="input-new-cc-recipient"
                               type="email"
                               value={newCcRecipient}
                               onChange={(e) => setNewCcRecipient(e.target.value)}
@@ -5212,6 +5489,7 @@ export default function SettingsPage() {
                               className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
                             />
                             <button
+                              id="btn-add-cc-recipient"
                               type="button"
                               onClick={() => handleAddRecipient("cc")}
                               className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
@@ -5251,6 +5529,7 @@ export default function SettingsPage() {
                           ))}
                           <div className="flex items-center gap-1 flex-1 min-w-[180px]">
                             <input
+                              id="input-new-bcc-recipient"
                               type="email"
                               value={newBccRecipient}
                               onChange={(e) => setNewBccRecipient(e.target.value)}
@@ -5264,6 +5543,7 @@ export default function SettingsPage() {
                               className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2 py-1"
                             />
                             <button
+                              id="btn-add-bcc-recipient"
                               type="button"
                               onClick={() => handleAddRecipient("bcc")}
                               className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
@@ -5359,6 +5639,7 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
                   {/* Option 1: BOTH */}
                   <div
+                    id="strategy-card-both"
                     onClick={() => {
                       if (!settings) return;
                       setSettings({
@@ -5390,6 +5671,7 @@ export default function SettingsPage() {
 
                   {/* Option 2: DIRECT SYSTEM ONLY */}
                   <div
+                    id="strategy-card-direct_system"
                     onClick={() => {
                       if (!settings) return;
                       setSettings({
@@ -5421,6 +5703,7 @@ export default function SettingsPage() {
 
                   {/* Option 3: GUIDEWIRE ACTIVITY ONLY */}
                   <div
+                    id="strategy-card-guidewire_activity"
                     onClick={() => {
                       if (!settings) return;
                       setSettings({
@@ -5490,6 +5773,7 @@ export default function SettingsPage() {
                   return (
                     <div
                       key={rule.key}
+                      id={`event-rule-card-${rule.key}`}
                       onClick={() => handleToggleRule(rule.key)}
                       className={`p-4 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
                         isEnabled
@@ -5541,6 +5825,7 @@ export default function SettingsPage() {
                 </div>
 
                 <button
+                  id="btn-send-test-email"
                   type="button"
                   onClick={handleSendTestEmail}
                   disabled={isSendingTestEmail}
@@ -5557,6 +5842,7 @@ export default function SettingsPage() {
                     Test Destination Recipient
                   </label>
                   <input
+                    id="input-test-email-recipient"
                     type="email"
                     value={testRecipientEmail}
                     onChange={(e) => setTestRecipientEmail(e.target.value)}
@@ -5573,6 +5859,7 @@ export default function SettingsPage() {
                     Test Subject Line
                   </label>
                   <input
+                    id="input-test-email-subject"
                     type="text"
                     value={testEmailSubject}
                     onChange={(e) => setTestEmailSubject(e.target.value)}
@@ -5585,6 +5872,7 @@ export default function SettingsPage() {
                     Test Message Body Content
                   </label>
                   <textarea
+                    id="textarea-test-email-body"
                     rows={2}
                     value={testEmailBody}
                     onChange={(e) => setTestEmailBody(e.target.value)}
@@ -5595,6 +5883,7 @@ export default function SettingsPage() {
 
               {testEmailResult && (
                 <div
+                  id="email-test-send-result-card"
                   className={`p-4 rounded-xl border space-y-2 transition-all ${
                     testEmailResult.success
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
@@ -6966,6 +7255,113 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Storage Retention Settings & Purge Card */}
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-indigo-500" />
+                      Storage Retention Policy & Automated Purge
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Define the maximum retention window for transient artifacts and trigger on-demand cleanup across the active storage provider.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePurgeExpiredStorage}
+                    disabled={isPurgingStorage}
+                    className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {isPurgingStorage ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+                    <span>{isPurgingStorage ? "Purging Expired Storage..." : "Purge Expired Storage Now"}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Artifact Retention Window (Days)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={settings.storage?.retention_days ?? 30}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          storage: {
+                            ...(settings.storage || { capture_error_screenshots: true, storage_provider: "local" }),
+                            retention_days: Math.max(1, parseInt(e.target.value) || 30),
+                          },
+                        })
+                      }
+                      className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
+                    />
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                      Files older than this threshold will be purged by background workers or manual cleanup.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Automated Background Cleanup
+                    </label>
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.storage?.auto_cleanup_enabled ?? true}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            storage: {
+                              ...(settings.storage || { capture_error_screenshots: true, storage_provider: "local" }),
+                              auto_cleanup_enabled: e.target.checked,
+                            },
+                          })
+                        }
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                        {(settings.storage?.auto_cleanup_enabled ?? true) ? "Auto-Cleanup Enabled (Daily)" : "Manual Cleanup Only"}
+                      </span>
+                    </label>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                      Scheduled maintenance purges expired files automatically during off-peak hours.
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Target Storage Engine</span>
+                    <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 uppercase">
+                      {settings.storage?.storage_provider || "local"}
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                      Retention rules automatically apply to configured cloud bucket or local directory.
+                    </span>
+                  </div>
+                </div>
+
+                {storagePurgeResult && (
+                  <div
+                    className={`p-3.5 rounded-lg border text-xs flex items-center justify-between ${
+                      storagePurgeResult.success
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                        : "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{storagePurgeResult.message}</span>
+                    </div>
+                    <span className="font-mono text-[11px] opacity-80 shrink-0">
+                      {storagePurgeResult.files_deleted ?? storagePurgeResult.files_purged ?? 0} files / {((storagePurgeResult.bytes_freed || 0) / 1024 / 1024).toFixed(2)} MB freed
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {/* Scope & Categories Controls */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
                 <div className="space-y-1">
@@ -6978,6 +7374,7 @@ export default function SettingsPage() {
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:outline-hidden"
                   >
                     <option value="OLDER_THAN_30_DAYS">Older than 30 Days (Recommended)</option>
+                    <option value="OLDER_THAN_14_DAYS">Older than 14 Days</option>
                     <option value="OLDER_THAN_7_DAYS">Older than 7 Days</option>
                     <option value="ALL_TIME">All Time (Purge All Historical Artifacts)</option>
                   </select>
@@ -7026,7 +7423,7 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between font-semibold text-indigo-900 dark:text-indigo-200">
                     <span className="flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                      Cleanup Preview Calculated: {cleanupPreview.scope}
+                      Cleanup Preview Calculated: {cleanupPreview.scope || cleanupPreview.time_scope}
                     </span>
                     <span className="font-mono text-[11px]">
                       Est. Space Recoverable: {cleanupPreview.estimated_space_freed_human || "N/A"}
@@ -7035,15 +7432,21 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
                     <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
                       <span className="text-slate-500 block text-[10px]">Records to Delete</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{cleanupPreview.total_records_to_delete ?? 0}</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {cleanupPreview.total_records_to_delete ?? (cleanupPreview.total_database_records + cleanupPreview.total_files)}
+                      </span>
                     </div>
                     <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
                       <span className="text-slate-500 block text-[10px]">Files to Delete</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{cleanupPreview.total_files_to_delete ?? 0}</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {cleanupPreview.total_files_to_delete ?? cleanupPreview.total_files ?? 0}
+                      </span>
                     </div>
                     <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
                       <span className="text-slate-500 block text-[10px]">Database Rows</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{cleanupPreview.db_records_to_delete ?? 0}</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {cleanupPreview.db_records_to_delete ?? cleanupPreview.total_database_records ?? 0}
+                      </span>
                     </div>
                     <div className="p-2 bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-900/60">
                       <span className="text-slate-500 block text-[10px]">Estimated Duration</span>
@@ -7295,6 +7698,32 @@ export default function SettingsPage() {
                 />
               </div>
 
+              {/* Claim Watchdog Timeout */}
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                  Claim Processing Timeout Watchdog (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="120"
+                  value={settings.queue.claim_timeout_minutes ?? 30}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      queue: {
+                        ...settings.queue,
+                        claim_timeout_minutes: parseInt(e.target.value) || 30,
+                      },
+                    })
+                  }
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500"
+                />
+                <p className="text-[10px] text-slate-400">
+                  Watchdog marks claims stuck/abandoned after this inactivity duration (default 30m, min 5m, max 120m).
+                </p>
+              </div>
+
               {/* Alert Email */}
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
@@ -7318,6 +7747,91 @@ export default function SettingsPage() {
                     placeholder="claims-ops@test.com"
                   />
                 </div>
+              </div>
+
+              {/* Auto Retry Failed Scrapes Master Toggle */}
+              <div className="space-y-1.5 sm:col-span-2 p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <label className="font-semibold text-slate-900 dark:text-slate-200 text-xs flex items-center gap-2">
+                      <RotateCcw className="w-3.5 h-3.5 text-indigo-500" />
+                      Auto-Retrigger Failed Claims & Scrapers
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      When enabled, claims that encounter scraping errors or timeouts will be automatically re-enqueued on a scheduled interval.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.queue.auto_retry_failed_scrapes}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          queue: {
+                            ...settings.queue,
+                            auto_retry_failed_scrapes: e.target.checked,
+                          },
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+
+                {settings.queue.auto_retry_failed_scrapes && (
+                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
+                      Failed Claims Retrigger Interval (Minutes)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max="1440"
+                        value={settings.queue.failed_claims_retry_interval_minutes ?? 15}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            queue: {
+                              ...settings.queue,
+                              failed_claims_retry_interval_minutes: Math.max(1, parseInt(e.target.value) || 1),
+                            },
+                          })
+                        }
+                        className="w-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        {[5, 15, 30, 60].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                queue: {
+                                  ...settings.queue,
+                                  failed_claims_retry_interval_minutes: preset,
+                                },
+                              })
+                            }
+                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-all cursor-pointer ${
+                              (settings.queue.failed_claims_retry_interval_minutes ?? 15) === preset
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                            }`}
+                          >
+                            {preset}m
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Celery Beat will automatically check and dispatch failed claims every {(settings.queue.failed_claims_retry_interval_minutes ?? 15)} min.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

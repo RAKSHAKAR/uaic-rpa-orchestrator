@@ -1,13 +1,14 @@
 """SQLAlchemy model for enterprise audit logging (who did what, when, and changes made)."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.compat import utc_now
 from app.core.database import Base
 
 
@@ -20,7 +21,7 @@ class AuditLog(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), index=True
+        DateTime, default=utc_now, index=True
     )
 
     # Operator / Client Identity

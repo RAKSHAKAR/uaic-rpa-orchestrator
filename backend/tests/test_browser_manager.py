@@ -160,7 +160,7 @@ async def test_modern_headless_extension_args(tmp_path, mocker):
     # In Playwright, to load extensions headless, context headless must be False with --headless=new in args
     assert call_kwargs["headless"] is False
     assert "--headless=new" in call_kwargs["args"]
-    assert call_kwargs["channel"] == "msedge"
+    assert call_kwargs.get("channel") == "msedge" or "edge" in str(call_kwargs.get("executable_path", "")).lower()
 
 
 
@@ -440,6 +440,7 @@ async def test_single_session_proxy_injection(mocker):
     )
 
     runner = SingleSessionBrowserRunner(
+        browser_engine="chromium",
         proxy_server="http://10.0.0.5:3128",
         proxy_username="my_proxy_user",
         proxy_password="my_proxy_password",

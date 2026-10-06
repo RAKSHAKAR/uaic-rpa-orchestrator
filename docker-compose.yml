@@ -36,14 +36,22 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_fastapi
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    command: bash -c "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & export DISPLAY=:99 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"
     volumes:
+      - ./backend/app:/app/app
       - ./backend/screenshots:/app/screenshots
       - ./backend/logs:/app/logs
+      - ./backend/uploads:/app/uploads
+      - ./anticaptcha-plugin_v0.83:/app/anticaptcha-plugin_v0.83
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
+      - APP_ENV=${APP_ENV:-development}
+      - DEBUG=${DEBUG:-true}
+      - DISPLAY=:99
     ports:
       - "8000:8000"
     depends_on:
@@ -56,14 +64,22 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_celery_worker
-    command: celery -A app.core.celery_app worker --concurrency=10 --loglevel=info
+    command: bash -c "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 && Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & export DISPLAY=:99 && celery -A app.core.celery_app worker --concurrency=10 --loglevel=info"
     volumes:
+      - ./backend/app:/app/app
       - ./backend/screenshots:/app/screenshots
       - ./backend/logs:/app/logs
+      - ./backend/uploads:/app/uploads
+      - ./anticaptcha-plugin_v0.83:/app/anticaptcha-plugin_v0.83
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
+      - APP_ENV=${APP_ENV:-development}
+      - DEBUG=${DEBUG:-true}
+      - DISPLAY=:99
     depends_on:
       - db
       - redis
@@ -78,7 +94,11 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
+      - APP_ENV=${APP_ENV:-development}
+      - DEBUG=${DEBUG:-true}
     depends_on:
       - db
       - redis

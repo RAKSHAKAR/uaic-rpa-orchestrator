@@ -192,9 +192,17 @@ def test_p4_005_auto_queue_enabled_by_default(mocker):
     """Verify Auto Queue is enabled by default (True) when Redis uninitialized."""
     mock_redis = mocker.MagicMock()
     mock_redis.get.return_value = None
+    mocker.patch("app.tasks.queue_runner._can_try_redis", return_value=True)
     mocker.patch("app.tasks.queue_runner.get_redis_client", return_value=mock_redis)
     assert is_auto_queue_enabled() is True
     mock_redis.set.assert_called_with("uaic:queue:auto_mode", "true")
+
+    # Verify explicit states when configured
+    mock_redis.get.return_value = b"false"
+    assert is_auto_queue_enabled() is False
+
+    mock_redis.get.return_value = b"true"
+    assert is_auto_queue_enabled() is True
 
 
 def test_p4_006_security_block_and_cooldown_behavior():

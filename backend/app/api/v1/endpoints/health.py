@@ -90,24 +90,8 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
         }
 
     # 3. Redis
-    redis_start = time.perf_counter()
-    try:
-        client = aioredis.from_url(settings.REDIS_URL, socket_timeout=1.0)
-        await client.ping()
-        redis_latency = round((time.perf_counter() - redis_start) * 1000, 2)
-        await client.aclose()
-        components["redis"] = {
-            "name": "Redis Broker / Cache",
-            "status": "healthy" if redis_latency < 200 else "warning",
-            "latency_ms": redis_latency,
-            "details": {
-                "url": settings.REDIS_URL.split("@")[-1],
-                "connected": True,
-            },
-        }
-    except Exception as e:
-        if overall_status == "healthy":
-            overall_status = "warning"
+    bypass_active = getattr(settings, "SEMAPHORE_BYPASS", False)
+    if bypass_active:
         components["redis"] = {
             "name": "Redis Broker / Cache",
             "status": "warning",
@@ -115,54 +99,123 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
             "details": {
                 "url": settings.REDIS_URL.split("@")[-1],
                 "connected": False,
-                "detail": f"Offline or unreachable: {e!s}",
+                "detail": "SEMAPHORE_BYPASS active - direct local mode",
             },
         }
+    else:
+        redis_start = time.perf_counter()
+        try:
+            import asyncio
+            client = aioredis.from_url(settings.REDIS_URL, socket_timeout=1.0)
+            await asyncio.wait_for(client.ping(), timeout=1.0)
+            redis_latency = round((time.perf_counter() - redis_start) * 1000, 2)
+            await client.aclose()
+            components["redis"] = {
+                "name": "Redis Broker / Cache",
+                "status": "healthy" if redis_latency < 200 else "warning",
+                "latency_ms": redis_latency,
+                "details": {
+                    "url": settings.REDIS_URL.split("@")[-1],
+                    "connected": True,
+                },
+            }
+        except Exception as e:
+            if overall_status == "healthy":
+                overall_status = "warning"
+            components["redis"] = {
+                "name": "Redis Broker / Cache",
+                "status": "warning",
+                "latency_ms": 0.0,
+                "details": {
+                    "url": settings.REDIS_URL.split("@")[-1],
+                    "connected": False,
+                    "detail": f"Offline or unreachable: {e!s}",
+                },
+            }
 
     # 4. Celery Workers
-    try:
-        ping_res = celery_app.control.ping(timeout=0.5) or []
-        workers_count = len(ping_res)
-        celery_status = "healthy" if workers_count > 0 else "warning"
-        if workers_count == 0 and overall_status == "healthy":
-            overall_status = "warning"
-        components["celery"] = {
-            "name": "Celery Distributed Workers",
-            "status": celery_status,
-            "details": {
-                "active_workers": workers_count,
-                "worker_hosts": [list(item.keys())[0] for item in ping_res if isinstance(item, dict)],
-                "broker": settings.CELERY_BROKER_URL.split("@")[-1],
-            },
-        }
-    except Exception as e:
+    if bypass_active:
         components["celery"] = {
             "name": "Celery Distributed Workers",
             "status": "warning",
             "details": {
                 "active_workers": 0,
-                "error": str(e),
                 "broker": settings.CELERY_BROKER_URL.split("@")[-1],
+                "detail": "SEMAPHORE_BYPASS active - local sequential mode",
             },
         }
+    else:
+        try:
+            ping_res = celery_app.control.ping(timeout=0.5) or []
+            workers_count = len(ping_res)
+            celery_status = "healthy" if workers_count > 0 else "warning"
+            if workers_count == 0 and overall_status == "healthy":
+                overall_status = "warning"
+            components["celery"] = {
+                "name": "Celery Distributed Workers",
+                "status": celery_status,
+                "details": {
+                    "active_workers": workers_count,
+                    "worker_hosts": [list(item.keys())[0] for item in ping_res if isinstance(item, dict)],
+                    "broker": settings.CELERY_BROKER_URL.split("@")[-1],
+                },
+            }
+        except Exception as e:
+            components["celery"] = {
+                "name": "Celery Distributed Workers",
+                "status": "warning",
+                "details": {
+                    "active_workers": 0,
+                    "error": str(e),
+                    "broker": settings.CELERY_BROKER_URL.split("@")[-1],
+                },
+            }
 
-    # 5. Real Google Chrome
-    chrome_exec = ChromeSession.find_chrome_executable()
-    chrome_detected = chrome_exec is not None
-    chrome_status = "healthy" if chrome_detected else "critical"
-    if not chrome_detected:
-        overall_status = "critical"
+    # 5. Browser Automation Engine
+    browser_engine = (sys_settings.automation.browser_engine or "chrome").lower()
     is_headless = sys_settings.automation.headless_mode
-    mode_label = "Headless (Background)" if is_headless else "Attended (Visible GUI)"
+    is_container = Path("/.dockerenv").exists()
+
+    browser_exec = None
+    engine_name = "Google Chrome"
+    if browser_engine == "chromium":
+        browser_exec = ChromeSession.find_chromium_executable()
+        engine_name = "Playwright Chromium (Bundled)"
+    elif browser_engine in ("edge", "msedge", "microsoft-edge"):
+        browser_exec = ChromeSession.find_default_edge_executable()
+        engine_name = "Microsoft Edge"
+    else:  # chrome
+        browser_exec = ChromeSession.find_chrome_executable()
+        if not browser_exec and is_container:
+            browser_exec = ChromeSession.find_chromium_executable()
+            if browser_exec:
+                engine_name = "Playwright Chromium (Container Fallback)"
+        else:
+            engine_name = "Google Chrome"
+
+    browser_detected = browser_exec is not None
+    browser_status = "healthy" if browser_detected else "critical"
+    if not browser_detected:
+        overall_status = "critical"
+
+    if is_headless:
+        mode_label = "Headless (Background)"
+    elif is_container:
+        mode_label = "Headless (Docker Container)"
+    else:
+        mode_label = "Attended (Visible GUI)"
+
     components["chrome"] = {
-        "name": f"Google Chrome ({mode_label})",
-        "status": chrome_status,
+        "name": f"{engine_name} ({mode_label})",
+        "status": browser_status,
         "details": {
-            "detected": chrome_detected,
-            "executable_path": str(chrome_exec) if chrome_exec else "Not found",
+            "engine": browser_engine,
+            "detected": browser_detected,
+            "executable_path": str(browser_exec) if browser_exec else "Not found",
             "execution_mode": mode_label,
-            "headless_mode": is_headless,
-            "attended_mode": not is_headless,
+            "headless_mode": is_headless or is_container,
+            "attended_mode": (not is_headless) and (not is_container),
+            "containerized": is_container,
             "use_chrome_configured": sys_settings.automation.use_chrome_browser,
         },
     }
@@ -343,27 +396,36 @@ async def ping_portal_endpoint(portal_key: str) -> dict[str, Any]:
 
     name, url = portal_map[portal_key]
     start = time.perf_counter()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
     try:
         proxy_url = portal_proxy_url(sys_settings.proxy)
         async with httpx.AsyncClient(
             verify=False,
-            timeout=5.0,
+            timeout=8.0,
             follow_redirects=True,
             proxy=proxy_url,
             trust_env=False,
         ) as client:
-            res = await client.head(url)
-            if res.status_code in (405, 501):
-                res = await client.get(url)
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
+            if hasattr(client, "stream"):
+                async with client.stream("GET", url, headers=headers) as res:
+                    duration_ms = round((time.perf_counter() - start) * 1000, 2)
+                    status_code = res.status_code
+            else:
+                res = await client.get(url, headers=headers)
+                duration_ms = round((time.perf_counter() - start) * 1000, 2)
+                status_code = res.status_code
+
             return {
                 "portal_key": portal_key,
                 "portal_name": name,
                 "url": url,
-                "reachable": res.status_code < 500,
-                "status_code": res.status_code,
+                "reachable": status_code < 500,
+                "status_code": status_code,
                 "latency_ms": duration_ms,
-                "status": "healthy" if res.status_code < 400 else "warning",
+                "status": "healthy" if status_code < 400 else "warning",
             }
     except Exception:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)

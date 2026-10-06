@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+import app.compat  # noqa: F401
+
 # On Windows, Playwright requires ProactorEventLoop for subprocess creation
 if sys.platform == "win32":
     try:

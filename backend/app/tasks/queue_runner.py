@@ -6,15 +6,16 @@ when automatic mode is enabled, with seamless sequential fallback when concurren
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import redis
 from sqlalchemy import select
 
+from app.compat import utc_now
 from app.core.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import TaskAsyncSessionLocal
-from app.models.claim import ClaimRecord, RecordStatusEnum
+from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
 
 logger = logging.getLogger("uaic_orchestrator.tasks.queue_runner")
 
@@ -22,50 +23,99 @@ AUTO_MODE_KEY = "uaic:queue:auto_mode"
 ACTIVE_ITEM_KEY = "uaic:queue:active_item_id"
 ACTIVE_ITEMS_SET_KEY = "uaic:queue:active_item_ids"
 
+# Fast in-memory state fallback & bypass
+_IN_MEMORY_AUTO_MODE: bool = True
+_IN_MEMORY_ACTIVE_IDS: set[str] = set()
+
+
+_REDIS_OFFLINE_UNTIL: float = 0.0
+
+
+def _can_try_redis() -> bool:
+    import time
+    global _REDIS_OFFLINE_UNTIL
+    if getattr(settings, "SEMAPHORE_BYPASS", False):
+        return False
+    return time.monotonic() > _REDIS_OFFLINE_UNTIL
+
+
+def _mark_redis_failure():
+    import time
+    global _REDIS_OFFLINE_UNTIL
+    _REDIS_OFFLINE_UNTIL = time.monotonic() + 5.0
+
 
 def get_redis_client() -> redis.Redis:
-    return redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=1.0, socket_timeout=1.0)
+    return redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=0.2, socket_timeout=0.2)
 
 
 def is_auto_queue_enabled() -> bool:
+    global _IN_MEMORY_AUTO_MODE
+    if not _can_try_redis():
+        return _IN_MEMORY_AUTO_MODE
     try:
         r = get_redis_client()
         val = r.get(AUTO_MODE_KEY)
         if val is None:
             # Enabled by default
-            r.set(AUTO_MODE_KEY, "true")
+            try:
+                r.set(AUTO_MODE_KEY, "true")
+            except Exception:
+                pass
+            _IN_MEMORY_AUTO_MODE = True
             return True
-        return val == b"true" or val == b"1" or val == "true"
+        enabled = val == b"true" or val == b"1" or val == "true"
+        _IN_MEMORY_AUTO_MODE = enabled
+        return enabled
     except Exception as e:
-        logger.warning(f"Could not read auto_queue_enabled from Redis: {e}")
-        return True
+        _mark_redis_failure()
+        logger.debug(f"Could not read auto_queue_enabled from Redis, using in-memory state: {e}")
+        return _IN_MEMORY_AUTO_MODE
 
 
 def set_auto_queue_enabled(enabled: bool):
+    global _IN_MEMORY_AUTO_MODE
+    _IN_MEMORY_AUTO_MODE = enabled
+    if not _can_try_redis():
+        return
     try:
         r = get_redis_client()
         r.set(AUTO_MODE_KEY, "true" if enabled else "false")
     except Exception as e:
-        logger.warning(f"Could not set auto_queue_enabled in Redis: {e}")
+        _mark_redis_failure()
+        logger.debug(f"Could not set auto_queue_enabled in Redis: {e}")
 
 
 def get_active_queue_item_ids() -> list[str]:
-    """Retrieve all actively running claim IDs from Redis set (with single-item fallback)."""
+    """Retrieve all actively running claim IDs from Redis set (with single-item fallback and in-memory bypass)."""
+    global _IN_MEMORY_ACTIVE_IDS
+    if not _can_try_redis():
+        return list(_IN_MEMORY_ACTIVE_IDS)
     try:
         r = get_redis_client()
         items = r.smembers(ACTIVE_ITEMS_SET_KEY)
         if items:
-            return [i.decode("utf-8") if isinstance(i, bytes) else str(i) for i in items]
+            res = [i.decode("utf-8") if isinstance(i, bytes) else str(i) for i in items]
+            _IN_MEMORY_ACTIVE_IDS = set(res)
+            return res
         single = r.get(ACTIVE_ITEM_KEY)
         if single:
-            return [single.decode("utf-8") if isinstance(single, bytes) else str(single)]
+            s_val = single.decode("utf-8") if isinstance(single, bytes) else str(single)
+            _IN_MEMORY_ACTIVE_IDS = {s_val}
+            return [s_val]
+        _IN_MEMORY_ACTIVE_IDS.clear()
         return []
     except Exception:
-        return []
+        _mark_redis_failure()
+        return list(_IN_MEMORY_ACTIVE_IDS)
 
 
 def add_active_queue_item_id(item_id: str):
-    """Register an actively running claim ID in Redis."""
+    """Register an actively running claim ID in Redis and in-memory set."""
+    global _IN_MEMORY_ACTIVE_IDS
+    _IN_MEMORY_ACTIVE_IDS.add(item_id)
+    if not _can_try_redis():
+        return
     try:
         r = get_redis_client()
         r.sadd(ACTIVE_ITEMS_SET_KEY, item_id)
@@ -73,11 +123,15 @@ def add_active_queue_item_id(item_id: str):
         # Also maintain single-item key for backward compatibility
         r.set(ACTIVE_ITEM_KEY, item_id, ex=3600)
     except Exception:
-        pass
+        _mark_redis_failure()
 
 
 def remove_active_queue_item_id(item_id: str):
-    """Deregister a claim ID from the active Redis set."""
+    """Deregister a claim ID from the active Redis set and in-memory tracking."""
+    global _IN_MEMORY_ACTIVE_IDS
+    _IN_MEMORY_ACTIVE_IDS.discard(item_id)
+    if not _can_try_redis():
+        return
     try:
         r = get_redis_client()
         r.srem(ACTIVE_ITEMS_SET_KEY, item_id)
@@ -91,17 +145,21 @@ def remove_active_queue_item_id(item_id: str):
             else:
                 r.delete(ACTIVE_ITEM_KEY)
     except Exception:
-        pass
+        _mark_redis_failure()
 
 
 def clear_all_active_queue_items():
-    """Clear all active running claim locks in Redis."""
+    """Clear all active running claim locks in Redis and in-memory."""
+    global _IN_MEMORY_ACTIVE_IDS
+    _IN_MEMORY_ACTIVE_IDS.clear()
+    if not _can_try_redis():
+        return
     try:
         r = get_redis_client()
         r.delete(ACTIVE_ITEMS_SET_KEY)
         r.delete(ACTIVE_ITEM_KEY)
     except Exception:
-        pass
+        _mark_redis_failure()
 
 
 def get_active_queue_item_id() -> str:
@@ -137,7 +195,45 @@ async def _async_advance_auto_queue():
         # Check active claims currently in progress in DB
         active_q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
         res_active = await session.execute(active_q)
-        active_claims = list(res_active.scalars().all())
+        all_active_claims = list(res_active.scalars().all())
+
+        now = utc_now()
+        active_claims = []
+        bot_status_attrs = [
+            "fl_botstatus_broward", "fl_botstatus_hillsborough", "fl_botstatus_miami",
+            "te_botstatus_travis", "te_botstatus_dallas", "te_botstatus_harris",
+            "te_botstatus_cclerk", "te_botstatus_hcdistrict"
+        ]
+        for c in all_active_claims:
+            claim_time = c.updated_at or c.created_at
+            if claim_time:
+                claim_time_naive = claim_time.replace(tzinfo=None) if getattr(claim_time, "tzinfo", None) else claim_time
+                timeout_minutes = max(10, getattr(queue_cfg, "claim_timeout_minutes", 30))
+                if (now - claim_time_naive > timedelta(minutes=timeout_minutes)):
+                    max_retries = getattr(queue_cfg, "max_task_retries", 3)
+                    if (c.retry_count or 0) < max_retries:
+                        c.retry_count = (c.retry_count or 0) + 1
+                        c.record_status = RecordStatusEnum.NEW
+                        c.last_error = f"Interrupted by worker restart; automatically retrying (attempt {c.retry_count}/{max_retries})."
+                        for bot_attr in bot_status_attrs:
+                            if getattr(c, bot_attr) == BotStatusEnum.IN_PROGRESS:
+                                setattr(c, bot_attr, BotStatusEnum.NOT_TRIGGERED)
+                        logger.info(f"Re-enqueuing interrupted claim {c.claim_number} ({c.id}) as NEW for retry.")
+                    else:
+                        c.record_status = RecordStatusEnum.FAILED
+                        c.last_error = "Scraping timed out or was interrupted by worker restart."
+                        for bot_attr in bot_status_attrs:
+                            if getattr(c, bot_attr) == BotStatusEnum.IN_PROGRESS:
+                                setattr(c, bot_attr, BotStatusEnum.FAILED)
+                        logger.warning(f"Marking stale in-progress claim {c.claim_number} ({c.id}) as FAILED (retries exhausted).")
+                else:
+                    active_claims.append(c)
+            else:
+                active_claims.append(c)
+
+        if len(active_claims) < len(all_active_claims):
+            await session.commit()
+
         current_active_ids = {c.id for c in active_claims}
 
         # Synchronize Redis active set with database reality
@@ -154,6 +250,29 @@ async def _async_advance_auto_queue():
 
         logger.info(f"Queue runner: {len(active_claims)}/{max_concurrency} slots busy. {available_slots} slots available.")
 
+        # Auto-recover claims where scraping completed but fuzzy matching has not yet run
+        pending_fuzzy_q = (
+            select(ClaimRecord)
+            .where(
+                ClaimRecord.record_status == RecordStatusEnum.SCRAPING_COMPLETED,
+                ClaimRecord.fuzzy_match_status.in_([FuzzyMatchStatusEnum.NEW, None]),
+            )
+            .limit(5)
+        )
+        res_fuzzy = await session.execute(pending_fuzzy_q)
+        stranded_claims = res_fuzzy.scalars().all()
+        for stranded in stranded_claims:
+            logger.info(f"Auto-queue: dispatching fuzzy matching for claim {stranded.claim_number} ({stranded.id})")
+            try:
+                celery_app.send_task("app.tasks.fuzzy_tasks.evaluate_fuzzy_matches_task", args=[stranded.id], queue="matcher")
+            except Exception:
+                pass
+            try:
+                from app.tasks.fuzzy_tasks import _async_evaluate_fuzzy_matches
+                asyncio.create_task(_async_evaluate_fuzzy_matches(stranded.id))
+            except Exception:
+                pass
+
         # Pick up to available_slots NEW claims in FIFO order
         query = (
             select(ClaimRecord)
@@ -168,7 +287,11 @@ async def _async_advance_auto_queue():
         # If more slots available, check for retryable failed claims if enabled
         if len(claims_to_run) < available_slots and queue_cfg.auto_retry_failed_scrapes:
             needed = available_slots - len(claims_to_run)
-            retry_threshold = datetime.now(UTC) - timedelta(seconds=getattr(queue_cfg, "task_retry_delay_seconds", 30))
+            interval_minutes = getattr(queue_cfg, "failed_claims_retry_interval_minutes", 0) or 0
+            if interval_minutes > 0:
+                retry_threshold = utc_now() - timedelta(minutes=interval_minutes)
+            else:
+                retry_threshold = utc_now() - timedelta(seconds=getattr(queue_cfg, "task_retry_delay_seconds", 30))
             failed_q = (
                 select(ClaimRecord)
                 .where(

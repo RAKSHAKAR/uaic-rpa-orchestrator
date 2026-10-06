@@ -328,15 +328,80 @@ def derive_search_counts_fuzzy(
         return 2, 3
 
 
+DEFAULT_UNSEARCHABLE_PARTY_PATTERNS = [
+    r"^UNKNOWN\b",
+    r"\bUNKNOWN\b",
+    r"^UNIDENTIFIED\b",
+    r"^NO\s+DRIVER\b",
+    r"^NO\s+NAME\b",
+    r"\bNOT\s+PROVIDED\b",
+    r"\bNOT\s+AVAILABLE\b",
+    r"^NONE\b",
+    r"^N/?A$",
+    r"^TBD$",
+    r"^PENDING$",
+    r"UNKNOWN\s+IV\s+DRIVER",
+    r"UNKNOWN\s+CV\s+OWNER",
+    r"UNKNOWN\s+CV1\s+OWNER",
+    r"UNKNOWN\s+CV\s+OWNER\s+\d+",
+    r"UNKNOWN\s+P\d+\s+PROPERTY\s+OWNER",
+    r"UNKNOWN\s+PROPERTY\s+OWNER",
+    r"UNKNOWN\s+DRIVER",
+    r"UNKNOWN\s+OWNER",
+    r"UNKNOWN\s+PASSENGER",
+    r"UNKNOWN\s+PEDESTRIAN",
+    r"\bPOLICE\s+DEPARTMENT\b",
+    r"\bPOLICE\s+DEPT\b",
+    r"\bSHERIFF(?:'S)?\s+(?:OFFICE|DEPARTMENT)\b",
+    r"\bDEPARTMENT\s+OF\s+TRANSPORTATION\b",
+    r"\bDEPT\s+OF\s+TRANSPORTATION\b",
+    r"\bFL\s+DEPT\s+OF\s+TRANSPORTATION\b",
+    r"\bCITY\s+OF\s+[A-Z\s]+",
+    r"\bCOUNTY\s+OF\s+[A-Z\s]+",
+    r"\bSTATE\s+OF\s+[A-Z\s]+",
+    r"\bHOUSING\s+AUTHORITY\b",
+    r"\bTRANSIT\s+AUTHORITY\b",
+    r"\bMETROPOLITAN\s+TRANSIT\b",
+    r"^[A-Z0-9\s&,.-]+\b(?:LLC|INC|CORP|CORPORATION|CO\.|COMPANY|L\.L\.C\.|LTD|LIMITED|TOWING|RENTAL|ENTERPRISE)\b$",
+]
+
+
+def is_unsearchable_party(
+    first_name: str | None,
+    last_name: str | None,
+    unsearchable_patterns: list[str] | None = None,
+) -> bool:
+    """
+    Checks if a candidate party is an unsearchable entity/placeholder (e.g. UNKNOWN IV DRIVER,
+    POLICE DEPARTMENT, or pure corporate entity) that should be excluded from court portal discovery.
+    """
+    f = (first_name or "").strip()
+    l = (last_name or "").strip()
+    full = f"{f} {l}".strip().upper()
+    if not full or not l:
+        return True
+    patterns = unsearchable_patterns if unsearchable_patterns is not None else DEFAULT_UNSEARCHABLE_PARTY_PATTERNS
+    for pat in patterns:
+        try:
+            if re.search(pat, full, re.IGNORECASE) or re.search(pat, l.upper(), re.IGNORECASE):
+                return True
+        except re.error:
+            if pat.upper() in full or pat.upper() in l.upper():
+                return True
+    return False
+
+
 def generate_unique_names_for_claim(
     claim: Any,
     fuzzy_threshold: float = 0.60,
     noise_patterns: list[str] | None = None,
+    unsearchable_patterns: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Generates the ordered, deduplicated list of unique search names for a claim
     (Insured, Driver, Claimant) to be searched sequentially across county court portals.
-    Directly applies fuzzy deduplication across the 3 columns (threshold=0.60 default).
+    Directly applies fuzzy deduplication across the 3 columns (threshold=0.60 default),
+    filtering out unsearchable entities/placeholders (e.g. UNKNOWN IV DRIVER).
     """
     ins_f = _get_claim_field(claim, "insured_first_name", "Insured First Name", "insured_fn")
     ins_l = _get_claim_field(claim, "insured_last_name", "Insured Last Name", "insured_ln")
@@ -370,6 +435,9 @@ def generate_unique_names_for_claim(
         return False
 
     def _add_party(ptype: str, f: str, l: str):
+        if is_unsearchable_party(f, l, unsearchable_patterns=unsearchable_patterns):
+            logger.info(f"Skipping unsearchable candidate party [{ptype}] '{f} {l}'")
+            return
         full = clean_party_name(f, l, noise_patterns=noise_patterns)
         norm = full.lower().strip()
         if not l or not str(l).strip() or not norm:
@@ -404,7 +472,7 @@ def generate_unique_names_for_claim(
             ("Insured", ins_f, ins_l),
             ("Driver", drv_f, drv_l),
         ]:
-            if l_val and str(l_val).strip():
+            if l_val and str(l_val).strip() and not is_unsearchable_party(f_val, l_val, unsearchable_patterns=unsearchable_patterns):
                 _add_party(p_label, f_val, l_val)
                 break
 

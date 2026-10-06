@@ -1,5 +1,6 @@
 """Models package exporting all database entities."""
 
+import app.compat  # noqa: F401
 from app.models.audit_log import AuditLog
 from app.models.claim import (
     BotStatusEnum,

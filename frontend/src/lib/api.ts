@@ -25,6 +25,8 @@ import {
   ErrorScreenshot,
   StorageTestRequest,
   StorageTestResponse,
+  StorageCleanupRequest,
+  StorageCleanupResponse,
   ProxyTestRequest,
   ProxyTestResponse,
   RetryFailedResponse,
@@ -511,6 +513,11 @@ export const api = {
 
   testStorageConnection: async (payload: StorageTestRequest): Promise<StorageTestResponse> => {
     const res = await apiClient.post("/settings/test-storage", payload);
+    return res.data;
+  },
+
+  cleanupStorage: async (payload?: StorageCleanupRequest): Promise<StorageCleanupResponse> => {
+    const res = await apiClient.post("/settings/storage/cleanup", payload || {});
     return res.data;
   },
 

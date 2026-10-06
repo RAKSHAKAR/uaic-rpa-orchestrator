@@ -113,7 +113,7 @@ class MiamiDadeScraper(BaseCourtScraper):
         base_url: str | None = None,
         username: str | None = None,
         password: str | None = None,
-        requires_login: bool = True,
+        requires_login: bool = False,
         **kwargs: Any,
     ):
         super().__init__(
@@ -332,12 +332,19 @@ class MiamiDadeScraper(BaseCourtScraper):
                 if hasattr(page, "keyboard") and hasattr(page.keyboard, "press"):
                     await page.keyboard.press("Enter")
 
-            # V4 waits for its "Welcome," account control after LOGIN. A
-            # public search page is not evidence that credentials worked.
+            # V4 used its "Welcome," account control. The current portal can
+            # instead land on an authenticated My Account page with Logout.
+            # A public search page is not evidence that credentials worked.
             try:
                 await page.wait_for_function(
-                    """() => document.body.innerText.includes('Welcome,') ||
-                        !!document.querySelector('a[title*="View account information"]')""",
+                    """() => {
+                        const body = document.body?.innerText || '';
+                        return body.includes('Welcome,') ||
+                            !!document.querySelector('a[title*="View account information"]') ||
+                            (/\\bMY ACCOUNT\\b/i.test(body) &&
+                             /\\bAccount Information\\b/i.test(body) &&
+                             /\\bLog\\s?out\\b/i.test(body));
+                    }""",
                     timeout=self.timeout_ms,
                 )
             except Exception as auth_error:
@@ -356,7 +363,7 @@ class MiamiDadeScraper(BaseCourtScraper):
             raw_url = getattr(page, "url", None)
             curr_url = raw_url if isinstance(raw_url, str) else ""
             target_ocs = self.base_url or MIAMI_OCS_PORTAL_URL
-            if "ocs" not in curr_url.lower():
+            if "/ocs" not in curr_url.lower():
                 logger.info(f"[{self.county_name}] Step d: Login completed; transitioning to OCS portal: {target_ocs}")
                 goto_fn = getattr(page, "goto", None)
                 if callable(goto_fn):
@@ -567,7 +574,7 @@ class MiamiDadeScraper(BaseCourtScraper):
             raw_url = getattr(page, "url", None)
             curr_url = raw_url if isinstance(raw_url, str) else ""
             target_ocs = self.base_url
-            if curr_url and ("ocs" not in curr_url.lower() or "usermanagementservices" in curr_url.lower()):
+            if curr_url and ("caseinformation" in curr_url.lower() or "caseinfo" in curr_url.lower() or "ocs" not in curr_url.lower() or "usermanagementservices" in curr_url.lower()):
                 logger.info(f"[{self.county_name}] Step k: Direct navigating back to OCS portal: {target_ocs}")
                 goto_fn = getattr(page, "goto", None)
                 if callable(goto_fn):
@@ -857,38 +864,130 @@ class MiamiDadeScraper(BaseCourtScraper):
         except Exception:
             await page.wait_for_timeout(3500)
 
-        # Check for interactive CAPTCHA challenge popup post-submit (e.g. Google bframe)
-        res_post_cap = await _safe_eval(page, """() => {
-            const f = document.querySelector('iframe[src*="recaptcha/api2/bframe" i], iframe[src*="recaptcha" i]:not([style*="display: none"])');
-            if (f && f.offsetParent !== null) return true;
+        # Check if search results, result cards, or 'no records' are already rendered in DOM
+        results_already_rendered = await _safe_eval(page, """() => {
+            const body = document.body ? document.body.innerText : "";
+            if (body.includes("RESULTS RETURNED") || body.includes("records found") || body.includes("No records found") || body.includes("0 records")) return true;
+            if (document.querySelector(".search-results, #tblResults, table.dataTable, .card-body, .case-card, div.card, [data-row]")) return true;
             return false;
         }""")
-        if res_post_cap:
-            logger.info(f"[{self.county_name}] Post-submit interactive CAPTCHA detected. Engaging solver...")
-            if not await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds):
-                if attempt >= max_attempts:
-                    raise CaptchaResolutionError(
-                        f"[{self.county_name}] CAPTCHA remained unresolved after {max_attempts} attempts"
+        if results_already_rendered:
+            logger.info(f"[{self.county_name}] Search results already visible on page. Bypassing post-submit CAPTCHA check.")
+        else:
+            # Check for genuine interactive CAPTCHA challenge popup post-submit (e.g. Google bframe modal with actual dimensions)
+            res_post_cap = await _safe_eval(page, """() => {
+                const bframe = document.querySelector('iframe[src*="recaptcha/api2/bframe" i]');
+                if (bframe && bframe.offsetParent !== null) {
+                    const rect = bframe.getBoundingClientRect();
+                    if (rect.width > 120 && rect.height > 120) return true;
+                }
+                return false;
+            }""")
+            if res_post_cap:
+                logger.info(f"[{self.county_name}] Post-submit interactive CAPTCHA challenge popup detected. Engaging solver...")
+                if not await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds):
+                    if attempt >= max_attempts:
+                        raise CaptchaResolutionError(
+                            f"[{self.county_name}] CAPTCHA remained unresolved after {max_attempts} attempts"
+                        )
+                    logger.warning(
+                        f"[{self.county_name}] Post-submit CAPTCHA timeout on attempt {attempt}/{max_attempts}; "
+                        "reloading and restarting the party search"
                     )
-                logger.warning(
-                    f"[{self.county_name}] Post-submit CAPTCHA timeout on attempt {attempt}/{max_attempts}; "
-                    "reloading and restarting the party search"
-                )
-                await page.reload(wait_until="domcontentloaded", timeout=self.timeout_ms)
-                await page.wait_for_timeout(self.reload_backoff_seconds * 1000)
-                return await self.search_by_party_name(
-                    first_name,
-                    last_name,
-                    page,
-                    date_of_loss,
-                    _captcha_attempts_used=attempt,
-                )
+                    await page.reload(wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    await page.wait_for_timeout(self.reload_backoff_seconds * 1000)
+                    return await self.search_by_party_name(
+                        first_name,
+                        last_name,
+                        page,
+                        date_of_loss,
+                        _captcha_attempts_used=attempt,
+                    )
 
         t_sub_end = datetime.now()
         self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
 
         # Step j: Dismiss popup if present after submit
         await self.check_and_dismiss_search_criteria_popup(page)
+
+        # Step j.1: Check if direct Case Information page is displayed (single-case match redirect)
+        raw_curr_url = getattr(page, "url", None)
+        curr_url = (raw_curr_url if isinstance(raw_curr_url, str) else "").lower()
+        is_case_info = "caseinformation" in curr_url or "caseinfo" in curr_url
+        if not is_case_info:
+            info_h = page.locator("h1:has-text('CASE INFORMATION'), h2:has-text('CASE INFORMATION'), h3:has-text('CASE DETAILS'), .breadcrumb:has-text('Case Information')")
+            if await _safe_count(info_h) > 0 and await _safe_is_visible(info_h.first):
+                is_case_info = True
+
+        if is_case_info:
+            logger.info(f"[{self.county_name}] Step G: Direct Case Information page detected. Extracting single case details...")
+            t_ext_start = datetime.now()
+            body_text = await _safe_inner_text(page.locator("body"))
+            import re
+
+            # Extract Local or State Case Number
+            m_num = re.search(r"Local Case Number\s*:\s*([^\n\r]+)", body_text, re.IGNORECASE)
+            if not m_num or not m_num.group(1).strip() or m_num.group(1).strip().upper() == "N/A":
+                m_num = re.search(r"State Case Number\s*:\s*([^\n\r]+)", body_text, re.IGNORECASE)
+            case_number = m_num.group(1).strip() if m_num else ""
+
+            # Extract Filing Date
+            m_date = re.search(r"Filing Date\s*:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2})", body_text, re.IGNORECASE)
+            raw_fdate = m_date.group(1).strip() if m_date else ""
+            filing_date = ""
+            if raw_fdate:
+                m_iso = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", raw_fdate)
+                if m_iso:
+                    y, m, d = m_iso.groups()
+                    filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                else:
+                    m_us = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", raw_fdate)
+                    if m_us:
+                        m_u, d_u, y_u = m_us.groups()
+                        if len(y_u) == 2:
+                            y_u = f"20{y_u}" if int(y_u) < 50 else f"19{y_u}"
+                        filing_date = f"{int(m_u):02d}/{int(d_u):02d}/{y_u}"
+
+            # Extract Case Status
+            m_status = re.search(r"Case Status\s*:\s*([^\n\r]+)", body_text, re.IGNORECASE)
+            case_status = m_status.group(1).strip() if m_status else "OPEN"
+
+            # Extract Case Type
+            m_type = re.search(r"Case Type\s*:\s*([^\n\r]+)", body_text, re.IGNORECASE)
+            case_type = m_type.group(1).strip() if m_type else "CIVIL"
+
+            # Extract Case Style
+            m_style = re.search(r"CASE DETAILS\s*\n+([^\n\r]+)", body_text, re.IGNORECASE)
+            case_style = ""
+            if m_style:
+                candidate = m_style.group(1).strip()
+                candidate = re.sub(r"\s*bookmark\s*", "", candidate, flags=re.IGNORECASE).strip()
+                if candidate and not candidate.lower().startswith("local case number"):
+                    case_style = candidate
+            if not case_style:
+                case_style = f"{last_name}, {first_name}"
+
+            if case_number and filing_date:
+                results.append({
+                    "CaseNumber": case_number,
+                    "CaseStyle": case_style,
+                    "FilingDate": filing_date,
+                    "CaseStatus": case_status,
+                    "CaseType": case_type,
+                })
+                logger.info(f"[{self.county_name}] Successfully extracted direct case: {case_number} ({case_style}) filed {filing_date}")
+
+            t_ext_end = datetime.now()
+            self.record_stage(
+                "result_retrieval",
+                "Result Retrieval",
+                t_ext_start,
+                t_ext_end,
+                cases_found=len(results),
+                result_category="Data Found" if results else "No Record Found",
+            )
+            await self.return_to_search_state(page)
+            return results
 
         # Step i: Verify "Table View" is enabled
         await self.verify_and_enable_table_view(page)
@@ -930,17 +1029,57 @@ class MiamiDadeScraper(BaseCourtScraper):
                 line_upper = line.upper()
                 for label_key, field_key in _LABEL_MAP:
                     if label_key in line_upper and not parsed.get(field_key):
+                        # First check if key and value are on same line separated by colon
+                        if ":" in line:
+                            _, _, val = line.partition(":")
+                            if val.strip():
+                                parsed[field_key] = val.strip()
+                                break
+                        # Otherwise check the next line
                         if idx + 1 < len(lines):
                             parsed[field_key] = lines[idx + 1]
                         break
             if not parsed["case_number"] and parsed["case_number_alt"]:
                 parsed["case_number"] = parsed["case_number_alt"]
+
+            # Resilient case number fallback with regex
+            if not parsed.get("case_number"):
+                import re
+                m_num = re.search(r"\b(\d{4}-\d{4,7}-[A-Z]{2}-\d{1,2})\b", card_text, re.IGNORECASE)
+                if m_num:
+                    parsed["case_number"] = m_num.group(1).upper()
+
+            # Resilient date fallback with regex
+            if not parsed.get("filing_date"):
+                import re
+                d_match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{4})\b", card_text)
+                if d_match:
+                    parsed["filing_date"] = d_match.group(1)
+
+            # Resilient style fallback from first non-label line
+            if not parsed.get("case_style"):
+                import re
+                for line in lines:
+                    line_clean = line.strip()
+                    if not line_clean or len(line_clean) < 3:
+                        continue
+                    if any(lbl in line_clean.upper() for lbl in ["LOCAL CASE", "STATE CASE", "CASE NUMBER", "FILING DATE", "SECTION", "STATUS", "BOOKMARK", "VIEW", "DETAILS"]):
+                        continue
+                    if re.match(r"^\d{4}-\d+", line_clean):
+                        continue
+                    parsed["case_style"] = line_clean
+                    break
+
+            if not parsed.get("case_status"):
+                parsed["case_status"] = "OPEN"
+            if not parsed.get("case_type"):
+                parsed["case_type"] = "CIVIL"
             return parsed
 
         # Discover dynamic table headers if table view is rendered
         header_names: list[str] = []
         try:
-            th_loc = page.locator("#tblResults thead th, table.table thead th, table.dataTable thead th, table thead th")
+            th_loc = page.locator("#tblResults thead th, table.dataTable thead th, table thead th")
             th_count = await _safe_count(th_loc)
             for h_i in range(th_count):
                 th_el = getattr(th_loc, "nth", lambda _: None)(h_i)
@@ -957,8 +1096,8 @@ class MiamiDadeScraper(BaseCourtScraper):
         while has_next_page:
             page_start_count = len(results)
             page_signature: list[tuple[str, ...]] = []
-            # Check for table rows (Primary Table View)
-            table_rows = page.locator("#tblResults tbody tr, table.table tbody tr, table.dataTable tbody tr")
+            # Check for table rows (Primary Table View) - strictly target results table
+            table_rows = page.locator("#tblResults tbody tr, table#tblCaseList tbody tr, #caseList tbody tr, table.dataTable:not(#tblDockets) tbody tr")
             table_row_count = await _safe_count(table_rows)
 
             if table_row_count > 0:
@@ -976,16 +1115,72 @@ class MiamiDadeScraper(BaseCourtScraper):
                         cells.append((await _safe_inner_text(cell_el)).strip())
                     page_signature.append(tuple(cells))
 
-                    # Map table cells: Local Case No, State Case No, Section, Case Type, Filing Date, Case Status, Case Style
-                    local_num = cells[0].strip() if len(cells) > 0 else ""
-                    state_num = cells[1].strip() if len(cells) > 1 else ""
-                    case_num = local_num or state_num
-                    case_type = cells[3].strip() if len(cells) > 3 else ""
-                    filing_date = cells[4].strip() if len(cells) > 4 else ""
-                    case_status = cells[5].strip() if len(cells) > 5 else ""
-                    case_style = cells[6].strip() if len(cells) > 6 else ""
+                    # Dynamically map table cells using discovered headers or standard Miami-Dade OCS order:
+                    # Miami-Dade OCS Table Headers: ['Case Style', 'Local Case Number', 'State Case Number', 'Section', 'Case Type', 'Filing Date', 'Case Status']
+                    col_map: dict[str, int] = {}
+                    for h_idx, h in enumerate(header_names):
+                        h_lower = h.lower()
+                        if "style" in h_lower:
+                            col_map["style"] = h_idx
+                        elif "local" in h_lower:
+                            col_map["local_num"] = h_idx
+                        elif "state" in h_lower:
+                            col_map["state_num"] = h_idx
+                        elif "type" in h_lower:
+                            col_map["type"] = h_idx
+                        elif "date" in h_lower or "filing" in h_lower:
+                            col_map["date"] = h_idx
+                        elif "status" in h_lower:
+                            col_map["status"] = h_idx
 
-                    if case_num:
+                    # Fallbacks if header names were empty:
+                    idx_style = col_map.get("style", 0)
+                    idx_local = col_map.get("local_num", 1)
+                    idx_state = col_map.get("state_num", 2)
+                    idx_type = col_map.get("type", 4)
+                    idx_date = col_map.get("date", 5)
+                    idx_status = col_map.get("status", 6)
+
+                    case_style = cells[idx_style].strip() if len(cells) > idx_style else ""
+                    local_num = cells[idx_local].strip() if len(cells) > idx_local else ""
+                    state_num = cells[idx_state].strip() if len(cells) > idx_state else ""
+                    case_num = local_num or state_num
+                    case_type = cells[idx_type].strip() if len(cells) > idx_type else ""
+                    filing_date = cells[idx_date].strip() if len(cells) > idx_date else ""
+                    case_status = cells[idx_status].strip() if len(cells) > idx_status else ""
+
+                    # Skip header labels or invalid rows
+                    _HDRS = {"CASE STYLE", "LOCAL CASE NUMBER", "STATE CASE NUMBER", "CASE NUMBER", "FILING DATE", "CASE STATUS", "CASE TYPE"}
+                    if case_num.upper() in _HDRS or case_style.upper() in _HDRS:
+                        continue
+
+                    # Regex normalize date if needed (e.g. YYYY-MM-DD -> MM/DD/YYYY)
+                    import re
+                    m_iso = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", filing_date)
+                    if m_iso:
+                        y, m, d = m_iso.groups()
+                        filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                    else:
+                        m_us = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", filing_date)
+                        if m_us:
+                            m, d, y = m_us.groups()
+                            if len(y) == 2:
+                                y = f"20{y}" if int(y) < 50 else f"19{y}"
+                            filing_date = f"{int(m):02d}/{int(d):02d}/{y}"
+                        else:
+                            # Search across all cells for a valid date if idx_date was empty/misaligned
+                            filing_date = ""
+                            for c_val in cells:
+                                d_match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", c_val)
+                                if d_match:
+                                    raw_d = d_match.group(1)
+                                    m_p, d_p, y_p = raw_d.split("/")
+                                    if len(y_p) == 2:
+                                        y_p = f"20{y_p}" if int(y_p) < 50 else f"19{y_p}"
+                                    filing_date = f"{int(m_p):02d}/{int(d_p):02d}/{y_p}"
+                                    break
+
+                    if case_num and case_style and filing_date:
                         case_payload: dict[str, Any] = {
                             "CaseNumber": case_num,
                             "CaseType": case_type,
@@ -993,11 +1188,10 @@ class MiamiDadeScraper(BaseCourtScraper):
                             "CaseStatus": case_status,
                             "CaseStyle": case_style,
                         }
-
                         results.append(case_payload)
             else:
                 # Card View extraction (Power Automate V4 Parity: Subflow_Miami line 119)
-                cards = page.locator(".card-body, .case-card, div.card, div[class*='result'], div.col-md-12 > div.card")
+                cards = page.locator("div.card, .case-card, div.col-md-12 > div.card")
                 card_count = await _safe_count(cards)
                 logger.info(f"[{self.county_name}] Step G/H: Page {page_num}: Found {card_count} result cards")
 
@@ -1008,27 +1202,33 @@ class MiamiDadeScraper(BaseCourtScraper):
                         continue
                     page_signature.append((card_text.strip(),))
 
-                    # Try V4 exact hierarchy first:
-                    # div:eq(0) > p -> CaseStyle (Value #1)
-                    # div:eq(1) > div > div:eq(0) > p:eq(1) -> CaseNumber (Value #2)
-                    # div:eq(1) > div > div:eq(4) > p:eq(1) -> FilingDate (Value #3)
-                    # div:eq(1) > div > div:eq(5) > p:eq(1) -> CaseStatus (Value #4)
-                    # div:eq(1) > div > div:eq(3) > p:eq(1) -> CaseType (Value #5)
-                    v4_style = await _safe_inner_text(card.locator("div:nth-child(1) > p, p.card-title, .case-style"))
-                    v4_case_num = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(1) > p:nth-child(2), p.case-number, .case-num"))
-                    v4_filing_date = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(5) > p:nth-child(2), .filing-date"))
-                    v4_case_status = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(6) > p:nth-child(2), .case-status"))
-                    v4_case_type = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(4) > p:nth-child(2), .case-type"))
+                    # Try V4 exact hierarchy first
+                    v4_style = await _safe_inner_text(card.locator("div:nth-child(1) > p, p.card-title, .case-style, .card-header a, .card-header, h5.card-title, .card-title, h5"))
+                    v4_case_num = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(1) > p:nth-child(2), p.case-number, .case-num, span.case-number"))
+                    v4_filing_date = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(5) > p:nth-child(2), .filing-date, span.filing-date"))
+                    v4_case_status = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(6) > p:nth-child(2), .case-status, span.case-status"))
+                    v4_case_type = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(4) > p:nth-child(2), .case-type, span.case-type"))
 
                     parsed = _parse_card(card_text)
                     case_number = v4_case_num.strip() or parsed["case_number"]
-                    if case_number:
+                    filing_date = v4_filing_date.strip() or parsed["filing_date"]
+                    case_style = v4_style.strip() or parsed["case_style"] or f"{last_name}, {first_name}"
+                    case_status = v4_case_status.strip() or parsed["case_status"] or "OPEN"
+                    case_type = v4_case_type.strip() or parsed["case_type"] or "CIVIL"
+
+                    if not filing_date:
+                        import re
+                        d_match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{4})\b", card_text)
+                        if d_match:
+                            filing_date = d_match.group(1)
+
+                    if case_number and filing_date:
                         results.append({
                             "CaseNumber": case_number,
-                            "CaseStyle": v4_style.strip() or parsed["case_style"],
-                            "FilingDate": v4_filing_date.strip() or parsed["filing_date"],
-                            "CaseStatus": v4_case_status.strip() or parsed["case_status"],
-                            "CaseType": v4_case_type.strip() or parsed["case_type"],
+                            "CaseStyle": case_style,
+                            "FilingDate": filing_date,
+                            "CaseStatus": case_status,
+                            "CaseType": case_type,
                         })
 
             signature = tuple(page_signature)
@@ -1066,7 +1266,43 @@ class MiamiDadeScraper(BaseCourtScraper):
 
         if not results:
             body_text = (await _safe_inner_text(page.locator("body"))).lower()
-            if not any(message in body_text for message in ("no records found", "no cases found", "no cases matched", "no data available")):
+            no_match_phrases = (
+                "no data found",
+                "0 results returned",
+                "0 results",
+                "no records found",
+                "no cases found",
+                "no cases matched",
+                "no data available",
+                "no matching records found",
+                "no matching records",
+                "showing 0 to 0 of 0",
+                "0 entries",
+                "no records to display",
+                "search results 0",
+                "0 records",
+                "0 items returned",
+            )
+            has_empty_indicator = any(msg in body_text for msg in no_match_phrases)
+            if not has_empty_indicator:
+                # Also check dataTables_empty class or 0 entries in info
+                empty_dt = page.locator(".dataTables_empty, #tblResults_info:has-text('0 to 0 of 0')")
+                if await _safe_count(empty_dt) > 0:
+                    has_empty_indicator = True
+
+            if not has_empty_indicator:
+                # Check if results container or table is visibly empty
+                table_visible = await _safe_count(page.locator("#tblResults, table.dataTable")) > 0
+                if table_visible and table_row_count == 0:
+                    has_empty_indicator = True
+
+            if not has_empty_indicator:
+                # Check if still on search form
+                is_search_form = await _safe_eval(page, "() => !!document.getElementById('txtLastName') || !!document.querySelector('input[name*=\"LastName\" i]')")
+                if is_search_form:
+                    logger.info(f"[{self.county_name}] Remained on search form with 0 records; returning empty result.")
+                    await self.return_to_search_state(page)
+                    return []
                 raise RuntimeError(f"[{self.county_name}] Search completed without results or a verified no-match message")
 
         t_ext_end = datetime.now()

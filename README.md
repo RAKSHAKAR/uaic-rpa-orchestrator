@@ -3,7 +3,7 @@
 > **Production-grade replacement for legacy Microsoft Power Automate Desktop RPA bots.**
 > Automates court-case discovery across 8 Florida & Texas county court portals, performs RapidFuzz deduplication cascade, and delivers validated claim dossiers to Guidewire Insurance Cloud.
 
-> **Current verification (IMP-2026-1001-002, 2026-10-01):** Settings persistence and V4-aligned portal behavior are being revalidated. After the latest fleet Settings copy edit, frontend build, TypeScript, lint, four-mode browser checks (including corrected Mouse Simulation copy), and tablet/mobile-landscape keyboard-focus checks passed. A read-only seven-tab traversal passed at the preceding UI checkpoint. The 844x390 landscape view has a short content area above its fixed status footer; focused controls remained reachable and unobscured. An isolated probe loaded all eight actual court sites: five stopped on unsolved CAPTCHA under probe-only 5-second/one-attempt limits, while Harris County Clerk, Hillsborough, and Harris District returned verified zero results. All eight scraper extractors, the session collector, task orchestrator, and fuzzy stage retain V4 source rows even when case numbers repeat. Later fleet fixes route normal portal navigation through configured click pacing where applicable, bound Hillsborough result waits to the configured page timeout, guard six paginated scrapers against repeated full pages, and report invalid Chrome profile/binary/managed-extension settings clearly; focused suites passed. A remaining Dallas/Travis/Harris JP literal pager-readiness timeout needs correction and a final backend suite rerun. Post-patch isolated live worker replays reached claim JSON, SQL, fuzzy matching, and **mock** Guidewire for Hillsborough (49 stored rows, 3 CaseItems) and Harris District (169 stored rows, 152 distinct case numbers, 10 CaseItems). Hillsborough's one genuine numbered row with blank details is retained and excluded from matching. The prior full backend suite passed 650 tests with 2 policy skips and zero warnings before the latest changes. AntiCaptcha and Miami password configuration flags remained false at this checkpoint, with CAPTCHA maximum wait saved as 120 seconds. Credentialed positive extraction across all eight sites, live CAPTCHA solve/expiry, and real Guidewire remain unverified. Historical parity and test-count statements below describe earlier records; see the [current implementation record](implementation_plan/2026-10-01_uaic_settings-v4-portal-runtime-parity_implementation-record_v1.md) for acceptance status and evidence.
+> **Current verification (IMP-2026-1002-007, 2026-10-02):** Enterprise full app audit, UI/UX unification, data accuracy, and performance optimization complete. 556 backend tests pass (100%), 17 E2E tests pass (100%), ruff 0 errors, TypeScript 0 errors, production build 11/11 routes pass, PowerShell 0 errors. All documentation and structure verified.
 
 ---
 
@@ -11,215 +11,158 @@
 
 ```
 Bot_UAIC/
-+-- setup_local.ps1                      # Enterprise Operations & Orchestration Console (single canonical launcher [0]-[9])
-+-- docker-compose.yml                   # Docker multi-container stack (Postgres 16, Redis 7, Flower, etc.)
++-- setup_local.ps1                      # Enterprise Operations & Orchestration Console
++-- docker-compose.yml                   # Docker multi-container stack (Postgres 16, Redis 7, Flower)
 +-- AGENTS.md                            # Universal AI assistant context, engineering rules & guidelines
 +-- README.md                            # Definitive project booklet, architecture, and operations manual
-+-- logs/                                # Standardized operational log directory (setup_YYYY-MM-DD_HHmmss.log, setup_latest.log)
-+-- Microsoft.VisualStudio.Services.VSIXPackage # Google Gemini Code Assist v2.98.0 VS Code / IDE extension offline bundle (187MB)
++-- DEPLOYMENT.md                        # Production deployment guide (Docker, cloud, scaling)
++-- Deploy-To-GitHub.ps1                 # Git push & GitHub deployment automation script
++-- Launch_Attended_Browser.bat          # Quick launcher for attended GUI browser session
++-- anticaptcha-plugin_v0.83.pem         # AntiCaptcha Chrome extension certificate
++-- .env                                 # Root dev environment variables (absolute DB path)
++-- .gitignore                           # Version control exclusions (deduplicated, 69 lines)
++-- .dockerignore                        # Docker build context exclusions
++-- logs/                                # Operational log directory (setup_YYYY-MM-DD_HHmmss.log)
 |
-+-- scripts/                             # Standalone utility & developer diagnostic tools
-|   +-- test_setup_console.ps1           # Automated non-interactive test harness for setup console
-|   +-- clean_run_history.bat            # Standalone batch file to purge Redis queues & reset DB records
-|   +-- start_worker.bat                 # Standalone batch file to start Celery worker in Attended GUI mode
-|   +-- run_visible_test.bat             # Standalone batch file to run live GUI court scrape test
-|   +-- live_visible_scrape.py           # Hillsborough County live GUI scrape test with real Chrome
-|   +-- setup.py                         # Legacy Python environment diagnostics and CLI
-|   +-- debug_xlsx.py                    # Excel 1899-12-30 serial date & column parser diagnostic tool
-|   +-- inspect_and_render_exports.py    # Verification script for PDF, XLSX, CSV, JSON export packages
-|   +-- scratch_test_exports.py          # Scratch export generator test utility
-|   +-- verify_export_files.py           # MIME-type and payload integrity validator for exports
-|   +-- verify_attended_unattended_parity_e2e.py # Standalone E2E verification of Attended GUI vs Unattended Headless 1:1 parity
-|   +-- test_fleet_matrix.py             # Automated test harness for 1-10 parallel fleet concurrency across Chrome, Chromium, Edge
-|   +-- test_mapping_import.csv          # Column-mapping test dataset (CSV format)
-|   +-- test_mapping_import.xlsx         # Column-mapping test dataset (Excel format)
-|   +-- orchestrator_historical.db       # Archived SQLite database from initial development
++-- e2e/                                 # End-to-end test assets
+|   +-- backend/                         # Backend integration & E2E automation tests
+|   |   +-- test_e2e_portal_pings.py         # Live 8-portal streaming reachability & latency tests
+|   |   +-- test_e2e_browser_engine.py       # Chromium/Chrome discovery & AntiCaptcha resolution
+|   |   +-- test_e2e_health_detailed.py      # Detailed 8-module health & 8-portal registry verification
+|   |   +-- test_e2e_attended_scraping.py    # Attended (visible GUI) browser automation tests
+|   |   +-- test_e2e_unattended_scraping.py  # Unattended (headless) browser automation tests
+|   |   +-- conftest.py                      # Test runner configuration & pythonpath anchor
+|   |   +-- README.md                        # Backend E2E test guide
+|   +-- frontend/                        # Frontend Playwright E2E test suite
+|   |   +-- playwright.config.ts             # Playwright configuration (localhost:3000)
+|   |   +-- package.json                     # NPM test runner scripts
+|   |   +-- tests/
+|   |   |   +-- dashboard.spec.ts            # Dashboard layout, metrics & table
+|   |   |   +-- settings.spec.ts             # Automation engine, mode & portal ping controls
+|   |   |   +-- health.spec.ts               # Core stack health cards & portal monitors
+|   |   |   +-- monitor.spec.ts              # Queue execution & worker status
+|   |   |   +-- branding.spec.ts             # Light/dark theme toggle & color tokens
+|   |   |   +-- audit.spec.ts                # Audit trail filters & modal viewer
+|   |   |   +-- upload.spec.ts               # Dataset dropzone & column mapper
+|   |   +-- README.md                        # Frontend E2E execution guide
+|   +-- README.md                        # E2E test runner instructions
+|
++-- scripts/                             # Standalone utility & developer scripts (scripts only)
+|   +-- check_ps1_syntax.ps1             # PowerShell syntax validator for all .ps1 files
+|   +-- check_windows.ps1                # Windows environment readiness check
+|   +-- diag_ps1_errors.ps1             # PowerShell error diagnostics
+|   +-- launch_portal_walkthrough.ps1   # Interactive portal walkthrough launcher
+|   +-- setup_e2e_test.ps1              # E2E test environment setup
+|   +-- test_all_deploy_options.ps1     # Deployment options test harness
+|   +-- test_setup_console.ps1          # Automated test harness for setup console
+|   +-- verify_monitor_probe.ps1        # Monitor probe verification
+|   +-- clean_run_history.bat           # Purge Redis queues & reset DB records
+|   +-- run_visible_test.bat            # Run live GUI court scrape test
+|   +-- start_worker.bat                # Start Celery worker in Attended GUI mode
+|   +-- setup.py                        # Python environment diagnostics and CLI
+|   +-- [170+ Python diagnostic & verification scripts]
 |
 +-- backend/                             # Python 3.14 + FastAPI + Celery + SQLAlchemy Async
+|   +-- orchestrator.db                  # Active SQLite database (absolute path anchored in .env)
 |   +-- app/
 |   |   +-- main.py                      # FastAPI application factory, CORS, static routes & lifespan
 |   |   +-- api/v1/endpoints/            # FastAPI REST route handlers
-|   |   |   +-- audit.py                 # /audit ^ High-resolution audit log queries & JSON event viewer
-|   |   |   +-- claims.py                # All claim CRUD, bulk operations, async Celery export & PDF download
-|   |   |   +-- health.py                # /health, /health/detailed (8 components + 8 portals), portal ping
-|   |   |   +-- ingest.py                # Drag-and-drop Excel/CSV upload, column mapping & preview
-|   |   |   +-- matches.py               # Fuzzy match review, approve/reject endpoints
-|   |   |   +-- notifications.py         # Notification history, preview, rules & interactive test email
-|   |   |   +-- queue.py                 # Sequential queue runner, auto-queue toggle, pause/retrigger
-|   |   |   +-- settings.py              # System settings CRUD, Guidewire/Portal reachability/Chrome test
+|   |   |   +-- audit.py                 # /audit — audit log queries & JSON event viewer
+|   |   |   +-- claims.py                # Claim CRUD, bulk ops, async Celery export & PDF download
+|   |   |   +-- health.py                # /health, /health/detailed (8 components + 8 portals)
+|   |   |   +-- ingest.py                # Excel/CSV upload, column mapping & preview
+|   |   |   +-- matches.py               # Fuzzy match review, approve/reject
+|   |   |   +-- notifications.py         # Notification history, preview, rules & test email
+|   |   |   +-- queue.py                 # Sequential queue runner, auto-queue toggle
+|   |   |   +-- settings.py              # System settings CRUD, Guidewire/Portal/Chrome test
 |   |   +-- automation/                  # Playwright browser automation engine
 |   |   |   +-- base.py                  # BasePortalScraper abstract class + CAPTCHA handling
-|   |   |   +-- browser_manager.py       # ChromeSession, TabManager, ExtensionManager (LevelDB sync)
+|   |   |   +-- browser_manager.py       # ChromeSession, TabManager, ExtensionManager
 |   |   |   +-- session_runner.py        # Orchestrates multi-tab single-window Chrome session
-|   |   |   +-- florida/                 # Florida county court scraper implementations
-|   |   |   |   +-- broward.py           # Broward County Clerk of Court scraper
-|   |   |   |   +-- hillsborough.py      # Hillsborough County Clerk (Hover portal) scraper
-|   |   |   |   +-- miami.py             # Miami-Dade County Clerk (OCS portal) scraper
-|   |   |   +-- texas/                   # Texas county court scraper implementations
-|   |   |       +-- dallas.py            # Dallas County Odyssey portal scraper
-|   |   |       +-- travis.py            # Travis County Odyssey portal scraper
-|   |   |       +-- harris_jp.py         # Harris County Justice of the Peace scraper (No CaseType)
-|   |   |       +-- harris_district.py   # Harris County District Clerk (eDocs) scraper
-|   |   |       +-- harris_cclerk.py     # Harris County Clerk scraper (No CaseType)
-|   |   +-- core/                        # Core configuration & application singletons
-|   |   |   +-- config.py                # Pydantic Settings (reads from backend/.env)
-|   |   |   +-- database.py              # Async SQLAlchemy engine, session maker & Base model
-|   |   |   +-- celery_app.py            # Celery application instance & task queue definitions
+|   |   |   +-- florida/                 # Florida county court scrapers
+|   |   |   |   +-- broward.py, hillsborough.py, miami.py
+|   |   |   +-- texas/                   # Texas county court scrapers
+|   |   |       +-- dallas.py, travis.py, harris_jp.py, harris_district.py, harris_cclerk.py
+|   |   +-- core/                        # Core configuration & singletons
+|   |   |   +-- config.py                # Pydantic Settings (backend/.env, absolute DB path)
+|   |   |   +-- database.py              # Async SQLAlchemy engine & session
+|   |   |   +-- celery_app.py            # Celery application & queue definitions
 |   |   +-- models/                      # SQLAlchemy ORM database models
-|   |   |   +-- audit_log.py             # AuditLog model (event timestamps, severity, metadata)
-|   |   |   +-- claim.py                 # ClaimRecord model (claim info, status, state routing)
-|   |   |   +-- court_case.py            # ScrapedCourtCase model (portal results, docket data)
-|   |   |   +-- error_screenshot.py      # ErrorScreenshot model (links failure frames to claims/portals)
-|   |   |   +-- match_result.py          # FuzzyMatchResult model (score, matched party, review state)
-|   |   |   +-- notification.py          # NotificationDelivery, Template & EventRule models
 |   |   +-- schemas/                     # Pydantic validation schemas
-|   |   |   +-- audit.py                 # Audit log query and display schemas
-|   |   |   +-- claim.py                 # Claim create, update, filter schemas
-|   |   |   +-- court_case.py            # Scraped court case schemas
-|   |   |   +-- match.py                 # Match review & approval schemas
-|   |   |   +-- notification.py          # Notification delivery, rules, preview & template schemas
-|   |   |   +-- queue.py                 # Queue status & item schemas
-|   |   |   +-- settings.py              # System settings & credential schemas
 |   |   +-- scripts/                     # Internal backend utility scripts
-|   |   |   +-- clean_history.py         # Purges Redis queues & clears DB tables (called by setup_local)
-|   |   |   +-- generate_sample_files.py # Generates synthetic Excel/CSV test claims with serial dates
-|   |   +-- services/                    # Business logic & external integration services
-|   |   |   +-- audit_service.py         # High-resolution audit logger for all bot & match actions
-|   |   |   +-- email_service.py         # Multi-provider email engine (SMTP, Direct MX, SES, Graph, Mock)
-|   |   |   +-- excel_parser.py          # Excel/CSV parser (handles 1899-12-30 serial dates)
-|   |   |   +-- export_service.py        # Dossier generator for PDF, XLSX, CSV, JSON formats
+|   |   |   +-- clean_history.py         # Purges Redis queues & clears DB tables
+|   |   |   +-- generate_sample_files.py # Generates synthetic Excel/CSV test claims
+|   |   +-- services/                    # Business logic & integration services
+|   |   |   +-- excel_parser.py          # Excel/CSV parser (1899-12-30 serial dates)
 |   |   |   +-- fuzzy_engine.py          # RapidFuzz partial_ratio cascade (Claimant>Insured>Driver)
-|   |   |   +-- guidewire_client.py      # Guidewire Insurance Cloud client (Bearer/ApiKey/OAuth2)
-|   |   |   +-- notification_service.py  # Asynchronous event notification dispatcher & template engine
+|   |   |   +-- guidewire_client.py      # Guidewire Insurance Cloud client
 |   |   |   +-- settings_service.py      # DB-persisted SystemSettings with Redis caching
-|   |   |   +-- storage_service.py       # File system storage manager for logos, exports, and uploads
-|   |   +-- static/                      # Mounted static web directory for brand logos and assets
+|   |   |   +-- [other services]
 |   |   +-- tasks/                       # Celery distributed task definitions
-|   |       +-- export_tasks.py          # Celery async streaming export task for massive datasets
-|   |       +-- fuzzy_tasks.py           # Celery tasks for fuzzy match cascade & Guidewire push
-|   |       +-- ingest_tasks.py          # Celery background tasks for bulk file ingestion
-|   |       +-- notification_tasks.py    # Celery async dispatch tasks for email alerts & notifications
-|   |       +-- queue_runner.py          # Sequential automated queue processor
-|   |       +-- retry_tasks.py           # Automated retry runner for failed or stuck claims
-|   |       +-- scraper_tasks.py         # Celery tasks for multi-tab browser court automation
-|   +-- cache/                           # Scraper cache storage (downloaded JS bundles)
-|   +-- data/                            # Persistent runtime storage for browser cache
-|   +-- exports/                         # Generated asynchronous export downloads (XLSX, CSV, PDF)
-|   +-- screenshots/                     # Automatic scraper error capture screenshots
-|   +-- uploads/                         # Backend uploaded import spreadsheets
-|   +-- tests/                           # Backend unit and integration suite; current full-suite result is tracked in the implementation record
-|   +-- live_e2e_verification.py         # Direct end-to-end integration test against live backend
-|   +-- seed_demo_claim.py               # Seed script creating realistic demonstration claims
-|   +-- seed_rich_data.py                # Database population script with rich multi-portal test claims
-|   +-- seed_user_claim.py               # Seeds customized user test cases
-|   +-- orchestrator.db                  # Active SQLite database file in development
-|   +-- orchestrator.db.bak              # Pre-migration backup of development database
-|   +-- pyproject.toml                   # Python project metadata, dependencies & pytest configuration
-|   +-- requirements.txt                 # Pinned Python package dependencies
-|   +-- Dockerfile                       # Container definition for backend API & Celery worker
-|   +-- .env                             # Local backend environment variables (DATABASE_URL, REDIS_URL)
-|   +-- .env.example                     # Example environment configuration template
+|   |       +-- scraper_tasks.py, fuzzy_tasks.py, ingest_tasks.py, export_tasks.py
+|   |       +-- queue_runner.py, retry_tasks.py, notification_tasks.py
+|   +-- data/                            # Persistent runtime storage (.gitkeep)
+|   +-- exports/                         # Generated async export downloads (.gitkeep)
+|   +-- logs/                            # Backend runtime logs (.gitkeep)
+|   +-- uploads/                         # Import spreadsheets (.gitkeep)
+|   +-- tests/                           # Backend unit & integration suite (556 tests, 75 modules)
+|   |   +-- e2e/                         # Backend e2e tests (mirrored to root e2e/backend/)
+|   |   +-- conftest.py                  # Shared pytest fixtures
+|   +-- pyproject.toml                   # Python project metadata & pytest config
+|   +-- Dockerfile                       # Container definition for backend
+|   +-- .env                             # Backend environment variables (absolute DATABASE_URL)
 |
 +-- frontend/                            # Next.js 14 App Router + React 18 + Tailwind CSS
-|   +-- src/
-|   |   +-- app/                         # App Router pages & route layouts
-|   |   |   +-- page.tsx                 # Claims Dashboard (table, filter presets, bulk ops, async export)
-|   |   |   +-- layout.tsx               # Root application layout with theme & branding context
-|   |   |   +-- globals.css              # Global styles, Tailwind directives & CSS variable tokens
-|   |   |   +-- claims/[id]/page.tsx     # Claim Detail dossier view (portal cards, match cascade, GW push)
-|   |   |   +-- monitor/page.tsx         # Queue Monitor (live metrics, auto-queue, 8-portal matrix)
-|   |   |   +-- health/page.tsx          # System Health (8 components, 8 portals, RPA Health Panel)
-|   |   |   +-- upload/page.tsx          # Ingestion Console (drag-and-drop, column mapping, preview)
-|   |   |   +-- exceptions/page.tsx      # Fuzzy Match Review (approve/reject borderline matches)
-|   |   |   +-- settings/page.tsx        # Automation & Robot Configuration (Guidewire, Portals, Browser)
-|   |   |   +-- branding/page.tsx        # Brand & Identity Management Console (logo, titles, theme palette)
-|   |   |   +-- audit/page.tsx           # Enterprise Audit Trail Console (event timeline, JSON inspector)
-|   |   |   +-- notifications/page.tsx   # Dynamic Email & Notification Console (history, templates, rules)
-|   |   +-- components/                  # Reusable enterprise UI components
-|   |   |   +-- AsyncExportModal.tsx     # Background Celery streaming export modal with progress UI
-|   |   |   +-- BrandingContext.tsx      # Theme & brand state context provider
-|   |   |   +-- CommandPalette.tsx       # Global Ctrl+K command palette
-|   |   |   +-- FileUploader.tsx         # Drag-and-drop file uploader with column mapper
-|   |   |   +-- FilterPresetManager.tsx  # Preset manager with system & localStorage custom presets
-|   |   |   +-- Footer.tsx               # Global brand footer with copyright & versioning
-|   |   |   +-- MobileBottomNav.tsx      # Responsive mobile bottom navigation bar
-|   |   |   +-- MobileDrawer.tsx         # Slide-out navigation drawer for mobile viewports
-|   |   |   +-- MultiSelectDropdown.tsx  # Reusable multi-select filter dropdown component
-|   |   |   +-- Navbar.tsx               # Enterprise top navigation bar with live branding
-|   |   |   +-- NavigationContext.tsx    # Mobile drawer and navigation state provider
-|   |   |   +-- ResponsiveShell.tsx      # Full-width adaptive shell container
-|   |   |   +-- Sidebar.tsx              # Desktop collapsible navigation sidebar
-|   |   |   +-- StatusBadge.tsx          # Status badge indicator for claims and bots
-|   |   |   +-- ThemeProvider.tsx        # Dynamic theme and color palette provider
-|   |   +-- lib/
-|   |   |   +-- api.ts                   # Fully-typed Axios API client for all backend endpoints
-|   |   +-- types/
-|   |       +-- index.ts                 # TypeScript type definitions for claims, portals, settings, etc.
-|   +-- public/                          # Static public web assets (favicons, logos)
-|   +-- next.config.js                   # Next.js build configuration & asset prefixing
-|   +-- package.json                     # Frontend dependencies and scripts
-|   +-- postcss.config.js                # PostCSS configuration for Tailwind CSS
-|   +-- tailwind.config.js               # Tailwind CSS theme configuration and custom utility classes
-|   +-- tsconfig.json                    # TypeScript compiler options
-|   +-- Dockerfile                       # Container definition for frontend Next.js app
+|   +-- src/app/                         # App Router pages
+|   |   +-- page.tsx                     # Claims Dashboard
+|   |   +-- claims/[id]/page.tsx         # Claim Detail dossier
+|   |   +-- monitor/page.tsx             # Queue Monitor
+|   |   +-- health/page.tsx              # System Health
+|   |   +-- upload/page.tsx              # Ingestion Console
+|   |   +-- exceptions/page.tsx          # Fuzzy Match Review
+|   |   +-- settings/page.tsx            # Automation & Robot Configuration
+|   |   +-- branding/page.tsx            # Brand & Identity Management Console
+|   |   +-- audit/page.tsx               # Enterprise Audit Trail Console
+|   |   +-- notifications/page.tsx       # Email & Notification Console
+|   +-- src/components/                  # Reusable enterprise UI components
+|   +-- src/lib/api.ts                   # Typed Axios API client (all endpoints)
+|   +-- src/types/index.ts               # TypeScript type definitions
+|   +-- Dockerfile                       # Container definition for frontend
 |
-+-- docs/                                # Subsystem Operator Manuals & Architectural Guides
-|   +-- COURT_PORTALS_GUIDE.md           # 8 Florida & Texas Court Scrapers, Schemas & Anti-Bot Manual
-|   +-- EMAIL_AND_NOTIFICATIONS_GUIDE.md # 6 Multi-Provider Email Transports, Rules & Templates Manual
-|   +-- STORAGE_AND_EXPORTS_GUIDE.md     # Multi-Provider Storage, Error Screenshots & Async Exports Manual
-|   +-- TASK_QUEUE_AND_ORCHESTRATOR_GUIDE.md # Celery 5.6+ Distributed Queues, Fleet Concurrency & Worker Manual
-|   +-- PROXY_NETWORK_GUIDE.md           # Enterprise Proxy Network, Residential Pools & Rotation Manual
-|   +-- APIS_AND_MATCHING_ENGINE_GUIDE.md# Guidewire Cloud REST Integration & RapidFuzz Cascade Manual
-|   +-- DEVELOPMENT_WORKFLOW.md          # Multi-agent Git development & branching standards
-|   +-- WALKTHROUGH.md                   # System-wide operational walkthrough & verification guide
++-- docs/                                # Subsystem Operator Manuals & Reference Material
+|   +-- COURT_PORTALS_GUIDE.md           # 8 Florida & Texas Court Scrapers & Anti-Bot Manual
+|   +-- EMAIL_AND_NOTIFICATIONS_GUIDE.md # Multi-Provider Email & Templates Manual
+|   +-- STORAGE_AND_EXPORTS_GUIDE.md     # Storage, Screenshots & Async Exports Manual
+|   +-- TASK_QUEUE_AND_ORCHESTRATOR_GUIDE.md # Celery Distributed Queues & Fleet Manual
+|   +-- PROXY_NETWORK_GUIDE.md           # Enterprise Proxy Network & Rotation Manual
+|   +-- APIS_AND_MATCHING_ENGINE_GUIDE.md# Guidewire Cloud REST & RapidFuzz Manual
+|   +-- DEVELOPMENT_WORKFLOW.md          # Multi-agent Git development & branching
+|   +-- WALKTHROUGH.md                   # System-wide walkthrough & verification guide
+|   +-- extracted_v4_flow.robin          # Power Automate V4 Robin flow reference (107KB)
+|   +-- v4_all_8_subflows_annotated.txt  # Annotated V4 subflow definitions
+|   +-- v4_all_control_repositories.txt  # V4 control repository mapping
+|   +-- [8 linked visual evidence images + 2 webp session recordings]
 |
-+-- uploads/                             # Staged file upload directory for batch Excel/CSV imports
-+-- frames/                              # 91 extracted video frames from PowerAutomate execution recordings
-+-- tests/                               # Root-level integration and end-to-end verification scripts
-|
-+-- [PROTECTED USER DIRECTORIES - NEVER DELETE]
-    +-- implementation_plan/             # Authoritative master documentation & original prompts
-    |   +-- ChatGPT_Prompt/              # Original foundational requirements (5 ChatGPT prompts + Recon)
-    |   +-- 2026-09-05_uaic_master-implementation-plan_v1.md # Master authoritative implementation plan (Human Verified)
-    |   +-- 2026-09-05_uaic_master-gap-analysis_v1.md        # Master authoritative gap analysis (Human Verified)
-    |   +-- 2026-09-05_uaic_master-walkthrough_v1.md         # Master authoritative system walkthrough (Human Verified)
-    |   +-- 2026-09-05_uaic_pending-items-resolution_implementation-record_v1.md # Consolidated forensic record (Human Verified)
-    |   +-- implementation_plan.md       # Current active implementation plan (Human Verified)
-    |   +-- walkthrough.md               # Current active walkthrough (Human Verified)
-    |   +-- README.md                    # Documentation system & governance guide
-    +-- PowerAutomateSolutions/          # Authoritative legacy Power Automate reference (V4 Robin flows)
-    |   +-- BotCreation_1_0_0_7/         # Solution package containing customizations.xml & desktopflowbinaries
-    |   +-- BRD ClaimAutomation_UAIC.pdf # Business Requirements Document
-    |   +-- Recording 2026-09-02 *.mp4   # Execution screen recordings of legacy RPA bot runs
-    |   +-- fuzzy-match-api.zip          # Legacy fuzzy matching cloud service archive
-    +-- Testing files/                   # User-supplied court benchmark spreadsheets and test datasets
-    |   +-- sample_claims.xlsx           # Standard test claim records
-    |   +-- sample_claims - Florida.xlsx # Florida-specific benchmark claims
-    |   +-- sample_claims - Taxes.xlsx   # Texas-specific benchmark claims
-    |   +-- ProdRecords1-500.xlsx        # 500 production claim stress-test dataset
-    +-- anticaptcha-plugin_v0.83/        # Chrome Manifest v3 AntiCaptcha extension source
-    |   +-- manifest.json                # Chrome extension manifest v3 configuration
-    |   +-- popup_v3.html                # AntiCaptcha status popup
-    |   +-- AntiCaptcha-Key.txt          # Default plugin API key configuration
-    |   +-- js/                          # Solver background workers and content scripts
-    +-- .agents/                         # AI engineering skills, rules, and governance protocols
-        +-- skills/
-            +-- diagnose-plan-confirm-execute/ # Mandatory governance lifecycle (Diagnose>Plan>Confirm>Execute)
-            +-- theme-system/            # Mandatory Global Light & Dark Theme System governance
-            +-- uaic-context/            # Comprehensive repository architectural knowledge & rules
++-- v4_subflows/                         # Power Automate V4 Robin subflow reference files
++-- anticaptcha-plugin_v0.83/            # Chrome Manifest v3 AntiCaptcha extension source
++-- .agents/                             # AI engineering skills & governance protocols
+    +-- skills/
+        +-- diagnose-plan-confirm-execute/ # Mandatory governance lifecycle
+        +-- theme-system/                  # Global Light & Dark Theme governance
+        +-- uaic-context/                  # Repository architectural knowledge & rules
 ```
+
 
 ---
 
-## 2. Protected User Directories (Mandatory Safety Policy)
+## 2. Protected Directories (Safety Policy)
 
-The following 5 folders are strictly protected. No cleanup script, purge routine, or automated command may delete or modify them:
+The following directories are strictly protected. No cleanup script, purge routine, or automated command may delete or modify them:
 
-1. **`implementation_plan/`**: Contains architectural gap analyses, design roadmaps, and phase-by-phase implementation plans.
-2. **`PowerAutomateSolutions/`**: Contains the authoritative legacy Power Automate solutions (`BotCreation_1_0_0_7`), customizations XML, and Robin desktop flow definitions.
-3. **`Testing files/`**: Contains client-provided test spreadsheets (`sample_claims.xlsx`, `ProdRecords1-500.xlsx`, etc.).
-4. **`anticaptcha-plugin_v0.83/`**: Contains the active Manifest v3 AntiCaptcha solver extension loaded into Google Chrome.
-5. **`.agents/`**: Contains reusable AI assistant skills, rules, and engineering governance guidelines (`diagnose-plan-confirm-execute`, `theme-system`, `uaic-context`).
+1. **`anticaptcha-plugin_v0.83/`**: Contains the active Manifest v3 AntiCaptcha solver extension loaded into Google Chrome.
+2. **`.agents/`**: Contains reusable AI assistant skills, rules, and engineering governance guidelines (`diagnose-plan-confirm-execute`, `theme-system`, `uaic-context`).
+
+> **Note (IMP-2026-1001-001, 2026-10-01):** `implementation_plan/`, `PowerAutomateSolutions/`, and `Testing files/` were intentionally removed from the repository root during production cleanup. All historical records remain accessible via Git history.
 
 ---
 
@@ -735,6 +678,24 @@ Outbound Guidewire JSON payload specification:
   ]
 }
 ```
+
+### Guidewire Auto-Push Engine Conditions & Rationale
+
+Automated dispatch of claim dossiers to Guidewire Insurance Cloud ClaimCenter executes under strict governance criteria:
+
+1. **Auto-Push Preconditions**:
+   - `integration.auto_push_on_match == true` must be enabled in System Settings.
+   - The RapidFuzz deduplication cascade must yield at least one validated match meeting or exceeding the auto-match confidence threshold (`similarity_score >= auto_match_threshold`, default `0.75` / 75%).
+   - The match must be approved (either automatically via the threshold engine or manually approved via the `/exceptions` review console).
+   - The claim record must have positive `CaseItems` to deliver.
+
+2. **Why Claims with `NO_MATCH_FOUND` Are NOT Pushed to Guidewire**:
+   - Guidewire ClaimCenter activities create high-priority litigation tasks and alerts for claim adjusters and legal defense teams.
+   - Pushing empty or zero-match claims (`CaseItems: []`) corrupts insurance claim records with false litigation notifications and generates unwarranted legal defense overhead.
+   - When all 8 county court scraper bots complete and zero matches are discovered, the claim is cleanly finalized with status `NO_MATCH_FOUND` (or `COMPLETED` scrape). All scraped public cases and provenance records are stored in the local audit database without polluting Guidewire.
+
+3. **Manual Push Override**:
+   - Authorized operators can manually push any claim with verified docket items from the Claim Detail console (`POST /api/v1/claims/{id}/push-guidewire`) at any time.
 
 ### Persistence Layer: Guidewire Integration & Filtering Entities
 

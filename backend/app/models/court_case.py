@@ -1,7 +1,9 @@
 """ScrapedCourtCase SQLAlchemy Model."""
 
+from __future__ import annotations
+
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -13,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.compat import utc_now
 from app.core.database import Base
 
 if TYPE_CHECKING:
@@ -41,7 +44,7 @@ class ScrapedCourtCase(Base):
 
     # Raw Payload from Scraper
     raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     # Relationships
     claim: Mapped["ClaimRecord"] = relationship("ClaimRecord", back_populates="scraped_cases", lazy="selectin")

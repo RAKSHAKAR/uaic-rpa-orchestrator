@@ -1,0 +1,3123 @@
+{
+  "status_counts": {
+    "COMPLETED": 24,
+    "FAILED": 91,
+    "MANUAL_REVIEW": 1,
+    "MATCH_FOUND": 3,
+    "NEW": 270,
+    "NO_MATCH_FOUND": 139,
+    "SCRAPING_COMPLETED": 1,
+    "SCRAPING_IN_PROGRESS": 10
+  },
+  "duration_distribution": {
+    "over_10_min": 86,
+    "between_5_and_10_min": 75,
+    "under_5_min": 84,
+    "no_duration": 294
+  },
+  "duration_by_group": [
+    {
+      "state_group": "CROSS_STATE",
+      "count(*)": 3,
+      "avg(total_duration_seconds)": 783.08,
+      "max(total_duration_seconds)": 1425.38,
+      "min(total_duration_seconds)": 142.12
+    },
+    {
+      "state_group": "FL",
+      "count(*)": 144,
+      "avg(total_duration_seconds)": 640.8915972222222,
+      "max(total_duration_seconds)": 1799.42,
+      "min(total_duration_seconds)": 0.17
+    },
+    {
+      "state_group": "TX",
+      "count(*)": 98,
+      "avg(total_duration_seconds)": 254.3611224489796,
+      "max(total_duration_seconds)": 1103.92,
+      "min(total_duration_seconds)": 13.17
+    }
+  ],
+  "failure_reasons_counter": {
+    "Timeout / Interrupted by worker restart": 25,
+    "Miami-Dade scraper failure": 1,
+    "Network / Connection timeout": 1,
+    "Other: No searchable party surname was provided for court discovery": 4,
+    "Other: Unknown error": 25,
+    "Other: Interrupted by worker restart; automatically retrying (attem": 39
+  },
+  "portal_failures_counter": {
+    "FL_broward": 68,
+    "TX_hcdistrict": 1,
+    "FL_miami": 44,
+    "FL_hillsborough": 1,
+    "TX_harris": 8
+  },
+  "portal_duration_summary": {
+    "broward": {
+      "count": 127,
+      "avg_seconds": 201.54,
+      "max_seconds": 542.34,
+      "min_seconds": 10.7
+    },
+    "hillsborough": {
+      "count": 127,
+      "avg_seconds": 94.15,
+      "max_seconds": 310.05,
+      "min_seconds": 34.04
+    },
+    "miami": {
+      "count": 127,
+      "avg_seconds": 312.41,
+      "max_seconds": 665.43,
+      "min_seconds": 81.07
+    },
+    "harris_jp": {
+      "count": 38,
+      "avg_seconds": 146.26,
+      "max_seconds": 334.27,
+      "min_seconds": 36.61
+    },
+    "harris_cclerk": {
+      "count": 38,
+      "avg_seconds": 66.34,
+      "max_seconds": 103.61,
+      "min_seconds": 26.64
+    },
+    "harris_district": {
+      "count": 38,
+      "avg_seconds": 79.18,
+      "max_seconds": 228.44,
+      "min_seconds": 30.87
+    },
+    "travis": {
+      "count": 4,
+      "avg_seconds": 98.34,
+      "max_seconds": 99.59,
+      "min_seconds": 96.59
+    },
+    "dallas": {
+      "count": 4,
+      "avg_seconds": 97.9,
+      "max_seconds": 99.19,
+      "min_seconds": 97.34
+    }
+  },
+  "stage_duration_summary": {
+    "broward:website_navigation": {
+      "count": 127,
+      "avg_seconds": 1.62,
+      "max_seconds": 11.17
+    },
+    "broward:data_filling": {
+      "count": 127,
+      "avg_seconds": 2.22,
+      "max_seconds": 5.77
+    },
+    "broward:captcha": {
+      "count": 127,
+      "avg_seconds": 47.08,
+      "max_seconds": 113.78
+    },
+    "broward:submit": {
+      "count": 127,
+      "avg_seconds": 0.35,
+      "max_seconds": 1.4
+    },
+    "hillsborough:website_navigation": {
+      "count": 127,
+      "avg_seconds": 0.16,
+      "max_seconds": 1.63
+    },
+    "hillsborough:data_filling": {
+      "count": 127,
+      "avg_seconds": 1.97,
+      "max_seconds": 6.36
+    },
+    "hillsborough:captcha": {
+      "count": 127,
+      "avg_seconds": 5.97,
+      "max_seconds": 10.05
+    },
+    "hillsborough:submit": {
+      "count": 127,
+      "avg_seconds": 0.72,
+      "max_seconds": 2.52
+    },
+    "hillsborough:result_retrieval": {
+      "count": 127,
+      "avg_seconds": 29.91,
+      "max_seconds": 204.01
+    },
+    "miami:website_navigation": {
+      "count": 127,
+      "avg_seconds": 0.79,
+      "max_seconds": 6.03
+    },
+    "miami:data_filling": {
+      "count": 127,
+      "avg_seconds": 2.64,
+      "max_seconds": 7.71
+    },
+    "miami:submit": {
+      "count": 127,
+      "avg_seconds": 21.1,
+      "max_seconds": 128.24
+    },
+    "miami:result_retrieval": {
+      "count": 109,
+      "avg_seconds": 0.15,
+      "max_seconds": 2.36
+    },
+    "harris_jp:website_navigation": {
+      "count": 38,
+      "avg_seconds": 6.6,
+      "max_seconds": 18.59
+    },
+    "harris_jp:data_filling": {
+      "count": 38,
+      "avg_seconds": 0.85,
+      "max_seconds": 3.57
+    },
+    "harris_jp:captcha": {
+      "count": 38,
+      "avg_seconds": 25.95,
+      "max_seconds": 77.47
+    },
+    "harris_jp:submit": {
+      "count": 38,
+      "avg_seconds": 8.52,
+      "max_seconds": 21.03
+    },
+    "harris_jp:result_retrieval": {
+      "count": 38,
+      "avg_seconds": 0.61,
+      "max_seconds": 3.97
+    },
+    "harris_cclerk:website_navigation": {
+      "count": 38,
+      "avg_seconds": 12.83,
+      "max_seconds": 22.7
+    },
+    "harris_cclerk:data_filling": {
+      "count": 38,
+      "avg_seconds": 1.79,
+      "max_seconds": 4.16
+    },
+    "harris_cclerk:captcha": {
+      "count": 38,
+      "avg_seconds": 5.82,
+      "max_seconds": 7.25
+    },
+    "harris_cclerk:submit": {
+      "count": 38,
+      "avg_seconds": 0.53,
+      "max_seconds": 1.77
+    },
+    "harris_cclerk:result_retrieval": {
+      "count": 38,
+      "avg_seconds": 0.15,
+      "max_seconds": 1.02
+    },
+    "harris_district:website_navigation": {
+      "count": 38,
+      "avg_seconds": 2.83,
+      "max_seconds": 12.86
+    },
+    "harris_district:data_filling": {
+      "count": 38,
+      "avg_seconds": 2.42,
+      "max_seconds": 5.77
+    },
+    "harris_district:captcha": {
+      "count": 38,
+      "avg_seconds": 5.92,
+      "max_seconds": 7.76
+    },
+    "harris_district:submit": {
+      "count": 38,
+      "avg_seconds": 0.64,
+      "max_seconds": 1.91
+    },
+    "harris_district:result_retrieval": {
+      "count": 37,
+      "avg_seconds": 5.76,
+      "max_seconds": 166.46
+    },
+    "broward:result_retrieval": {
+      "count": 28,
+      "avg_seconds": 2.01,
+      "max_seconds": 18.78
+    },
+    "travis:website_navigation": {
+      "count": 4,
+      "avg_seconds": 23.38,
+      "max_seconds": 23.84
+    },
+    "travis:data_filling": {
+      "count": 4,
+      "avg_seconds": 0.02,
+      "max_seconds": 0.03
+    },
+    "travis:captcha": {
+      "count": 4,
+      "avg_seconds": 26.56,
+      "max_seconds": 27.25
+    },
+    "dallas:website_navigation": {
+      "count": 4,
+      "avg_seconds": 23.27,
+      "max_seconds": 23.61
+    },
+    "dallas:data_filling": {
+      "count": 4,
+      "avg_seconds": 0.01,
+      "max_seconds": 0.01
+    },
+    "dallas:captcha": {
+      "count": 4,
+      "avg_seconds": 21.32,
+      "max_seconds": 26.77
+    }
+  },
+  "screenshot_errors": [
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=dr%252FVTbpSP9ooJmteyYBnB4CGnbTFcr8qfKvnq5VRAH42HGubfsaZBNGuoZOwhST1x1YgkXDCEHequ0%252BNPD5x%252FU7m%252B4TLXkkLZ%252FPpH7d4O5Tjdos%252BjtUddcUuupkcdOs1jE2R%252BFpOqiPpmXXheYiMECvZgqefKzjAlen%252F3pEd%252F4u766it8gCkoMDNBhkQdJYU",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'X Y'",
+      "cnt": 34
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 10 case(s) found for X Y",
+      "cnt": 33
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 471 case(s) found for Z Z",
+      "cnt": 33
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=p5c7a%252FdHez0a%252B5NUt9ukZgNuWkHwaA3vQ2WN4Ay4gmZJLXsPM0bcKjl2Gb3uOZ2zhWDJDEerc%252BD0XI16aCfcK06Sq%252BHShfAzLjL2ax2G9PUXnubiHMe8ffTnNQscGtbUVgoYjnKUMAycH9KZEbj9Ia2F0XRKOA%252B%252BFMRKDLFH0Bv91Em6y5NddEbfBUrP67IE",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Steve Rogers'",
+      "cnt": 28
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 33 case(s) found for Sam Wilson",
+      "cnt": 22
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 4 case(s) found for Steve Rogers",
+      "cnt": 14
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'Test User'",
+      "cnt": 12
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for Peter Parker",
+      "cnt": 12
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'X2 Y2'",
+      "cnt": 10
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for Emma Wilson",
+      "cnt": 8
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Peter Parker'",
+      "cnt": 7
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 8 case(s) found for Sam Wilson",
+      "cnt": 7
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=xCqjxt4YZ8KUYznOfw9Qm07fq7KTK1jj0qwuOcSvw89p9LT6mHdl7CwIbr4yFYiTz%252FqKODGpdtYq4NZtBucbe1oKLNSE3hXZ5UCrSDbD530Ctmaw62%252BXhHK1r9qUKvvDWWRhkFkc%252Fv7%252FKQTKaMqqW9OjFfoEcYTulIQG2Uji2niDXLOjmjWtaMpd0aLNxK1s",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'CRYSTAL BROWN'",
+      "cnt": 7
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Dup Name'",
+      "cnt": 6
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Steve Rogers'",
+      "cnt": 6
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 30 case(s) found for CRYSTAL BROWN",
+      "cnt": 6
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Unknown P1 Property Owner'",
+      "cnt": 6
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Bucky Barnes'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Unknown IV Driver'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Z Z'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for GENESIS CAMEJO",
+      "cnt": 5
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=2Uk%252B0mdIaSqLVa6VrTB7Y%252FOz57IwHSG5ipLOBdPgVmWDzhhjnW%252Ffp6WnFEu8iWuZoDJfyQMzJ%252BemwalNNzEhTyy8q5iFqTO8%252BgBvabsF8MpFzS9luFYNy0EsUgdrOgHBp6W8N7eehy3CbPHsuHNIQu7515%252FTsJvo7IEcu9eP9k0cmh6zNQtSyubIgnlpp%252BGPpzOXY2VVBXAuN3vVIWO3Cg%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for FRANCISCO RAMIREZ GARCIA",
+      "cnt": 5
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=B8j%252Bqiowycc6%252FNUc%252FIkEFzI2VRzPaQx9ug%252F2cgeYp6W8DTNGe4dJMRttNINqGOjaoiyXr8zHTY57FXWR8Dq5kh0hI%252BFg4b4Oh4h0dBMCszHwROO8CzdhPp5wqjnbFyY4Og24PAJ5E%252BYT0gwcqp1n3kJ2hBqUdJ%252BEMKMhvJFNyLoUZvCN61p%252BCMuLvhyP68o8vRLESYpaOnYNRmcgXA5x5A%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'DEPARTMENT OF TRANSPORTATION'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=dQFs%252FHeej28vU4ld1vIEFqiZ0gGbKnTMTBSGLwYwPCl2qdYUMCl2dZoMJ32Pgp8gIfBCJbdnRXkG4XFAIIwqpCPHGUxLbv7T3NIKcPKtOf31GVjznL5z2zuQQafW7TDnq%252Fp8XZqh93a%252F5Nw%252BYBviyBjo7AHS1jnC%252Fk%252FrSIDkminXpAvcuupYSQxkXa3FEHga",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Dayana Pinero'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=gSJwfcfJqCJ92VVKnRclGrZp8aENzrVTUUUkd6TnmYSCxOc5ZYcJ10a%252FcPERbMH78dZDhDXpQminZ8xQnd9t%252FeV1tuG5HGRYgzbTGhhD9fY8LquwtD9XTbVLmHuVJ1HnmCe5ygka%252BAgJz47hZFRLeA4f6xOiy63mXxn4YJoumC92VbGLOMf6CFZJs9NI53kz",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Jessy Valle'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=0aN5TaTufk1U7v0RHEv3x6QiVNuIo5YdlUEJZ5FkoSDiBcKWKXiHNbzScyiIaMZo6p9qtw%252F5UFKZaUYjnXsENXhVHzfp8%252Bu4ZrtKJyf1hFeuNcqttXBWIPsk%252FRFQX7H5s6jshIU0tevucGzfagzlxhDYW0X6wtGB0i0hD%252FWgD2Cu%252BaHFjH3OieewI0uIr0FN1PM95gSMVi4e0ioxaCdyNg%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Miami Dade Police Department'",
+      "cnt": 5
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'EDDY REYES BRICENO'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'FRANCISCO RAMIREZ GARCIA'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'GENESIS CAMEJO'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'NEILA GUILLAUME LOUIS'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Test User'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'X Y'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "[Broward County (FL)] CAPTCHA was not resolved after 2 attempts",
+      "cnt": 4
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+      "exception_message": "Discovery: 2 case(s) found for NOEMI HERNANDEZ",
+      "cnt": 4
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 6 case(s) found for RICHARD MUNOZ",
+      "cnt": 4
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'Hannah Nguyen'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'SHANE WILLIAMS'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for CARLOS FERRET",
+      "cnt": 4
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for ANTONIO SOLOMON",
+      "cnt": 4
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for Deloris Newsome",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=OsXosrn4VC9S5u2tyzAm8IVkbaWu3sswuHcgIpV9nV20S6l7LUiAvmkvXtRU6FFL4U3QD7zEVpALW4sNQjvh9jgv5Z32Ph%252FiyH2fUKT9yEVB%252B%252BntCdJjVlBYSN6z%252F9l207hHA%252F%252BzNOPtXKczMuVLpQUaY9FUWCpJdOoeqVo9V1c52ECgwXfiCpI9MloUg2sh5lgifL4qkYqAYzylg%252FPj%252FA%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for LUIS CORBACHO PEREZ",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=dOxCPepeIRxsELu4LPdtbm4WaSYe8znV%252BEUNUK7Yirc9mJeOm7MS5N%252FmCozxZg1Sv%252BQrpSbewFEJhkqcc%252B1N2WLFhpMbnX8rHSH4qfb4BLk0DuFoIdlrRbBG%252BIUjSe2E3hzPr%252BWHNYjJHmYbtaqlK1OxP7iuGbON%252B%252B1JKmvaemMyW3m4DW75FiMUt83N9NUDWgo1bw0ToZgeRdAcX7STKQ%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for NELSON HERNANDEZ SUAREZ",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=15csvhU7%252B06dGLDQNWA8YRiDpMZxlX3Tk4UrofVrpEsrjrBUMD8ronpksi3mZnriBtyr%252BzHz2mBAmU8Vo4X%252BhpsnzVI6S%252F0l1wz2RY6E48w5hQ8Cl0Dw1iFk8Euqm86NJTI15VAKgyk7%252BF52ScXgC6aYlHtfp2vHA%252FEUlEaKiZpCY%252FwYllzpCIDC5CDx0CIk",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ANGEL PACHECO'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=w9ldU5BQaIZpUZCO%252BfsWS6cVMTjWrj2qLTC1RoLE8jpZyRNqYPBt2XSPhMxxPNdUuemh0oCLc61DdWBWIkRBcShV8YexayuBik455o%252FdgMTds1qWCnVNkK8c1T9CTX%252B8XOlEORoRbLaqruHSqtZVPOiYypkszT2h%252FQlvJklzKZfIgVLMpT3IKZYxMWadpj2e",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'JUAN FERNANDEZ'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=9dzmPzX0drMqrfV6BbeBfT%252FPRkfOoHBrK3tOXhzvKIyP5JXuDsChVrWamZMCVWEEtN7e968pdjZiuFcaz0UakPMwCNPWoYoybri1O2WhtzpbTxuHFu7Arklz4qJoW7529Q9MFFltgGFx5iLjNZm%252F%252F4Z0RpnBw0i8QdRNTorOtDthh6gvl6Cq%252FID41o97%252B2a3",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'KENIA PEREZ'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=0%252Bo%252BJ3CEc9%252B%252BcCgf%252F%252B9KZ5Nd1iIRtA4M%252BhxVQIctjYOc%252FhqiGz8A%252Fr7dEFeqsgt4kZ9exlto01LJGn7VC4KPB9sM2lxGMSGAya6Iz8RGfJFEp7mr3eM8A8KFKu2xAXil4ioYl2ISci13Vl8QMOrMjZR%252BquAhyzLd23Nsdlp5CuFa56ubmPA3cbK6d6R7kCZHsAzx%252FGmuOHOMajaPnt7SSQ%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'LAZARO VALLADARES'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=1JF9tXU%252B2yN8yaxF%252F0XkQkfZX4WF3ER8mhD9UyNSJO2e9MbE0fcgu%252FVN%252FcVfUD9Be1Ze%252FpJJDgKTpDOjfgggdkTY%252BbOCrTj0O3OMv1rjXHVeFkgNqOipFOtV3lmbEJYy1N5HlhEugTCE68%252BEnzi7ZGfakKSJcx%252B8afWNFYkJDjDiMwBqVOAjNmu0NIQQrUr4",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'LUCILLE YOUNG'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=dOxCPepeIRxsELu4LPdtbmZpJxgKX3dd9fmfXUYpKazPRJNdyXB%252FA3wCTr3%252BNxxwuyiiISjOuYhgMREE3DdRAxfw%252B8R2h%252FWbCSHdt0MAx%252BMNw54AwItuYZIml73LXqbOi9rEMCGZuhnUmR0XuOuTdYl0QB8kBTXUIpaqmedRQBraVsQasu9yDMOai3rw0T96HjnDiQK6i1sUGipxBu3Fpg%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'NEHEMIAS HERNANDEZ RUBI'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Threaded Fasteners, Inc.'",
+      "cnt": 4
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'CYNTHIA ESMUNDO'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Emma Wilson'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Fernando Diaz Contin'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'GWENDOLINE GARCIA ARIAS'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JUAN FERNANDEZ'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'LUCILLE YOUNG'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Unknown P1 Property Owner'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'VERONICA PEREZ'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for ADRIAN HERNANDEZ RODRIGUEZ",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for MARIE ORNEUS",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 13 case(s) found for CRYSTAL BROWN",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 3 case(s) found for SALIM GUSTAVE",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 7 case(s) found for ANGEL PACHECO",
+      "cnt": 3
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile",
+      "exception_message": "Discovery: 1 case(s) found for Bong Nguyen",
+      "cnt": 3
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 27 case(s) found for JOSE NUNEZ",
+      "cnt": 3
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 4 case(s) found for RUBY QUINTANILLA",
+      "cnt": 3
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'NOEMI HERNANDEZ'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'RICHARD MUNOZ'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "exception_message": "Discovery: 1 case(s) found for Octavio Gutierrez",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 17 case(s) found for ANGEL PACHECO",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for LAZARO VALLADARES",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "exception_message": "Discovery: 23 case(s) found for KEITH JONES",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 23 case(s) found for Robert Bennett",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 3 case(s) found for Quang Tran",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for JAY SCOTT",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for XAVIER ROBINSON",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 5 case(s) found for Leonel Torres",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 5 case(s) found for Silva Lopez",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 7 case(s) found for Rodney jones",
+      "cnt": 3
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 8 case(s) found for KENIA PEREZ",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=zZf6bkQb344eyNn68MnA5EXJC1DPZ2%252BUL5oN32Z%252Bzj8tBD20cqm7KJq9amhxbUqClJWnq9kqgLXMmPpSYuhAKAWTjwuUaNYK%252BVvn5OwGIHUfv8G4a4SXOu9ilFS4LqZK4y8uJBoCHBJ%252Fx2iuuIs13%252BDORCndOse%252FhRzJF7MX%252FMGLn1Od06P65sNPVHmEuQVP4rIQeUgK50YAfXP9Ammegw%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for ENRIQUE SILVERIO",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=t47Hd0ffNFKevNsMj2z1QUKiTFqXnhGxHVi5sfZ77saMYYUcXWQ3FYJ0ve%252FQj4pir%252FDDfOkKmmCHxRke8N7HfIlFnayfwW%252FqbfP8AEJ2Q1Pr4uh2XbYiuc81ikXS9EKIrFyMsdA1RW%252F6WcIAkbDKgGA36oQx3hDrTQUI4W50rq0tX8%252BQsZ%252BaJwXRqFsUlYWW6WlzUdz3yVrnC9VMqzsxdQ%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for Fernando Diaz Contin",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=1775h%252FQ1u8rFc06vxIc3p3yS20%252BnP74nw6h%252F5r8fcXWsvUhKVZ4DsPHr0iuCLmnunFq6xHuEG%252B2Dab%252BCtn4ZitGLrYcZm%252Bm%252FxDloc58Hq76nBAICeBM0xTA%252F46wdz9Ff1lrjcBV2o6bW96c00q2Bbx1zTdT8E29i%252F1XresU9dMHagAnvICva3jPYSIEPUCX9",
+      "exception_message": "Discovery: 1 case(s) found for SALIM GUSTAVE",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=d046rE2f13DmiF4f3nrNnCQepR26KkO%252Fm02n2Lrbbb3AHnSkACCzBIGYomLgJniGPObxnkP82lM%252F4oqPY4JuByLGZJrSr3sPHe%252FviXhfIZCBdMNeMuVIThnxpRN9byU59fwX%252BzlZ0lAwwTQMy5fclB6wQxHp3Fhy6y0fg3hny6V0Y48a%252BQ633wnAmaCCaRGX",
+      "exception_message": "Discovery: 1 case(s) found for Sherry James",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=dOxCPepeIRxsELu4LPdtbkRURRocwBjDHIOd1L3YwFHu4COBffchcAkmkDLglchZCPDxjG7YsSrJv450i28m9xbXNVvi%252FWNzd37lAkFtqVoxMf73UmwYdjiu4W4TkgWBkqDcwqxS4e%252B2hVVEfuN%252BEYZIV%252BnEtUw7md6U0yo1Br4D%252BJSqFzqbkcV7BnirJ1WiDZTVdTyQv%252BUaqSb35DSQyA%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ADRIAN HERNANDEZ RODRIGUEZ'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=Z0G70cLg1QoQGTxglegnOvLWULSNTzILTevjpUn3LdUkEftoQOUGKzP%252B3i17umNaihq3mAGzYa4YDI9duNirrFBKnEOtV%252BDpbcODe0u%252B8LhTaflh5r7n6nHM4sA5vpcz3DBX%252FNv%252FyR%252F%252FzYjgtNJFQ6bhQAhTLD1qI20tcHGyPQ%252FuwoPN91NlyyOqfKba4phC",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'JORGE CURBELO'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=AZ3XFr6X00zyIatC5gWJLd9DGhzLFEA3UF7lMW2ahuAqvuxf4hi0Hvavj7hJC%252BwDv8pKbeGRMz%252Fu7Nf0jb0Fai90GDeZ5sQGPAqNMkFbsZxyBZ%252BDrjaurt%252BSZ66wo7dv9zfnw54eZAn9r0wSt7gOeF3VrpGxJtIDpK1z7SKfTzsnL9%252FEbuPj0xJ5Cy7u1xRv",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'KEITH JONES'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'LABRADOR & SON FOOD PRODUCTS INC.'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'McKenneys Inc.'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=7aHtkhjIQIkFSd3pMPWOJ2EQQfdQJQFVfoB8uiRMfuiAPWG2t0JhdIbtLU4sDGsaXhg5hFI6nec7TM9rgmVEztWUDHgwm7Dl3vm7z%252F2uUKRLb0So01DiJ5O9f5OXQIoPMIM0CemHF7HaJKNz%252B8%252FCMMuZdnv5qq0hZTggKBTgQQw0iwp5fKZOfSSYHWIMYUuX",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'PEDRO LOPEZ'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=pvkzReDGDBgHD4wcReuXl6q89jLdFIM34G6rxjjqVCRzvpEqdVoS9uVipBvofXCYO9D2%252BctPwPdyFl6K09TxtcE3DgCeN8mHEAVbSj%252F4P84YbRvLvadcGib8PtjtyXm3E%252BKAd2rMJRMT%252FLJf0octqfAipZ83D5j%252BWW5mRX6fqu%252BXLIx9zcRVoOFrQX5o%252FiZO",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Rodney jones'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=VTrjUpFbsRIpXsmID%252FjuQTex0TXnHHUNZir9J7wDmZTehLAlCSkhGs9y%252BwWRWazmki1KPNElDpa%252F2AxB%252B8ZrruXRvGleFx5bkgXYbltHfJ9O3B%252B%252BRaDgCWrk0L4vH5FKUBh%252B2i9q0KOBCqwYYzFr87K2J%252B%252FO7gp5GkQ1jsBtfHqc33GpYeiUURgTFWjN29hD",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Tania Franco'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=P3njLRlv7JoTIgGClevTf0NOE5gnPZLhWXsS%252FbTFE0qe1kLLITV9Ary5%252FotdAwHAexQ5W4MOtRp6yoWy%252BUliiiSb5tUGINYrVr2YLchkGR2lTMuyw43oLau2N6o13l%252FUS5zWV9FypsfXeCu3ynJJapa4zieJDWoXaOXtWiGUErM34Fu7egc85XbRJBy93TFD",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'XAVIER ROBINSON'",
+      "cnt": 3
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ADRICE ALIE'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Deloris Newsome'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Diana Prince'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'EDUARDO BUESO'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JAMES OLNEY'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JORGE CURBELO'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JOSE ISAI VILLEDA CHINCHILLA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'KENIA PEREZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'KEVIN ESTEVEZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'LAKISHA WILLIAMS'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'LUIS ACOSTA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Leonardo Morier'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'MARIA ROSALES'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'MARY TAIWO'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Natalie Bencomo'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'OSCAR RAMIREZ SERNA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Partial Match'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'SHANDREKA COPELAND-EL'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Sherlyn Carcamo'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'YOANNY MOLINA SORIA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'YOLANDA REYNA MOLINA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for ANTONIO SOLOMON",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for CHARLES SHIVERS",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for NELALY MENDOZA",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for ROSANA INNOCENT",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 12 case(s) found for JESSENINA BERMUDEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 31 case(s) found for LUIS ACOSTA",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 4 case(s) found for JORGE CURBELO",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 5 case(s) found for CHRISTOPHER MEADE",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for KHA DO",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 13 case(s) found for FELIPE TORRES",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 14 case(s) found for ENRIQUE REYES",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 140 case(s) found for JOSE MORALES",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 15 case(s) found for RONALD MOORE",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 16 case(s) found for Sergio Rivera",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 39 case(s) found for SANDRA HERNANDEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+      "exception_message": "Discovery: 8 case(s) found for TREVOR WILLIAMS",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'ALEJANDRA ARZU GUZMAN'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'DAWIT JORRE'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'DENIS MARTI MARTINEZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'KARI SCOTT'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'LILA CARCAMO HERNANDEZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'ENRIQUE REYES'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'JOSE NUNEZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'RONALD MOORE'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'Robert Bennett'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'SANDRA HERNANDEZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for CHRISTOPHER MEADE",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for DEANNA RIVERA",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for NEHEMIAS HERNANDEZ RUBI",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for Rosa Ortega",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "exception_message": "Discovery: 1 case(s) found for STEPHANIE GUTIERREZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for TERENCE PETERSON",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for YOAN HERNANDEZ PEREZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 11 case(s) found for ANA SANTANA",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 11 case(s) found for VERONICA PEREZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 115 case(s) found for ANGEL LOPEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "exception_message": "Discovery: 117 case(s) found for MARIA LOPEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for AKIL SCOTT",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for Justin Adams",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for RENE GUEVARA",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 20 case(s) found for MARIA ROSALES",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for Autumn Harris",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for ROBERTO MOLINA",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for SANTIAGO VASQUEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 53 case(s) found for PEDRO LOPEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 6 case(s) found for Ryan Lewis",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 7 case(s) found for LAKISHA WILLIAMS",
+      "cnt": 2
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 8 case(s) found for ANA ROJAS",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=8a5MM7i1rXnYpVm43MZT%252FUxlkSfTWp7bonTH1H1Nd8VLdhP4lvgn94MF6FmanBt2tfywW1R3pjc3pWjJ91v0n1T4OcrRHe7tFZ9EixzVtUDkPMykQQmq5OzjIf4kUdxqPaCWaE0%252BwKGUqyU6aQ9SJu9lWBKYPlJFsRMrRan8%252BybqVrA0neLqwKwWe5hfZVH4",
+      "exception_message": "Discovery: 1 case(s) found for BRYNOL PIERRE",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=dvhdDzWbuDIXz8Xxh0noxrIIGDbP2y7uBCm3T1kf3JaplQHVILTOYisyTNlEhKrmzWt5ZwTS1nGIjjDjqDLxG7N1zc2mYED7XF%252FxhXW%252BCqKVPM23qoKMlgCdTWjsXmX%252Bs2DJbqPuFbRX5NJuDpA%252BiJ5Ngl4Zo%252FQN8BU5iYTHNSuByc%252BHlidCw1djzt%252FSP%252FRJ",
+      "exception_message": "Discovery: 1 case(s) found for CARLOS FERRET",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=eB6T15zAMXE0FrFwoLcnK3PPrzeCD296EpO3X2RV3ZCuj7BsNM4jxiSX2K7DSy12ya5TC1JGuz0ZMXmtqrRpoT0N2NS7foMgacgFbP2bDmiaY7lNYxNgT4LUtsq48PVBdnGqwiTUdvvTokXA7fA%252FerI1HSdep%252FnrEotL6nuXOTRviU6q0LAW%252BltR6bt1P%252BGf",
+      "exception_message": "Discovery: 1 case(s) found for Dayring Lopez",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=3Tv2qHnaGHLVOnQNQDPOsMOqdw1CKB%252BSEXSVwJiPO8EbdIA2oF7%252FDSwlubUxHUfDMWkLs1an0jyYMG%252Bdf6y7gB8stPiCuARsZUe%252BPZ8AYRATpzv4F1x8J0ZPlk85ITMVVGUr96XRT3QX7mPl8ieZSAI2VhKx2byKjW7PNIGX%252BWuo16xh0EJt7FPsYZs9VDvj",
+      "exception_message": "Discovery: 1 case(s) found for Jorge Gordon",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=AinM0FnUKmxMxv%252FKfJZdRA22NJwjTIcMBOE9O6dJqbLuDjRWutwcxYQX9gKiGf%252FgsRad9qVEGxbQvnBf%252B9zWFF8fwP%252FY1iogjrsjLmbNmDD5dna%252F%252FcfjFXZJIpA8dc52099Fh%252FJNb3Sl6BuboIiZBz9EeYixGIZp7bDyYZvjI2llZ3gCvUcGf1hwtTzduF7M",
+      "exception_message": "Discovery: 1 case(s) found for Justin Adams",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=cfMfrYmMstwxl2KE98N%252BOC998kbipcRsVMaUz7HUADLc3CZIZObA64A%252F%252ByJb%252BFN2UKUlocvZUTVKYre7DywLH%252BgITraVJyZ75h30z1fpHl4b%252FHzT%252BTnfdQwSskQ5ykI0eal22zCNBAtbfTA0qsd0UBDszQBHHX2FppME7XhU9f4T0EMQzl7%252F376HA5j1%252FqpA",
+      "exception_message": "Discovery: 1 case(s) found for KEVIN ESTEVEZ",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=vl7uWz%252F4cRKuIXptk8wIPjmwZIovxv5rrC6z%252FP6b6aSbzutyqnM4BN6J9vY9BI37CRNzIy9dweTMc9LtjYjYm9ItntRBZQiMNx6pNvVDoNVxGCrJMmU7m%252BxLV2umAYi23fNttss71GzaAe1HR1QEeuBYzCF%252Fs9QlkJ8Bf%252Fx%252F19Ji0GEPtwpA%252B91EO%252BWqSZzU",
+      "exception_message": "Discovery: 1 case(s) found for WILDER CYRIUS",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=5cG%252BymUcgzbC8zGn1No%252B%252B2ZBign3Bvy556JMSfdVEj8PKCOuafVJ3HysxPu8giduOCsBDvH7BY0EZO9XJcWf0w%252B%252FGBySxE9cruAB0aC%252FgvgLmuHxTchEZJ2RHg1AeY6M7o2S%252Fhl2J93%252FEmyd5thsk4EwJiRcaCKRm%252Fbgg7qNCgwqwTvcJrqUEHFW0tkPvkSrUstmQar79SFaI%252FLidqSg%252Fw%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ANTOUSLY DELVA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=iSc4jCcofsfwh5rmC1TE6w65Tl5lTbc4x6gUHjEqrodVIUp9aB2s7MAkXE4lXiHZKVwubRzoXDUnlzL5GdKtr3PMWd0wDQKyewpbv9ck4HyiJ8O%252FmymAg62qwTojYHPlxsICyzEO4%252B%252FHZieENm4T0px5nC6B%252Fl1Nirye%252BA9SMKbFlyyVqmGrQ8iw2y%252B5XuMX0fZ9oPxzRMSoRBkmWYFyIQ%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Barbara Castro Diaz'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=PXrk5%252BcE1mRmaCgf41hL%252BNpRvw0BsWwt6%252FCjxKD6lCYF0AF%252BGxuYEsQcZSs7GLaNCdQFn3%252F2oMUoBD%252Bq%252Fz9jjrLq6SatMuRr48ALV05B0ni6PkDVbI%252FqE24mLICvSm%252FS6%252FIPm978nNeGf%252B1y3WA5ZnSupTIiG9p8zJKTCWzrnDgijlJGUZOngdjbX1nMrYgY7A6zWnQ21eMr%252FMrYdTBEjg%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'CHRISTOPHER MEADE'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=jNpZnGVmDssM9w1zWRyCXrwVLpzInJc3%252BTofSEs16slYO%252F10eQbBCjafkUcZi1WV8cwmdcj9kSFLQpoa0ujaoP0X29MkZ0wlKyMbUQUp%252BTPEUqKxXqNW1TlxSPxNU3mHp2DUT7dKHOx0GHyhUZibWLNfxvSlnFEcS8A2FljH3ZCVeHQTc3Jyh78ezPAoGxLr%252BiBT6WEZQyPlPrHnuDt2Xg%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Gregory Caldwell'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=a1Xxt%252B7goxmXezV4nTRMA8C2a%252BIwEgggx%252FNnovKrErFtSCk0j9bx%252FO68i5DAxV2OmUQQceORbzKyaXe0KT%252BGWbhJEIOq4R1gUEfZigDpnpOq3xi4UEip%252FxlTICRpFucVluxNdNGumutkQMyyOJqMU%252BRKodB6vqPSONgampyqk8u%252FzSM9i6OU5VsMGtj43Eb5",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'JAY SCOTT'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=7CzUz08VFXyS%252B3uHA7WhQyykhpb1EvdlUpOBoSvwHNy3TCc%252FSSqNrtiPIieaENi%252FhTgSy9J6asqydwJSqhKwLxO74fdY1gesuKd1zKzJ2qnMVkvrdaUuao9RYX6MlVCa404Iuckii2div9g3ZSPnPzhavZMv7N9ROzHEkvQSqtPfbHg2lshhc%252FV2nWGQuvL2KRTW3L24WArMEGR3W1nVXg%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'JOSE TABBAN BRACHO'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=I0djyKumFJG7rNnYCGBTRWygu%252BEc1PKaWNryykYsXRMPThXxf0nUdp55wjuXLdMEdppdYn5xSOHhz2hqDhHM6RWi9whJrisb6Tv9vd5ZJv%252BXrDtb%252B6OZ5zAkXiCPuIDgih55NNkW3o5LkTzlTMJsPe7fAOmaxileM1oS8JyL86dRoddx%252FnKaDbyVMNzQfCySAGddHebyvbRhhyN9Lg%252BjOw%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'MAYELIN SIERRA REYES'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=YeHIBQDaovhSzlj5F7uiraTo%252F3nzcXLCgtcVjr4R8Q6GeHeJdqC5ubVduWdtJd%252FPgge9cVmXPMpgJDt%252BmAHpY88fuLXLsVFrGHvork7ey3h6u%252B4Zee6zJBSip%252BgloP0sLAEcN%252FZ8Du6wxCxBdmRG1YO3LmturQK3gowD1suzWqAr4V5IYY5sw4vZdLX4GWkT",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'RENE GUEVARA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=Xm5rT1EJ7G%252FuhrEsM7N6rGegEU%252FB3ZwMatNVf93T8YT0bQFCYxkS8Sv5mln2DwKT6Gfs8P3hmbEreQo7ki%252F9TF%252FemHxj%252BNckFeFOshyFHzSa%252FjgWsheGKM12J8GTyujV7cTrpBYRV7URferKi0z2k8PT0yK85RE8h94z6Zpt7xMwN1SWfVTWJfXy0CEeUV0E",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ROBERTO MOLINA'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=xJGzvwP%252FirTsNiq%252FgfPF4SK5MzZh3PHfZY642Yn3NdIQPOHMjUq0dPLXAvV2hzgq7vEJ2K1C2IBs%252FxyUPfzgbDlbrqoiQyZXqOqimCxc2WTBodFww1Rzge1Tv2%252FhO1ulKrHXVYA95ZTnJVFwPZs1Hj%252BXFqpES6oBT9rxWAhSt1bXiHCyGl0TdleF%252BZc9TTszwOjE9gSx8yqKcAvuA5VB3g%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'SANTIAGO VASQUEZ'",
+      "cnt": 2
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'AKIL SCOTT'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ALEXANDER PEREZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ALEXIA HUGHES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ANA ROJAS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ANDREW GEORGE ROBINSON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ANGEL LOPEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ANTONIO SOLOMON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ANTOUSLY DELVA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ANYELI RAMOS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Arturo Rodriguez'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'BRYNOL PIERRE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Belkys Cabrera'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Bruce Wayne'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'CHARLES SHIVERS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'CLEOPATRA GOICOCHEA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Claudia Denal'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'DEANNA RIVERA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'David Tercero'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Dayring Lopez'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'EDENIA RODRIGUEZ RODRIGUEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ENRIQUE SILVERIO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Emmanuel Cowart'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Estefania Rivera'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'FELICIA MOYE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'FH Paschen Inc'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'GABRIEL GUTIERREZ DIAZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'GERNOT SANON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'George Waldo Blanco'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'INDRA JULIET ESQUIVEL'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ISIDORO CARMONA VELAZQUEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JASMINE LEADER'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JAY SCOTT'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'JONNIE COLVIN'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Javier Perez'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Jorge Gordon'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Juan Carlos De La torre'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'KEITH JONES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'LAZARO VALLADARES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'LILA CARCAMO HERNANDEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'MAGALY CORRAL PEREIRO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Marc Rosemond'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'NATASHA DANIELLE GILL'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'NEHEMIAS HERNANDEZ RUBI'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'NELALY MENDOZA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Osmel Gonzalez Ramos'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'RAFAEL DUARTE MONTAS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'RAUL REYES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'RAYMOND CAWLEY'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'RENE GUEVARA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'REYNALDO AKEL RIVERO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'ROBERTO MOLINA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Robert Bennett'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Royal Renter'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Ryan Lewis'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'SILVIA DURAN'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'STEPHANIE GUTIERREZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Sam Wilson'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'THOMAS GRANT JUNIOR'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org//Web2/CaseSearchECA/Index/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Tony Stark'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'VIVIANA PERTUSIO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Wanda Tbet Rosa-Malave'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'XAVIER ROBINSON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'YUSIEL OCHOA DEL PINO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/?AccessLevel=ANONYMOUS",
+      "exception_message": "Broward County (FL) search failed after 2 attempts for 'Yoosely Pierre Louis'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for ANTOUSLY DELVA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for Ariel Valverde",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for CHANTE BASS",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for DEANNA RIVERA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for JANETH ECHENIQUE",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for JULIO POMARES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for VIVIANA PERTUSIO",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 1 case(s) found for YUDIT GUERRA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 16 case(s) found for ANA SANTANA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 16 case(s) found for KEITH JONES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for DANIEL PEDROSO",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for JAMES ORR",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for Justin Adams",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for LAZARO GRANDAL",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for NING WU",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 2 case(s) found for Octavio Gutierrez",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 3 case(s) found for JAY SCOTT",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 3 case(s) found for KENIA PEREZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 3 case(s) found for NICHOLE HENDERSON",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 3 case(s) found for STEPHANIE GUTIERREZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 3 case(s) found for Tania Franco",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 4 case(s) found for Gregory Caldwell",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 4 case(s) found for KEVIN ESTEVEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 5 case(s) found for EMANUEL TORRES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 5 case(s) found for Ronnie Ray",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 55 case(s) found for PEDRO LOPEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 56 case(s) found for ANGEL LOPEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 6 case(s) found for KATHERINE NELSON",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 6 case(s) found for Silva Lopez",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2",
+      "exception_message": "Discovery: 60 case(s) found for ASHLEY RODRIGUEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "broward",
+      "portal_name": "Broward County (FL)",
+      "page_url": "https://www.browardclerk.org/Web2/",
+      "exception_message": "Timeout waiting for CAPTCHA response token",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'ALEJANDRA ARZU GUZMAN'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'DAYANA PENATE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'DEMETRI DOTSON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'EVELYNE PIERRE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'ICILDA LINTON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'JANNETE MORENO CASTILLO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'JOSE MORALES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'JUANITA SMALL'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'KARI SCOTT'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'LILA CARCAMO HERNANDEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'ROCHELLE ACHUBA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'RONALD MOORE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'SHAKAYLA DAVIS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'TAMAYA BRAY'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'TREVOR WILLIAMS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "dallas",
+      "portal_name": "Dallas County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Dallas County (TX) search failed after 2 attempts for 'YADIRA CARDONA SANTIAGO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_cclerk",
+      "portal_name": "Harris County Clerk (TX)",
+      "page_url": "https://www.cclerk.hctx.net/Applications/WebSearch/CourtSearch_R.aspx?ID=7sEuXTcTvvTGPqUccCknhoInzOeggS9/VsSkTmbvCpj8CO2DKbz5nKrT0xQSDEPulc9QCq/UK1zuTCOcenlJBD+2Ev6gAU1SuV6LeEJpBSm+WpCi48rXSpQUPhbt05/os6hNwBujjEeG5DgVsK0PpYyGPewjNy+6S2g7/89CWXFTFeu3MFxJpQGsqttlm7zA",
+      "exception_message": "Discovery: 1 case(s) found for E & W PROPERTY LLC",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for Alfonzo Garcia",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for Danielle Adams",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile",
+      "exception_message": "Discovery: 1 case(s) found for Emiliano Mancilla",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for Iheanacho Chukwu",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for LUCKSON EXANAT",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for LUIS HURTADO LINARES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 1 case(s) found for RUSSELL BYRD",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 11 case(s) found for SHANE WILLIAMS",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 14 case(s) found for ANDREA MARTINEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 16 case(s) found for JESSICA TAYLOR",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 17 case(s) found for REYNA REYES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 2 case(s) found for HUGO CASTRO",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+      "exception_message": "Discovery: 2 case(s) found for MARCUS REYES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 2 case(s) found for MARTHA MELENDEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 2 case(s) found for MONISHA FIELDS",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+      "exception_message": "Discovery: 3 case(s) found for ELDER MARTINEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+      "exception_message": "Discovery: 3 case(s) found for JOHN FLETCHER",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 3 case(s) found for Jing Li",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 4 case(s) found for RICHARD GUERRA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 47 case(s) found for MARCUS WILLIAMS",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 603 case(s) found for Metropolitan Transit Authority",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx#gsc.tab=0",
+      "exception_message": "Discovery: 7 case(s) found for BRITTANY MARTINEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile",
+      "exception_message": "Discovery: 7 case(s) found for Hannah Nguyen",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx?Tab=tabParMobile#gsc.tab=0",
+      "exception_message": "Discovery: 72 case(s) found for JOSE VAZQUEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_district",
+      "portal_name": "Harris District Clerk (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Harris District Clerk (TX) search failed after 2 attempts for 'JOSE NUNEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'ANDREA MARTINEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'FELIPE TORRES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'JOSE MORALES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'MARCUS WILLIAMS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/WorkspaceMode?p=0",
+      "exception_message": "Harris County JP (TX) search failed after 2 attempts for 'Metropolitan Transit Authority'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "harris_jp",
+      "portal_name": "Harris County JP (TX)",
+      "page_url": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29",
+      "exception_message": "[Harris County JP (TX)] CAPTCHA was not resolved after 2 attempts",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for Estefania Rivera",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 1 case(s) found for YUDIT GUERRA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 15 case(s) found for Arturo Rodriguez",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for JAMES ORR",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 2 case(s) found for JASMINE LEADER",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 24 case(s) found for ASHLEY RODRIGUEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 27 case(s) found for LUIS ACOSTA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 3 case(s) found for LISA RAMOS",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 36 case(s) found for Jacqueline Rodriguez",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 4 case(s) found for EMANUEL TORRES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 50 case(s) found for JUAN FERNANDEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 53 case(s) found for Javier Perez",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+      "exception_message": "Discovery: 6 case(s) found for KATHERINE NELSON",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 6 case(s) found for RAUL REYES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 66 case(s) found for ALEXANDER PEREZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 7 case(s) found for JUAN PEREZ CRUZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "hillsborough",
+      "portal_name": "Hillsborough County (FL)",
+      "page_url": "https://hover.hillsclerk.com/html/case/caseSearch.html",
+      "exception_message": "Discovery: 8 case(s) found for MANUEL RAMOS",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=lyEYVwdq4LPU9JcY9VTVErI0trizP3Ip4ErtpwgMGpXvXM%252BV34hPevOVduyI5s7VoDXRhUD%252B2H5AjQ8t9KG%252FFS%252FRKr35Dvf%252FDR8YbjB4IV2gde6LanBOz4k%252Fwq76x9UB0UawKLTl3tXwxcCJHXIIzAf8cf6OYevE%252FV19qGvsmpgyzr5qQ%252BEsNHB7pBjGHMqO2tAaE3cPYchHOpzmF%252FLlyA%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for ANTONIO SOLOMON",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=pldl8wb6doW%252BUbi3TmWwHWlwThNMzxgiXPN6jITQVwQ9tdl%252F9slBeLXdo6U4SCeBKfxu4ZU5M3OrFKy57AZ1xlOrRX0FjwLvXOci8sgQdchcwC57j6z2Tcb06cIR0nis3wULhGxs7UYce%252BAX0jxBFjfo3baLU1%252FqhTKDVap2kPgslG%252Fr4J%252BVmZZqQIRN9YJQuIMj6DbpPkjHXBWrt2t0ag%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for ARMANDO CUBILLAS FUENTES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=KXwLUO6us1dc7IqM4kVSiLsiXy56qt3BIGYJhuEWfxHMlQm17iHBdgg%252F6510Ad33vPjDPo4MqfTeUX89weqMjL9weZDf%252Fug2MBHBjlXS1QsXQkooiWhxtSsmbZegaY%252BtL4JfS5Za2iBSWDn796ZZB2QefLKGa7voSrhVUOwCpMar12NI%252BMi3C2QLQvUHKrOcS5g13fEr9L5i025leou6Zg%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for CLEOPATRA GOICOCHEA",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=a0ggdhD83bggNDAj%252FFNqzi6gARZKekdS1Ny0e3m5NQkiQLUawrruXF8mUHUqJk%252FUKThcVbFot3SAs6O%252B0TngQVjvLq8bz6RPN1x3ShB4nanEbnT1tS%252BV3pLv5xekwhZTCGFZWwa1vP5WymZS8yPdlqejO82krWBIsfM6R0%252BnWJPJzFm3aL%252Fm957EJ2YW%252BkGL0qEkGhItr3ckSdJoKnPaoQ%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for EDENIA RODRIGUEZ RODRIGUEZ",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=pNG7ZURNdSs1RGRn2Z%252BY3wb2cCBMV95yEE55mEDRlggJLDxsbKIYMElHnFhqELhyE%252BSb%252FtiaeRAcDw78n5%252F5QS0ZFGBjkh5bKNJ4uF4G4oanuNYmVzbln2mfKM%252Fnac4z4QY9MJ%252BQmIiWO9jEEwFedCgY2041wFmlV%252FMDEjSe%252FshKYGBdeExT3wxLIXmry42BHvHh81NW5TYcScDb%252B3T1mw%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for EMANUEL TORRES",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=Bb1cDC435GBitYjwzwZn6E0Vb8FHnLJt2tacIlK%252BQUZ9%252FMnp8mCBXRNrMVB7ykdIm%252FakWZKfPFTO21b%252F3jmjRvYkPMhSadg9nQxPv%252Btk8%252B0rRArUw5gfJ4MY5fS0tx9JJkxIkX1UHkYxWAxVfE02aN0BIiD6rOLQvjQ55paGUOzh4Pc8%252B6ZD09boK9s3Tv%252FE",
+      "exception_message": "Discovery: 1 case(s) found for Megan Granados",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=owMVNHR5WUcpuNtMjxgeeadF%252F6DgBsUTbNQ4DR3zQiYP26bbjnwW%252FhMNYXs7XJwXJyWTk2x2aIS91iTgYxrSiik69JNIge3DlGxNbyUGyWnOhCDG8tU5ot26uGAuTjWMu%252B8MIlmHRQI%252FeNoSQA3vy%252Bdba1o23v5RBDfTmAOdKfOwBm2oT26tGS9O05k%252B8TWuLIeqzpD75UWEEWJpKQxiFw%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for Natalie Bencomo",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=q32COFPf4Ny1%252BHsAwiNDHJ7MB%252FW%252FFGfrDLpPcoZsoK%252F8O39AHLXN5jvO23Znrg8PagrVUxZJj6M6qHPtbRiEsfbynzkDkjBWWKKgelLTapJfv965sJnICGkjKkUfqx%252BpMPJpkjgAS2t7yNSQxOJWQ%252BQ0tLYShdQ3f0SacI3or5UuuQx5Q4wXa0DQ39zaYRWl7TbtWVip%252FfZe7BQQQpg7eA%253D%253D",
+      "exception_message": "Discovery: 1 case(s) found for ROSANA INNOCENT",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=sDjPgfpBSq7%252BexG2InVpYrlwrICRVmxp8vj%252ByMoIjTcE%252FQx%252FQ7XjZYc90NVyhRup24V1qFKNQnGXHWcHSNOE%252FzYoEvBXKBo0Y5RYOO1rE%252BvPjr8zfoDeQmcHN9Ol%252FlSrbe5IyeCDqr97aYr3iHaUBHTXo9caXLkx0iiT37dXJe2mL%252BOtmvk9Tsulq2r5pycy",
+      "exception_message": "Discovery: 1 case(s) found for Roscoe Stewart",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=9dzmPzX0drMqrfV6BbeBfSax9eav59GcELQ1pKd9KOiW4Vbk2fLMLNUjBRrblfJoSzveV5OIuo6CBKYkP7qQE4vcrqWEnOsaNstliZAVPI3Fa7TvvAomTjaubglmK%252B61B9SgjMrvHFESwwU64CjgjxoELh5C9gggW2tcY%252F7HpGsetozOYYioQBoc2nir7zgZymNJ5025rOp9cQIba1Nutg%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ALEXANDER PEREZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=o%252BLOct9liGD%252BAD1ZiurnUhYYr8PIyCZjbUrIM1xlbXslqsEDixTuzyJw%252F5uH4JWtVR0dcbEVV1Pqhci%252FoxSQTy95O22xjZv79pUTWwzcZCUJ9GJAwgjWwF747BF9tVYqHTqqxrleuxZDxMh9Mtv6W3QW%252Fgnx6AcDLM%252F06g7t4FtYPkyTdA0oy3X51wFz2Tek",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ANA ROJAS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ANA SANTANA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=7aHtkhjIQIkFSd3pMPWOJ8Ia9XR7QkPbfH8JTbtCix56FfOWgF2vmkRzGqV18f4nXIG%252BEhWFlVWy%252BjHE0MDQlvMZhzfGGnQMZewZOrtoYT507nSzIxkpM5mvG2E0sTzwh4tj8RxY%252BrC8EALWjnX%252Bw6qFd2xdtUhtAJgB%252F5J3mtZVziVvFOzjYvWtC%252BV7bWZP",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'ANGEL LOPEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'JUAN CARLOS CANIZAREZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=qmj4Xkmzt3U30o68fjbyNtKCXvByYWCPej%252Fgzw0HcIQ56u5zR4u%252FapMKHJo3YX5JVTDmdM93NMgXG2HavcZUY3mlG%252B761bGteF40hLi17COAYePHVeI1cIeQWKoZ9AgnMSVM2ih8qH0xRu%252Bw7g0NPW8QROkr%252FGVn6P8B8LBDJN0FgTEuH2GdXKC8S7jQmDbV6dtx8ZwF7O0sD1vAMsSWbA%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'LAKISHA WILLIAMS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=bqFW4KN1mDzZA04l3D3v%252F5IQVeIbsYHzTVAfW8mDoOE%252FIUj6Xj4E0SjlGWIRGwRy8dOVFVeKd6cZbkhx6rHa3YsC5gIhZ47MECAAUttswe9816DjqEXgU%252FhPL4kr6%252FrbCHr9lTFtZKotKooYNgC2GstOuTXs4qavEYe6I33K4866I4IHzN3XXeGF%252BkRAP1WB",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'LAZARO GRANDAL'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=LLP4QUhpZXGIjr9chi58GaL9vqR%252BhexIu1%252FmMeDqRU66UgZxfuttHrGoixMOsCHCn1as%252BouwzD2TQhqcJrtE7N1MyX5vKPQPS02EhQBbjrpNvQGj2%252BuHvsVqGVcNe6i9cqq7NY0IUkeonihHW89bCOUJOBPqDs1SgEe4WHWvmV8454IwaHilNh9twwEXIFmmX5%252F7cN6DwPskJCw%252FRVVmEQ%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Leonardo Morier'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=pFMWqdkZxODC70bNsU%252Bcbp8CHlK71S8pV9ZcV9HIWsfTAuiOoD0yvck1mMdT5RZUFTRotXP1u7PB4I83gM4gp61%252BdS%252FQp8K4OKVwAXi9f9pLO3j8iW00GGd2FutxazVEer1Lg7ARzL0cU5a%252FOsJrh9MoZXlskqnapvJURqMOsE3zn6%252BRBVkZPaK2gNpU0Nw2",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'MANUEL RAMOS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=sRj9btfa%252FD%252B04Hmhyg0eWlPkbWoqO0tRJ6Fuoj2suaWSX1XxBs4JwLeOPB5GOXzALbisMTx7eJIV11jsb3UnuY44EAAuwsFWRUgL6QDHv%252FDBVC7CgBI9Pd0mY%252BUNcSD3ye0ocQ8j1M2zUW3pYKpwY2JmVJdGXg%252BxJJ4csAzuX2r8gT1IIr61bT7k1vwEwKmr",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'MICHELLE OGAZA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=FsnA%252FLfMEiEgTT1Aqx0OucdG0Fc0coBq8hXrdCwzcor2fjNcA8%252BRS0dPNq8LTA2G2UvLIfKz59TEK5f1YyIvFeny9FnTef0l4yx90a8P5aiFMXvUsX5iUujMsaKtcyCnnEU4XMu%252FUL8cozefetLzzQuYrZKEk8DvrS0yOqa1tQvDa7IDbymoZobvNp0lnIfCrXLNmSoyCd3M18D7u0VMQA%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'MIRLAND MONELAND'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Natasha Romanoff'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=GZtuyaJ0jIxHTTHFLrQi8aN9juH5CSPUWNUwYOVBLRHqMU40CRVb7QtzAHHz2tgv9OtMc2graYUXfeNIiroD5DX3DAwdlpY%252FsrDw%252FJ2nQqJgSlMlMTUNUXcOEU0LtAbJ4cbi5mtJHHa6in%252BiegydPDJkmBREenetZxc%252FIFFtG5zAteLKsnLAAsrPRg6sFsG0ehdLYiD37ToQcixboFB4mA%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'OSWALCENIT PICHARDO RIOS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=hjnQB6DTFuYNsn%252BRODmTkUkc96lQZgfjcyWkUlnim29y6MBbC76RLT8pTSOJ0S0D2DMLqo6OydeDpvr69EsiN5ezA3roQ7ffZEhbImL0%252FPWWQXhsLIn5jde4Zzp8%252FikU3GeeCDz%252BVZMMfr8AlaSz4ReoGKkReAUfwz3AyJ9ltg72LgturES2tpzht3pMNkns",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'RAUL REYES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=5cdrrvQ1iTl55DKVH0x83dKHuwGIf9L5VSLMF6PATK0tVFJb8gQZownB048X9d0PczOHhzAWe%252BFhKYI5blL6u8VwNAtitktyqkwAwfKpEYC8bgi6RbI6RtuEVAgx%252BEA1lMInU4OKsG%252B0FxSLVHr%252FjTTA5%252FY%252FODSebrJluDJ3B8X7ghGec838yaAztt7dWanE",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Robert Bennett'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=i8H%252B5%252B5XtaVNod22NlUnF0HkT2uXtwMxVgchr9WWQt1al0Fk8Ik5N6fyLwiIlOZDdIPazpk3IXbjN3fGTwtA8%252FlNe99NM8enmCiKpxJ31O3bwgGtwfAHC%252FJLur8DrlqcQ4y3j8sOyn%252BghKmIzMqURKtgD%252B%252FQlzHNw5%252BspJxI%252BUIkbzqS1F2tTw3qPGPE5eab",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Rosa Ortega'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=Vs2nN8a%252BSn7QlzRxLqgGpjnv3A6sZpljooc9Ko7BAB2lRSJTtoX5ggFYZZBvRZYfWZ2Q6i32LKhJDOSpV9NxSbrnWbTZnsk6mnoM42DlWnwYEOvz2QYzbQzlI%252FGgX9zbjib6ldbKFfDS2tShDvwgTXAYiZzwCHvzj8PLkF959ah9dHWGu9Viu4t9gKYPf9qU",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Ryan Lewis'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=3JAcdiB6Z7qof81Gz1aVxoN5ZhvcYIaUpdVsZ%252BQ%252BKSix%252F97HsWhlnB2Goj1weziPAvs%252Bdw3S6Y%252BWtq1txKJlB1ZEznrcw5sjFWr%252Ba6t4ZZ9wW8GhFuLnsIgFeSJwJdSN5QpoA4tMfoEhkhqdJdTXgyE81HsjojPsKgzwZWgrW%252FPDxMbjRRCXls9ipirEaB94wEqfzjP4fin1ONz2phRiTw%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'STEPHANIE GUTIERREZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Unknown CV1 Owner'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=lyEYVwdq4LPU9JcY9VTVErI0trizP3Ip4ErtpwgMGpXvXM%252BV34hPevOVduyI5s7VoDXRhUD%252B2H5AjQ8t9KG%252FFS%252FRKr35Dvf%252FDR8YbjB4IV2gde6LanBOz4k%252Fwq76x9UB0UawKLTl3tXwxcCJHXIIzAf8cf6OYevE%252FV19qGvsmpgyzr5qQ%252BEsNHB7pBjGHMqO2tAaE3cPYchHOpzmF%252FLlyA%253D%253D",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Unknown IV Driver'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=vNn5uyc36KcHlxhRhK79WWWDxcAsKOd6cA4gB%252BkHFCWxDCY%252BU0ztQ%252F3vbmtuw70KMrX0Su7sm7nGnwU9q9h1cpyeYe7kh48cDQCUFylXNYyYJTjkPJyvlPFlbvGYzzrIQnjUeI3VzK2buu54WxTrBge0CtPq%252FC7PvBW6SySb5ZpWYydKSBS1zjGv0krtJWts",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'YUDIT GUERRA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "miami",
+      "portal_name": "Miami-Dade County (FL)",
+      "page_url": "https://www2.miamidadeclerk.gov/ocs/searchResults?qs=cfMfrYmMstwxl2KE98N%252BOC998kbipcRsVMaUz7HUADLc3CZIZObA64A%252F%252ByJb%252BFN2UKUlocvZUTVKYre7DywLH%252BgITraVJyZ75h30z1fpHl4b%252FHzT%252BTnfdQwSskQ5ykI0eal22zCNBAtbfTA0qsd0UBDszQBHHX2FppME7XhU9f4T0EMQzl7%252F376HA5j1%252FqpA",
+      "exception_message": "Miami-Dade County (FL) search failed after 2 attempts for 'Yoosely Pierre Louis'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'ALEJANDRA ARZU GUZMAN'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'DAYANA PENATE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'DEMETRI DOTSON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'ELDER MARTINEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'EVELYNE PIERRE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'HUGO CASTRO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'ICILDA LINTON'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'JANNETE MORENO CASTILLO'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'JOSE MORALES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'JUANITA SMALL'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'KARI SCOTT'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'LILA CARCAMO HERNANDEZ'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'RAMON MONTES ROBLES'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'ROCHELLE ACHUBA'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'RONALD MOORE'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'SHAKAYLA DAVIS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'TAMAYA BRAY'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'TREVOR WILLIAMS'",
+      "cnt": 1
+    },
+    {
+      "portal_key": "travis",
+      "portal_name": "Travis County (TX)",
+      "page_url": "chrome-error://chromewebdata/",
+      "exception_message": "Travis County (TX) search failed after 2 attempts for 'YADIRA CARDONA SANTIAGO'",
+      "cnt": 1
+    }
+  ],
+  "sample_failed_claims": [
+    {
+      "claim_number": "CLM-f4b61c",
+      "states": "None/None",
+      "status": "FAILED",
+      "duration_s": 781.74,
+      "error": "Scraping timed out or was interrupted by worker restart.",
+      "category": "Timeout / Interrupted by worker restart"
+    },
+    {
+      "claim_number": "EXT-DRV-01",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 252.63,
+      "error": "Scraping timed out or was interrupted by worker restart.",
+      "category": "Timeout / Interrupted by worker restart"
+    },
+    {
+      "claim_number": "EXT-CLM-01",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 397.73,
+      "error": "miami scraping failure on Unique Name 1 'Insured': Miami-Dade County (FL) search failed after 2 attempts for 'Steve Rogers'",
+      "category": "Miami-Dade scraper failure"
+    },
+    {
+      "claim_number": "EXT-DUP-A",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 809.0,
+      "error": "Scraping timed out or was interrupted by worker restart.",
+      "category": "Timeout / Interrupted by worker restart"
+    },
+    {
+      "claim_number": "EXT-DUP-B",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 853.13,
+      "error": "Scraping timed out or was interrupted by worker restart.",
+      "category": "Timeout / Interrupted by worker restart"
+    },
+    {
+      "claim_number": "FST-004",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 843.56,
+      "error": "Scraping timed out or was interrupted by worker restart.",
+      "category": "Timeout / Interrupted by worker restart"
+    },
+    {
+      "claim_number": "FST-005",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 917.99,
+      "error": "Scraping timed out or was interrupted by worker restart.",
+      "category": "Timeout / Interrupted by worker restart"
+    },
+    {
+      "claim_number": "FST-006",
+      "states": "Florida/Florida",
+      "status": "NO_MATCH_FOUND",
+      "duration_s": 201.51,
+      "error": "Partial session warning: BrowserType.launch_persistent_context: Timeout 180000ms exceeded.\nCall log:\n  - <launching> C:\\Users\\priyer\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --disable-updater-scheduler --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --no-sandbox --disable-blink-features=AutomationControlled --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-dev-shm-usage --disable-infobars --disable-gpu --window-size=1920,1080 --disable-extensions-except=C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\anticaptcha-plugin_v0.83 --load-extension=C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\anticaptcha-plugin_v0.83 --enable-developer-mode --disk-cache-dir=C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\backend\\data\\browser_cache --headless=new --user-data-dir=C:\\Users\\priyer\\.gemini\\antigravity-ide\\scratch\\Bot_UAIC\\backend\\data\\browser_profile\\chromium --remote-debugging-pipe about:blank\n  - <launched> pid=25980\n  - [pid=25980] <process did exit: exitCode=1, signal=null>\n  - [pid=25980] starting temporary directories cleanup\n  - [pid=25980] finished temporary directories cleanup\n",
+      "category": "Network / Connection timeout"
+    },
+    {
+      "claim_number": "TEST_GW_001",
+      "states": "FL/FL",
+      "status": "FAILED",
+      "duration_s": null,
+      "error": "No searchable party surname was provided for court discovery.",
+      "category": "Other: No searchable party surname was provided for court discovery"
+    },
+    {
+      "claim_number": "TEST_EXP_001",
+      "states": "FL/FL",
+      "status": "FAILED",
+      "duration_s": null,
+      "error": "No searchable party surname was provided for court discovery.",
+      "category": "Other: No searchable party surname was provided for court discovery"
+    },
+    {
+      "claim_number": "TEST_MATCH_EXP_001",
+      "states": "FL/FL",
+      "status": "FAILED",
+      "duration_s": null,
+      "error": "No searchable party surname was provided for court discovery.",
+      "category": "Other: No searchable party surname was provided for court discovery"
+    },
+    {
+      "claim_number": "TEST_DATEFILED_001",
+      "states": "FL/FL",
+      "status": "FAILED",
+      "duration_s": null,
+      "error": "No searchable party surname was provided for court discovery.",
+      "category": "Other: No searchable party surname was provided for court discovery"
+    },
+    {
+      "claim_number": "800229161",
+      "states": "Florida/Florida",
+      "status": "FAILED",
+      "duration_s": 253.43,
+      "error": null,
+      "category": "Other: Unknown error"
+    },
+    {
+      "claim_number": "100285580",
+      "states": "Florida/Florida",
+      "status": "NO_MATCH_FOUND",
+      "duration_s": 719.47,
+      "error": "Interrupted by worker restart; automatically retrying (attempt 2/3).",
+      "category": "Other: Interrupted by worker restart; automatically retrying (attem"
+    },
+    {
+      "claim_number": "100292772",
+      "states": "Texas/Texas",
+      "status": "FAILED",
+      "duration_s": 256.98,
+      "error": null,
+      "category": "Other: Unknown error"
+    }
+  ]
+}

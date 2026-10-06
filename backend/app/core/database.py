@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -15,12 +16,43 @@ from app.core.config import settings
 # Configure engine arguments based on DB dialect for FastAPI server
 engine_kwargs = {"echo": False, "future": True}
 if settings.DATABASE_URL.startswith("sqlite"):
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60.0}
+    engine_kwargs["poolclass"] = NullPool
 else:
     engine_kwargs["pool_size"] = 30
     engine_kwargs["max_overflow"] = 20
 
 engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
+
+# Dedicated engine with NullPool for Celery background tasks (prevents event loop connection conflicts)
+task_engine_kwargs = {"echo": False, "future": True, "poolclass": NullPool}
+if settings.DATABASE_URL.startswith("sqlite"):
+    task_engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60.0}
+
+task_engine = create_async_engine(settings.DATABASE_URL, **task_engine_kwargs)
+
+
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA busy_timeout=60000;")
+            cursor.close()
+        except Exception:
+            pass
+
+    @event.listens_for(task_engine.sync_engine, "connect")
+    def _set_task_sqlite_pragma(dbapi_connection, connection_record):
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA busy_timeout=60000;")
+            cursor.close()
+        except Exception:
+            pass
+
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -29,13 +61,6 @@ AsyncSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
-
-# Dedicated engine with NullPool for Celery background tasks (prevents event loop connection conflicts)
-task_engine_kwargs = {"echo": False, "future": True, "poolclass": NullPool}
-if settings.DATABASE_URL.startswith("sqlite"):
-    task_engine_kwargs["connect_args"] = {"check_same_thread": False}
-
-task_engine = create_async_engine(settings.DATABASE_URL, **task_engine_kwargs)
 
 TaskAsyncSessionLocal = async_sessionmaker(
     bind=task_engine,
@@ -72,46 +97,35 @@ async def init_db() -> None:
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Ensure new telemetry columns exist in SQLite
+
+    # Ensure backward-compatible columns exist on SQLite legacy databases.
+    # Note: On PostgreSQL, Base.metadata.create_all already creates all columns.
+    # On PostgreSQL, failing ALTER statements poison the transaction and trigger full rollback,
+    # so we restrict ALTER migrations to SQLite and run each in an isolated transaction.
+    if engine.dialect.name == "sqlite":
         try:
-            await conn.execute(text("ALTER TABLE claim_records ADD COLUMN action_timings JSON"))
+            async with engine.begin() as conn:
+                await conn.execute(text("PRAGMA journal_mode=WAL;"))
+                await conn.execute(text("PRAGMA busy_timeout=60000;"))
         except Exception:
             pass
-        try:
-            await conn.execute(text("ALTER TABLE claim_records ADD COLUMN total_duration_seconds REAL"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE claim_records ADD COLUMN created_by VARCHAR(100) DEFAULT 'system'"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE claim_records ADD COLUMN modified_by VARCHAR(100) DEFAULT 'system'"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE error_screenshots ADD COLUMN storage_provider VARCHAR(50) DEFAULT 'local'"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE ingestion_batches ADD COLUMN duplicate_records INTEGER DEFAULT 0"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE ingestion_batches ADD COLUMN invalid_records INTEGER DEFAULT 0"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE ingestion_batches ADD COLUMN mapping_config JSON"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE ingestion_batches ADD COLUMN failed_rows_data JSON"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE notifications ADD COLUMN delivery_receipt JSON"))
-        except Exception:
-            pass
+        sqlite_alters = [
+            "ALTER TABLE claim_records ADD COLUMN action_timings JSON",
+            "ALTER TABLE claim_records ADD COLUMN total_duration_seconds REAL",
+            "ALTER TABLE claim_records ADD COLUMN created_by VARCHAR(100) DEFAULT 'system'",
+            "ALTER TABLE claim_records ADD COLUMN modified_by VARCHAR(100) DEFAULT 'system'",
+            "ALTER TABLE error_screenshots ADD COLUMN storage_provider VARCHAR(50) DEFAULT 'local'",
+            "ALTER TABLE ingestion_batches ADD COLUMN duplicate_records INTEGER DEFAULT 0",
+            "ALTER TABLE ingestion_batches ADD COLUMN invalid_records INTEGER DEFAULT 0",
+            "ALTER TABLE ingestion_batches ADD COLUMN mapping_config JSON",
+            "ALTER TABLE ingestion_batches ADD COLUMN failed_rows_data JSON",
+            "ALTER TABLE notifications ADD COLUMN delivery_receipt JSON",
+        ]
+        for alter_stmt in sqlite_alters:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text(alter_stmt))
+            except Exception:
+                pass
 
 

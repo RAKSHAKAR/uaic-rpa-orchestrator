@@ -299,7 +299,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
             claim.record_status = RecordStatusEnum.COMPLETED if dispatch_mode == "direct_system" else RecordStatusEnum.MATCH_FOUND
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.COMPLETED
             claim.modified_by = "worker:fuzzy_matcher"
-            total_sec = timings.get("total_scraping_seconds", 0.0) + fuzzy_duration
+            total_sec = (timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
             logger.info(f"Claim {claim.claim_number}: {len(positive_matches)} positive matches confirmed.")
@@ -307,7 +307,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
             claim.record_status = RecordStatusEnum.MANUAL_REVIEW
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.PENDING_REVIEW
             claim.modified_by = "worker:fuzzy_matcher"
-            total_sec = timings.get("total_scraping_seconds", 0.0) + fuzzy_duration
+            total_sec = (timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
             logger.info(f"Claim {claim.claim_number}: {len(borderline_matches)} borderline matches flagged for manual review.")
@@ -315,7 +315,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
             claim.record_status = RecordStatusEnum.NO_MATCH_FOUND
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.NO_MATCH_FOUND
             claim.modified_by = "worker:fuzzy_matcher"
-            total_sec = timings.get("total_scraping_seconds", 0.0) + fuzzy_duration
+            total_sec = (timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
             logger.info(f"Claim {claim.claim_number}: No matching court cases found.")
@@ -415,6 +415,7 @@ async def _async_notify_guidewire(claim_id: str):
         claim.modified_by = "worker:guidewire_sync"
         if gw_res.get("success"):
             claim.record_status = RecordStatusEnum.COMPLETED
+            claim.last_error = None
             resp = gw_res.get("response", {})
             claim.activity_id = str(resp.get("ActivityID") or resp.get("activityId") or resp.get("activity_id") or "GW-AUTO-CREATED")
             timings["guidewire_dispatch"]["activity_id"] = claim.activity_id

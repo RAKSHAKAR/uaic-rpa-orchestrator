@@ -4,12 +4,19 @@ import asyncio
 import html
 import logging
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import select
 
+from app.compat import utc_now
 from app.core.celery_app import celery_app
-from app.core.database import AsyncSessionLocal
+from app.core.database import TaskAsyncSessionLocal
+
+# Module-level alias used by all internal functions.
+# Tests monkeypatch `notification_tasks.AsyncSessionLocal` to inject an in-memory
+# session factory — this alias is the single patchable reference point.
+AsyncSessionLocal = TaskAsyncSessionLocal
+
 from app.models.notification import Notification
 from app.services.email_service import get_email_provider
 from app.services.settings_service import get_system_settings_async, get_system_settings_sync
@@ -40,7 +47,7 @@ async def _dispatch_due_digests() -> int:
     email_cfg = (await get_system_settings_async()).email
     if not email_cfg.email_notifications_enabled:
         return 0
-    cutoff = _digest_cutoff(datetime.now(UTC), email_cfg.digest_mode)
+    cutoff = _digest_cutoff(utc_now(), email_cfg.digest_mode)
     async with AsyncSessionLocal() as db:
         stmt = (
             select(Notification)
@@ -72,7 +79,7 @@ async def _dispatch_due_digests() -> int:
                 body_text=body_text,
                 provider=provider,
                 status="QUEUED",
-                queued_at=datetime.now(UTC),
+                queued_at=utc_now(),
                 details={"source_notification_ids": [item.id for item in items]},
             )
             db.add(digest)
@@ -161,7 +168,7 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
 
             if result.success:
                 notification.status = "SENT"
-                notification.sent_at = datetime.now(UTC)
+                notification.sent_at = utc_now()
                 notification.error_message = None
                 if result.delivery_receipt:
                     notification.delivery_receipt = result.delivery_receipt
@@ -173,7 +180,7 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
                 return {"success": True, "status": "SENT"}
             else:
                 notification.status = "FAILED"
-                notification.failed_at = datetime.now(UTC)
+                notification.failed_at = utc_now()
                 notification.error_message = result.error or "Unknown delivery failure"
                 if result.delivery_receipt:
                     notification.delivery_receipt = result.delivery_receipt
@@ -183,7 +190,7 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
 
         except Exception as e:
             notification.status = "FAILED"
-            notification.failed_at = datetime.now(UTC)
+            notification.failed_at = utc_now()
             notification.error_message = str(e)
             await db.commit()
             logger.error(f"[NotificationTask] Exception delivering notification {notification_id}: {e}")

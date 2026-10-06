@@ -67,6 +67,28 @@ async def test_time_window_resolution():
     assert end_dt is None
     assert "All Time" in desc
 
+    # 6. Retention Scopes: older_than_30_days, older_than_14_days, older_than_7_days
+    start_dt, end_dt, desc = resolve_time_window("older_than_30_days", reference_now=ref_time)
+    assert start_dt is None
+    assert end_dt == ref_time - timedelta(days=30)
+    assert "30 days" in desc.lower()
+
+    start_dt, end_dt, desc = resolve_time_window("older_than_14_days", reference_now=ref_time)
+    assert start_dt is None
+    assert end_dt == ref_time - timedelta(days=14)
+    assert "14 days" in desc.lower()
+
+    start_dt, end_dt, desc = resolve_time_window("older_than_7_days", reference_now=ref_time)
+    assert start_dt is None
+    assert end_dt == ref_time - timedelta(days=7)
+    assert "7 days" in desc.lower()
+
+    # Verify TimeScopeEnum mappings
+    from app.schemas.cleanup import TimeScopeEnum
+    assert TimeScopeEnum.OLDER_THAN_30_DAYS.value == "older_than_30_days"
+    assert TimeScopeEnum.OLDER_THAN_14_DAYS.value == "older_than_14_days"
+    assert TimeScopeEnum.OLDER_THAN_7_DAYS.value == "older_than_7_days"
+
 
 def test_categories_expansion():
     """Verify category list expansion logic."""

@@ -1,0 +1,53 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // ─── Backend FastAPI (Uvicorn) ────────────────────────────────
+            "name": "🐍 FastAPI Backend (uvicorn)",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--reload",
+                "--host", "0.0.0.0",
+                "--port", "8000"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            // ─── Backend pytest (all tests) ───────────────────────────────
+            "name": "🧪 pytest (All Backend Tests)",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests",
+                "--tb=short",
+                "-q"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            // ─── Frontend Playwright E2E ──────────────────────────────────
+            "name": "🎭 Playwright E2E (Frontend)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "${workspaceFolder}/e2e/frontend/node_modules/.bin/playwright",
+            "args": ["test", "--config", "${workspaceFolder}/e2e/frontend/playwright.config.ts"],
+            "cwd": "${workspaceFolder}/e2e/frontend",
+            "console": "integratedTerminal"
+        }
+    ]
+}

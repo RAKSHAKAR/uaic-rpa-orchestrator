@@ -3,12 +3,13 @@
 from celery import Celery
 from kombu import Exchange, Queue
 
+import app.compat  # noqa: F401
 from app.core.config import settings
 
 celery_app = Celery(
     "uaic_claim_orchestrator",
-    broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND,
+    broker=settings.CELERY_BROKER_URL or settings.REDIS_URL,
+    backend=settings.CELERY_RESULT_BACKEND or settings.REDIS_URL,
     include=[
         "app.tasks.ingest_tasks",
         "app.tasks.scraper_tasks",
@@ -41,6 +42,13 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
     result_expires=86400,  # 24 hours
+    broker_connection_retry_on_startup=False,
+    broker_connection_max_retries=1,
+    broker_connection_timeout=15.0,
+    broker_transport_options={"socket_timeout": 30.0, "socket_connect_timeout": 15.0},
+    result_backend_max_retries=0,
+    result_backend_transport_options={"max_retries": 0, "retry_policy": {"max_retries": 0}},
+    redis_backend_transport_options={"max_retries": 0, "retry_policy": {"max_retries": 0}},
     
     # Define Dedicated Queues
     task_queues=(
@@ -87,3 +95,18 @@ celery_app.conf.update(
         },
     },
 )
+
+
+@celery_app.on_after_configure.connect
+def setup_worker_startup(**kwargs):
+    """Clean stale concurrency locks when celery worker starts up."""
+    import logging
+
+    import redis as redis_lib
+    _log = logging.getLogger("uaic_orchestrator.celery")
+    try:
+        r = redis_lib.Redis.from_url(settings.CELERY_BROKER_URL or settings.REDIS_URL)
+        r.delete("uaic:browser:active_count")
+        _log.info("[Celery] Reset uaic:browser:active_count concurrency lock on worker boot.")
+    except Exception as e:
+        _log.warning(f"[Celery] Could not reset browser semaphore on boot: {e}")

@@ -66,7 +66,7 @@ class BaseEmailProvider(ABC):
         pass
 
     @abstractmethod
-    def test_connection(self) -> EmailConnectionTestResult:
+    def test_connection(self, **kwargs: Any) -> EmailConnectionTestResult:
         """Test reachability and authentication without sending an email."""
         pass
 

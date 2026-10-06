@@ -76,28 +76,39 @@ class ExtensionManager:
 
         candidate_paths: list[Path] = []
         if configured_path:
-            p = Path(configured_path)
+            norm_str = str(configured_path).replace("\\", "/").strip()
+            clean_str = norm_str.strip("/")
+            p = Path(norm_str)
             if not p.is_absolute():
-                candidate_paths.append((repo_root / p).resolve())
-                candidate_paths.append((backend_dir / p).resolve())
-                candidate_paths.append((Path.cwd() / p).resolve())
+                candidate_paths.append((repo_root / clean_str).resolve())
+                candidate_paths.append((backend_dir / clean_str).resolve())
+                candidate_paths.append((Path.cwd() / clean_str).resolve())
+                candidate_paths.append(Path(f"/app/{clean_str.lstrip('./')}"))
             else:
                 candidate_paths.append(p)
 
         # Canonical project fallback if DB config is missing/invalid
-        candidate_paths.append(repo_root / "anticaptcha-plugin_v0.83")
+        candidate_paths.extend([
+            backend_dir / "anticaptcha-plugin_v0.83",
+            repo_root / "anticaptcha-plugin_v0.83",
+            Path.cwd() / "anticaptcha-plugin_v0.83",
+            Path("/app/anticaptcha-plugin_v0.83"),
+        ])
 
         for p in candidate_paths:
-            if p.is_dir() and (p / "manifest.json").exists():
-                # Chromium explicitly rejects unpacked extensions if any folder starting with '_' exists except '_locales'
-                try:
-                    for child in p.iterdir():
-                        if child.is_dir() and child.name.startswith("_") and child.name != "_locales":
-                            import shutil
-                            shutil.rmtree(child, ignore_errors=True)
-                except Exception as e:
-                    logger.debug(f"Failed to clean reserved underscore dirs in extension: {e}")
-                return p.resolve()
+            try:
+                if p.is_dir() and (p / "manifest.json").exists():
+                    # Chromium explicitly rejects unpacked extensions if any folder starting with '_' exists except '_locales'
+                    try:
+                        for child in p.iterdir():
+                            if child.is_dir() and child.name.startswith("_") and child.name != "_locales":
+                                import shutil
+                                shutil.rmtree(child, ignore_errors=True)
+                    except Exception as e:
+                        logger.debug(f"Failed to clean reserved underscore dirs in extension: {e}")
+                    return p.resolve()
+            except Exception:
+                continue
 
         return None
 
@@ -331,8 +342,10 @@ class CaptchaManager:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         try:
-            async with asyncio.timeout_at(deadline):
-                return await self._detect_and_solve_until(page, deadline, timeout)
+            return await asyncio.wait_for(
+                self._detect_and_solve_until(page, deadline, timeout),
+                timeout=timeout,
+            )
         except TimeoutError:
             logger.warning("CAPTCHA verification timed out after %s seconds.", timeout)
             return False
@@ -500,7 +513,7 @@ class ChromeSession:
 
     @staticmethod
     def find_chrome_executable(configured_path: str | Path | None = None) -> Path | None:
-        """Locates Google Chrome executable on Windows with user override support."""
+        """Locates Google Chrome executable on Windows and Linux with user override support."""
         if configured_path:
             p = Path(configured_path)
             if p.is_file():
@@ -512,23 +525,89 @@ class ChromeSession:
             Path(os.environ.get("LocalAppData", "")) / "Google" / "Chrome" / "Application" / "chrome.exe",
             Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
             Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+            Path("/usr/bin/google-chrome"),
+            Path("/usr/bin/google-chrome-stable"),
+            Path("/opt/google/chrome/chrome"),
         ]
         for p in system_paths:
             if p.is_file():
                 return p.resolve()
+
+        for cmd in ("google-chrome", "google-chrome-stable"):
+            found = shutil.which(cmd)
+            if found and Path(found).is_file():
+                return Path(found).resolve()
+
+        return None
+
+    @staticmethod
+    def find_chromium_executable(configured_path: str | Path | None = None) -> Path | None:
+        """Locates Playwright bundled Chromium or system Chromium across Linux/Docker and Windows."""
+        if configured_path:
+            p = Path(configured_path)
+            if p.is_file():
+                return p.resolve()
+
+        # 1. Check Playwright bundled binary paths on Linux / Docker
+        linux_playwright_patterns = [
+            Path("/ms-playwright"),
+            Path.home() / ".cache" / "ms-playwright",
+        ]
+        for base_dir in linux_playwright_patterns:
+            if base_dir.is_dir():
+                for chrome_candidate in sorted(base_dir.glob("chromium-*/chrome-linux*/chrome"), reverse=True):
+                    if chrome_candidate.is_file() and os.access(chrome_candidate, os.X_OK):
+                        return chrome_candidate.resolve()
+
+        # 2. Check Playwright bundled binary paths on Windows
+        local_app_data = os.environ.get("LocalAppData", "")
+        if local_app_data:
+            pw_win_dir = Path(local_app_data) / "ms-playwright"
+            if pw_win_dir.is_dir():
+                for chrome_candidate in sorted(pw_win_dir.glob("chromium-*\\chrome-win*\\chrome.exe"), reverse=True):
+                    if chrome_candidate.is_file():
+                        return chrome_candidate.resolve()
+
+        # 3. Check system PATH
+        for cmd in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+            found = shutil.which(cmd)
+            if found and Path(found).is_file():
+                return Path(found).resolve()
+
+        # 4. Try discovery via playwright driver
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                exe = pw.chromium.executable_path
+                if exe and Path(exe).is_file():
+                    return Path(exe).resolve()
+        except Exception:
+            pass
+
         return None
 
     @staticmethod
     def find_default_edge_executable() -> Path | None:
-        """Locates Microsoft Edge executable on Windows."""
+        """Locates Microsoft Edge executable on Windows and Linux."""
         edge_paths = [
             Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
             Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
             Path(os.environ.get("LocalAppData", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+            Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+            Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+            Path("/usr/bin/microsoft-edge"),
+            Path("/usr/bin/microsoft-edge-stable"),
+            Path("/opt/microsoft/msedge/msedge"),
         ]
         for p in edge_paths:
             if p.is_file():
                 return p.resolve()
+
+        for cmd in ("microsoft-edge", "microsoft-edge-stable", "msedge"):
+            found = shutil.which(cmd)
+            if found and Path(found).is_file():
+                return Path(found).resolve()
+
         return None
 
     @staticmethod
@@ -588,9 +667,6 @@ class ChromeSession:
             ui_prefs = ext_prefs.setdefault("ui", {})
             ui_prefs["developer_mode"] = True
 
-            profile_prefs = prefs.setdefault("profile", {})
-            profile_prefs["managed_developer_mode_allowed"] = True
-
             pinned = ext_prefs.setdefault("pinned_extensions", [])
             for eid in ids_to_pin:
                 if eid not in pinned:
@@ -610,6 +686,20 @@ class ChromeSession:
             browser_prefs["show_extensions_toolbar_menu"] = True
 
             pref_file.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+
+            # Also ensure Secure Preferences does not contain a stale tracked_preferences_reset
+            sec_pref_file = pref_file.parent / "Secure Preferences"
+            if sec_pref_file.is_file():
+                try:
+                    sec_prefs = json.loads(sec_pref_file.read_text(encoding="utf-8"))
+                    changed = False
+                    if "prefs.tracked_preferences_reset" in sec_prefs:
+                        sec_prefs.pop("prefs.tracked_preferences_reset", None)
+                        changed = True
+                    if changed:
+                        sec_pref_file.write_text(json.dumps(sec_prefs, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
             return True
         except Exception as e:
             logger.debug(f"Failed writing pinned preferences to {pref_file}: {e}")
@@ -705,15 +795,42 @@ class ChromeSession:
         if not profile_dir:
             return False
         p = Path(profile_dir)
+        if not p.exists():
+            return False
+
+        # 1. Check Windows lockfile
         lock_path = p / "lockfile"
-        if not lock_path.exists():
-            return False
-        try:
-            with open(lock_path, "r+"):
-                pass
-            return False
-        except (PermissionError, OSError):
+        if lock_path.exists():
+            try:
+                with open(lock_path, "r+"):
+                    pass
+            except (PermissionError, OSError):
+                return True
+
+        # 2. Check POSIX / Linux Chromium SingletonLock symlink pointing to <hostname>-<pid>
+        singleton_lock = p / "SingletonLock"
+        if singleton_lock.is_symlink() or singleton_lock.exists():
+            if sys.platform != "win32":
+                try:
+                    import os
+                    target = os.readlink(str(singleton_lock))
+                    pid_str = target.rsplit("-", 1)[-1]
+                    if pid_str.isdigit():
+                        pid = int(pid_str)
+                        if pid != os.getpid():
+                            os.kill(pid, 0)
+                            return True
+                except (OSError, ValueError):
+                    pass
+            else:
+                return True
+
+        # 3. Check Chromium SingletonSocket
+        singleton_socket = p / "SingletonSocket"
+        if singleton_socket.exists() and (singleton_lock.exists() or singleton_lock.is_symlink()):
             return True
+
+        return False
 
     @classmethod
     def clean_profile_locks_and_orphans(cls, profile_dir: Path | str | None, force_kill: bool = False) -> None:
@@ -750,6 +867,12 @@ class ChromeSession:
                                 logger.info(f"Terminated orphan browser process tree for PID {pid_clean} (profile: {p.name})")
                 except Exception as e:
                     logger.debug(f"Process sanitation for {p} skipped or completed: {e}")
+        elif force_kill:
+            # On Linux container, terminate any lingering orphan browser processes if force_kill requested
+            try:
+                subprocess.run(["pkill", "-9", "-f", "chrome"], capture_output=True)
+            except Exception as e:
+                logger.debug(f"Linux force kill skipped: {e}")
 
         # 2. Allow brief pause for OS kernel handle release
         import time as _time
@@ -758,9 +881,35 @@ class ChromeSession:
         # 3. Clean Chromium/Chrome Singleton lock files AFTER processes have stopped
         for lock_name in ("SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"):
             lock_path = p / lock_name
-            if lock_path.exists():
+            if lock_path.exists() or (hasattr(lock_path, "is_symlink") and lock_path.is_symlink()):
+                # On Linux, do NOT remove SingletonLock/SingletonSocket if the holding process is still alive and not force_kill
+                if lock_name in ("SingletonLock", "SingletonSocket") and sys.platform != "win32" and not force_kill:
+                    try:
+                        import os
+                        sl = p / "SingletonLock"
+                        if sl.is_symlink() or sl.exists():
+                            target = os.readlink(str(sl))
+                            pid_str = target.rsplit("-", 1)[-1]
+                            if pid_str.isdigit() and int(pid_str) != os.getpid():
+                                os.kill(int(pid_str), 0)
+                                # Process is alive! Preserve lock so callers detect it
+                                continue
+                    except (OSError, ValueError):
+                        pass
                 try:
                     lock_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        # 4. Clean any stale HMAC reset triggers from Secure Preferences
+        for def_dir in (p, p / "Default"):
+            sec_pref = def_dir / "Secure Preferences"
+            if sec_pref.is_file():
+                try:
+                    sec_data = json.loads(sec_pref.read_text(encoding="utf-8"))
+                    if "prefs.tracked_preferences_reset" in sec_data:
+                        sec_data.pop("prefs.tracked_preferences_reset", None)
+                        sec_pref.write_text(json.dumps(sec_data, indent=2), encoding="utf-8")
                 except Exception:
                     pass
 
@@ -895,21 +1044,29 @@ class ChromeSession:
                 "--disable-extensions-file-access-check",
                 "--allow-outdated-plugins",
                 "--disable-infobars",
-                "--test-type",
             ])
             if sys.platform != "win32":
                 launch_args.append("--no-sandbox")
         else:
-            launch_args.extend(["--disable-infobars", "--test-type"])
+            launch_args.extend(["--disable-infobars"])
             if sys.platform != "win32":
                 launch_args.append("--no-sandbox")
 
         is_headless = self.headless
+        if sys.platform != "win32" and "DISPLAY" not in os.environ:
+            if not is_headless:
+                logger.info("Attended GUI requested but running in container without DISPLAY. Executing headlessly.")
+            is_headless = True
+            launch_args.extend(["--disable-gpu", "--disable-dev-shm-usage"])
+
         if is_headless and has_ext:
             launch_args.append("--headless=new")
             # In Playwright, to load extensions in headless mode, persistent context must receive headless=False
             # while Chromium executes silently via --headless=new.
-            context_headless = False
+            if sys.platform != "win32" and "DISPLAY" not in os.environ:
+                context_headless = True
+            else:
+                context_headless = False
         else:
             context_headless = is_headless
 
@@ -930,9 +1087,11 @@ class ChromeSession:
         chrome_exe = None
         if engine in ("chrome", "google-chrome"):
             chrome_exe = self.find_chrome_executable(self.chrome_binary_path)
+            if not chrome_exe and sys.platform != "win32":
+                chrome_exe = self.find_chromium_executable()
             if self.chrome_binary_path and not chrome_exe:
                 raise RuntimeError(
-                    f"Google Chrome executable (chrome.exe) was not found on this system "
+                    f"Google Chrome executable was not found on this system "
                     f"(searched: {self.chrome_binary_path or 'standard Program Files and LocalAppData locations'}). "
                     f"Please verify Google Chrome is installed or specify the path in Settings."
                 )
@@ -976,10 +1135,17 @@ class ChromeSession:
                 else:
                     launch_kwargs["channel"] = "chrome"
             elif engine in ("edge", "msedge", "microsoft-edge"):
+                edge_exe = self.find_default_edge_executable()
                 if self.chrome_binary_path and "edge" in str(self.chrome_binary_path).lower() and os.path.isfile(self.chrome_binary_path):
                     launch_kwargs["executable_path"] = str(self.chrome_binary_path)
+                elif edge_exe:
+                    launch_kwargs["executable_path"] = str(edge_exe)
                 else:
                     launch_kwargs["channel"] = "msedge"
+            elif engine == "chromium":
+                chrom_exe = self.find_chromium_executable(self.chrome_binary_path)
+                if chrom_exe:
+                    launch_kwargs["executable_path"] = str(chrom_exe)
 
             # Socket-level proxy egress tunneling
             if self.proxy_server:
@@ -999,13 +1165,53 @@ class ChromeSession:
                     or "opening in existing browser session" in err_str.lower()
                     or "profile is already in use" in err_str.lower()
                 ):
-                    raise RuntimeError(
-                        f"PROFILE LOCK DETECTED (exitCode=21): The profile directory '{self.profile_to_use}' is currently locked by another active Chrome process.\n\n"
-                        f"Even if the browser window is not visible, background processes or stale locks are holding the profile.\n\n"
-                        f"HOW TO FIX:\n"
-                        f"1) Click 'Force Kill Chrome & Retry' in Settings to terminate all background browser processes.\n"
-                        f"2) Or open Windows Task Manager and close any remaining 'chrome.exe' / 'msedge.exe' tasks."
-                    ) from e
+                    if not self.is_temp_profile:
+                        logger.warning(
+                            f"Persistent profile '{self.profile_to_use}' collision detected ({err_str}). "
+                            f"Auto-falling back to an isolated session profile pre-seeded from canonical profile."
+                        )
+                        pfx = f"uaic_worker_{self.worker_id}_" if self.worker_id is not None else "uaic_chrome_profile_"
+                        temp_path = Path(tempfile.mkdtemp(prefix=pfx))
+                        source_user_data = self.profile_to_use
+                        self.profile_to_use = temp_path
+                        self.is_temp_profile = True
+                        if source_user_data and source_user_data.is_dir():
+                            try:
+                                local_state_src = source_user_data / "Local State"
+                                if local_state_src.is_file():
+                                    shutil.copy2(local_state_src, self.profile_to_use / "Local State")
+                                default_target = self.profile_to_use / "Default"
+                                default_target.mkdir(parents=True, exist_ok=True)
+                                pref_src = source_user_data / "Default" / "Preferences"
+                                if pref_src.is_file():
+                                    shutil.copy2(pref_src, default_target / "Preferences")
+                                for ext_sub in ["Extension Rules", "Extension Scripts", "Extension State", "Local Extension Settings", "Sync Extension Settings", "Extensions"]:
+                                    sub_src = source_user_data / "Default" / ext_sub
+                                    sub_dest = default_target / ext_sub
+                                    if sub_src.is_dir():
+                                        shutil.copytree(sub_src, sub_dest, dirs_exist_ok=True)
+                            except Exception as seed_err:
+                                logger.debug(f"Failed to seed fallback profile: {seed_err}")
+                        self.pin_extension_in_preferences(self.profile_to_use / "Default" / "Preferences", KNOWN_ANTICAPTCHA_IDS)
+                        try:
+                            self.configure_and_pin_profile(
+                                profile_dir=self.profile_to_use,
+                                api_key=self.anticaptcha_api_key,
+                                extension_path=self.extension_path,
+                                auto_cfg=self.auto_cfg,
+                            )
+                        except Exception:
+                            pass
+                        launch_kwargs["user_data_dir"] = str(self.profile_to_use)
+                        self.context = await self.playwright.chromium.launch_persistent_context(**launch_kwargs)
+                    else:
+                        raise RuntimeError(
+                            f"PROFILE LOCK DETECTED (exitCode=21): The profile directory '{self.profile_to_use}' is currently locked by another active Chrome process.\n\n"
+                            f"Even if the browser window is not visible, background processes or stale locks are holding the profile.\n\n"
+                            f"HOW TO FIX:\n"
+                            f"1) Click 'Force Kill Chrome & Retry' in Settings to terminate all background browser processes.\n"
+                            f"2) Or open Windows Task Manager and close any remaining 'chrome.exe' / 'msedge.exe' tasks."
+                        ) from e
                 elif "executable doesn't exist" in err_str.lower() or ("browser executable" in err_str.lower() and "not found" in err_str.lower()):
                     raise RuntimeError(
                         f"Browser executable could not be launched for engine '{engine}': {err_str}. "
@@ -1059,6 +1265,17 @@ class ChromeSession:
                         probe_page = await self.context.new_page()
                         try:
                             await probe_page.goto("chrome://extensions", wait_until="domcontentloaded", timeout=5000)
+                            # Ensure Developer Mode toggle is activated
+                            await probe_page.evaluate("""() => {
+                                try {
+                                    const manager = document.querySelector('extensions-manager');
+                                    const toolbar = manager?.shadowRoot?.querySelector('extensions-toolbar');
+                                    const devModeToggle = toolbar?.shadowRoot?.querySelector('#devMode');
+                                    if (devModeToggle && !devModeToggle.checked) {
+                                        devModeToggle.click();
+                                    }
+                                } catch (e) {}
+                            }""")
                             exts_info = await probe_page.evaluate("""() => {
                                 const dp = window.chrome?.developerPrivate;
                                 if (!dp) return [];
@@ -1254,7 +1471,7 @@ class BrowserManager:
         self.tab_manager: TabManager | None = None
         self.stage_timings: dict[str, Any] = {}
 
-    async def __aenter__(self) -> BrowserManager:
+    async def __aenter__(self) -> "BrowserManager":
         t_start = datetime.now()
         context = await self.session.start()
         t_end = datetime.now()
@@ -1266,7 +1483,11 @@ class BrowserManager:
             "end_time": t_end.strftime("%H:%M:%S.%f")[:-3],
             "duration_seconds": max(duration, 0.001),
             "status": "SUCCESS",
-            "detail": "Google Chrome (Attended GUI) + AntiCaptcha" if self.session.extension_path else "Google Chrome",
+            "detail": (
+                f"{'Microsoft Edge' if self.session.browser_engine in ('edge', 'msedge') else ('Chromium' if self.session.browser_engine == 'chromium' else 'Google Chrome')} "
+                f"({'Headless (Background)' if self.session.headless else 'Attended (Visible GUI)'})"
+                f"{' + AntiCaptcha' if self.session.extension_path else ''}"
+            ),
         }
         self.tab_manager = TabManager(context, timeout_ms=self.timeout_ms)
         return self
@@ -1309,21 +1530,32 @@ class SiteAutomationManager:
 
 
 async def run_browser_coroutine(coro_fn: Any, *args: Any, **kwargs: Any) -> Any:
-    """Executes a browser coroutine, ensuring Windows Proactor event loop is used if necessary.
+    """Executes a browser coroutine on an isolated Proactor event loop on Windows.
 
-    On Windows, Playwright requires a ProactorEventLoop to spawn browser subprocesses.
-    If the current running loop is a SelectorEventLoop (common in uvicorn reload workers),
-    this helper offloads the coroutine to a dedicated thread with its own ProactorEventLoop.
+    Playwright spawns and communicates with the browser subprocess driver via pipes.
+    Running it in a dedicated thread with its own ProactorEventLoop prevents
+    driver subprocess I/O and pipe events from interfering with Uvicorn's HTTP accept loop.
     """
-    loop = asyncio.get_running_loop()
-    selector_cls = getattr(asyncio, "SelectorEventLoop", None)
-    if sys.platform == "win32" and selector_cls and isinstance(loop, selector_cls):
+    if sys.platform == "win32":
         def _runner():
             proactor = asyncio.ProactorEventLoop()
             asyncio.set_event_loop(proactor)
             try:
                 return proactor.run_until_complete(coro_fn(*args, **kwargs))
             finally:
-                proactor.close()
+                try:
+                    pending = [t for t in asyncio.all_tasks(proactor) if not t.done()]
+                    for t in pending:
+                        t.cancel()
+                    if pending:
+                        proactor.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except Exception:
+                    pass
+                try:
+                    proactor.close()
+                except Exception:
+                    pass
         return await asyncio.to_thread(_runner)
     return await coro_fn(*args, **kwargs)
+
+

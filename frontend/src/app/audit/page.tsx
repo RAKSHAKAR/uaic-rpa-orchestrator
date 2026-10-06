@@ -91,6 +91,7 @@ export default function AuditPage() {
   const [selectedActions, setSelectedActions] = useState<string[]>([]);
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [isTodayOnly, setIsTodayOnly] = useState(false);
 
   // Sorting state
   const [sortBy, setSortBy] = useState<string>("timestamp");
@@ -127,6 +128,9 @@ export default function AuditPage() {
       if (selectedActions.length > 0) params.action = selectedActions.join(",");
       if (selectedEntityTypes.length > 0) params.entity_type = selectedEntityTypes.join(",");
       if (selectedStatuses.length > 0) params.status = selectedStatuses.join(",");
+      if (isTodayOnly) {
+        params.date_from = new Date().toISOString().slice(0, 10);
+      }
 
       const res = await api.getAuditLogs(params);
       setLogs(res.items || []);
@@ -139,7 +143,7 @@ export default function AuditPage() {
         message: "Failed to load audit trail records from server.",
       });
     }
-  }, [page, pageSize, sortBy, sortDir, debouncedSearch, selectedActions, selectedEntityTypes, selectedStatuses]);
+  }, [page, pageSize, sortBy, sortDir, debouncedSearch, selectedActions, selectedEntityTypes, selectedStatuses, isTodayOnly]);
 
   // Load audit statistics
   const fetchAuditStats = useCallback(async () => {
@@ -163,6 +167,36 @@ export default function AuditPage() {
       setIsLoading(false);
     });
   }, [fetchAuditLogs, fetchAuditStats]);
+
+  // Dynamic dropdown options with live counts from audit stats
+  const actionOptions = React.useMemo(() => {
+    return ACTION_OPTIONS.map((opt) => ({
+      ...opt,
+      count: stats?.by_action?.[opt.value] ?? 0,
+    }));
+  }, [stats]);
+
+  const entityOptions = React.useMemo(() => {
+    return ENTITY_OPTIONS.map((opt) => ({
+      ...opt,
+      count: stats?.by_entity_type?.[opt.value] ?? 0,
+    }));
+  }, [stats]);
+
+  const statusOptions = React.useMemo(() => {
+    return STATUS_OPTIONS.map((opt) => {
+      let count = 0;
+      if (opt.value === "FAILED") {
+        count = (stats?.by_status?.["FAILED"] ?? 0) + (stats?.by_status?.["FAILURE"] ?? 0);
+      } else {
+        count = stats?.by_status?.[opt.value] ?? 0;
+      }
+      return {
+        ...opt,
+        count,
+      };
+    });
+  }, [stats]);
 
   // Handle column header sorting
   const handleSort = (columnKey: string) => {
@@ -188,6 +222,9 @@ export default function AuditPage() {
       if (selectedActions.length > 0) params.action = selectedActions.join(",");
       if (selectedEntityTypes.length > 0) params.entity_type = selectedEntityTypes.join(",");
       if (selectedStatuses.length > 0) params.status = selectedStatuses.join(",");
+      if (isTodayOnly) {
+        params.date_from = new Date().toISOString().slice(0, 10);
+      }
 
       const blob = await api.exportAuditLogs(params);
       const url = window.URL.createObjectURL(blob);
@@ -281,13 +318,15 @@ export default function AuditPage() {
     Boolean(searchQuery) ||
     selectedActions.length > 0 ||
     selectedEntityTypes.length > 0 ||
-    selectedStatuses.length > 0;
+    selectedStatuses.length > 0 ||
+    isTodayOnly;
 
   const resetAllFilters = () => {
     setSearchQuery("");
     setSelectedActions([]);
     setSelectedEntityTypes([]);
     setSelectedStatuses([]);
+    setIsTodayOnly(false);
     setPage(1);
   };
 
@@ -295,7 +334,7 @@ export default function AuditPage() {
     <div className="flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors">
       <Navbar onRefresh={refreshAll} isRefreshing={isRefreshing} />
 
-      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-none transition-colors">
         {/* Notification Banner */}
         {notification && (
           <div
@@ -374,6 +413,15 @@ export default function AuditPage() {
             subtext="Past 24 hours"
             icon={Clock}
             gradient="cyan"
+            selected={isTodayOnly}
+            onClick={() => {
+              if (isTodayOnly) {
+                resetAllFilters();
+              } else {
+                resetAllFilters();
+                setIsTodayOnly(true);
+              }
+            }}
           />
 
           <StatCard
@@ -382,12 +430,14 @@ export default function AuditPage() {
             subtext="Create/Edit/Push/Delete"
             icon={Database}
             gradient="blue"
-            selected={selectedEntityTypes.includes("CLAIM") && selectedEntityTypes.length === 1}
+            selected={selectedEntityTypes.includes("CLAIM") && selectedEntityTypes.length === 1 && !isTodayOnly}
             onClick={() => {
-              setSelectedEntityTypes((prev) =>
-                prev.length === 1 && prev[0] === "CLAIM" ? [] : ["CLAIM"]
-              );
-              setPage(1);
+              if (selectedEntityTypes.includes("CLAIM") && selectedEntityTypes.length === 1 && !isTodayOnly) {
+                resetAllFilters();
+              } else {
+                resetAllFilters();
+                setSelectedEntityTypes(["CLAIM"]);
+              }
             }}
           />
 
@@ -397,12 +447,14 @@ export default function AuditPage() {
             subtext="Settings & Brand edits"
             icon={Sliders}
             gradient="amber"
-            selected={(selectedEntityTypes.includes("SETTINGS") || selectedEntityTypes.includes("BRANDING")) && selectedEntityTypes.length <= 2}
+            selected={(selectedEntityTypes.includes("SETTINGS") || selectedEntityTypes.includes("BRANDING")) && selectedEntityTypes.length <= 2 && !isTodayOnly}
             onClick={() => {
-              setSelectedEntityTypes((prev) =>
-                prev.includes("SETTINGS") || prev.includes("BRANDING") ? [] : ["SETTINGS", "BRANDING"]
-              );
-              setPage(1);
+              if ((selectedEntityTypes.includes("SETTINGS") || selectedEntityTypes.includes("BRANDING")) && !isTodayOnly) {
+                resetAllFilters();
+              } else {
+                resetAllFilters();
+                setSelectedEntityTypes(["SETTINGS", "BRANDING"]);
+              }
             }}
           />
 
@@ -412,12 +464,14 @@ export default function AuditPage() {
             subtext="Approvals / Rejections"
             icon={Activity}
             gradient="emerald"
-            selected={(selectedEntityTypes.includes("MATCH") || selectedEntityTypes.includes("MATCH_PAIR")) && selectedEntityTypes.length <= 2}
+            selected={(selectedEntityTypes.includes("MATCH") || selectedEntityTypes.includes("MATCH_PAIR")) && selectedEntityTypes.length <= 2 && !isTodayOnly}
             onClick={() => {
-              setSelectedEntityTypes((prev) =>
-                prev.includes("MATCH") || prev.includes("MATCH_PAIR") ? [] : ["MATCH", "MATCH_PAIR"]
-              );
-              setPage(1);
+              if ((selectedEntityTypes.includes("MATCH") || selectedEntityTypes.includes("MATCH_PAIR")) && !isTodayOnly) {
+                resetAllFilters();
+              } else {
+                resetAllFilters();
+                setSelectedEntityTypes(["MATCH", "MATCH_PAIR"]);
+              }
             }}
           />
 
@@ -427,17 +481,18 @@ export default function AuditPage() {
             subtext="Errors / Abort events"
             icon={AlertCircle}
             gradient="rose"
-            selected={(selectedStatuses.includes("FAILED") || selectedStatuses.includes("FAILURE") || selectedStatuses.includes("ERROR")) && selectedStatuses.length <= 3}
+            selected={(selectedStatuses.includes("FAILED") || selectedStatuses.includes("ERROR") || selectedStatuses.includes("FAILURE")) && !isTodayOnly}
             onClick={() => {
-              setSelectedStatuses((prev) =>
-                prev.includes("FAILED") || prev.includes("FAILURE") || prev.includes("ERROR")
-                  ? []
-                  : ["FAILED", "FAILURE", "ERROR"]
-              );
-              setPage(1);
+              if ((selectedStatuses.includes("FAILED") || selectedStatuses.includes("ERROR") || selectedStatuses.includes("FAILURE")) && !isTodayOnly) {
+                resetAllFilters();
+              } else {
+                resetAllFilters();
+                setSelectedStatuses(["FAILED", "ERROR", "FAILURE"]);
+              }
             }}
           />
         </div>
+
 
         {/* Filter & Search Bar with Universal MultiSelect Dropdowns & Explicit Sort Controls */}
         <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
@@ -463,10 +518,10 @@ export default function AuditPage() {
             </div>
 
             {/* Actions Multi-Select */}
-            <div className="w-full sm:w-52">
+            <div className="w-full sm:w-56">
               <MultiSelectDropdown
                 label="Actions"
-                options={ACTION_OPTIONS}
+                options={actionOptions}
                 selectedValues={selectedActions}
                 onChange={(values) => {
                   setSelectedActions(values);
@@ -477,10 +532,10 @@ export default function AuditPage() {
             </div>
 
             {/* Entity Types Multi-Select */}
-            <div className="w-full sm:w-44">
+            <div className="w-full sm:w-52">
               <MultiSelectDropdown
                 label="Entities"
-                options={ENTITY_OPTIONS}
+                options={entityOptions}
                 selectedValues={selectedEntityTypes}
                 onChange={(values) => {
                   setSelectedEntityTypes(values);
@@ -491,10 +546,10 @@ export default function AuditPage() {
             </div>
 
             {/* Statuses Multi-Select */}
-            <div className="w-full sm:w-40">
+            <div className="w-full sm:w-48">
               <MultiSelectDropdown
                 label="Statuses"
-                options={STATUS_OPTIONS}
+                options={statusOptions}
                 selectedValues={selectedStatuses}
                 onChange={(values) => {
                   setSelectedStatuses(values);
@@ -503,6 +558,25 @@ export default function AuditPage() {
                 placeholder="All Statuses"
               />
             </div>
+
+            {/* Active Today Pill */}
+            {isTodayOnly && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 text-xs font-semibold shrink-0">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Today ({stats?.total_today ?? 0})</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTodayOnly(false);
+                    setPage(1);
+                  }}
+                  className="p-0.5 hover:bg-cyan-200 dark:hover:bg-cyan-800 rounded transition-colors cursor-pointer"
+                  title="Remove Today filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
 
             {/* Explicit Sort Select */}
             <div className="flex items-center gap-1.5 min-w-[190px]">
@@ -546,6 +620,51 @@ export default function AuditPage() {
               </button>
             )}
           </div>
+
+          {/* Active Filters Summary Strip */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 flex-wrap text-xs pt-2 pb-1 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-slate-400 font-medium text-[11px]">Active Filters:</span>
+              {isTodayOnly && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 font-semibold text-[11px]">
+                  <Clock className="w-3 h-3" />
+                  <span>Today ({stats?.total_today ?? 0})</span>
+                  <button type="button" onClick={() => { setIsTodayOnly(false); setPage(1); }} className="hover:text-cyan-900 dark:hover:text-white cursor-pointer ml-0.5">×</button>
+                </span>
+              )}
+              {selectedEntityTypes.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px]">
+                  <span>Entities: {selectedEntityTypes.join(", ")}</span>
+                  <button type="button" onClick={() => { setSelectedEntityTypes([]); setPage(1); }} className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5">×</button>
+                </span>
+              )}
+              {selectedStatuses.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-semibold text-[11px]">
+                  <span>Statuses: {selectedStatuses.join(", ")}</span>
+                  <button type="button" onClick={() => { setSelectedStatuses([]); setPage(1); }} className="hover:text-rose-900 dark:hover:text-white cursor-pointer ml-0.5">×</button>
+                </span>
+              )}
+              {selectedActions.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-semibold text-[11px]">
+                  <span>Actions: {selectedActions.join(", ")}</span>
+                  <button type="button" onClick={() => { setSelectedActions([]); setPage(1); }} className="hover:text-purple-900 dark:hover:text-white cursor-pointer ml-0.5">×</button>
+                </span>
+              )}
+              {searchQuery.trim() && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-semibold text-[11px]">
+                  <span>Search: &quot;{searchQuery}&quot;</span>
+                  <button type="button" onClick={() => { setSearchQuery(""); setPage(1); }} className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5">×</button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline font-medium cursor-pointer ml-1"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Audit Log Table Container with Clickable Sorting Column Headers */}
