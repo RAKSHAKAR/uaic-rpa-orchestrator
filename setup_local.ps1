@@ -1,3 +1,4 @@
+# cspell:disable
 <#
 .SYNOPSIS
     Enterprise Operations & Orchestration Console for UAIC Orchestrator

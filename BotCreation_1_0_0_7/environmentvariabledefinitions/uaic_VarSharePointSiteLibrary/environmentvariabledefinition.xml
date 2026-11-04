@@ -1,0 +1,11 @@
+<environmentvariabledefinition schemaname="uaic_VarSharePointSiteLibrary">
+  <defaultvalue>BotcreationDOCLibrary</defaultvalue>
+  <displayname default="VarSharePointSiteLibrary">
+    <label description="VarSharePointSiteLibrary" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.1</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

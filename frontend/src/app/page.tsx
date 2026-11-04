@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { StatusBadge } from "../components/StatusBadge";
-import { StatCard } from "../components/StatCard";
+import { StatCard, AnimatedNumber } from "../components/StatCard";
 import { FilterPresetManager } from "../components/FilterPresetManager";
 import { AsyncExportModal } from "../components/AsyncExportModal";
 import { ExportActionToolbar } from "../components/ExportActionToolbar";
@@ -129,6 +129,13 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Visual Chart and Metric Card Animation State
+  const [chartMounted, setChartMounted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setChartMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const fetchLiveQueue = React.useCallback(async () => {
     try {
       const qState = await api.getLiveQueue();
@@ -149,8 +156,8 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (isSilent: boolean = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const [statsData, claimsData, queueData, settingsData] = await Promise.all([
         api.getClaimStats().catch(() => null),
@@ -172,7 +179,7 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Failed to fetch dashboard data:", e);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   };
 
@@ -222,9 +229,19 @@ export default function DashboardPage() {
     if (typeof item.total_duration_seconds === "number" && item.total_duration_seconds > 0) {
       return Math.round(item.total_duration_seconds);
     }
-    let startStr = item.started_at || item.updated_at || item.created_at;
-    if (!startStr) return 0;
-    // Normalize string lacking timezone offset by appending 'Z' so client parses strictly as UTC
+    let startStr = item.started_at;
+    if (!startStr) {
+      const candidateDate = item.updated_at || item.created_at;
+      if (!candidateDate) return 0;
+      let candidateNorm = candidateDate;
+      if (!candidateNorm.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(candidateNorm)) {
+        candidateNorm = `${candidateNorm}Z`;
+      }
+      const candidateTime = new Date(candidateNorm).getTime();
+      if (isNaN(candidateTime)) return 0;
+      const rawAge = Math.max(0, Math.floor((nowTimestamp - candidateTime) / 1000));
+      return rawAge > 300 ? 300 : rawAge;
+    }
     if (!startStr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(startStr)) {
       startStr = `${startStr}Z`;
     }
@@ -339,6 +356,37 @@ export default function DashboardPage() {
       setLastTransitionMessage(`Cancelled execution for Claim #${claimNumber}. Worker slot freed.`);
     } catch (e) {
       console.error("Error stopping claim:", e);
+    }
+  };
+
+  const [isEvictingWorker, setIsEvictingWorker] = useState<string | null>(null);
+  const [isFlushingStale, setIsFlushingStale] = useState(false);
+
+  const handleEvictWorker = async (claimId: string, claimNumber: string) => {
+    setIsEvictingWorker(claimId);
+    try {
+      await api.evictSingleWorkerClaim(claimId);
+      await fetchLiveQueue();
+      await loadData();
+      setLastTransitionMessage(`Evicted stale worker for Claim #${claimNumber}. Concurrency slot freed.`);
+    } catch (e) {
+      console.error(`Error evicting worker for claim ${claimNumber}:`, e);
+    } finally {
+      setIsEvictingWorker(null);
+    }
+  };
+
+  const handleFlushStale = async () => {
+    setIsFlushingStale(true);
+    try {
+      const res = await api.evictStaleQueueClaims();
+      await fetchLiveQueue();
+      await loadData();
+      setLastTransitionMessage(`Flushed ${res?.evicted_count || 0} stale/orphaned workers. Queue slots liberated.`);
+    } catch (e) {
+      console.error("Error flushing stale queue claims:", e);
+    } finally {
+      setIsFlushingStale(false);
     }
   };
 
@@ -479,12 +527,15 @@ export default function DashboardPage() {
     stateFilter !== "all" ||
     matchFilter !== "all";
 
-  // Visual Breakdown Metrics
+  // Visual Breakdown Metrics (Strict MECE Partition: Sum of Outcomes = Total Ingested)
   const totalCount = stats?.total_claims || claims.length || 1;
   const matchPercentage = Math.round(((stats?.match_found || 0) / totalCount) * 100) || 0;
   const inProgressPercentage = Math.round((((stats?.in_progress || 0) + (stats?.new || 0)) / totalCount) * 100) || 0;
   const reviewPercentage = Math.round(((stats?.manual_review || 0) / totalCount) * 100) || 0;
-  const finishedCount = (stats?.completed || 0) + (stats?.no_match_found || 0) + (stats?.match_found || 0);
+  const totalFinished = stats?.total_finished ?? ((stats?.completed || 0) + (stats?.no_match_found || 0));
+  const cleanNoMatchCount = stats?.clean_no_match ?? Math.max(0, totalFinished - (stats?.match_found || 0) - (stats?.manual_review || 0));
+  const cleanPercentage = Math.round((cleanNoMatchCount / totalCount) * 100) || 0;
+  const finishedCount = totalFinished;
   const completedPercentage = Math.round((finishedCount / totalCount) * 100) || 0;
   const failedCount = stats?.failed || 0;
   const failedPercentage = Math.round((failedCount / totalCount) * 100) || 0;
@@ -568,7 +619,7 @@ export default function DashboardPage() {
       value: stats?.match_found ?? 0,
       icon: CheckCircle2,
       gradient: "from-emerald-500/20 to-teal-500/20",
-      filterStatuses: ["MATCH_FOUND"],
+      filterStatuses: ["MATCH_FOUND", "COMPLETED"],
       filterMatches: ["MATCH_FOUND"],
       subtitle: `${matchPercentage}% positive matches`,
     },
@@ -578,17 +629,17 @@ export default function DashboardPage() {
       icon: AlertTriangle,
       gradient: "from-purple-500/20 to-pink-500/20",
       filterStatuses: ["MANUAL_REVIEW"],
-      filterMatches: ["MANUAL_REVIEW"],
+      filterMatches: ["PENDING_REVIEW", "MANUAL_REVIEW"],
       subtitle: "Review required",
     },
     {
-      title: "Completed Scrapes",
-      value: finishedCount,
+      title: "Clean / No Match",
+      value: cleanNoMatchCount,
       icon: ShieldCheck,
-      gradient: "from-blue-500/20 to-indigo-500/20",
-      filterStatuses: ["COMPLETED", "NO_MATCH_FOUND", "SCRAPING_COMPLETED", "MATCH_FOUND"],
-      filterMatches: [] as string[],
-      subtitle: `${completedPercentage}% finished (${stats?.no_match_found ?? 0} clean, ${stats?.completed ?? 0} pushed, ${stats?.match_found ?? 0} matched)`,
+      gradient: "from-blue-500/20 to-cyan-500/20",
+      filterStatuses: ["NO_MATCH_FOUND", "SCRAPING_COMPLETED"],
+      filterMatches: ["NO_MATCH_FOUND"],
+      subtitle: `${cleanPercentage}% clean dockets (zero exposure)`,
     },
     {
       title: "Failed / Retried",
@@ -700,7 +751,7 @@ export default function DashboardPage() {
 
         {/* Metric Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 w-full">
-          {statCards.map((card) => {
+          {statCards.map((card, idx) => {
             const isSelected =
               card.filterStatuses.length === 0
                 ? selectedStatuses.length === 0 && selectedMatches.length === 0 && statusFilter === "all"
@@ -708,29 +759,36 @@ export default function DashboardPage() {
                   card.filterStatuses.every((s) => selectedStatuses.includes(s));
 
             return (
-              <StatCard
+              <div
                 key={card.title}
-                title={card.title}
-                value={card.value}
-                icon={card.icon}
-                gradient={card.gradient}
-                subtitle={card.subtitle}
-                isSelected={isSelected}
-                onClick={() => {
-                  if (card.filterStatuses.length === 0 || isSelected) {
-                    clearFilters();
-                  } else {
-                    setSearchTerm("");
-                    setSelectedStates([]);
-                    setStateFilter("all");
-                    setSelectedStatuses(card.filterStatuses);
-                    setSelectedMatches(card.filterMatches);
-                    setStatusFilter(card.filterStatuses.join(","));
-                    setMatchFilter(card.filterMatches.length > 0 ? card.filterMatches.join(",") : "all");
-                    setCurrentPage(1);
-                  }
-                }}
-              />
+                className={`transform transition-all duration-500 ease-out ${
+                  chartMounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+                }`}
+                style={{ transitionDelay: `${idx * 60}ms` }}
+              >
+                <StatCard
+                  title={card.title}
+                  value={card.value}
+                  icon={card.icon}
+                  gradient={card.gradient}
+                  subtitle={card.subtitle}
+                  isSelected={isSelected}
+                  onClick={() => {
+                    if (card.filterStatuses.length === 0 || isSelected) {
+                      clearFilters();
+                    } else {
+                      setSearchTerm("");
+                      setSelectedStates([]);
+                      setStateFilter("all");
+                      setSelectedStatuses(card.filterStatuses);
+                      setSelectedMatches(card.filterMatches);
+                      setStatusFilter(card.filterStatuses.join(","));
+                      setMatchFilter(card.filterMatches.length > 0 ? card.filterMatches.join(",") : "all");
+                      setCurrentPage(1);
+                    }
+                  }}
+                />
+              </div>
             );
           })}
         </div>
@@ -872,6 +930,20 @@ export default function DashboardPage() {
                     </button>
                   )}
 
+                  {/* Flush Stale Workers Button (Appears if any worker is stale) */}
+                  {activeItems.some((item) => getItemElapsedSeconds(item) >= 300) && (
+                    <button
+                      type="button"
+                      onClick={handleFlushStale}
+                      disabled={isFlushingStale}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 animate-pulse"
+                      title="Evict all zombie/orphaned workers and unblock concurrency slots"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${isFlushingStale ? "animate-spin" : ""}`} />
+                      Flush Stale Workers
+                    </button>
+                  )}
+
                   {/* Toggle Auto-Queue */}
                   <button
                     type="button"
@@ -959,14 +1031,21 @@ export default function DashboardPage() {
                     <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
                       {activeItems.map((item, idx) => {
                         const itemElapsed = getItemElapsedSeconds(item);
+                        const isStale = itemElapsed >= 300;
                         return (
                         <div
                           key={item.id}
-                          className="bg-gradient-to-br from-indigo-50/80 via-white to-blue-50/40 dark:from-indigo-950/40 dark:via-slate-900/80 dark:to-slate-950/40 border-2 border-indigo-500/40 dark:border-indigo-500/30 rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between space-y-2.5 transition-all"
+                          className={`bg-gradient-to-br from-indigo-50/80 via-white to-blue-50/40 dark:from-indigo-950/40 dark:via-slate-900/80 dark:to-slate-950/40 border-2 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between space-y-2.5 transition-all duration-300 hover:shadow-md ${
+                            isStale
+                              ? "border-amber-400 dark:border-amber-700/80 ring-2 ring-amber-400/40 shadow-amber-500/10"
+                              : "border-indigo-500/60 dark:border-indigo-500/50 ring-2 ring-indigo-500/20 shadow-indigo-500/10"
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-600 text-white shadow-xs shrink-0">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold text-white shadow-xs shrink-0 ${
+                                isStale ? "bg-amber-600" : "bg-indigo-600"
+                              }`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                                 Worker #{idx + 1}
                               </span>
@@ -978,17 +1057,33 @@ export default function DashboardPage() {
                               </Link>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                {itemElapsed > 0 ? formatDurationHms(itemElapsed) : "00:00:00"}
+                              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                                isStale
+                                  ? "text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-700 animate-pulse"
+                                  : "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 border-indigo-200 dark:border-indigo-800"
+                              }`}>
+                                {isStale ? `⚠️ Stale (${formatDurationHms(itemElapsed)})` : (itemElapsed > 0 ? formatDurationHms(itemElapsed) : "00:00:00")}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => handleStopClaim(item.id, item.claim_number)}
-                                className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 transition-colors cursor-pointer"
-                                title="Cancel and abort this claim's RPA run"
-                              >
-                                <StopCircle className="w-3.5 h-3.5" />
-                              </button>
+                              {isStale ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEvictWorker(item.id, item.claim_number)}
+                                  disabled={isEvictingWorker === item.id}
+                                  className="px-2 py-0.5 text-[10px] font-bold bg-amber-600 hover:bg-amber-500 text-white rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                                  title="Force-evict this stuck worker and return claim to queue"
+                                >
+                                  {isEvictingWorker === item.id ? "Freeing..." : "Free Slot"}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStopClaim(item.id, item.claim_number)}
+                                  className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 transition-colors cursor-pointer"
+                                  title="Cancel and abort this claim's RPA run"
+                                >
+                                  <StopCircle className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -1124,177 +1219,180 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex-1 bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 md:p-4 flex flex-col justify-between space-y-3">
-                    {/* Filter & Multi-Select Toolbar */}
-                    <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200/60 dark:border-slate-800">
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setQueueStateFilter("ALL")}
-                          className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                            queueStateFilter === "ALL"
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
-                          }`}
-                        >
-                          All ({allPendingItems.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setQueueStateFilter("FL")}
-                          className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                            queueStateFilter === "FL"
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
-                          }`}
-                        >
-                          Florida ({flPendingCount})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setQueueStateFilter("TX")}
-                          className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                            queueStateFilter === "TX"
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
-                          }`}
-                        >
-                          Texas ({txPendingCount})
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {filteredPendingItems.length > 0 && (
+                  <div className="flex-1 bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 md:p-4 flex flex-col justify-between">
+                    {/* Top Section: Toolbar & Queue Items (Anchored to top) */}
+                    <div className="flex-1 flex flex-col min-h-0 space-y-3">
+                      {/* Filter & Multi-Select Toolbar */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5 text-xs">
                           <button
                             type="button"
-                            onClick={toggleSelectAll}
-                            className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 flex items-center gap-1 cursor-pointer"
+                            onClick={() => setQueueStateFilter("ALL")}
+                            className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                              queueStateFilter === "ALL"
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+                            }`}
                           >
-                            {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-indigo-600" /> : <Square className="w-3.5 h-3.5" />}
-                            {allSelected ? "Deselect All" : "Select All"}
+                            All ({allPendingItems.length})
                           </button>
-                        )}
-
-                        {selectedQueueIds.length > 0 && (
                           <button
                             type="button"
-                            onClick={handleRunSelected}
-                            disabled={isStartingSelected}
-                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            onClick={() => setQueueStateFilter("FL")}
+                            className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                              queueStateFilter === "FL"
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+                            }`}
                           >
-                            {isStartingSelected ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                            Run Selected ({selectedQueueIds.length})
+                            Florida ({flPendingCount})
                           </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Scrollable Queue Items - At least 10 shown, up to 25 */}
-                    {filteredPendingItems.length > 0 ? (
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                        {filteredPendingItems.map((item, idx) => {
-                          const isNext = idx === 0;
-                          const isSelected = selectedQueueIds.includes(item.id);
-                          return (
-                            <div
-                              key={item.id}
-                              className={`p-2.5 sm:p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                                isSelected
-                                  ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-500/30"
-                                  : isNext
-                                  ? "bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700/80 shadow-xs ring-1 ring-indigo-500/20"
-                                  : "bg-white/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSelectItem(item.id)}
-                                  className="text-slate-400 hover:text-indigo-600 cursor-pointer shrink-0"
-                                >
-                                  {isSelected ? (
-                                    <CheckSquare className="w-4 h-4 text-indigo-600" />
-                                  ) : (
-                                    <Square className="w-4 h-4" />
-                                  )}
-                                </button>
-
-                                <span
-                                  className={`px-2 py-1 rounded-md text-[10px] font-black tracking-tight shrink-0 font-mono ${
-                                    isNext
-                                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xs"
-                                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
-                                  }`}
-                                >
-                                  {isNext ? "★ #1 NEXT" : `#${item.queue_position || idx + 1}`}
-                                </span>
-
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <Link
-                                      href={`/claims/${item.id}`}
-                                      className="text-xs font-bold text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 truncate"
-                                    >
-                                      {item.claim_number}
-                                    </Link>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 shrink-0">
-                                      {item.policy_state || "FL"}
-                                    </span>
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                    {item.insured_name || "Unknown"} • {item.portals_to_run.length} Portals
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    await api.startClaim(item.id);
-                                    fetchLiveQueue();
-                                    loadData();
-                                  }}
-                                  className="px-2 py-1 text-[10px] font-semibold rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
-                                  title="Run this claim right now"
-                                >
-                                  <Play className="w-2.5 h-2.5" />
-                                  Run Now
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-8 text-center space-y-3">
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-70" />
-                        <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                          {queueStateFilter === "ALL" ? "No Pending Queue Items" : `No Pending ${queueStateFilter} Claims`}
+                          <button
+                            type="button"
+                            onClick={() => setQueueStateFilter("TX")}
+                            className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                              queueStateFilter === "TX"
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+                            }`}
+                          >
+                            Texas ({txPendingCount})
+                          </button>
                         </div>
-                        <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                          {(stats?.failed ?? 0) > 0
-                            ? `${stats?.failed} claim(s) failed during execution. Re-enqueue them into the FIFO queue or seed new claims.`
-                            : "All claims have completed execution. Ingest new claims via Upload or click \"Seed 10 Demo Claims\" above."}
-                        </p>
-                        {(stats?.failed ?? 0) > 0 && (
-                          <div className="pt-1">
+
+                        <div className="flex items-center gap-2">
+                          {filteredPendingItems.length > 0 && (
                             <button
                               type="button"
-                              onClick={handleRetriggerFailed}
-                              disabled={isRetriggering}
-                              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow-xs transition-all inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              onClick={toggleSelectAll}
+                              className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 flex items-center gap-1 cursor-pointer"
                             >
-                              <RotateCcw className={`w-3.5 h-3.5 ${isRetriggering ? "animate-spin" : ""}`} />
-                              Retrigger {stats?.failed} Failed Claim{stats?.failed === 1 ? "" : "s"}
+                              {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-indigo-600" /> : <Square className="w-3.5 h-3.5" />}
+                              {allSelected ? "Deselect All" : "Select All"}
                             </button>
-                          </div>
-                        )}
+                          )}
+
+                          {selectedQueueIds.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleRunSelected}
+                              disabled={isStartingSelected}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              {isStartingSelected ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                              Run Selected ({selectedQueueIds.length})
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
+
+                      {/* Scrollable Queue Items - Always starts from top */}
+                      {filteredPendingItems.length > 0 ? (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                          {filteredPendingItems.map((item, idx) => {
+                            const isNext = idx === 0;
+                            const isSelected = selectedQueueIds.includes(item.id);
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-2.5 sm:p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                                  isSelected
+                                    ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-500/30"
+                                    : isNext
+                                    ? "bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700/80 shadow-xs ring-1 ring-indigo-500/20"
+                                    : "bg-white/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSelectItem(item.id)}
+                                    className="text-slate-400 hover:text-indigo-600 cursor-pointer shrink-0"
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare className="w-4 h-4 text-indigo-600" />
+                                    ) : (
+                                      <Square className="w-4 h-4" />
+                                    )}
+                                  </button>
+
+                                  <span
+                                    className={`px-2 py-1 rounded-md text-[10px] font-black tracking-tight shrink-0 font-mono ${
+                                      isNext
+                                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xs"
+                                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                    }`}
+                                  >
+                                    {isNext ? "★ #1 NEXT" : `#${item.queue_position || idx + 1}`}
+                                  </span>
+
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <Link
+                                        href={`/claims/${item.id}`}
+                                        className="text-xs font-bold text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 truncate"
+                                      >
+                                        {item.claim_number}
+                                      </Link>
+                                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 shrink-0">
+                                        {item.policy_state || "FL"}
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                      {item.insured_name || "Unknown"} • {item.portals_to_run.length} Portals
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await api.startClaim(item.id);
+                                      fetchLiveQueue();
+                                      loadData();
+                                    }}
+                                    className="px-2 py-1 text-[10px] font-semibold rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="Run this claim right now"
+                                  >
+                                    <Play className="w-2.5 h-2.5" />
+                                    Run Now
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center space-y-3 my-auto">
+                          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-70" />
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {queueStateFilter === "ALL" ? "No Pending Queue Items" : `No Pending ${queueStateFilter} Claims`}
+                          </div>
+                          <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                            {(stats?.failed ?? 0) > 0
+                              ? `${stats?.failed} claim(s) failed during execution. Re-enqueue them into the FIFO queue or seed new claims.`
+                              : "All claims have completed execution. Ingest new claims via Upload or click \"Seed 10 Demo Claims\" above."}
+                          </p>
+                          {(stats?.failed ?? 0) > 0 && (
+                            <div className="pt-1">
+                              <button
+                                type="button"
+                                onClick={handleRetriggerFailed}
+                                disabled={isRetriggering}
+                                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow-xs transition-all inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                <RotateCcw className={`w-3.5 h-3.5 ${isRetriggering ? "animate-spin" : ""}`} />
+                                Retrigger {stats?.failed} Failed Claim{stats?.failed === 1 ? "" : "s"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Footer Pipeline Summary */}
-                    <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                    <div className="pt-2.5 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
                       <span className="flex items-center gap-1.5">
                         <Zap className="w-3.5 h-3.5 text-amber-500" />
                         Multi-worker runner pulls up to {maxConcurrency} claims simultaneously
@@ -1393,22 +1491,22 @@ export default function DashboardPage() {
               const circ = 2 * Math.PI * 65; // ~408.407
               const slices = [
                 {
-                  key: "completed",
-                  label: "Completed / Clean",
-                  count: finishedCount,
-                  pct: completedPercentage,
-                  color: "#10b981",
-                  barColor: "bg-emerald-500",
-                  filter: ["COMPLETED", "NO_MATCH_FOUND", "SCRAPING_COMPLETED"],
+                  key: "clean",
+                  label: "Clean / No Match",
+                  count: cleanNoMatchCount,
+                  pct: cleanPercentage,
+                  color: "#06b6d4",
+                  barColor: "bg-cyan-500",
+                  filter: ["NO_MATCH_FOUND", "SCRAPING_COMPLETED"],
                 },
                 {
                   key: "matches",
-                  label: "Matches Found",
+                  label: "Matches Confirmed",
                   count: stats?.match_found || 0,
                   pct: matchPercentage,
-                  color: "#6366f1",
-                  barColor: "bg-indigo-500",
-                  filter: ["MATCH_FOUND"],
+                  color: "#10b981",
+                  barColor: "bg-emerald-500",
+                  filter: ["MATCH_FOUND", "COMPLETED"],
                 },
                 {
                   key: "in_progress",
@@ -1421,7 +1519,7 @@ export default function DashboardPage() {
                 },
                 {
                   key: "exceptions",
-                  label: "Exceptions",
+                  label: "Manual Exceptions",
                   count: stats?.manual_review || 0,
                   pct: reviewPercentage,
                   color: "#a855f7",
@@ -1473,9 +1571,9 @@ export default function DashboardPage() {
                               fill="none"
                               stroke={slice.color}
                               strokeWidth="20"
-                              strokeDasharray={`${Math.max(1, sliceLen)} ${circ}`}
+                              strokeDasharray={chartMounted ? `${Math.max(1, sliceLen)} ${circ}` : `0 ${circ}`}
                               strokeDashoffset={-currentOffset}
-                              className="transition-all duration-500 cursor-pointer hover:opacity-80 hover:stroke-[22]"
+                              className="transition-all duration-1000 ease-out cursor-pointer hover:opacity-85 hover:stroke-[22]"
                               onClick={() => {
                                 setSearchTerm("");
                                 setSelectedStates([]);
@@ -1492,8 +1590,8 @@ export default function DashboardPage() {
                       </svg>
                       {/* Center Content */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                        <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100">
-                          {stats?.total_claims ?? totalClaims}
+                        <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 tracking-tight">
+                          <AnimatedNumber value={stats?.total_claims ?? totalClaims} />
                         </span>
                         <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                           Total Claims
@@ -1530,18 +1628,22 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* 5-Segment Progress Bar */}
+                  {/* 5-Segment Progress Bar (Resilient Non-Empty Rendering) */}
                   <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden p-0.5 gap-0.5">
-                    {slices.map((slice) => (
-                      slice.count > 0 ? (
-                        <div
-                          key={slice.key}
-                          style={{ width: `${Math.max(2, slice.pct)}%` }}
-                          className={`h-full ${slice.barColor} rounded-full transition-all duration-500`}
-                          title={`${slice.label}: ${slice.pct}% (${slice.count})`}
-                        />
-                      ) : null
-                    ))}
+                    {slices.some((s) => s.count > 0) ? (
+                      slices.map((slice) => (
+                        slice.count > 0 ? (
+                          <div
+                            key={slice.key}
+                            style={{ width: chartMounted ? `${Math.max(2, slice.pct)}%` : "0%" }}
+                            className={`h-full ${slice.barColor} rounded-full transition-all duration-1000 ease-out`}
+                            title={`${slice.label}: ${slice.pct}% (${slice.count})`}
+                          />
+                        ) : null
+                      ))
+                    ) : (
+                      <div className="w-full h-full bg-slate-200/50 dark:bg-slate-700/50 rounded-full" title="No claims ingested" />
+                    )}
                   </div>
                 </div>
               );
@@ -1565,23 +1667,29 @@ export default function DashboardPage() {
 
             <div className="space-y-2 pt-1">
               {portalBreakdown.map((p) => (
-                <div key={p.name} className="space-y-1 text-xs">
+                <div key={p.name} className="space-y-1 text-xs p-1 -mx-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5">
+                    <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
                       <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                         {p.state}
                       </span>
                       {p.name}
                     </span>
                     <span className="font-mono text-slate-500 dark:text-slate-400 text-[10px]">
-                      {p.cases} cases extracted
+                      <AnimatedNumber value={p.cases} /> cases extracted
                     </span>
                   </div>
                   <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      style={{ width: `${Math.min(100, Math.max(p.cases > 0 ? 10 : 0, (p.cases / Math.max(1, ...portalBreakdown.map((x) => x.cases))) * 100))}%` }}
-                      className={`h-full rounded-full ${
-                        p.state === "FL" ? "bg-sky-500" : "bg-indigo-500"
+                      style={{
+                        width: chartMounted
+                          ? `${Math.min(100, Math.max(p.cases > 0 ? 10 : 0, (p.cases / Math.max(1, ...portalBreakdown.map((x) => x.cases))) * 100))}%`
+                          : "0%",
+                      }}
+                      className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                        p.state === "FL"
+                          ? "bg-gradient-to-r from-sky-400 to-blue-500"
+                          : "bg-gradient-to-r from-indigo-500 to-purple-600"
                       }`}
                     />
                   </div>
@@ -1604,15 +1712,18 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-3">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
                   <span className="text-[10px] text-slate-400 block">Avg Scrape Cycle</span>
                   <span className="text-sm sm:text-base font-bold font-mono text-slate-800 dark:text-slate-200 truncate block">
-                    {stats?.avg_scrape_seconds ? `${stats.avg_scrape_seconds}s` : "18.45s"}
+                    <AnimatedNumber value={stats?.avg_scrape_seconds ? `${stats.avg_scrape_seconds}s` : "18.45s"} />
                   </span>
-                  <span className="text-[9px] text-emerald-500 block mt-0.5 truncate">Microsecond accuracy</span>
+                  <span className="text-[9px] text-emerald-500 flex items-center gap-1 mt-0.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Microsecond accuracy
+                  </span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
                   <span className="text-[10px] text-slate-400 block">Deduplication</span>
                   <span
                     className="text-xs sm:text-sm font-bold font-mono text-slate-800 dark:text-slate-200 truncate block"
@@ -1620,14 +1731,23 @@ export default function DashboardPage() {
                   >
                     {settings?.matcher?.scorer_algorithm || "token_sort_ratio"}
                   </span>
-                  <span className="text-[9px] text-indigo-400 block mt-0.5 truncate">
-                    Threshold: {Math.round((settings?.matcher?.auto_match_threshold ?? 0.75) * 100)}%
-                  </span>
+                  <div className="mt-1 space-y-0.5">
+                    <span className="text-[9px] text-indigo-400 block truncate">
+                      Threshold: <AnimatedNumber value={`${Math.round((settings?.matcher?.auto_match_threshold ?? 0.75) * 100)}%`} />
+                    </span>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: chartMounted ? `${Math.round((settings?.matcher?.auto_match_threshold ?? 0.75) * 100)}%` : "0%" }}
+                        className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
                   <span className="text-[10px] text-slate-400 block">Guidewire Trigger</span>
-                  <span className={`text-xs sm:text-sm font-bold font-mono truncate block ${settings?.integration?.auto_push_on_match ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                  <span className={`text-xs sm:text-sm font-bold font-mono truncate flex items-center gap-1.5 ${settings?.integration?.auto_push_on_match ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${settings?.integration?.auto_push_on_match ? "bg-emerald-500 animate-ping" : "bg-amber-500"}`} />
                     {settings?.integration?.auto_push_on_match ? "Automatic" : "Manual Review"}
                   </span>
                   <span className="text-[9px] text-slate-400 block mt-0.5 truncate">
@@ -1635,14 +1755,20 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 overflow-hidden hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
                   <span className="text-[10px] text-slate-400 block">Worker Concurrency</span>
-                  <span className="text-sm sm:text-base font-bold font-mono text-slate-800 dark:text-slate-200 truncate block">
-                    {settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4} Online
+                  <span className="text-sm sm:text-base font-bold font-mono text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5">
+                    <AnimatedNumber value={settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4} />
+                    <span className="text-xs font-normal text-slate-400">Online</span>
                   </span>
-                  <span className="text-[9px] text-sky-400 block mt-0.5 truncate">
-                    {(settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4) === 4 ? "Quad Fleet Active" : "Celery Distributed"}
-                  </span>
+                  <div className="flex items-center gap-1 mt-1">
+                    {Array.from({ length: Math.min(8, settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4) }).map((_, i) => (
+                      <span key={i} className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+                    ))}
+                    <span className="text-[9px] text-sky-400 ml-1 truncate">
+                      {(settings?.queue?.max_concurrent_claims ?? settings?.automation?.max_concurrent_claims ?? 4) === 4 ? "Quad Fleet Active" : "Celery Distributed"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1701,6 +1827,16 @@ export default function DashboardPage() {
                   });
                   window.open(url, "_blank");
                 }}
+                onExportTelemetryCsv={() => {
+                  const url = api.getExportUrl({
+                    format: "csv",
+                    view: "telemetry",
+                    status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter === "all" ? undefined : statusFilter),
+                    state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter === "all" ? undefined : stateFilter),
+                    search: searchTerm || undefined,
+                  });
+                  window.open(url, "_blank");
+                }}
                 onExportJson={() => {
                   const url = api.getExportUrl({
                     format: "json",
@@ -1727,16 +1863,16 @@ export default function DashboardPage() {
           {/* Quick Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             {[
-              { id: "all", label: "All Claims", count: totalClaims, statuses: [] as string[] },
-              { id: "active", label: "Active / Running", count: stats?.in_progress ?? 0, statuses: ["SCRAPING_IN_PROGRESS"] },
-              { id: "pending", label: "Queue Pending (FIFO)", count: stats?.new ?? liveQueue?.total_pending_count ?? 0, statuses: ["NEW"] },
-              { id: "matches", label: "Matches Found", count: stats?.match_found ?? 0, statuses: ["MATCH_FOUND"] },
-              { id: "exceptions", label: "Exceptions", count: stats?.manual_review ?? 0, statuses: ["MANUAL_REVIEW"] },
-              { id: "completed", label: "Completed", count: finishedCount, statuses: ["COMPLETED", "NO_MATCH_FOUND", "SCRAPING_COMPLETED", "MATCH_FOUND"] },
+              { id: "all", label: "All Claims", count: stats?.total_claims ?? totalClaims, statuses: [] as string[], matches: [] as string[] },
+              { id: "active", label: "In Progress / Queued", count: (stats?.in_progress ?? 0) + (stats?.new ?? 0), statuses: ["SCRAPING_IN_PROGRESS", "NEW"], matches: [] as string[] },
+              { id: "matches", label: "Matches Confirmed", count: stats?.match_found ?? 0, statuses: ["MATCH_FOUND", "COMPLETED"], matches: ["MATCH_FOUND", "COMPLETED"] },
+              { id: "clean", label: "Clean / No Match", count: cleanNoMatchCount, statuses: ["NO_MATCH_FOUND", "SCRAPING_COMPLETED"], matches: ["NO_MATCH_FOUND", "CLEAN"] },
+              { id: "exceptions", label: "Exceptions", count: stats?.manual_review ?? 0, statuses: ["MANUAL_REVIEW"], matches: ["PENDING_REVIEW"] },
+              { id: "failed", label: "Failed", count: stats?.failed ?? 0, statuses: ["FAILED"], matches: [] as string[] },
             ].map((tab) => {
               const isActive =
                 tab.statuses.length === 0
-                  ? selectedStatuses.length === 0 && statusFilter === "all"
+                  ? selectedStatuses.length === 0 && selectedMatches.length === 0 && statusFilter === "all"
                   : tab.statuses.length === selectedStatuses.length &&
                     tab.statuses.every((s) => selectedStatuses.includes(s));
 
@@ -1744,14 +1880,18 @@ export default function DashboardPage() {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    if (tab.statuses.length === 0) {
-                      setSelectedStatuses([]);
-                      setStatusFilter("all");
+                    if (tab.statuses.length === 0 || isActive) {
+                      clearFilters();
                     } else {
+                      setSearchTerm("");
+                      setSelectedStates([]);
+                      setStateFilter("all");
                       setSelectedStatuses(tab.statuses);
+                      setSelectedMatches(tab.matches);
                       setStatusFilter(tab.statuses.join(","));
+                      setMatchFilter(tab.matches.length > 0 ? tab.matches.join(",") : "all");
+                      setCurrentPage(1);
                     }
-                    setCurrentPage(1);
                   }}
                   className={`px-3 py-1.5 rounded-lg font-medium transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     isActive

@@ -1,10 +1,12 @@
 export type RecordStatus =
   | 'NEW'
+  | 'QUEUED'
   | 'SCRAPING_IN_PROGRESS'
   | 'SCRAPING_COMPLETED'
   | 'MATCH_FOUND'
   | 'NO_MATCH_FOUND'
   | 'MANUAL_REVIEW'
+  | 'NEEDS_REVIEW'
   | 'FAILED'
   | 'COMPLETED';
 
@@ -17,6 +19,9 @@ export type FuzzyMatchStatus =
 
 export type BotStatus =
   | 'NOT_TRIGGERED'
+  | 'DISPATCHED'
+  | 'QUEUED'
+  | 'RUNNING'
   | 'IN_PROGRESS'
   | 'COMPLETED'
   | 'FAILED'
@@ -115,6 +120,7 @@ export interface ClaimStats {
   match_found: number;
   manual_review: number;
   no_match_found?: number;
+  clean_no_match?: number;
   failed: number;
   completed: number;
   total_finished?: number;
@@ -240,6 +246,13 @@ export interface AutomationSettings {
   typing_delay_ms?: number;
   action_pacing_ms?: number;
   stealth_clicks?: boolean;
+  human_interaction_mode?: "attended" | "unattended";
+  mouse_movement_style?: "bezier_natural" | "smooth" | "linear" | "instant";
+  click_timeout_ms?: number;
+  screenshot_frequency_seconds?: number;
+  enable_screen_recording?: boolean;
+  human_intervention_timeout_seconds?: number;
+  show_cursor_trail?: boolean;
   // AntiCaptcha Plugin Behavior Toggles
   anticaptcha_enabled?: boolean;
   anticaptcha_auto_submit?: boolean;
@@ -318,12 +331,17 @@ export interface IntegrationSettings {
   notification_dispatch_mode?: "direct_system" | "guidewire_activity" | "both" | string;
 }
 
+export type TimeUnit = "seconds" | "minutes" | "hours" | "days" | "weeks" | "months" | "years";
+
 export interface TaskQueueSettings {
   max_task_retries: number;
   task_retry_delay_seconds: number;
   batch_chunk_size: number;
   auto_retry_failed_scrapes: boolean;
   failed_claims_retry_interval_minutes?: number;
+  failed_claims_retry_interval_value?: number;
+  failed_claims_retry_interval_unit?: TimeUnit;
+  failed_claims_retry_interval_seconds?: number;
   max_concurrent_claims?: number;
   claim_timeout_minutes?: number;
 }
@@ -677,6 +695,17 @@ export interface SystemHealthData {
     [key: string]: HealthComponentDetail;
   };
   portals: Record<string, HealthPortalDetail>;
+  portal_settings_summary?: {
+    enabled_count: number;
+    total_portals: number;
+    all_8_enabled: boolean;
+    fl_routing_ok: boolean;
+    tx_routing_ok: boolean;
+    cross_state_routing_ok: boolean;
+    disabled_portals: string[];
+    routing_compliance: string;
+    portal_flags: Record<string, boolean>;
+  };
 }
 
 export interface PortalPingResponse {

@@ -18,6 +18,7 @@ from app.automation.texas import (
 # 1. BaseCourtScraper Tests
 # ============================================================================
 
+
 class ConcreteCourtScraper(BaseCourtScraper):
     async def search_by_party_name(self, first_name, last_name, page, **kwargs):
         return []
@@ -58,6 +59,7 @@ async def test_base_court_scraper_captcha_detection_none_found():
 # ============================================================================
 # 2. Florida Scraper Tests
 # ============================================================================
+
 
 def test_miami_scraper_initialization():
     scraper = MiamiDadeScraper(
@@ -135,9 +137,11 @@ async def test_miami_scraper_card_view_extraction():
     mock_tds.count = AsyncMock(return_value=0)
     mock_tds.inner_text = AsyncMock(return_value="")
     mock_v4_style = MagicMock()
-    mock_v4_style.inner_text = AsyncMock(return_value="MIGUEL TOLEDO ET AL VS SERGIO GONZALEZ ET AL")
-    mock_card.locator.side_effect = (
-        lambda selector: mock_v4_style if selector.startswith("div:nth-child(1) > p,") else mock_tds
+    mock_v4_style.inner_text = AsyncMock(
+        return_value="MIGUEL TOLEDO ET AL VS SERGIO GONZALEZ ET AL"
+    )
+    mock_card.locator.side_effect = lambda selector: (
+        mock_v4_style if selector.startswith("div:nth-child(1) > p,") else mock_tds
     )
 
     mock_cards = MagicMock()
@@ -223,16 +227,18 @@ async def test_hillsborough_scraper_table_extraction():
     # 8-column row: [Icons, View, CaseNumber, Citation, CaseStyle, CaseStatus, Filed, CaseType]
     mock_row = MagicMock()
     mock_tds = MagicMock()
-    mock_tds.all_inner_texts = AsyncMock(return_value=[
-        "",                                         # Col 0: Action icon
-        "",                                         # Col 1: View icon
-        "26-TR-067231",                             # Col 2: Case Number
-        "ANNPQME",                                  # Col 3: Citation
-        "STATE OF FLORIDA VS GONZALEZ, SERGIO",     # Col 4: Case Style
-        "CLOSED",                                   # Col 5: Case Status
-        "2026-05-14",                               # Col 6: Filed Date
-        "CIVIL TRAFFIC",                            # Col 7: Case Type
-    ])
+    mock_tds.all_inner_texts = AsyncMock(
+        return_value=[
+            "",  # Col 0: Action icon
+            "",  # Col 1: View icon
+            "26-TR-067231",  # Col 2: Case Number
+            "ANNPQME",  # Col 3: Citation
+            "STATE OF FLORIDA VS GONZALEZ, SERGIO",  # Col 4: Case Style
+            "CLOSED",  # Col 5: Case Status
+            "2026-05-14",  # Col 6: Filed Date
+            "CIVIL TRAFFIC",  # Col 7: Case Type
+        ]
+    )
     mock_row.locator.return_value = mock_tds
 
     mock_rows = MagicMock()
@@ -327,10 +333,10 @@ async def test_turnstile_active_click_and_resolution():
     mock_cb.first.click.assert_awaited_once()
 
 
-
 # ============================================================================
 # 3. Texas Scraper Tests
 # ============================================================================
+
 
 def test_texas_scrapers_initialization():
     travis = TravisScraper()
@@ -374,6 +380,7 @@ async def test_dallas_scraper_empty_last_name():
 async def test_turnstile_detection_and_interactive_click():
     """Verify detect_and_handle_captcha actively clicks Turnstile checkbox and resolves token."""
     from unittest.mock import AsyncMock
+
     scraper = BrowardScraper()
 
     mock_checkbox = MagicMock()
@@ -384,7 +391,9 @@ async def test_turnstile_detection_and_interactive_click():
     mock_cb_locator.first = mock_checkbox
 
     mock_turnstile_frame = MagicMock()
-    mock_turnstile_frame.url = "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/turnstile"
+    mock_turnstile_frame.url = (
+        "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/turnstile"
+    )
     mock_turnstile_frame.locator = MagicMock(return_value=mock_cb_locator)
     mock_turnstile_frame.inner_text = AsyncMock(return_value="Success!")
 

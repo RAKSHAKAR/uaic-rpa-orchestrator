@@ -608,18 +608,18 @@ export default function QueueMonitorPage() {
           />
           <StatCard
             label="In Progress"
-            value={stats?.in_progress ?? queueStatus?.active_tasks ?? 0}
-            subtext="Active RPA & Matching"
+            value={(stats?.in_progress ?? 0) + (stats?.new ?? 0)}
+            subtext={`${stats?.in_progress ?? 0} active · ${stats?.new ?? 0} queued`}
             icon={Zap}
             gradient="amber"
-            selected={selectedStatuses.includes("SCRAPING_IN_PROGRESS") && selectedStatuses.length === 1}
+            selected={selectedStatuses.includes("SCRAPING_IN_PROGRESS") && selectedStatuses.includes("NEW")}
             onClick={() => {
-              if (selectedStatuses.includes("SCRAPING_IN_PROGRESS") && selectedStatuses.length === 1) {
+              if (selectedStatuses.includes("SCRAPING_IN_PROGRESS") && selectedStatuses.includes("NEW")) {
                 setSelectedStatuses([]);
                 setStatusFilter("");
               } else {
-                setSelectedStatuses(["SCRAPING_IN_PROGRESS"]);
-                setStatusFilter("SCRAPING_IN_PROGRESS");
+                setSelectedStatuses(["SCRAPING_IN_PROGRESS", "NEW"]);
+                setStatusFilter("SCRAPING_IN_PROGRESS,NEW");
               }
               setSearchTerm("");
               setSelectedStates([]);
@@ -628,14 +628,22 @@ export default function QueueMonitorPage() {
             }}
           />
           <StatCard
-            label="Completed & Matched"
-            value={(stats?.total_finished ?? ((stats?.completed ?? 0) + (stats?.match_found ?? 0) + (stats?.no_match_found ?? 0))) || (queueStatus?.completed_tasks ?? 0)}
-            subtext={`${stats?.match_found ?? 0} matches · ${stats?.no_match_found ?? 0} clean`}
+            label="Completed Scrapes"
+            value={stats?.total_finished ?? queueStatus?.completed_tasks ?? 0}
+            subtext={`${stats?.match_found ?? 0} matches · ${stats?.clean_no_match ?? Math.max(0, (stats?.total_finished ?? 0) - (stats?.match_found ?? 0) - (stats?.manual_review ?? 0))} clean · ${stats?.manual_review ?? 0} review`}
             icon={CheckCircle2}
             gradient="emerald"
-            selected={selectedStatuses.includes("COMPLETED") && selectedStatuses.includes("MATCH_FOUND")}
+            selected={
+              selectedStatuses.includes("COMPLETED") &&
+              selectedStatuses.includes("NO_MATCH_FOUND") &&
+              selectedStatuses.includes("SCRAPING_COMPLETED")
+            }
             onClick={() => {
-              if (selectedStatuses.includes("COMPLETED") && selectedStatuses.includes("MATCH_FOUND")) {
+              if (
+                selectedStatuses.includes("COMPLETED") &&
+                selectedStatuses.includes("NO_MATCH_FOUND") &&
+                selectedStatuses.includes("SCRAPING_COMPLETED")
+              ) {
                 setSelectedStatuses([]);
                 setStatusFilter("");
               } else {
@@ -654,9 +662,9 @@ export default function QueueMonitorPage() {
             subtext="8 county portals total"
             icon={Layers}
             gradient="purple"
-            selected={selectedStatuses.includes("MATCH_FOUND") && selectedStatuses.length === 1}
+            selected={selectedStatuses.includes("MATCH_FOUND") && selectedStatuses.includes("COMPLETED") && selectedStatuses.length === 2}
             onClick={() => {
-              if (selectedStatuses.includes("MATCH_FOUND") && selectedStatuses.length === 1) {
+              if (selectedStatuses.includes("MATCH_FOUND") && selectedStatuses.includes("COMPLETED") && selectedStatuses.length === 2) {
                 setSelectedStatuses([]);
                 setStatusFilter("");
               } else {
@@ -670,19 +678,19 @@ export default function QueueMonitorPage() {
             }}
           />
           <StatCard
-            label="Exceptions & Failed"
-            value={(stats?.failed ?? queueStatus?.failed_tasks ?? 0) + (stats?.manual_review ?? 0)}
-            subtext={`${stats?.manual_review ?? 0} review · ${stats?.failed ?? queueStatus?.failed_tasks ?? 0} failed`}
+            label="Failed Claims"
+            value={stats?.failed ?? queueStatus?.failed_tasks ?? 0}
+            subtext={`${stats?.failed ?? queueStatus?.failed_tasks ?? 0} failed · ready to retrigger`}
             icon={AlertTriangle}
             gradient="rose"
-            selected={selectedStatuses.includes("FAILED") || selectedStatuses.includes("MANUAL_REVIEW")}
+            selected={selectedStatuses.includes("FAILED") && selectedStatuses.length === 1}
             onClick={() => {
-              if (selectedStatuses.includes("FAILED") || selectedStatuses.includes("MANUAL_REVIEW")) {
+              if (selectedStatuses.includes("FAILED") && selectedStatuses.length === 1) {
                 setSelectedStatuses([]);
                 setStatusFilter("");
               } else {
-                setSelectedStatuses(["FAILED", "MANUAL_REVIEW"]);
-                setStatusFilter("FAILED,MANUAL_REVIEW");
+                setSelectedStatuses(["FAILED"]);
+                setStatusFilter("FAILED");
               }
               setSearchTerm("");
               setSelectedStates([]);
@@ -786,6 +794,16 @@ export default function QueueMonitorPage() {
               onExportCsv={() => {
                 const url = api.getExportUrl({
                   format: "csv",
+                  status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter || undefined),
+                  state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter || undefined),
+                  search: searchTerm || undefined,
+                });
+                window.open(url, "_blank");
+              }}
+              onExportTelemetryCsv={() => {
+                const url = api.getExportUrl({
+                  format: "csv",
+                  view: "telemetry",
                   status: selectedStatuses.length > 0 ? selectedStatuses.join(",") : (statusFilter || undefined),
                   state: selectedStates.length > 0 ? selectedStates.join(",") : (stateFilter || undefined),
                   search: searchTerm || undefined,
@@ -1105,6 +1123,10 @@ export default function QueueMonitorPage() {
                                       ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 animate-pulse border border-amber-300 dark:border-amber-800"
                                       : b.status === "FAILED"
                                       ? "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
+                                      : b.status === "BLOCKED"
+                                      ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-400 dark:border-amber-700"
+                                      : b.status === "NO_MATCH_FOUND"
+                                      ? "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
                                       : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400"
                                   }`}
                                 >
@@ -1130,6 +1152,10 @@ export default function QueueMonitorPage() {
                                       ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 animate-pulse border border-amber-300 dark:border-amber-800"
                                       : b.status === "FAILED"
                                       ? "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
+                                      : b.status === "BLOCKED"
+                                      ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-400 dark:border-amber-700"
+                                      : b.status === "NO_MATCH_FOUND"
+                                      ? "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
                                       : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400"
                                   }`}
                                 >

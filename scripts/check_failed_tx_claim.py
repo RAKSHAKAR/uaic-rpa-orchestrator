@@ -9,7 +9,8 @@ if backend_dir not in sys.path:
 
 from app.core.database import AsyncSessionLocal
 from app.models.claim import ClaimRecord, RecordStatusEnum
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
+
 
 async def inspect():
     async with AsyncSessionLocal() as session:

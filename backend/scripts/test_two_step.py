@@ -1,6 +1,8 @@
 import asyncio
 import os
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     ext_dir = os.path.abspath("../anticaptcha-plugin_v0.83")

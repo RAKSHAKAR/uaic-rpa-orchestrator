@@ -144,6 +144,81 @@ const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   },
 };
 
+const DEFAULT_CLEAN_CASE_STYLE_PATTERNS: string[] = [
+  "AS PERSONAL REPRESENTATIVE OF",
+  "PERSONAL REPRESENTATIVE OF",
+  "AS PERSONAL REPRESENTATIVE",
+  "PERSONAL REPRESENTATIVE",
+  "AS PR OF",
+  "PR OF",
+  "AS EXECUTOR OF",
+  "AS EXECUTRIX OF",
+  "EXECUTOR OF",
+  "EXECUTRIX OF",
+  "AS ADMINISTRATOR OF",
+  "AS ADMINISTRATRIX OF",
+  "ADMINISTRATOR OF",
+  "AS TRUSTEE OF",
+  "AS TRUSTEE FOR",
+  "TRUSTEE OF",
+  "AS NEXT FRIEND OF",
+  "NEXT FRIEND OF",
+  "NEXT FRIEND",
+  "ON BEHALF OF",
+  "IN BEHALF OF",
+  "FOR THE USE AND BENEFIT OF",
+  "FOR THE BENEFIT OF",
+  "F/U/B/O",
+  "F/B/O",
+  "AS GUARDIAN OF",
+  "LEGAL GUARDIAN OF",
+  "NATURAL GUARDIAN OF",
+  "NATURAL GUARDIAN",
+  "AS SURVIVING SPOUSE OF",
+  "SURVIVING SPOUSE OF",
+  "AS SURVIVING SPOUSE",
+  "AS BENEFICIARY OF",
+  "AS PARENT OF",
+  "AS PARENT",
+  "A MINOR CHILD",
+  "A MINOR",
+  "MINORS",
+  "AN INCAPACITATED PERSON",
+  "ESTATE OF",
+  "A DECEASED PERSON",
+  "DECEASED",
+  "INDIVIDUALLY",
+  "ET AL",
+  "AS ASSIGNEE OF",
+  "A/A/O",
+  "AAO",
+  "A FLORIDA CORPORATION",
+  "A TEXAS CORPORATION",
+  "A DELAWARE LLC",
+  "A FOREIGN CORPORATION",
+  "A FOREIGN ENTITY",
+  "A DOMESTIC CORPORATION",
+  "D/B/A",
+  "DBA",
+  "F/K/A",
+  "FKA",
+  "A/K/A",
+  "AKA",
+  "N/K/A",
+  "NKA",
+  "AND ALL OTHERS SIMILARLY SITUATED",
+  "IN RE",
+  "IN THE MATTER OF",
+  "PLAINTIFF",
+  "DEFENDANT",
+  "PETITIONER",
+  "RESPONDENT",
+  "UNKNOWN TENANT",
+  "UNKNOWN SPOUSE",
+  "UNKNOWN OCCUPANT",
+  "UNKNOWN PARTIES",
+];
+
 const ENGINE_USER_AGENTS: Record<string, string> = {
   chromium: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   chrome: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -1578,14 +1653,7 @@ export default function SettingsPage() {
   const handleAddCaseNoiseWord = () => {
     if (!newCaseNoiseWord.trim() || !settings) return;
     const word = newCaseNoiseWord.trim().toUpperCase();
-    const current = settings.matcher.clean_case_style_patterns || [
-      "ET AL",
-      "INDIVIDUALLY",
-      "AS PARENT",
-      "NATURAL GUARDIAN",
-      "A MINOR",
-      "ESTATE OF",
-    ];
+    const current = settings.matcher.clean_case_style_patterns || DEFAULT_CLEAN_CASE_STYLE_PATTERNS;
     if (!current.includes(word)) {
       setSettings({
         ...settings,
@@ -1600,14 +1668,7 @@ export default function SettingsPage() {
 
   const handleRemoveCaseNoiseWord = (word: string) => {
     if (!settings) return;
-    const current = settings.matcher.clean_case_style_patterns || [
-      "ET AL",
-      "INDIVIDUALLY",
-      "AS PARENT",
-      "NATURAL GUARDIAN",
-      "A MINOR",
-      "ESTATE OF",
-    ];
+    const current = settings.matcher.clean_case_style_patterns || DEFAULT_CLEAN_CASE_STYLE_PATTERNS;
     setSettings({
       ...settings,
       matcher: {
@@ -2158,7 +2219,7 @@ export default function SettingsPage() {
                       Party Deduplication Threshold
                     </label>
                     <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 px-2 py-0.5 rounded-md">
-                      60%
+                      {((settings.matcher.unique_names_threshold ?? 0.60) * 100).toFixed(0)}%
                     </span>
                   </div>
                   <input
@@ -2166,13 +2227,21 @@ export default function SettingsPage() {
                     min="0"
                     max="1"
                     step="0.05"
-                    value={0.60}
-                    disabled
-                    aria-label="Party deduplication threshold fixed at 60 percent"
-                    className="w-full accent-indigo-500 cursor-not-allowed opacity-70"
+                    value={settings.matcher.unique_names_threshold ?? 0.60}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        matcher: {
+                          ...settings.matcher,
+                          unique_names_threshold: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    aria-label="Party deduplication threshold"
+                    className="w-full accent-indigo-500 cursor-pointer"
                   />
                   <p className="text-[11px] text-slate-500">
-                    Party names across Claimants, Insureds, and Drivers with fuzzy similarity &ge; 60% are merged into a single unique target. This V4 rule is fixed.
+                    Party names across Claimants, Insureds, and Drivers with fuzzy similarity &ge; {((settings.matcher.unique_names_threshold ?? 0.60) * 100).toFixed(0)}% are merged into a single unique target to eliminate redundant searches. Default is 60%.
                   </p>
                 </div>
 
@@ -2531,16 +2600,7 @@ export default function SettingsPage() {
                     Legal & Case Style Noise Words Stripped from Scraped Court Records
                   </label>
                   <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl min-h-[50px] items-center">
-                    {(settings.matcher.clean_case_style_patterns || [
-                      "ET AL",
-                      "INDIVIDUALLY",
-                      "AS PARENT",
-                      "NATURAL GUARDIAN",
-                      "A MINOR",
-                      "ESTATE OF",
-                      "A/A/O",
-                      "AS ASSIGNEE OF",
-                    ]).map((word) => (
+                    {(settings.matcher.clean_case_style_patterns || DEFAULT_CLEAN_CASE_STYLE_PATTERNS).map((word) => (
                       <span
                         key={word}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-mono font-medium shadow-2xs"
@@ -3282,12 +3342,13 @@ export default function SettingsPage() {
                     {/* Option 1: Attended Mode */}
                     <div
                       onClick={() => {
-                        previewAutomation({ headless_mode: false });
+                        previewAutomation({ headless_mode: false, human_interaction_mode: "attended" });
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
                             headless_mode: false,
+                            human_interaction_mode: "attended",
                           },
                         });
                       }}
@@ -3342,12 +3403,13 @@ export default function SettingsPage() {
                     {/* Option 2: Headless Mode */}
                     <div
                       onClick={() => {
-                        previewAutomation({ headless_mode: true });
+                        previewAutomation({ headless_mode: true, human_interaction_mode: "unattended" });
                         setSettings({
                           ...settings,
                           automation: {
                             ...settings.automation,
                             headless_mode: true,
+                            human_interaction_mode: "unattended",
                           },
                         });
                       }}
@@ -3718,7 +3780,157 @@ export default function SettingsPage() {
                 </div>
 
 
-                {/* Anti-Captcha Decoupled Notice Banner */}
+                {/* ========================================================================= */}
+              {/* GENUINE HUMAN INTERACTION & DESKTOP OBSERVABILITY                         */}
+              {/* ========================================================================= */}
+              <div className="sm:col-span-2 space-y-4 p-5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-gradient-to-r from-rose-50/40 via-amber-50/20 to-slate-50 dark:from-rose-950/20 dark:via-amber-950/10 dark:to-slate-900 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-rose-200/70 dark:border-rose-900/40">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-rose-500" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                        Genuine Human Interaction &amp; Desktop Observability
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 font-mono text-[10px] font-bold border border-rose-500/20">
+                        Physical Browser Controls
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Controls authentic physical mouse pointer movements, on-screen cursor visibility, keyboard typing cadence, address bar navigation, and attended human intervention.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Interaction Mode:</span>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold text-white shadow-xs ${
+                      (settings.automation.human_interaction_mode || "attended") === "attended" ? "bg-rose-600" : "bg-slate-600"
+                    }`}>
+                      {(settings.automation.human_interaction_mode || "attended").toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Human Interaction Mode */}
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">Execution Mode</label>
+                    <select
+                      value={settings.automation.human_interaction_mode || "attended"}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        automation: { ...settings.automation, human_interaction_mode: e.target.value as "attended" | "unattended", headless_mode: e.target.value === "unattended" }
+                      })}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-200"
+                    >
+                      <option value="attended">Attended (Visible GUI, Cursor Trail, Intervention)</option>
+                      <option value="unattended">Unattended (Background Desktop Session)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-500">Attended mode displays physical browser and cursor movements.</p>
+                  </div>
+
+                  {/* Mouse Movement Style */}
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">Mouse Trajectory Style</label>
+                    <select
+                      value={settings.automation.mouse_movement_style || "bezier_natural"}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        automation: { ...settings.automation, mouse_movement_style: e.target.value as any }
+                      })}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-200"
+                    >
+                      <option value="bezier_natural">Bézier Natural (Human Curve + Micro-Jitter)</option>
+                      <option value="smooth">Smooth (Cubic Interpolation)</option>
+                      <option value="linear">Linear (Direct Path)</option>
+                      <option value="instant">Instant (Warp)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-500">Bézier curve emulates organic human hand movement.</p>
+                  </div>
+
+                  {/* Click Timeout */}
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">Click Timeout</label>
+                      <span className="font-mono text-xs font-bold text-rose-600">{settings.automation.click_timeout_ms ?? 10000}ms</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="1000"
+                      max="60000"
+                      step="500"
+                      value={settings.automation.click_timeout_ms ?? 10000}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        automation: { ...settings.automation, click_timeout_ms: parseInt(e.target.value) || 10000 }
+                      })}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-200"
+                    />
+                    <p className="text-[10px] text-slate-500">Max wait for element clickable state before dwell.</p>
+                  </div>
+
+                  {/* Human Intervention Timeout */}
+                  <div className="p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">Intervention Timeout</label>
+                      <span className="font-mono text-xs font-bold text-rose-600">{settings.automation.human_intervention_timeout_seconds ?? 180}s</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="15"
+                      max="900"
+                      step="15"
+                      value={settings.automation.human_intervention_timeout_seconds ?? 180}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        automation: { ...settings.automation, human_intervention_timeout_seconds: parseInt(e.target.value) || 180 }
+                      })}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-200"
+                    />
+                    <p className="text-[10px] text-slate-500">Operator intervention pause time for pending challenges.</p>
+                  </div>
+
+                  {/* Visible Cursor Trail Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="space-y-0.5 pr-2">
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">On-Screen Cursor Trail</span>
+                      <p className="text-[10px] text-slate-500">Visual pointer &amp; click ripple in recordings</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={settings.automation.show_cursor_trail ?? true}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          automation: { ...settings.automation, show_cursor_trail: e.target.checked }
+                        })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Enable Screen Recording Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-white/70 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="space-y-0.5 pr-2">
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Screen Recording</span>
+                      <p className="text-[10px] text-slate-500">Captures genuine execution videos &amp; frames</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={settings.automation.enable_screen_recording ?? true}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          automation: { ...settings.automation, enable_screen_recording: e.target.checked }
+                        })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Anti-Captcha Decoupled Notice Banner */}
                 <div className="flex items-start gap-2.5 p-3 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-xs">
                   <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                   <div className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
@@ -7781,53 +7993,162 @@ export default function SettingsPage() {
                 </div>
 
                 {settings.queue.auto_retry_failed_scrapes && (
-                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
                     <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs block">
-                      Failed Claims Retrigger Interval (Minutes)
+                      Failed Claims Retrigger Interval
                     </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="number"
-                        min="1"
-                        max="1440"
-                        value={settings.queue.failed_claims_retry_interval_minutes ?? 15}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            queue: {
-                              ...settings.queue,
-                              failed_claims_retry_interval_minutes: Math.max(1, parseInt(e.target.value) || 1),
-                            },
-                          })
-                        }
-                        className="w-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
-                      />
-                      <div className="flex items-center gap-1.5">
-                        {[5, 15, 30, 60].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() =>
-                              setSettings({
-                                ...settings,
-                                queue: {
-                                  ...settings.queue,
-                                  failed_claims_retry_interval_minutes: preset,
-                                },
-                              })
-                            }
-                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-all cursor-pointer ${
-                              (settings.queue.failed_claims_retry_interval_minutes ?? 15) === preset
-                                ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                            }`}
-                          >
-                            {preset}m
-                          </button>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Numeric Value Input */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={settings.queue.failed_claims_retry_interval_value ?? (settings.queue.failed_claims_retry_interval_minutes || 60)}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                            const unit = settings.queue.failed_claims_retry_interval_unit || "minutes";
+                            const multipliers: Record<string, number> = {
+                              seconds: 1,
+                              minutes: 60,
+                              hours: 3600,
+                              days: 86400,
+                              weeks: 604800,
+                              months: 2592000,
+                              years: 31536000,
+                            };
+                            const mult = multipliers[unit] || 60;
+                            const totalSec = val * mult;
+                            setSettings({
+                              ...settings,
+                              queue: {
+                                ...settings.queue,
+                                failed_claims_retry_interval_value: val,
+                                failed_claims_retry_interval_unit: unit as any,
+                                failed_claims_retry_interval_seconds: totalSec,
+                                failed_claims_retry_interval_minutes: Math.max(1, Math.round(totalSec / 60)),
+                              },
+                            });
+                          }}
+                          className="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-mono"
+                        />
+
+                        {/* Unit Selector Dropdown */}
+                        <select
+                          value={settings.queue.failed_claims_retry_interval_unit || "minutes"}
+                          onChange={(e) => {
+                            const unit = e.target.value;
+                            const val = settings.queue.failed_claims_retry_interval_value ?? (settings.queue.failed_claims_retry_interval_minutes || 60);
+                            const multipliers: Record<string, number> = {
+                              seconds: 1,
+                              minutes: 60,
+                              hours: 3600,
+                              days: 86400,
+                              weeks: 604800,
+                              months: 2592000,
+                              years: 31536000,
+                            };
+                            const mult = multipliers[unit] || 60;
+                            const totalSec = val * mult;
+                            setSettings({
+                              ...settings,
+                              queue: {
+                                ...settings.queue,
+                                failed_claims_retry_interval_value: val,
+                                failed_claims_retry_interval_unit: unit as any,
+                                failed_claims_retry_interval_seconds: totalSec,
+                                failed_claims_retry_interval_minutes: Math.max(1, Math.round(totalSec / 60)),
+                              },
+                            });
+                          }}
+                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-indigo-500 font-medium cursor-pointer"
+                        >
+                          <option value="seconds">Seconds (s)</option>
+                          <option value="minutes">Minutes (m)</option>
+                          <option value="hours">Hours (h)</option>
+                          <option value="days">Days (d)</option>
+                          <option value="weeks">Weeks (w)</option>
+                          <option value="months">Months (mo)</option>
+                          <option value="years">Years (y)</option>
+                        </select>
                       </div>
-                      <span className="text-[11px] text-slate-400">
-                        Celery Beat will automatically check and dispatch failed claims every {(settings.queue.failed_claims_retry_interval_minutes ?? 15)} min.
+
+                      {/* Quick Presets */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                          { label: "30s", val: 30, unit: "seconds" },
+                          { label: "5m", val: 5, unit: "minutes" },
+                          { label: "15m", val: 15, unit: "minutes" },
+                          { label: "1h", val: 1, unit: "hours" },
+                          { label: "6h", val: 6, unit: "hours" },
+                          { label: "1d", val: 1, unit: "days" },
+                          { label: "7d", val: 7, unit: "days" },
+                          { label: "30d", val: 30, unit: "days" },
+                          { label: "1y", val: 1, unit: "years" },
+                        ].map((p) => {
+                          const currentVal = settings.queue.failed_claims_retry_interval_value ?? (settings.queue.failed_claims_retry_interval_minutes || 60);
+                          const currentUnit = settings.queue.failed_claims_retry_interval_unit || "minutes";
+                          const isSelected = currentVal === p.val && currentUnit === p.unit;
+                          return (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => {
+                                const multipliers: Record<string, number> = {
+                                  seconds: 1,
+                                  minutes: 60,
+                                  hours: 3600,
+                                  days: 86400,
+                                  weeks: 604800,
+                                  months: 2592000,
+                                  years: 31536000,
+                                };
+                                const totalSec = p.val * (multipliers[p.unit] || 60);
+                                setSettings({
+                                  ...settings,
+                                  queue: {
+                                    ...settings.queue,
+                                    failed_claims_retry_interval_value: p.val,
+                                    failed_claims_retry_interval_unit: p.unit as any,
+                                    failed_claims_retry_interval_seconds: totalSec,
+                                    failed_claims_retry_interval_minutes: Math.max(1, Math.round(totalSec / 60)),
+                                  },
+                                });
+                              }}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Dynamic Real-time Calculation Badge */}
+                    <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>
+                        Celery Beat will automatically check and dispatch failed claims every{" "}
+                        <strong className="text-slate-900 dark:text-slate-200">
+                          {settings.queue.failed_claims_retry_interval_value ?? (settings.queue.failed_claims_retry_interval_minutes || 60)}{" "}
+                          {settings.queue.failed_claims_retry_interval_unit || "minutes"}
+                        </strong>
+                        {" "}
+                        ({(
+                          (settings.queue.failed_claims_retry_interval_value ?? (settings.queue.failed_claims_retry_interval_minutes || 60)) *
+                          ({
+                            seconds: 1,
+                            minutes: 60,
+                            hours: 3600,
+                            days: 86400,
+                            weeks: 604800,
+                            months: 2592000,
+                            years: 31536000,
+                          }[settings.queue.failed_claims_retry_interval_unit || "minutes"] || 60)
+                        ).toLocaleString()}s elapsed after failure).
                       </span>
                     </div>
                   </div>

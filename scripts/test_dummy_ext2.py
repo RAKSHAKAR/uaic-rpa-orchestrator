@@ -1,8 +1,9 @@
 import asyncio
 import tempfile
-import json
 from pathlib import Path
+
 from playwright.async_api import async_playwright
+
 
 async def run_for(channel_name):
     test_ext_dir = Path("backend/data/test_dummy_ext").resolve()

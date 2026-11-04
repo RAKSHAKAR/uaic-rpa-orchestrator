@@ -1,10 +1,12 @@
 import asyncio
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("backend"))
 
 from app.services.settings_service import get_system_settings_async, save_system_settings_async
+
 
 async def main():
     settings = await get_system_settings_async()

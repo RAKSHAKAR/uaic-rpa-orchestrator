@@ -4,8 +4,7 @@ Saves screenshots to docs/ for verifiable audit proof.
 """
 
 import os
-import sys
-import time
+
 from playwright.sync_api import sync_playwright
 
 DOCS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "docs"))

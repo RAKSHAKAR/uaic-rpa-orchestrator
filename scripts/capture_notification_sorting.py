@@ -1,6 +1,8 @@
 import asyncio
 import os
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -1,9 +1,9 @@
-import subprocess
 import json
+import subprocess
 
 ps_cmd = """
-Get-CimInstance Win32_Process -Filter "name = 'chrome.exe' or name = 'msedge.exe'" | 
-    Select-Object ProcessId, CommandLine | 
+Get-CimInstance Win32_Process -Filter "name = 'chrome.exe' or name = 'msedge.exe'" |
+    Select-Object ProcessId, CommandLine |
     ConvertTo-Json -Depth 2
 """
 res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, text=True)

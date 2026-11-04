@@ -1,7 +1,7 @@
 """Read-only browser QA of every visible Settings tab in two representative views."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
@@ -123,7 +123,7 @@ def main() -> None:
             browser.close()
     report = {
         "implementation_id": "IMP-2026-1001-002",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "url": URL,
         "read_only": True,
         "views": views,

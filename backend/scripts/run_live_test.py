@@ -1,21 +1,23 @@
 import asyncio
-import os
 import json
-from datetime import datetime
+import os
 import sys
+from datetime import datetime
+
 sys.stdout.reconfigure(line_buffering=True)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.automation.florida.broward import BrowardScraper
 from app.automation.florida.hillsborough import HillsboroughScraper
 from app.automation.florida.miami import MiamiDadeScraper
-from app.automation.texas.dallas import DallasScraper
-from app.automation.texas.travis import TravisScraper
-from app.automation.texas.harris_jp import HarrisJPScraper
-from app.automation.texas.harris_district import HarrisDistrictClerkScraper
-from app.automation.texas.harris_cclerk import HarrisCountyClerkScraper
 from app.automation.session_runner import SingleSessionBrowserRunner
+from app.automation.texas.dallas import DallasScraper
+from app.automation.texas.harris_cclerk import HarrisCountyClerkScraper
+from app.automation.texas.harris_district import HarrisDistrictClerkScraper
+from app.automation.texas.harris_jp import HarrisJPScraper
+from app.automation.texas.travis import TravisScraper
 from app.services.settings_service import get_system_settings_async
+
 
 class MockClaim:
     def __init__(self):
@@ -56,10 +58,10 @@ async def main():
         anticaptcha_api_key=auto_cfg.anticaptcha_api_key,
         anticaptcha_settings=auto_cfg,
         user_data_dir=auto_cfg.chrome_user_data_dir,
-        browser_engine="chromium", 
+        browser_engine="chromium",
     )
     
-    claim = MockClaim()
+    _claim = MockClaim()
     results_summary = {}
     
     async with runner as browser_session:
@@ -86,7 +88,7 @@ async def main():
                     print(json.dumps(results[0], indent=2))
                 else:
                     print("No cases found.")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 print(f"Error scraping {scraper.county_name}: Strict 300s Timeout exceeded.")
                 results_summary[scraper.county_name] = {"error": "Strict 90s Timeout exceeded"}
             except Exception as e:

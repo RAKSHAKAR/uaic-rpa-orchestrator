@@ -49,11 +49,13 @@ async def test_auto_detect_column_mapping_exact_and_fuzzy():
 @pytest.mark.asyncio
 async def test_validate_spreadsheet_mapping_missing_claim_number():
     """Verify validation detects missing claim number and flags row as INVALID."""
-    df = pd.DataFrame([
-        {"MyClaim": "CLM-1001", "MyName": "John Doe", "AccidentDate": "2024-01-15"},
-        {"MyClaim": "", "MyName": "Jane Smith", "AccidentDate": "2024-02-20"},
-        {"MyClaim": None, "MyName": "Bob Brown", "AccidentDate": "2024-03-25"},
-    ])
+    df = pd.DataFrame(
+        [
+            {"MyClaim": "CLM-1001", "MyName": "John Doe", "AccidentDate": "2024-01-15"},
+            {"MyClaim": "", "MyName": "Jane Smith", "AccidentDate": "2024-02-20"},
+            {"MyClaim": None, "MyName": "Bob Brown", "AccidentDate": "2024-03-25"},
+        ]
+    )
 
     mapping = {
         "claim_number": "MyClaim",
@@ -74,11 +76,13 @@ async def test_validate_spreadsheet_mapping_missing_claim_number():
 @pytest.mark.asyncio
 async def test_validate_spreadsheet_mapping_duplicate_in_file():
     """Verify validation flags multiple occurrences of the same claim number within spreadsheet."""
-    df = pd.DataFrame([
-        {"Claim Number": "DUP-FILE-99", "Insured First Name": "Alice"},
-        {"Claim Number": "UNIQUE-01", "Insured First Name": "Charlie"},
-        {"Claim Number": "DUP-FILE-99", "Insured First Name": "Alice Repeat"},
-    ])
+    df = pd.DataFrame(
+        [
+            {"Claim Number": "DUP-FILE-99", "Insured First Name": "Alice"},
+            {"Claim Number": "UNIQUE-01", "Insured First Name": "Charlie"},
+            {"Claim Number": "DUP-FILE-99", "Insured First Name": "Alice Repeat"},
+        ]
+    )
 
     result = validate_and_normalize_claim_data(df, duplicate_strategy="SKIP")
 
@@ -112,11 +116,13 @@ async def test_validate_endpoint_database_duplicate_check():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         files = {"file": ("claims_validate.csv", csv_content, "text/csv")}
-        mapping = json.dumps({
-            "claim_number": "CaseIdentifier",
-            "insured_first_name": "PolicyHolder",
-            "dol": "DateOfLoss",
-        })
+        mapping = json.dumps(
+            {
+                "claim_number": "CaseIdentifier",
+                "insured_first_name": "PolicyHolder",
+                "dol": "DateOfLoss",
+            }
+        )
         data = {"mapping": mapping, "duplicate_strategy": "SKIP"}
 
         res = await client.post("/api/v1/ingest/validate", files=files, data=data)
@@ -155,13 +161,15 @@ async def test_upload_with_custom_mapping_and_failed_rows_csv_export(monkeypatch
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         files = {"file": ("custom_mapped.csv", csv_content, "text/csv")}
-        mapping = json.dumps({
-            "claim_number": "ReferenceNo",
-            "insured_first_name": "First",
-            "insured_last_name": "Last",
-            "dol": "EventDate",
-            "loss_location_state": "LossState",
-        })
+        mapping = json.dumps(
+            {
+                "claim_number": "ReferenceNo",
+                "insured_first_name": "First",
+                "insured_last_name": "Last",
+                "dol": "EventDate",
+                "loss_location_state": "LossState",
+            }
+        )
         data = {"mapping": mapping, "duplicate_strategy": "SKIP"}
 
         upload_res = await client.post("/api/v1/ingest/upload", files=files, data=data)
@@ -195,4 +203,3 @@ async def test_upload_with_custom_mapping_and_failed_rows_csv_export(monkeypatch
         assert "text/csv" in failed_csv_res.headers["content-type"]
         csv_text = failed_csv_res.text
         assert f"Duplicate claim number '{claim_num}'" in csv_text
-

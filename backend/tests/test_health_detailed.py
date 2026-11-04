@@ -72,7 +72,17 @@ async def test_health_detailed_observability():
             assert pkey in portals
             assert portals[pkey]["key"] == pkey
             assert "url" in portals[pkey]
-            assert "enabled" in portals[pkey]
+        # GAP-C verification: portal_settings_summary
+        assert "portal_settings_summary" in data
+        summary = data["portal_settings_summary"]
+        assert summary["total_portals"] == 8
+        assert summary["enabled_count"] >= 0
+        assert "all_8_enabled" in summary
+        assert "fl_routing_ok" in summary
+        assert "tx_routing_ok" in summary
+        assert "cross_state_routing_ok" in summary
+        assert "portal_flags" in summary
+        assert len(summary["portal_flags"]) == 8
 
 
 @pytest.mark.asyncio

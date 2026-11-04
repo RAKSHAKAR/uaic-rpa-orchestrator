@@ -1,7 +1,9 @@
 import asyncio
 import tempfile
 from pathlib import Path
+
 from playwright.async_api import async_playwright
+
 
 async def test_engine(name, channel=None, exe=None):
     repo_root = Path(__file__).resolve().parent.parent

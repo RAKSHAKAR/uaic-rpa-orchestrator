@@ -32,19 +32,21 @@ from app.tasks.scraper_tasks import normalize_court_date
 def test_p4_001_unique_name_generation_and_counts():
     """Verify unique name derivation from Insured, Driver, Claimant and search counts."""
     # Scenario A: All different -> 3 unique names
+    # NOTE: JOHN DOE / JANE DOE are correctly filtered as placeholders by business rules.
+    # Use real non-placeholder names here.
     claim_a = {
-        "insured_first_name": "JOHN",
-        "insured_last_name": "DOE",
-        "driver_first_name": "JANE",
-        "driver_last_name": "SMITH",
+        "insured_first_name": "CARLOS",
+        "insured_last_name": "MENDEZ",
+        "driver_first_name": "DIANA",
+        "driver_last_name": "SANTOS",
         "claimant_first_name": "BOB",
         "claimant_last_name": "JONES",
     }
     names_a = generate_unique_names_for_claim(claim_a)
     assert len(names_a) == 3
     full_names_a = [n["full_name"] for n in names_a]
-    assert "JOHN DOE" in full_names_a
-    assert "JANE SMITH" in full_names_a
+    assert "CARLOS MENDEZ" in full_names_a
+    assert "DIANA SANTOS" in full_names_a
     assert "BOB JONES" in full_names_a
 
     dual_a, triple_a = derive_search_counts_fuzzy(claim_a)
@@ -143,7 +145,9 @@ def test_p4_003_deprecated_fields_absent_from_ingest_fields():
         "garaging_state",
     ]
     for field in deprecated_fields:
-        assert field not in TARGET_CLAIM_FIELDS, f"Field '{field}' should be removed from TARGET_CLAIM_FIELDS"
+        assert field not in TARGET_CLAIM_FIELDS, (
+            f"Field '{field}' should be removed from TARGET_CLAIM_FIELDS"
+        )
 
 
 def test_p4_004_exact_default_portal_urls():
@@ -154,37 +158,52 @@ def test_p4_004_exact_default_portal_urls():
     assert settings.PORTAL_BROWARD_URL == "https://www.browardclerk.org/Web2"
     assert p_schema.broward_url == "https://www.browardclerk.org/Web2"
 
-    assert settings.PORTAL_HILLSBOROUGH_URL == "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
-    assert p_schema.hillsborough_url == "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+    assert (
+        settings.PORTAL_HILLSBOROUGH_URL
+        == "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+    )
+    assert (
+        p_schema.hillsborough_url
+        == "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+    )
 
     assert settings.PORTAL_MIAMI_URL == "https://www2.miamidadeclerk.gov/ocs"
     assert p_schema.miami_url == "https://www2.miamidadeclerk.gov/ocs"
 
-    assert settings.PORTAL_TRAVIS_URL == "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
+    assert (
+        settings.PORTAL_TRAVIS_URL
+        == "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
+    )
     assert p_schema.travis_url == "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
 
-    assert settings.PORTAL_DALLAS_URL == "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
-    assert p_schema.dallas_url == "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
-
-    assert settings.PORTAL_HARRIS_JP_URL == "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
-    assert p_schema.harris_jp_url == "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
-
     assert (
-        settings.PORTAL_HARRIS_CCLERK_URL
-        == "https://www.cclerk.hctx.net/Applications/WebSearch/"
+        settings.PORTAL_DALLAS_URL
+        == "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
     )
     assert (
-        p_schema.harris_cclerk_url
-        == "https://www.cclerk.hctx.net/Applications/WebSearch/"
+        p_schema.dallas_url == "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
     )
+
+    assert (
+        settings.PORTAL_HARRIS_JP_URL
+        == "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
+    )
+    assert (
+        p_schema.harris_jp_url
+        == "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
+    )
+
+    assert (
+        settings.PORTAL_HARRIS_CCLERK_URL == "https://www.cclerk.hctx.net/Applications/WebSearch/"
+    )
+    assert p_schema.harris_cclerk_url == "https://www.cclerk.hctx.net/Applications/WebSearch/"
 
     assert (
         settings.PORTAL_HARRIS_DISTRICT_URL
         == "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
     )
     assert (
-        p_schema.harris_district_url
-        == "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
+        p_schema.harris_district_url == "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
     )
 
 

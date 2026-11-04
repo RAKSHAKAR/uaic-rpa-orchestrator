@@ -5,7 +5,6 @@ Verifies that master files, ChatGPT_Prompt, and protected files exist before del
 
 import os
 import sys
-import glob
 
 sys.stdout.reconfigure(encoding='utf-8')
 

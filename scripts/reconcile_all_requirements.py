@@ -3,15 +3,15 @@ reconcile_all_requirements.py - Extract all requirements from P1-P5 and check co
 """
 
 import os
-import sys
 import re
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def parse_prompt(file_path, prefix):
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(file_path, encoding="utf-8", errors="ignore") as f:
         content = f.read()
     
     # Split by markdown headers (# or ##)

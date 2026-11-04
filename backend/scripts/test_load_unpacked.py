@@ -1,9 +1,11 @@
 import asyncio
-from playwright.async_api import async_playwright
 import os
 
+from playwright.async_api import async_playwright
+
+
 async def main():
-    ext_dir = os.path.abspath("../anticaptcha-plugin_v0.83")
+    _ext_dir = os.path.abspath("../anticaptcha-plugin_v0.83")
     profile_dir = os.path.abspath("test_load_unpacked_profile2")
     
     async with async_playwright() as p:

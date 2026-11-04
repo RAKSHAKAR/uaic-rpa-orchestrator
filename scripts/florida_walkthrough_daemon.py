@@ -8,12 +8,11 @@ a lightweight local inspector server on http://127.0.0.1:9333.
 import asyncio
 import json
 import logging
-import os
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 import threading
 import urllib.parse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 
 # Add backend to sys.path
 backend_dir = Path(__file__).resolve().parent.parent / "backend"
@@ -21,7 +20,7 @@ sys.path.insert(0, str(backend_dir))
 
 from app.automation.browser_manager import ChromeSession, ExtensionManager
 from app.services.settings_service import get_system_settings_sync
-from playwright.async_api import async_playwright, BrowserContext, Page
+from playwright.async_api import async_playwright
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("walkthrough_daemon")

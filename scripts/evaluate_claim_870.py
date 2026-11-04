@@ -1,12 +1,14 @@
 import asyncio
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("backend"))
 
-from app.tasks.fuzzy_tasks import _async_evaluate_fuzzy_matches
 from app.core.database import AsyncSessionLocal
 from app.models.claim import ClaimRecord
+from app.tasks.fuzzy_tasks import _async_evaluate_fuzzy_matches
+
 
 async def main():
     claim_id = "870f33f1-d4e5-49b5-9afd-13521bcf60f9"

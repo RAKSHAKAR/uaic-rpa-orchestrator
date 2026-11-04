@@ -32,13 +32,18 @@ def init_test_database_schema():
 # Infrastructure availability probes
 # ---------------------------------------------------------------------------
 
+
 def _is_redis_available() -> bool:
     """Return True if Redis is reachable on 127.0.0.1:6379 and responds to PING."""
     from app.core.config import settings
-    if getattr(settings, "SEMAPHORE_BYPASS", False) or os.environ.get("SEMAPHORE_BYPASS", "").lower() in ("true", "1", "yes"):
+
+    if getattr(settings, "SEMAPHORE_BYPASS", False) or os.environ.get(
+        "SEMAPHORE_BYPASS", ""
+    ).lower() in ("true", "1", "yes"):
         return False
     try:
         import redis
+
         r = redis.Redis(host="127.0.0.1", port=6379, socket_connect_timeout=0.3, socket_timeout=0.3)
         return bool(r.ping())
     except Exception:
@@ -66,6 +71,7 @@ _MAILDEV_UP: bool = _is_maildev_available()
 # Auto-skip hooks
 # ---------------------------------------------------------------------------
 
+
 def pytest_collection_modifyitems(items: list) -> None:
     """
     Automatically skip tests marked with `requires_redis` or `requires_maildev`
@@ -89,6 +95,7 @@ def pytest_collection_modifyitems(items: list) -> None:
 # ---------------------------------------------------------------------------
 # Global fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def clean_async_transports():
@@ -152,7 +159,10 @@ def mock_celery_when_no_redis(monkeypatch):
 def reset_redis_concurrency_semaphore():
     """Ensure test suite starts and ends with clean Redis browser concurrency slot count."""
     from app.core.config import settings
-    bypass = getattr(settings, "SEMAPHORE_BYPASS", False) or os.environ.get("SEMAPHORE_BYPASS", "").lower() in ("true", "1", "yes")
+
+    bypass = getattr(settings, "SEMAPHORE_BYPASS", False) or os.environ.get(
+        "SEMAPHORE_BYPASS", ""
+    ).lower() in ("true", "1", "yes")
     if _REDIS_UP and not bypass:
         try:
             import redis

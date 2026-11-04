@@ -19,7 +19,7 @@ for dirpath, dirnames, filenames in os.walk(ROOT):
         if fname.endswith((".py", ".ts", ".tsx", ".js", ".json", ".md", ".env", ".example", ".txt", ".sql", ".bat", ".ps1")):
             fpath = os.path.join(dirpath, fname)
             try:
-                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                with open(fpath, encoding="utf-8", errors="ignore") as f:
                     for i, line in enumerate(f, 1):
                         if "@uaic.com" in line.lower():
                             rel = os.path.relpath(fpath, ROOT)

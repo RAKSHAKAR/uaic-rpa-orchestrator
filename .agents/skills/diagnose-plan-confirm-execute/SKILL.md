@@ -1,4 +1,4 @@
-﻿---
+---
 name: diagnose-plan-confirm-execute
 description: |
   Universal AI Engineering Governance Skill.
@@ -619,17 +619,21 @@ The agent may bypass `[AWAITING_CONFIRMATION]`. However it **MUST still**:
 [ ] Approval explicitly requested
 ```
 
-### Before Declaring Implementation Complete
+### Before Declaring Implementation Complete (Mandatory 8-Point Quality Gate)
 ```
+[ ] 1. ruff check — 0 errors (cd backend && .venv\Scripts\ruff check app tests ..\e2e\backend)
+[ ] 2. pytest — 0 failed (cd backend && .venv\Scripts\pytest --tb=short -q)
+[ ] 3. tsc --noEmit — 0 TypeScript errors (cd frontend && npx tsc --noEmit)
+[ ] 4. npm run lint — 0 ESLint warnings or errors (cd frontend && npm run lint)
+[ ] 5. PS1 syntax check — all scripts 0 errors (powershell -File scripts/check_ps1_syntax.ps1)
+[ ] 6. IDE Problems & Spell Checker — 0 diagnostics, 0 spelling issues (npx cspell)
+[ ] 7. Encoding & Cleanliness — UTF-8 without BOM, pure ASCII in .ps1 files, 0 trailing bytes
+[ ] 8. Docker compose config — parses with 0 errors (docker compose config)
 [ ] Approved plan followed
 [ ] No unauthorized scope expansion
 [ ] README.md updated
-[ ] All tests executed and passing
-[ ] Regression check complete
 [ ] Acceptance criteria verified with evidence
-[ ] Deviations documented
-[ ] Final documentation created in docs/
-[ ] User notified to verify documentation
+[ ] Final documentation created in docs/ and e2e/reports/
 [ ] No secrets exposed
 [ ] No fabricated test results
 [ ] No false claims of completion
@@ -743,3 +747,26 @@ IMP-YYYY-MMDD-NNN
 4. **Verification Before Modification:** Before deleting or renaming, verify dependencies across the codebase (imports, Docker configs, scripts) and update them simultaneously.
 5. **Clean Code & Comments:** Every file MUST include a top-level Docstring/Header. Complex logic/regex MUST include inline comments explaining *why*.
 
+
+6. **Canonical Media & Artifact Governance (IMP-2026-1031-002):**
+   - Recordings (.webp, .mp4): ONLY in docs/recordings/ (Zero recordings directly in docs/).
+   - Frames & Error Captures: ONLY in docs/frames/.
+   - Documentation Images: ONLY in docs/images/.
+   - Executable Scripts: ONLY in scripts/.
+   - End-to-End Tests: ONLY in e2e/.
+   - Documentation & Reports: ONLY in docs/.
+   - Zero loose files in root.
+   - Protected directories (anticaptcha-plugin_v0.83/, .agents/) must NEVER be moved, purged, or renamed.
+
+7. **Mandatory Pre-Completion Quality Gate (PERMANENT - IMP-2026-1031-002):**
+   Before declaring any task complete, run ALL of these checks and fix EVERY error/warning found:
+   - Python Lint: cd backend; .venv\Scripts\ruff check app tests -- Must report All checks passed!
+   - Python Tests: cd backend; .venv\Scripts\pytest -q --tb=short -- Must show 0 failed.
+   - TypeScript: cd frontend; npx tsc --noEmit -- Must show 0 errors.
+   - Frontend Lint: cd frontend; npm run lint -- Must show No ESLint warnings or errors.
+   - PS1 Syntax: powershell -File scripts\check_ps1_syntax.ps1 -- All scripts 0 syntax errors.
+   - IDE Problems: Resolve all Pyrefly diagnostics, import errors, undefined symbols visible in IDE.
+   - Spelling: Fix all typos in modified files.
+   - Encoding: All .ps1 must be pure ASCII (no em-dashes, smart quotes, or multi-byte chars).
+   - Docker Config: docker compose config -- Must parse without errors.
+   - DO NOT fabricate results. Run actual commands and show real output as evidence.

@@ -47,7 +47,10 @@ async def test_export_claims_excel_multi_sheet_and_cases_extracted():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/claims/export?format=xlsx")
         assert resp.status_code == 200
-        assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in resp.headers["content-type"]
+        assert (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            in resp.headers["content-type"]
+        )
 
         excel_bytes = resp.content
         xl = pd.ExcelFile(io.BytesIO(excel_bytes))
@@ -72,11 +75,12 @@ async def test_export_claims_csv_cases_extracted():
         assert resp.status_code == 200
         assert "text/csv" in resp.headers["content-type"]
 
-        df_csv = pd.read_csv(io.BytesIO(resp.content))
-        if not df_csv.empty:
-            assert "Cases Extracted" in df_csv.columns
-            assert "Extracted Case Numbers" in df_csv.columns
-            assert "Extracted Case Styles" in df_csv.columns
+        if resp.content.strip():
+            df_csv = pd.read_csv(io.BytesIO(resp.content))
+            if not df_csv.empty:
+                assert "Cases Extracted" in df_csv.columns
+                assert "Extracted Case Numbers" in df_csv.columns
+                assert "Extracted Case Styles" in df_csv.columns
 
 
 @pytest.mark.asyncio

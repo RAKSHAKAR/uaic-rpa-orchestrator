@@ -1,5 +1,5 @@
-import sqlite3
 import os
+import sqlite3
 
 root_db = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "orchestrator.db"))
 backend_db = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "orchestrator.db"))

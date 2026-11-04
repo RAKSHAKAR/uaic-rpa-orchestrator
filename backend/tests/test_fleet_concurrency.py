@@ -36,12 +36,15 @@ def test_chrome_session_isolated_profile_and_worker_id():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("concurrency,engine,headless", [
-    (1, "chromium", True),
-    (3, "chromium", False),
-    (5, "chrome", False),
-    (10, "msedge", True),
-])
+@pytest.mark.parametrize(
+    "concurrency,engine,headless",
+    [
+        (1, "chromium", True),
+        (3, "chromium", False),
+        (5, "chrome", False),
+        (10, "msedge", True),
+    ],
+)
 async def test_fleet_test_endpoint_mocked(concurrency, engine, headless, mocker):
     """Verify /api/v1/settings/test-fleet runs parallel workers concurrently."""
     mock_sessions = []
@@ -71,7 +74,10 @@ async def test_fleet_test_endpoint_mocked(concurrency, engine, headless, mocker)
         return s
 
     mocker.patch("app.api.v1.endpoints.settings.ChromeSession", side_effect=mock_session_factory)
-    mocker.patch("app.api.v1.endpoints.settings.ExtensionManager.resolve_extension_path", return_value=Path("./anticaptcha-plugin_v0.83"))
+    mocker.patch(
+        "app.api.v1.endpoints.settings.ExtensionManager.resolve_extension_path",
+        return_value=Path("./anticaptcha-plugin_v0.83"),
+    )
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -112,10 +118,13 @@ async def test_fleet_test_endpoint_partial_failure(mocker):
         s.close = AsyncMock()
 
         if kwargs.get("worker_id") == 2:
+
             async def failing_start():
                 raise RuntimeError("Simulated timeout on worker 2")
+
             s.start = failing_start
         else:
+
             async def mock_start():
                 ctx = MagicMock()
                 page = MagicMock()
@@ -127,12 +136,16 @@ async def test_fleet_test_endpoint_partial_failure(mocker):
                 page.wait_for_timeout = AsyncMock()
                 ctx.new_page = AsyncMock(return_value=page)
                 return ctx
+
             s.start = mock_start
 
         return s
 
     mocker.patch("app.api.v1.endpoints.settings.ChromeSession", side_effect=mock_session_factory)
-    mocker.patch("app.api.v1.endpoints.settings.ExtensionManager.resolve_extension_path", return_value=Path("./anticaptcha-plugin_v0.83"))
+    mocker.patch(
+        "app.api.v1.endpoints.settings.ExtensionManager.resolve_extension_path",
+        return_value=Path("./anticaptcha-plugin_v0.83"),
+    )
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

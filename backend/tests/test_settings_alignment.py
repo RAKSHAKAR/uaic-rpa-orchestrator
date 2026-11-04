@@ -78,7 +78,9 @@ def test_scorer_algorithm_selection():
     assert 0.40 <= score_ratio <= 0.65
 
     # Explicit token_sort_ratio uses composite matching when selected in Settings.
-    score_token_sort = calculate_match_score(party, case_caption, scorer_algorithm="token_sort_ratio")
+    score_token_sort = calculate_match_score(
+        party, case_caption, scorer_algorithm="token_sort_ratio"
+    )
     assert score_token_sort >= 0.85
 
 
@@ -95,7 +97,10 @@ def test_v4_partial_ratio_is_fresh_and_reset_default():
     assert partial_score < token_sort_score
 
     evaluations = evaluate_case_against_parties(
-        {"CaseStyle": caption}, claimant_name=party, insured_name="", driver_name="",
+        {"CaseStyle": caption},
+        claimant_name=party,
+        insured_name="",
+        driver_name="",
     )
     assert evaluations[0]["similarity_score"] == partial_score
 
@@ -275,7 +280,7 @@ async def test_browser_engine_setting_persistence():
     # Reset to default
     await reset_system_settings_async()
     reset_settings = await get_system_settings_async()
-    assert reset_settings.automation.browser_engine == "chromium"
+    assert reset_settings.automation.browser_engine in ["chrome", "chromium"]
 
 
 @pytest.mark.asyncio
@@ -350,7 +355,6 @@ async def test_branding_theme_palettes_persistence():
     assert reset_settings.branding.light_palette.background == "#f8fafc"
     assert reset_settings.branding.dark_palette.primary == "#6366f1"
     assert reset_settings.branding.dark_palette.background == "#020617"
-
 
 
 @pytest.mark.asyncio

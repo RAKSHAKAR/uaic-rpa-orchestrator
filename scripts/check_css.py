@@ -1,5 +1,5 @@
-import urllib.request
 import re
+import urllib.request
 
 html = urllib.request.urlopen("http://localhost:3000/", timeout=15).read().decode("utf-8")
 m = re.search(r'href="(/_next/static/css/[^"]+)"', html)

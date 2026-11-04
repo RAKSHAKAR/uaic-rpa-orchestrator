@@ -1,7 +1,9 @@
 import asyncio
-import os
 import json
+import os
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     profile_dir = os.path.abspath("test_pref_profile2")

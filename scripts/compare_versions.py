@@ -2,7 +2,9 @@ import asyncio
 import shutil
 import tempfile
 from pathlib import Path
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     repo_root = Path('.').resolve()

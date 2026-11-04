@@ -68,26 +68,30 @@ async def test_harris_district_same_number_role_rows_reach_guidewire(tmp_path, m
         "JANE EXAMPLE VS ACME CORPORATION",
     ]
     async with session_factory() as db:
-        db.add(ClaimRecord(
-            id=claim_id,
-            claim_number="TEST-V4-ROLE-ROWS",
-            exposure_number="001",
-            claimant_first_name="Jane",
-            claimant_last_name="Example",
-            record_status=RecordStatusEnum.SCRAPING_COMPLETED,
-        ))
+        db.add(
+            ClaimRecord(
+                id=claim_id,
+                claim_number="TEST-V4-ROLE-ROWS",
+                exposure_number="001",
+                claimant_first_name="Jane",
+                claimant_last_name="Example",
+                record_status=RecordStatusEnum.SCRAPING_COMPLETED,
+            )
+        )
         for style in case_styles:
-            db.add(ScrapedCourtCase(
-                id=str(uuid.uuid4()),
-                claim_id=claim_id,
-                county_name="Harris District Court (TX)",
-                county_website="https://www.hcdistrictclerk.com/",
-                case_number=case_number,
-                case_style=style,
-                filing_date="06/15/2024",
-                case_status="OPEN",
-                case_type="CIVIL",
-            ))
+            db.add(
+                ScrapedCourtCase(
+                    id=str(uuid.uuid4()),
+                    claim_id=claim_id,
+                    county_name="Harris District Court (TX)",
+                    county_website="https://www.hcdistrictclerk.com/",
+                    case_number=case_number,
+                    case_style=style,
+                    filing_date="06/15/2024",
+                    case_status="OPEN",
+                    case_type="CIVIL",
+                )
+            )
         await db.commit()
 
     try:
@@ -101,9 +105,11 @@ async def test_harris_district_same_number_role_rows_reach_guidewire(tmp_path, m
 
         await fuzzy_tasks._async_notify_guidewire(claim_id)
         async with session_factory() as db:
-            activity = (await db.execute(
-                select(GuidewireActivity).where(GuidewireActivity.claim_id == claim_id)
-            )).scalar_one()
+            activity = (
+                await db.execute(
+                    select(GuidewireActivity).where(GuidewireActivity.claim_id == claim_id)
+                )
+            ).scalar_one()
             case_items = activity.request_payload["CaseItems"]
             assert len(case_items) == 2
             assert [item["CaseNumber"] for item in case_items] == [case_number] * 2

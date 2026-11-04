@@ -16,9 +16,9 @@ Validates:
 import os
 import select
 import socket
-import sys
 import threading
 import time
+
 from playwright.sync_api import sync_playwright
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

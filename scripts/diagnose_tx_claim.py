@@ -1,5 +1,5 @@
-import urllib.request
 import json
+import urllib.request
 
 url = "http://localhost:8000/api/v1/claims/57d46e31-e1f9-41c8-b8bb-6071ce6697d1"
 try:

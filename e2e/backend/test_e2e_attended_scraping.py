@@ -4,7 +4,6 @@ These tests execute with visible GUI (`headless=False`) using real Chrome and th
 Anti-Captcha extension across all 8 supported county portals.
 """
 
-
 import pytest
 
 from app.automation.florida import BrowardScraper, HillsboroughScraper, MiamiDadeScraper
@@ -39,7 +38,9 @@ async def test_e2e_att_004_hillsborough_attended():
 @pytest.mark.asyncio
 async def test_e2e_att_007_miami_attended_settings_credentials():
     """E2E-ATT-007: Miami-Dade Attended initializes with configured credentials and no hardcoded fallback."""
-    scraper = MiamiDadeScraper(headless=False, username="user@company.com", password="SecurePassword!")
+    scraper = MiamiDadeScraper(
+        headless=False, username="user@company.com", password="SecurePassword!"
+    )
     assert scraper.headless is False
     assert scraper.username == "user@company.com"
     assert scraper.password == "SecurePassword!"

@@ -2,8 +2,7 @@
 
 import asyncio
 import uuid
-from datetime import datetime, UTC
-from sqlalchemy import select
+
 from app.core.database import Base, TaskAsyncSessionLocal, engine
 from app.models.claim import ClaimRecord, FuzzyMatchStatusEnum, RecordStatusEnum
 from app.models.court_case import ScrapedCourtCase

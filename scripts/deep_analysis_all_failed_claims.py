@@ -1,7 +1,7 @@
-import sqlite3
 import json
 import os
-from collections import defaultdict, Counter
+import sqlite3
+from collections import Counter
 
 DB_PATH = r"backend/orchestrator.db"
 LOGS_DIR = r"backend/logs"
@@ -82,7 +82,7 @@ def main():
                 exec_file = os.path.join(log_dir, portal_folder, "execution.log")
                 if os.path.exists(exec_file):
                     try:
-                        with open(exec_file, "r", encoding="utf-8", errors="ignore") as f:
+                        with open(exec_file, encoding="utf-8", errors="ignore") as f:
                             lines = f.readlines()
                             # grab last 5 lines
                             portal_logs[portal_folder] = [line.strip() for line in lines[-5:]]

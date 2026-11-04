@@ -39,7 +39,7 @@ async def test_single_claim_create_and_duplicate_prevention():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         unique_claim_num = f"AUTOTEST-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        
+
         payload = {
             "claim_number": unique_claim_num,
             "exposure_number": "1",
@@ -51,7 +51,7 @@ async def test_single_claim_create_and_duplicate_prevention():
             "policy_state": "Florida",
             "loss_location_state": "Florida",
         }
-        
+
         # 1. Create claim
         res = await client.post("/api/v1/claims", json=payload)
         assert res.status_code == 201
@@ -76,15 +76,18 @@ async def test_single_claim_read_update_delete():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         c_num = f"CRUD-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        
+
         # 1. Create
-        create_res = await client.post("/api/v1/claims", json={
-            "claim_number": c_num,
-            "insured_first_name": "Alice",
-            "insured_last_name": "Original",
-            "policy_state": "Texas",
-            "loss_location_state": "Texas",
-        })
+        create_res = await client.post(
+            "/api/v1/claims",
+            json={
+                "claim_number": c_num,
+                "insured_first_name": "Alice",
+                "insured_last_name": "Original",
+                "policy_state": "Texas",
+                "loss_location_state": "Texas",
+            },
+        )
         assert create_res.status_code == 201
         claim_id = create_res.json()["id"]
 
@@ -94,10 +97,13 @@ async def test_single_claim_read_update_delete():
         assert read_res.json()["id"] == claim_id
 
         # 3. Update (Edit)
-        update_res = await client.put(f"/api/v1/claims/{claim_id}", json={
-            "insured_last_name": "UpdatedLastname",
-            "loss_location_state": "Florida",
-        })
+        update_res = await client.put(
+            f"/api/v1/claims/{claim_id}",
+            json={
+                "insured_last_name": "UpdatedLastname",
+                "loss_location_state": "Florida",
+            },
+        )
         assert update_res.status_code == 200
         assert update_res.json()["insured_name"] == "Alice UpdatedLastname"
         assert update_res.json()["loss_location_state"] == "Florida"
@@ -121,16 +127,19 @@ async def test_bulk_operations():
         # Create 2 claims for bulk testing
         c1 = f"BULK1-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
         c2 = f"BULK2-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        
+
         r1 = await client.post("/api/v1/claims", json={"claim_number": c1})
         r2 = await client.post("/api/v1/claims", json={"claim_number": c2})
         id1, id2 = r1.json()["id"], r2.json()["id"]
 
         # 1. Bulk Status update
-        status_res = await client.post("/api/v1/claims/bulk-status", json={
-            "claim_ids": [id1, id2],
-            "status": "MANUAL_REVIEW",
-        })
+        status_res = await client.post(
+            "/api/v1/claims/bulk-status",
+            json={
+                "claim_ids": [id1, id2],
+                "status": "MANUAL_REVIEW",
+            },
+        )
         assert status_res.status_code == 200
         assert status_res.json()["affected_count"] == 2
 
@@ -145,16 +154,22 @@ async def test_bulk_operations():
             "app.api.v1.endpoints.claims.get_system_settings_async",
             AsyncMock(return_value=ready_settings),
         ):
-            start_res = await client.post("/api/v1/claims/bulk-start", json={
-                "claim_ids": [id1, id2],
-            })
+            start_res = await client.post(
+                "/api/v1/claims/bulk-start",
+                json={
+                    "claim_ids": [id1, id2],
+                },
+            )
         assert start_res.status_code == 200
         assert start_res.json()["affected_count"] == 2
 
         # 3. Bulk Delete
-        del_res = await client.post("/api/v1/claims/bulk-delete", json={
-            "claim_ids": [id1, id2],
-        })
+        del_res = await client.post(
+            "/api/v1/claims/bulk-delete",
+            json={
+                "claim_ids": [id1, id2],
+            },
+        )
         assert del_res.status_code == 200
         assert del_res.json()["affected_count"] == 2
 
@@ -169,12 +184,18 @@ async def test_server_side_pagination_and_sorting():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Create records to guarantee presence
-        ts = datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')
-        await client.post("/api/v1/claims", json={"claim_number": f"SORTA-{ts}", "policy_state": "Florida"})
-        await client.post("/api/v1/claims", json={"claim_number": f"SORTB-{ts}", "policy_state": "Texas"})
+        ts = datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
+        await client.post(
+            "/api/v1/claims", json={"claim_number": f"SORTA-{ts}", "policy_state": "Florida"}
+        )
+        await client.post(
+            "/api/v1/claims", json={"claim_number": f"SORTB-{ts}", "policy_state": "Texas"}
+        )
 
         # Test sorting
-        res_desc = await client.get("/api/v1/claims?sort_by=created_at&sort_order=desc&page_size=10")
+        res_desc = await client.get(
+            "/api/v1/claims?sort_by=created_at&sort_order=desc&page_size=10"
+        )
         assert res_desc.status_code == 200
         data_desc = res_desc.json()
         assert "total_pages" in data_desc
@@ -206,7 +227,7 @@ async def test_excel_and_csv_export():
             "policy_state": "FL",
             "insured_first_name": "CSV",
             "insured_last_name": "Test",
-            "record_status": "Pending"
+            "record_status": "Pending",
         }
         await client.post("/api/v1/claims", json=payload)
 
@@ -275,13 +296,16 @@ async def test_manual_captcha_mode_starts_without_solver_key():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         claim_number = f"MANUAL-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        created = await client.post("/api/v1/claims", json={
-            "claim_number": claim_number,
-            "policy_state": "FL",
-            "loss_location_state": "FL",
-            "insured_first_name": "Manual",
-            "insured_last_name": "Captcha",
-        })
+        created = await client.post(
+            "/api/v1/claims",
+            json={
+                "claim_number": claim_number,
+                "policy_state": "FL",
+                "loss_location_state": "FL",
+                "insured_first_name": "Manual",
+                "insured_last_name": "Captcha",
+            },
+        )
         assert created.status_code == 201
         claim_id = created.json()["id"]
         try:
@@ -293,12 +317,20 @@ async def test_manual_captcha_mode_starts_without_solver_key():
             assert rejected.status_code == 422
 
             with (
-                patch("app.api.v1.endpoints.claims.get_system_settings_async", AsyncMock(return_value=manual_settings)),
-                patch("app.api.v1.endpoints.queue.get_system_settings_async", AsyncMock(return_value=manual_settings)),
+                patch(
+                    "app.api.v1.endpoints.claims.get_system_settings_async",
+                    AsyncMock(return_value=manual_settings),
+                ),
+                patch(
+                    "app.api.v1.endpoints.queue.get_system_settings_async",
+                    AsyncMock(return_value=manual_settings),
+                ),
                 patch("app.core.celery_app.celery_app.send_task"),
             ):
                 started = await client.post(f"/api/v1/claims/{claim_id}/start")
-                bulk = await client.post("/api/v1/claims/bulk-start", json={"claim_ids": [claim_id]})
+                bulk = await client.post(
+                    "/api/v1/claims/bulk-start", json={"claim_ids": [claim_id]}
+                )
                 queue = await client.post("/api/v1/queue/auto-mode", json={"enabled": True})
             assert started.status_code == 200
             assert bulk.status_code == 200
@@ -327,6 +359,7 @@ async def test_database_cleanup_endpoint():
 
 def test_detailed_stage_timing_telemetry_recorder():
     """Verify high-resolution stage execution timing recorder logic on BaseCourtScraper."""
+
     class DummyScraper(BaseCourtScraper):
         async def search_by_party_name(self, first_name, last_name, page, **kwargs):
             return []
@@ -334,9 +367,11 @@ def test_detailed_stage_timing_telemetry_recorder():
     scraper = DummyScraper(county_name="TestCounty", base_url="https://test.court.gov")
     t1 = datetime(2026, 9, 3, 10, 15, 20, 120000)
     t2 = datetime(2026, 9, 3, 10, 15, 22, 840000)
-    
-    scraper.record_stage("browser_launch", "Browser Launch", t1, t2, detail="Attended Chrome + AntiCaptcha")
-    
+
+    scraper.record_stage(
+        "browser_launch", "Browser Launch", t1, t2, detail="Attended Chrome + AntiCaptcha"
+    )
+
     assert "browser_launch" in scraper.stage_timings
     st = scraper.stage_timings["browser_launch"]
     assert st["name"] == "Browser Launch"
@@ -348,6 +383,7 @@ def test_detailed_stage_timing_telemetry_recorder():
 
 def test_anticaptcha_extension_and_attended_configuration():
     """Verify Chrome extension path normalization and attended configuration flags."""
+
     class DummyScraper(BaseCourtScraper):
         async def search_by_party_name(self, first_name, last_name, page, **kwargs):
             return []
@@ -375,24 +411,26 @@ async def test_file_preview_endpoint():
 
     from app.main import app
 
-    df = pd.DataFrame([
-        {
-            "Claim Number": "PREV-FL-001",
-            "Insured First Name": "John",
-            "Insured Last Name": "Doe",
-            "DOL": "01/15/2024",
-            "Policy State": "Florida",
-            "Loss Location State": "Florida",
-        },
-        {
-            "Claim Number": "PREV-TX-002",
-            "Insured First Name": "Jane",
-            "Insured Last Name": "Smith",
-            "DOL": "02/20/2024",
-            "Policy State": "Texas",
-            "Loss Location State": "Texas",
-        },
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Claim Number": "PREV-FL-001",
+                "Insured First Name": "John",
+                "Insured Last Name": "Doe",
+                "DOL": "01/15/2024",
+                "Policy State": "Florida",
+                "Loss Location State": "Florida",
+            },
+            {
+                "Claim Number": "PREV-TX-002",
+                "Insured First Name": "Jane",
+                "Insured Last Name": "Smith",
+                "DOL": "02/20/2024",
+                "Policy State": "Texas",
+                "Loss Location State": "Texas",
+            },
+        ]
+    )
 
     excel_buffer = io.BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
@@ -401,7 +439,13 @@ async def test_file_preview_endpoint():
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        files = {"file": ("test_claims.xlsx", excel_content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+        files = {
+            "file": (
+                "test_claims.xlsx",
+                excel_content,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        }
         res = await client.post("/api/v1/ingest/preview", files=files)
         assert res.status_code == 200
         data = res.json()

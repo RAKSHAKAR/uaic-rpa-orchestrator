@@ -6,6 +6,7 @@ import math
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -125,6 +126,7 @@ def _case_count(
     if isinstance(json_body, str) and json_body.strip():
         try:
             import json
+
             parsed = json.loads(json_body)
             if isinstance(parsed, list):
                 return len(parsed)
@@ -144,18 +146,37 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
     """
     try:
         from app.services.settings_service import get_system_settings_sync
+
         portals_cfg = get_system_settings_sync().portals
     except Exception:
         portals_cfg = None
 
     broward_url = portals_cfg.broward_url if portals_cfg else "https://www.browardclerk.org/"
-    hillsborough_url = portals_cfg.hillsborough_url if portals_cfg else "https://hover.hillsclerk.com/"
+    hillsborough_url = (
+        portals_cfg.hillsborough_url if portals_cfg else "https://hover.hillsclerk.com/"
+    )
     miami_url = portals_cfg.miami_url if portals_cfg else "https://www2.miamidadeclerk.gov/ocs"
-    travis_url = portals_cfg.travis_url if portals_cfg else "https://odysseyweb.traviscountytx.gov/Portal/"
-    dallas_url = portals_cfg.dallas_url if portals_cfg else "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
-    harris_jp_url = portals_cfg.harris_jp_url if portals_cfg else "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
-    harris_cclerk_url = portals_cfg.harris_cclerk_url if portals_cfg else "https://www.cclerk.hctx.net/Applications/WebSearch/"
-    harris_district_url = portals_cfg.harris_district_url if portals_cfg else "https://www.hcdistrictclerk.com/"
+    travis_url = (
+        portals_cfg.travis_url if portals_cfg else "https://odysseyweb.traviscountytx.gov/Portal/"
+    )
+    dallas_url = (
+        portals_cfg.dallas_url
+        if portals_cfg
+        else "https://courtsportal.dallascounty.org/DALLASPROD/Home/"
+    )
+    harris_jp_url = (
+        portals_cfg.harris_jp_url
+        if portals_cfg
+        else "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/"
+    )
+    harris_cclerk_url = (
+        portals_cfg.harris_cclerk_url
+        if portals_cfg
+        else "https://www.cclerk.hctx.net/Applications/WebSearch/"
+    )
+    harris_district_url = (
+        portals_cfg.harris_district_url if portals_cfg else "https://www.hcdistrictclerk.com/"
+    )
 
     # Build per-county scraped case count from the scraped_cases relationship
     # so the bot grid always shows correct counts even when te_jsonbody_*/fl_jsonbody_* are empty.
@@ -166,24 +187,38 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
             scraped_by_county[county] = scraped_by_county.get(county, 0) + 1
 
     def _count(json_body, kw: list[str]) -> int:
-        return _case_count(json_body=json_body, county_keywords=kw, scraped_by_county=scraped_by_county)
+        return _case_count(
+            json_body=json_body, county_keywords=kw, scraped_by_county=scraped_by_county
+        )
 
     from app.services.excel_parser import resolve_county_bot_targets
+
     target_map = resolve_county_bot_targets(claim.policy_state, claim.loss_location_state)
 
-    def _resolve_bot_target_and_status(raw_target: str | None, raw_status: str | None, cases_cnt: int, key: str) -> tuple[str, str]:
+    def _resolve_bot_target_and_status(
+        raw_target: str | None, raw_status: str | None, cases_cnt: int, key: str
+    ) -> tuple[str, str]:
         # If cases were found, it was definitely targeted and completed
         if cases_cnt > 0:
             target = "Yes"
-            status = BotStatusEnum.COMPLETED if raw_status in (None, "None", BotStatusEnum.NOT_TRIGGERED, "NOT_TRIGGERED") else raw_status
+            status = (
+                BotStatusEnum.COMPLETED
+                if raw_status in (None, "None", BotStatusEnum.NOT_TRIGGERED, "NOT_TRIGGERED")
+                else raw_status
+            )
             return target, status
-        
+
         # Check target_map derived from policy_state & loss_location_state
         is_routed = target_map.get(key) == "Yes"
         target = "Yes" if is_routed or raw_target == "Yes" else "No"
         status = raw_status or BotStatusEnum.NOT_TRIGGERED
         # If targeted and claim finished scraping without cases, status is NO_MATCH_FOUND
-        if target == "Yes" and status in (None, "None", BotStatusEnum.NOT_TRIGGERED, "NOT_TRIGGERED"):
+        if target == "Yes" and status in (
+            None,
+            "None",
+            BotStatusEnum.NOT_TRIGGERED,
+            "NOT_TRIGGERED",
+        ):
             if claim.record_status in (
                 RecordStatusEnum.SCRAPING_COMPLETED,
                 RecordStatusEnum.MATCH_FOUND,
@@ -194,14 +229,54 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
                 status = BotStatusEnum.NO_MATCH_FOUND
         return target, status
 
-    t_broward, s_broward = _resolve_bot_target_and_status(claim.fl_website_broward, claim.fl_botstatus_broward, _count(claim.fl_jsonbody_broward, ["broward"]), "fl_broward")
-    t_hills, s_hills = _resolve_bot_target_and_status(claim.fl_website_hillsborough, claim.fl_botstatus_hillsborough, _count(claim.fl_jsonbody_hillsborough, ["hillsborough"]), "fl_hillsborough")
-    t_miami, s_miami = _resolve_bot_target_and_status(claim.fl_website_miami, claim.fl_botstatus_miami, _count(claim.fl_jsonbody_miami, ["miami", "miami-dade", "miamidade"]), "fl_miami")
-    t_travis, s_travis = _resolve_bot_target_and_status(claim.te_website_travis, claim.te_botstatus_travis, _count(claim.te_jsonbody_travis, ["travis"]), "te_travis")
-    t_dallas, s_dallas = _resolve_bot_target_and_status(claim.te_website_dallas, claim.te_botstatus_dallas, _count(claim.te_jsonbody_dallas, ["dallas"]), "te_dallas")
-    t_harris, s_harris = _resolve_bot_target_and_status(claim.te_website_harris, claim.te_botstatus_harris, _count(claim.te_jsonbody_harris, ["harris jp", "harris county jp", "odyssey jp"]), "te_harris")
-    t_cclerk, s_cclerk = _resolve_bot_target_and_status(claim.te_website_cclerk, claim.te_botstatus_cclerk, _count(claim.te_jsonbody_cclerk, ["harris county clerk", "harris clerk", "cclerk"]), "te_cclerk")
-    t_hcdistrict, s_hcdistrict = _resolve_bot_target_and_status(claim.te_website_hcdistrict, claim.te_botstatus_hcdistrict, _count(claim.te_jsonbody_hcdistrict, ["harris district", "hcdistrict", "edocs"]), "te_hcdistrict")
+    t_broward, s_broward = _resolve_bot_target_and_status(
+        claim.fl_website_broward,
+        claim.fl_botstatus_broward,
+        _count(claim.fl_jsonbody_broward, ["broward"]),
+        "fl_broward",
+    )
+    t_hills, s_hills = _resolve_bot_target_and_status(
+        claim.fl_website_hillsborough,
+        claim.fl_botstatus_hillsborough,
+        _count(claim.fl_jsonbody_hillsborough, ["hillsborough"]),
+        "fl_hillsborough",
+    )
+    t_miami, s_miami = _resolve_bot_target_and_status(
+        claim.fl_website_miami,
+        claim.fl_botstatus_miami,
+        _count(claim.fl_jsonbody_miami, ["miami", "miami-dade", "miamidade"]),
+        "fl_miami",
+    )
+    t_travis, s_travis = _resolve_bot_target_and_status(
+        claim.te_website_travis,
+        claim.te_botstatus_travis,
+        _count(claim.te_jsonbody_travis, ["travis"]),
+        "te_travis",
+    )
+    t_dallas, s_dallas = _resolve_bot_target_and_status(
+        claim.te_website_dallas,
+        claim.te_botstatus_dallas,
+        _count(claim.te_jsonbody_dallas, ["dallas"]),
+        "te_dallas",
+    )
+    t_harris, s_harris = _resolve_bot_target_and_status(
+        claim.te_website_harris,
+        claim.te_botstatus_harris,
+        _count(claim.te_jsonbody_harris, ["harris jp", "harris county jp", "odyssey jp"]),
+        "te_harris",
+    )
+    t_cclerk, s_cclerk = _resolve_bot_target_and_status(
+        claim.te_website_cclerk,
+        claim.te_botstatus_cclerk,
+        _count(claim.te_jsonbody_cclerk, ["harris county clerk", "harris clerk", "cclerk"]),
+        "te_cclerk",
+    )
+    t_hcdistrict, s_hcdistrict = _resolve_bot_target_and_status(
+        claim.te_website_hcdistrict,
+        claim.te_botstatus_hcdistrict,
+        _count(claim.te_jsonbody_hcdistrict, ["harris district", "hcdistrict", "edocs"]),
+        "te_hcdistrict",
+    )
 
     bots = [
         BotStatusDetail(
@@ -244,21 +319,27 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
             website_url=harris_jp_url,
             target=t_harris,
             status=s_harris,
-            cases_found=_count(claim.te_jsonbody_harris, ["harris jp", "harris county jp", "odyssey jp"]),
+            cases_found=_count(
+                claim.te_jsonbody_harris, ["harris jp", "harris county jp", "odyssey jp"]
+            ),
         ),
         BotStatusDetail(
             name="Harris County Clerk (TX)",
             website_url=harris_cclerk_url,
             target=t_cclerk,
             status=s_cclerk,
-            cases_found=_count(claim.te_jsonbody_cclerk, ["harris county clerk", "harris clerk", "cclerk"]),
+            cases_found=_count(
+                claim.te_jsonbody_cclerk, ["harris county clerk", "harris clerk", "cclerk"]
+            ),
         ),
         BotStatusDetail(
             name="Harris District Clerk (TX)",
             website_url=harris_district_url,
             target=t_hcdistrict,
             status=s_hcdistrict,
-            cases_found=_count(claim.te_jsonbody_hcdistrict, ["harris district", "hcdistrict", "edocs"]),
+            cases_found=_count(
+                claim.te_jsonbody_hcdistrict, ["harris district", "hcdistrict", "edocs"]
+            ),
         ),
     ]
     return bots
@@ -267,7 +348,9 @@ def _build_bot_details(claim: ClaimRecord) -> list[BotStatusDetail]:
 _build_bot_status_list = _build_bot_details
 
 
-def _normalize_action_timings(action_timings: dict | None, claim: ClaimRecord | None = None) -> dict | None:
+def _normalize_action_timings(
+    action_timings: dict | None, claim: ClaimRecord | None = None
+) -> dict | None:
     """Normalize stage key names inside action_timings before returning to frontend.
     Applies _normalize_stage_keys to both top-level stages dict and per-portal stages dicts.
     If a claim has scraped cases or finished scraping, ensures realistic browser stages and portal stages exist.
@@ -305,14 +388,24 @@ def _normalize_action_timings(action_timings: dict | None, claim: ClaimRecord | 
                 if col:
                     col_status = getattr(claim, col, None)
                     if col_status is not None:
-                        col_val = col_status.value if hasattr(col_status, "value") else str(col_status)
-                        if portal_data.get("status") in (None, "", "IN_PROGRESS") and col_val not in ("NOT_TRIGGERED", "IN_PROGRESS"):
+                        col_val = (
+                            col_status.value if hasattr(col_status, "value") else str(col_status)
+                        )
+                        if portal_data.get("status") in (
+                            None,
+                            "",
+                            "IN_PROGRESS",
+                        ) and col_val not in ("NOT_TRIGGERED", "IN_PROGRESS"):
                             portal_data["status"] = col_val
                     json_col = col.replace("botstatus", "jsonbody") if col else None
                     json_data = getattr(claim, json_col, None) if json_col else None
                     if json_data and isinstance(json_data, list):
-                        portal_data["cases_found"] = max(portal_data.get("cases_found") or 0, len(json_data))
-                    if portal_data.get("duration_seconds") is None and portal_data.get("status") not in (None, "", "IN_PROGRESS"):
+                        portal_data["cases_found"] = max(
+                            portal_data.get("cases_found") or 0, len(json_data)
+                        )
+                    if portal_data.get("duration_seconds") is None and portal_data.get(
+                        "status"
+                    ) not in (None, "", "IN_PROGRESS"):
                         portal_data["duration_seconds"] = 15.0
             portals[portal_key] = portal_data
     timings["portals"] = portals
@@ -322,9 +415,14 @@ def _normalize_action_timings(action_timings: dict | None, claim: ClaimRecord | 
         has_cases = (hasattr(claim, "scraped_cases") and len(claim.scraped_cases) > 0) or any(
             len(getattr(claim, attr) or []) > 0
             for attr in [
-                "fl_jsonbody_broward", "fl_jsonbody_hillsborough", "fl_jsonbody_miami",
-                "te_jsonbody_travis", "te_jsonbody_dallas", "te_jsonbody_harris",
-                "te_jsonbody_cclerk", "te_jsonbody_hcdistrict"
+                "fl_jsonbody_broward",
+                "fl_jsonbody_hillsborough",
+                "fl_jsonbody_miami",
+                "te_jsonbody_travis",
+                "te_jsonbody_dallas",
+                "te_jsonbody_harris",
+                "te_jsonbody_cclerk",
+                "te_jsonbody_hcdistrict",
             ]
         )
         is_completed = claim.record_status in (
@@ -339,10 +437,15 @@ def _normalize_action_timings(action_timings: dict | None, claim: ClaimRecord | 
             stages = timings.setdefault("stages", {})
             try:
                 from app.services.settings_service import get_system_settings_sync
+
                 cur_settings = get_system_settings_sync()
                 is_headless = cur_settings.automation.headless_mode
                 engine_key = getattr(cur_settings.automation, "browser_engine", "chrome").lower()
-                engine_name = "Microsoft Edge" if engine_key in ("edge", "msedge") else ("Chromium" if engine_key == "chromium" else "Google Chrome")
+                engine_name = (
+                    "Microsoft Edge"
+                    if engine_key in ("edge", "msedge")
+                    else ("Chromium" if engine_key == "chromium" else "Google Chrome")
+                )
                 mode_name = "Headless (Background)" if is_headless else "Attended (Visible GUI)"
                 launch_detail = f"{engine_name} ({mode_name}) + AntiCaptcha Plugin v0.83"
             except Exception:
@@ -407,15 +510,187 @@ def _normalize_action_timings(action_timings: dict | None, claim: ClaimRecord | 
     return timings if timings else action_timings
 
 
+PORTAL_FRIENDLY_NAMES: dict[str, str] = {
+    "broward": "Broward County (FL)",
+    "hillsborough": "Hillsborough County (FL)",
+    "miami": "Miami-Dade County (FL)",
+    "travis": "Travis County (TX)",
+    "dallas": "Dallas County (TX)",
+    "harris": "Harris County JP Court (TX)",
+    "harris_jp": "Harris County JP Court (TX)",
+    "cclerk": "Harris County Clerk (TX)",
+    "harris_cclerk": "Harris County Clerk (TX)",
+    "hcdistrict": "Harris District Clerk (TX)",
+    "harris_district": "Harris District Clerk (TX)",
+}
+
+
+def _extract_stage_telemetry_rows(claims: list[ClaimRecord]) -> list[dict[str, Any]]:
+    """Extract granular execution telemetry rows for all claims across global session stages
+    and individual county court portal sub-stages.
+    """
+    telemetry_rows: list[dict[str, Any]] = []
+
+    for c in claims:
+        timings = _normalize_action_timings(c.action_timings, claim=c) or {}
+        rec_status = (
+            c.record_status.value if hasattr(c.record_status, "value") else str(c.record_status)
+        )
+        insured_name = f"{c.insured_first_name or ''} {c.insured_last_name or ''}".strip() or "N/A"
+
+        # 1. Global Browser Session Stages
+        stages = timings.get("stages") or {}
+        for stage_key, sdata in stages.items():
+            if isinstance(sdata, dict):
+                dur = sdata.get("duration_seconds")
+                try:
+                    dur_val: float | str = round(float(dur), 3) if dur is not None else ""
+                except ValueError, TypeError:
+                    dur_val = ""
+
+                telemetry_rows.append(
+                    {
+                        "Claim Number": c.claim_number,
+                        "Exposure Number": c.exposure_number or "1",
+                        "Primary Key": c.primary_key or "",
+                        "Policy State": c.policy_state or "",
+                        "Loss Location State": c.loss_location_state or "",
+                        "Claim Status": rec_status,
+                        "Telemetry Scope": "Global Session",
+                        "County Portal": "Global Session (Browser)",
+                        "Portal Key": "global",
+                        "Stage Key": stage_key,
+                        "Stage Name": sdata.get("name", stage_key.replace("_", " ").title()),
+                        "Stage Status": sdata.get("status", "SUCCESS"),
+                        "Duration (s)": dur_val,
+                        "Start Time": sdata.get("start_time", ""),
+                        "End Time": sdata.get("end_time", ""),
+                        "Target Party Searched": sdata.get("party") or insured_name,
+                        "Date of Loss (DOL)": sdata.get("dol") or c.dol or "",
+                        "Cases Found": 0,
+                        "Result Category": sdata.get("result_category", "N/A"),
+                        "Portal Source URL": sdata.get("url", ""),
+                        "Stage Detail": sdata.get("detail", ""),
+                        "Error Detail": sdata.get("error", ""),
+                    }
+                )
+
+        # 2. Per-Portal Automation Stages
+        portals = timings.get("portals") or {}
+        for pkey, pdata in portals.items():
+            if not isinstance(pdata, dict):
+                continue
+
+            friendly_name = PORTAL_FRIENDLY_NAMES.get(
+                pkey, f"{pkey.replace('_', ' ').title()} Portal"
+            )
+            p_status = pdata.get("status", "COMPLETED")
+            p_cases = pdata.get("cases_found", 0)
+            p_url = pdata.get("url", "")
+            p_err = pdata.get("error", "")
+            portal_sub_stages = pdata.get("stages") or {}
+
+            if isinstance(portal_sub_stages, dict) and portal_sub_stages:
+                for sub_key, sub_data in portal_sub_stages.items():
+                    if isinstance(sub_data, dict):
+                        dur = sub_data.get("duration_seconds")
+                        try:
+                            dur_val = round(float(dur), 3) if dur is not None else ""
+                        except ValueError, TypeError:
+                            dur_val = ""
+
+                        target_party = sub_data.get("party") or pdata.get("party") or insured_name
+                        res_cat = sub_data.get("result_category") or (
+                            "Data Found" if p_cases > 0 else "No Record Found"
+                        )
+                        telemetry_rows.append(
+                            {
+                                "Claim Number": c.claim_number,
+                                "Exposure Number": c.exposure_number or "1",
+                                "Primary Key": c.primary_key or "",
+                                "Policy State": c.policy_state or "",
+                                "Loss Location State": c.loss_location_state or "",
+                                "Claim Status": rec_status,
+                                "Telemetry Scope": "County Portal",
+                                "County Portal": friendly_name,
+                                "Portal Key": pkey,
+                                "Stage Key": sub_key,
+                                "Stage Name": sub_data.get(
+                                    "name", sub_key.replace("_", " ").title()
+                                ),
+                                "Stage Status": sub_data.get("status", p_status),
+                                "Duration (s)": dur_val,
+                                "Start Time": sub_data.get(
+                                    "start_time", pdata.get("start_time", "")
+                                ),
+                                "End Time": sub_data.get("end_time", pdata.get("end_time", "")),
+                                "Target Party Searched": target_party,
+                                "Date of Loss (DOL)": sub_data.get("dol")
+                                or pdata.get("dol")
+                                or c.dol
+                                or "",
+                                "Cases Found": sub_data.get("cases_found")
+                                if sub_data.get("cases_found") is not None
+                                else p_cases,
+                                "Result Category": res_cat,
+                                "Portal Source URL": p_url or sub_data.get("url", ""),
+                                "Stage Detail": sub_data.get(
+                                    "detail", f"{friendly_name} sub-stage"
+                                ),
+                                "Error Detail": sub_data.get("error") or p_err,
+                            }
+                        )
+            else:
+                p_dur = pdata.get("duration_seconds")
+                try:
+                    dur_val = round(float(p_dur), 3) if p_dur is not None else ""
+                except ValueError, TypeError:
+                    dur_val = ""
+
+                telemetry_rows.append(
+                    {
+                        "Claim Number": c.claim_number,
+                        "Exposure Number": c.exposure_number or "1",
+                        "Primary Key": c.primary_key or "",
+                        "Policy State": c.policy_state or "",
+                        "Loss Location State": c.loss_location_state or "",
+                        "Claim Status": rec_status,
+                        "Telemetry Scope": "County Portal",
+                        "County Portal": friendly_name,
+                        "Portal Key": pkey,
+                        "Stage Key": "portal_execution",
+                        "Stage Name": f"{friendly_name} Automation Run",
+                        "Stage Status": p_status,
+                        "Duration (s)": dur_val,
+                        "Start Time": pdata.get("start_time", ""),
+                        "End Time": pdata.get("end_time", ""),
+                        "Target Party Searched": pdata.get("party") or insured_name,
+                        "Date of Loss (DOL)": pdata.get("dol") or c.dol or "",
+                        "Cases Found": p_cases,
+                        "Result Category": "Data Found" if p_cases > 0 else "No Record Found",
+                        "Portal Source URL": p_url,
+                        "Stage Detail": f"Automation status: {p_status}",
+                        "Error Detail": p_err,
+                    }
+                )
+
+    return telemetry_rows
+
+
 def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
 
-    insured_name = f"{claim.insured_first_name or ''} {claim.insured_last_name or ''}".strip() or "N/A"
-    claimant_name = f"{claim.claimant_first_name or ''} {claim.claimant_last_name or ''}".strip() or "N/A"
+    insured_name = (
+        f"{claim.insured_first_name or ''} {claim.insured_last_name or ''}".strip() or "N/A"
+    )
+    claimant_name = (
+        f"{claim.claimant_first_name or ''} {claim.claimant_last_name or ''}".strip() or "N/A"
+    )
     driver_name = f"{claim.driver_first_name or ''} {claim.driver_last_name or ''}".strip() or "N/A"
 
     court_cases = []
     if hasattr(claim, "scraped_cases") and claim.scraped_cases:
         from app.schemas.claim import ScrapedCaseResponse
+
         for sc in claim.scraped_cases:
             party_searched = getattr(sc, "party_name_searched", None)
             if not party_searched and isinstance(getattr(sc, "raw_payload", None), dict):
@@ -427,7 +702,8 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                     county_name=sc.county_name,
                     case_number=sc.case_number,
                     case_style=sc.case_style,
-                    filing_date=sc.filing_date or (
+                    filing_date=sc.filing_date
+                    or (
                         sc.raw_payload.get("FilingDate")
                         or sc.raw_payload.get("filing_date")
                         or sc.raw_payload.get("Filing Date")
@@ -440,7 +716,8 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                         or sc.raw_payload.get("filed_date")
                         if isinstance(sc.raw_payload, dict)
                         else None
-                    ) or claim.dol,
+                    )
+                    or claim.dol,
                     case_status=sc.case_status,
                     case_type=sc.case_type,
                     raw_payload=sc.raw_payload,
@@ -452,15 +729,40 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
 
     if not court_cases:
         from app.schemas.claim import ScrapedCaseResponse
+
         portal_json_mapping = [
-            ("fl_jsonbody_broward", "Broward County (FL)", getattr(claim, "fl_website_broward", None)),
-            ("fl_jsonbody_hillsborough", "Hillsborough County (FL)", getattr(claim, "fl_website_hillsborough", None)),
-            ("fl_jsonbody_miami", "Miami-Dade County (FL)", getattr(claim, "fl_website_miami", None)),
+            (
+                "fl_jsonbody_broward",
+                "Broward County (FL)",
+                getattr(claim, "fl_website_broward", None),
+            ),
+            (
+                "fl_jsonbody_hillsborough",
+                "Hillsborough County (FL)",
+                getattr(claim, "fl_website_hillsborough", None),
+            ),
+            (
+                "fl_jsonbody_miami",
+                "Miami-Dade County (FL)",
+                getattr(claim, "fl_website_miami", None),
+            ),
             ("te_jsonbody_travis", "Travis County (TX)", getattr(claim, "te_website_travis", None)),
             ("te_jsonbody_dallas", "Dallas County (TX)", getattr(claim, "te_website_dallas", None)),
-            ("te_jsonbody_harris", "Harris County JP (TX)", getattr(claim, "te_website_harris", None)),
-            ("te_jsonbody_cclerk", "Harris County Clerk (TX)", getattr(claim, "te_website_cclerk", None)),
-            ("te_jsonbody_hcdistrict", "Harris District Clerk (TX)", getattr(claim, "te_website_hcdistrict", None)),
+            (
+                "te_jsonbody_harris",
+                "Harris County JP (TX)",
+                getattr(claim, "te_website_harris", None),
+            ),
+            (
+                "te_jsonbody_cclerk",
+                "Harris County Clerk (TX)",
+                getattr(claim, "te_website_cclerk", None),
+            ),
+            (
+                "te_jsonbody_hcdistrict",
+                "Harris District Clerk (TX)",
+                getattr(claim, "te_website_hcdistrict", None),
+            ),
         ]
         case_idx = 1
         for attr, county_name, website_url in portal_json_mapping:
@@ -471,13 +773,16 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
             if isinstance(raw_val, str):
                 try:
                     import json
+
                     cases_list = json.loads(raw_val)
                 except Exception:
                     cases_list = []
             if isinstance(cases_list, list):
                 for item in cases_list:
                     if isinstance(item, dict):
-                        c_num = str(item.get("CaseNumber") or item.get("case_number") or f"CASE-{case_idx}")
+                        c_num = str(
+                            item.get("CaseNumber") or item.get("case_number") or f"CASE-{case_idx}"
+                        )
                         c_style = str(item.get("CaseStyle") or item.get("case_style") or "N/A")
                         f_date = str(
                             item.get("FilingDate")
@@ -494,7 +799,9 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                             or claim.dol
                             or ""
                         )
-                        c_status = str(item.get("CaseStatus") or item.get("case_status") or "CLOSED")
+                        c_status = str(
+                            item.get("CaseStatus") or item.get("case_status") or "CLOSED"
+                        )
                         c_type = item.get("CaseType") or item.get("case_type")
                         party_searched = item.get("PartyNameSearched") or claimant_name
                         court_cases.append(
@@ -513,7 +820,6 @@ def _map_claim_to_response(claim: ClaimRecord) -> ClaimResponse:
                             )
                         )
                         case_idx += 1
-
 
     return ClaimResponse(
         id=claim.id,
@@ -568,7 +874,7 @@ async def list_claims(
 ):
     """List all ingested claims with multi-field filtering, search, sorting, and pagination."""
     query = select(ClaimRecord)
-    
+
     if status and status.strip():
         statuses = [s.strip() for s in status.split(",") if s.strip()]
         valid_enums = []
@@ -646,14 +952,18 @@ async def list_claims(
         }
         target_column = sort_attr_map.get(sort_by, ClaimRecord.created_at)
     order_func = desc if sort_order.lower() == "desc" else asc
-    query = query.order_by(order_func(target_column)).offset((page - 1) * page_size).limit(page_size)
+    query = (
+        query.order_by(order_func(target_column)).offset((page - 1) * page_size).limit(page_size)
+    )
 
     records_res = await db.execute(query)
     records = records_res.scalars().all()
 
     items = [_map_claim_to_response(r) for r in records]
     total_pages = math.ceil(total / page_size) if total > 0 else 1
-    return ClaimListResponse(total=total, items=items, page=page, page_size=page_size, total_pages=total_pages)
+    return ClaimListResponse(
+        total=total, items=items, page=page, page_size=page_size, total_pages=total_pages
+    )
 
 
 @router.post("", response_model=ClaimResponse, status_code=status.HTTP_201_CREATED)
@@ -664,23 +974,33 @@ async def create_claim(
 ):
     """Create a new claim record with field validation and bot target assignment."""
     # Prevent duplicate claim numbers
-    existing = await db.execute(select(ClaimRecord).where(ClaimRecord.claim_number == payload.claim_number.strip()))
+    existing = await db.execute(
+        select(ClaimRecord).where(ClaimRecord.claim_number == payload.claim_number.strip())
+    )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Claim '{payload.claim_number}' already exists in system.")
+        raise HTTPException(
+            status_code=409, detail=f"Claim '{payload.claim_number}' already exists in system."
+        )
 
     # Automatically resolve county bot targets if not explicitly set
     targets = resolve_county_bot_targets(payload.policy_state, payload.loss_location_state)
     ctx = extract_client_context(request)
     creator_email = payload.created_by or ctx["user_email"] or "user"
-    
+
     claim = ClaimRecord(
         claim_number=payload.claim_number.strip(),
         exposure_number=payload.exposure_number or "1",
         primary_key=payload.primary_key.strip() if payload.primary_key else None,
-        insured_first_name=payload.insured_first_name.strip() if payload.insured_first_name else None,
+        insured_first_name=payload.insured_first_name.strip()
+        if payload.insured_first_name
+        else None,
         insured_last_name=payload.insured_last_name.strip() if payload.insured_last_name else None,
-        claimant_first_name=payload.claimant_first_name.strip() if payload.claimant_first_name else None,
-        claimant_last_name=payload.claimant_last_name.strip() if payload.claimant_last_name else None,
+        claimant_first_name=payload.claimant_first_name.strip()
+        if payload.claimant_first_name
+        else None,
+        claimant_last_name=payload.claimant_last_name.strip()
+        if payload.claimant_last_name
+        else None,
         driver_first_name=payload.driver_first_name.strip() if payload.driver_first_name else None,
         driver_last_name=payload.driver_last_name.strip() if payload.driver_last_name else None,
         dol=payload.dol,
@@ -732,7 +1052,9 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
     total_q = await db.execute(select(func.count(ClaimRecord.id)))
     total = total_q.scalar_one()
 
-    new_q = await db.execute(select(func.count(ClaimRecord.id)).where(ClaimRecord.record_status == RecordStatusEnum.NEW))
+    new_q = await db.execute(
+        select(func.count(ClaimRecord.id)).where(ClaimRecord.record_status == RecordStatusEnum.NEW)
+    )
     new_count = new_q.scalar_one()
 
     in_progress_q = await db.execute(
@@ -759,9 +1081,9 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
     match_found = match_found_q.scalar_one()
 
     review_q = await db.execute(
-        select(func.count(distinct(ClaimRecord.id))).outerjoin(
-            MatchPair, MatchPair.claim_id == ClaimRecord.id
-        ).where(
+        select(func.count(distinct(ClaimRecord.id)))
+        .outerjoin(MatchPair, MatchPair.claim_id == ClaimRecord.id)
+        .where(
             or_(
                 ClaimRecord.record_status == RecordStatusEnum.MANUAL_REVIEW,
                 ClaimRecord.fuzzy_match_status == FuzzyMatchStatusEnum.PENDING_REVIEW,
@@ -772,33 +1094,41 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
     manual_review = review_q.scalar_one()
 
     no_match_q = await db.execute(
-        select(func.count(ClaimRecord.id)).where(ClaimRecord.record_status == RecordStatusEnum.NO_MATCH_FOUND)
+        select(func.count(ClaimRecord.id)).where(
+            ClaimRecord.record_status == RecordStatusEnum.NO_MATCH_FOUND
+        )
     )
     no_match_found = no_match_q.scalar_one()
 
     failed_q = await db.execute(
-        select(func.count(ClaimRecord.id)).where(ClaimRecord.record_status == RecordStatusEnum.FAILED)
+        select(func.count(ClaimRecord.id)).where(
+            ClaimRecord.record_status == RecordStatusEnum.FAILED
+        )
     )
     failed = failed_q.scalar_one()
 
     completed_q = await db.execute(
         select(func.count(ClaimRecord.id)).where(
-            ClaimRecord.record_status.in_([
-                RecordStatusEnum.SCRAPING_COMPLETED,
-                RecordStatusEnum.COMPLETED,
-            ])
+            ClaimRecord.record_status.in_(
+                [
+                    RecordStatusEnum.SCRAPING_COMPLETED,
+                    RecordStatusEnum.COMPLETED,
+                ]
+            )
         )
     )
     completed = completed_q.scalar_one()
 
     total_finished_q = await db.execute(
         select(func.count(ClaimRecord.id)).where(
-            ClaimRecord.record_status.in_([
-                RecordStatusEnum.SCRAPING_COMPLETED,
-                RecordStatusEnum.COMPLETED,
-                RecordStatusEnum.NO_MATCH_FOUND,
-                RecordStatusEnum.MATCH_FOUND,
-            ])
+            ClaimRecord.record_status.in_(
+                [
+                    RecordStatusEnum.SCRAPING_COMPLETED,
+                    RecordStatusEnum.COMPLETED,
+                    RecordStatusEnum.NO_MATCH_FOUND,
+                    RecordStatusEnum.MATCH_FOUND,
+                ]
+            )
         )
     )
     total_finished = total_finished_q.scalar_one()
@@ -836,6 +1166,7 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
             ClaimRecord.te_jsonbody_hcdistrict.isnot(None),
         )
     )
+
     def _count_items(val):
         if not val:
             return 0
@@ -873,7 +1204,9 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
 
     # Also check standalone ScrapedCourtCase records if any
     try:
-        q_cases = select(ScrapedCourtCase.county_name, func.count(ScrapedCourtCase.id)).group_by(ScrapedCourtCase.county_name)
+        q_cases = select(ScrapedCourtCase.county_name, func.count(ScrapedCourtCase.id)).group_by(
+            ScrapedCourtCase.county_name
+        )
         cases_res = await db.execute(q_cases)
         for c_name, c_cnt in cases_res.fetchall():
             c_lower = (c_name or "").lower()
@@ -900,16 +1233,21 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
     avg_dur_q = await db.execute(
         select(func.avg(ClaimRecord.total_duration_seconds)).where(
             ClaimRecord.total_duration_seconds > 0,
-            ClaimRecord.record_status.in_([
-                RecordStatusEnum.SCRAPING_COMPLETED,
-                RecordStatusEnum.COMPLETED,
-                RecordStatusEnum.MATCH_FOUND,
-                RecordStatusEnum.NO_MATCH_FOUND,
-            ]),
+            ClaimRecord.record_status.in_(
+                [
+                    RecordStatusEnum.SCRAPING_COMPLETED,
+                    RecordStatusEnum.COMPLETED,
+                    RecordStatusEnum.MATCH_FOUND,
+                    RecordStatusEnum.NO_MATCH_FOUND,
+                ]
+            ),
         )
     )
     avg_dur = avg_dur_q.scalar_one_or_none()
     avg_scrape_seconds = round(float(avg_dur), 2) if avg_dur else 18.45
+
+    # Clean / No Match claims: finished claims that are neither positive lawsuit matches nor pending manual review
+    clean_no_match = max(0, total_finished - match_found - manual_review)
 
     return {
         "total_claims": total,
@@ -918,6 +1256,7 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
         "match_found": match_found,
         "manual_review": manual_review,
         "no_match_found": no_match_found,
+        "clean_no_match": clean_no_match,
         "failed": failed,
         "completed": completed,
         "total_finished": total_finished,
@@ -930,6 +1269,9 @@ async def get_claim_stats(db: AsyncSession = Depends(get_db)):
 @router.get("/export")
 async def export_claims(
     format: str = Query("xlsx", pattern="^(xlsx|csv|json)$"),
+    view: str = Query(
+        "summary", description="Export dataset view: 'summary', 'telemetry', or 'cases'"
+    ),
     status: str | None = None,
     state: str | None = None,
     search: str | None = None,
@@ -988,71 +1330,194 @@ async def export_claims(
         claim_resp = _map_claim_to_response(c)
         cases = claim_resp.court_cases or []
         cases_extracted_count = len(cases)
-        extracted_case_numbers = [str(cs.case_number) for cs in cases if getattr(cs, "case_number", None)]
-        extracted_case_styles = [str(cs.case_style) for cs in cases if getattr(cs, "case_style", None)]
+        extracted_case_numbers = [
+            str(cs.case_number) for cs in cases if getattr(cs, "case_number", None)
+        ]
+        extracted_case_styles = [
+            str(cs.case_style) for cs in cases if getattr(cs, "case_style", None)
+        ]
 
-        guidewire_pushed = "Yes" if (getattr(c, "guidewire_pushed", False) or c.activity_id or (hasattr(c.record_status, "value") and c.record_status.value == "COMPLETED") or str(c.record_status) == "COMPLETED") else "No"
-        
-        export_rows.append({
-            "Primary Key": c.primary_key or "",
-            "Claim Number": c.claim_number,
-            "Exposure Number": c.exposure_number or "1",
-            "Insured First Name": c.insured_first_name or "",
-            "Insured Last Name": c.insured_last_name or "",
-            "Insured Party": insured or "N/A",
-            "Claimant First Name": c.claimant_first_name or "",
-            "Claimant Last Name": c.claimant_last_name or "",
-            "Claimant Party": claimant or "N/A",
-            "Driver First Name (Insured Vehicle)": c.driver_first_name or "",
-            "Driver Last Name (Insured Vehicle)": c.driver_last_name or "",
-            "Driver": driver or "N/A",
-            "DOL": c.dol or "",
-            "Policy State": c.policy_state or "",
-            "Loss Location State": c.loss_location_state or "",
-            "Status": c.record_status.value if hasattr(c.record_status, "value") else str(c.record_status),
-            "Fuzzy Match": c.fuzzy_match_status.value if hasattr(c.fuzzy_match_status, "value") else str(c.fuzzy_match_status),
-            "Cases Extracted": cases_extracted_count,
-            "Extracted Case Numbers": ", ".join(extracted_case_numbers),
-            "Extracted Case Styles": "; ".join(extracted_case_styles),
-            "Guidewire Pushed": guidewire_pushed,
-            "Guidewire Activity ID": c.activity_id or "",
-            "Total Duration (s)": c.total_duration_seconds or "",
-            "Broward Bot": c.fl_botstatus_broward.value if hasattr(c.fl_botstatus_broward, "value") else str(c.fl_botstatus_broward),
-            "Hillsborough Bot": c.fl_botstatus_hillsborough.value if hasattr(c.fl_botstatus_hillsborough, "value") else str(c.fl_botstatus_hillsborough),
-            "Miami-Dade Bot": c.fl_botstatus_miami.value if hasattr(c.fl_botstatus_miami, "value") else str(c.fl_botstatus_miami),
-            "Travis Bot": c.te_botstatus_travis.value if hasattr(c.te_botstatus_travis, "value") else str(c.te_botstatus_travis),
-            "Dallas Bot": c.te_botstatus_dallas.value if hasattr(c.te_botstatus_dallas, "value") else str(c.te_botstatus_dallas),
-            "Harris JP Bot": c.te_botstatus_harris.value if hasattr(c.te_botstatus_harris, "value") else str(c.te_botstatus_harris),
-            "Harris Clerk Bot": c.te_botstatus_cclerk.value if hasattr(c.te_botstatus_cclerk, "value") else str(c.te_botstatus_cclerk),
-            "Harris District Bot": c.te_botstatus_hcdistrict.value if hasattr(c.te_botstatus_hcdistrict, "value") else str(c.te_botstatus_hcdistrict),
-            "Created At": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else "",
-        })
+        guidewire_pushed = (
+            "Yes"
+            if (
+                getattr(c, "guidewire_pushed", False)
+                or c.activity_id
+                or (hasattr(c.record_status, "value") and c.record_status.value == "COMPLETED")
+                or str(c.record_status) == "COMPLETED"
+            )
+            else "No"
+        )
 
-        for cs in cases:
-            all_extracted_cases.append({
+        timings = _normalize_action_timings(c.action_timings, claim=c) or {}
+        stg = timings.get("stages") or {}
+        total_scraping_sec = timings.get("total_scraping_seconds") or c.total_duration_seconds or ""
+        stg_launch = stg.get("browser_launch", {}).get("duration_seconds", "")
+        stg_nav = stg.get("website_navigation", {}).get("duration_seconds", "")
+        stg_fill = stg.get("data_filling", {}).get("duration_seconds", "")
+        stg_cap = stg.get("captcha", {}).get("duration_seconds", "")
+        stg_sub = stg.get("submit", {}).get("duration_seconds", "")
+        stg_ret = stg.get("result_retrieval", {}).get("duration_seconds", "")
+        stg_db = stg.get("database_save", {}).get("duration_seconds", "")
+
+        export_rows.append(
+            {
+                "Primary Key": c.primary_key or "",
                 "Claim Number": c.claim_number,
                 "Exposure Number": c.exposure_number or "1",
-                "Primary Key": c.primary_key or "",
-                "Court Portal / County": cs.county_name or "",
-                "Case Number": cs.case_number or "",
-                "Case Style": cs.case_style or "",
-                "Filing Date": cs.filing_date or "",
-                "Case Status": cs.case_status or "",
-                "Case Type": cs.case_type or "",
-                "Party Name Searched": getattr(cs, "party_name_searched", "") or "",
-                "Portal Source URL": getattr(cs, "source_url", "") or "",
-            })
+                "Insured First Name": c.insured_first_name or "",
+                "Insured Last Name": c.insured_last_name or "",
+                "Insured Party": insured or "N/A",
+                "Claimant First Name": c.claimant_first_name or "",
+                "Claimant Last Name": c.claimant_last_name or "",
+                "Claimant Party": claimant or "N/A",
+                "Driver First Name (Insured Vehicle)": c.driver_first_name or "",
+                "Driver Last Name (Insured Vehicle)": c.driver_last_name or "",
+                "Driver": driver or "N/A",
+                "DOL": c.dol or "",
+                "Policy State": c.policy_state or "",
+                "Loss Location State": c.loss_location_state or "",
+                "Status": c.record_status.value
+                if hasattr(c.record_status, "value")
+                else str(c.record_status),
+                "Fuzzy Match": c.fuzzy_match_status.value
+                if hasattr(c.fuzzy_match_status, "value")
+                else str(c.fuzzy_match_status),
+                "Cases Extracted": cases_extracted_count,
+                "Extracted Case Numbers": ", ".join(extracted_case_numbers),
+                "Extracted Case Styles": "; ".join(extracted_case_styles),
+                "Guidewire Pushed": guidewire_pushed,
+                "Guidewire Activity ID": c.activity_id or "",
+                "Total Duration (s)": c.total_duration_seconds or "",
+                "Total Scraping Duration (s)": total_scraping_sec,
+                "Stage Browser Launch (s)": stg_launch,
+                "Stage Navigation (s)": stg_nav,
+                "Stage Data Filling (s)": stg_fill,
+                "Stage CAPTCHA Solving (s)": stg_cap,
+                "Stage Submit (s)": stg_sub,
+                "Stage Result Retrieval (s)": stg_ret,
+                "Stage Database Save (s)": stg_db,
+                "Broward Bot": c.fl_botstatus_broward.value
+                if hasattr(c.fl_botstatus_broward, "value")
+                else str(c.fl_botstatus_broward),
+                "Hillsborough Bot": c.fl_botstatus_hillsborough.value
+                if hasattr(c.fl_botstatus_hillsborough, "value")
+                else str(c.fl_botstatus_hillsborough),
+                "Miami-Dade Bot": c.fl_botstatus_miami.value
+                if hasattr(c.fl_botstatus_miami, "value")
+                else str(c.fl_botstatus_miami),
+                "Travis Bot": c.te_botstatus_travis.value
+                if hasattr(c.te_botstatus_travis, "value")
+                else str(c.te_botstatus_travis),
+                "Dallas Bot": c.te_botstatus_dallas.value
+                if hasattr(c.te_botstatus_dallas, "value")
+                else str(c.te_botstatus_dallas),
+                "Harris JP Bot": c.te_botstatus_harris.value
+                if hasattr(c.te_botstatus_harris, "value")
+                else str(c.te_botstatus_harris),
+                "Harris Clerk Bot": c.te_botstatus_cclerk.value
+                if hasattr(c.te_botstatus_cclerk, "value")
+                else str(c.te_botstatus_cclerk),
+                "Harris District Bot": c.te_botstatus_hcdistrict.value
+                if hasattr(c.te_botstatus_hcdistrict, "value")
+                else str(c.te_botstatus_hcdistrict),
+                "Created At": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else "",
+            }
+        )
+
+        for cs in cases:
+            all_extracted_cases.append(
+                {
+                    "Claim Number": c.claim_number,
+                    "Exposure Number": c.exposure_number or "1",
+                    "Primary Key": c.primary_key or "",
+                    "Court Portal / County": cs.county_name or "",
+                    "Case Number": cs.case_number or "",
+                    "Case Style": cs.case_style or "",
+                    "Filing Date": cs.filing_date or "",
+                    "Case Status": cs.case_status or "",
+                    "Case Type": cs.case_type or "",
+                    "Party Name Searched": getattr(cs, "party_name_searched", "") or "",
+                    "Portal Source URL": getattr(cs, "source_url", "") or "",
+                }
+            )
 
     df = pd.DataFrame(export_rows)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
     if format == "csv":
-        csv_bytes = df.to_csv(index=False).encode("utf-8")
-        return Response(
-            content=csv_bytes,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=claims_export_{timestamp}.csv"},
-        )
+        if view == "telemetry":
+            stage_rows = _extract_stage_telemetry_rows(claims)
+            df_stages = pd.DataFrame(stage_rows)
+            if df_stages.empty:
+                df_stages = pd.DataFrame(
+                    columns=[
+                        "Claim Number",
+                        "Exposure Number",
+                        "Primary Key",
+                        "Policy State",
+                        "Loss Location State",
+                        "Claim Status",
+                        "Telemetry Scope",
+                        "County Portal",
+                        "Portal Key",
+                        "Stage Key",
+                        "Stage Name",
+                        "Stage Status",
+                        "Duration (s)",
+                        "Start Time",
+                        "End Time",
+                        "Target Party Searched",
+                        "Date of Loss (DOL)",
+                        "Cases Found",
+                        "Result Category",
+                        "Portal Source URL",
+                        "Stage Detail",
+                        "Error Detail",
+                    ]
+                )
+            csv_bytes = df_stages.to_csv(index=False).encode("utf-8")
+            return Response(
+                content=csv_bytes,
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=claims_stage_execution_telemetry_{timestamp}.csv"
+                },
+            )
+        elif view == "cases":
+            df_cases = pd.DataFrame(all_extracted_cases)
+            if df_cases.empty:
+                df_cases = pd.DataFrame(
+                    columns=[
+                        "Claim Number",
+                        "Exposure Number",
+                        "Primary Key",
+                        "Court Portal / County",
+                        "Case Number",
+                        "Case Style",
+                        "Filing Date",
+                        "Case Status",
+                        "Case Type",
+                        "Party Name Searched",
+                        "Portal Source URL",
+                    ]
+                )
+            csv_bytes = df_cases.to_csv(index=False).encode("utf-8")
+            return Response(
+                content=csv_bytes,
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=claims_extracted_cases_{timestamp}.csv"
+                },
+            )
+        else:
+            csv_bytes = df.to_csv(index=False).encode("utf-8")
+            return Response(
+                content=csv_bytes,
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=claims_export_{timestamp}.csv"
+                },
+            )
     elif format == "json":
         json_rows = []
         for row, c in zip(export_rows, claims):
@@ -1073,12 +1538,56 @@ async def export_claims(
             if not df_cases.empty:
                 df_cases.to_excel(writer, index=False, sheet_name="All Extracted Cases")
             else:
-                empty_cases_df = pd.DataFrame(columns=[
-                    "Claim Number", "Exposure Number", "Primary Key", "Court Portal / County",
-                    "Case Number", "Case Style", "Filing Date", "Case Status", "Case Type",
-                    "Party Name Searched", "Portal Source URL"
-                ])
+                empty_cases_df = pd.DataFrame(
+                    columns=[
+                        "Claim Number",
+                        "Exposure Number",
+                        "Primary Key",
+                        "Court Portal / County",
+                        "Case Number",
+                        "Case Style",
+                        "Filing Date",
+                        "Case Status",
+                        "Case Type",
+                        "Party Name Searched",
+                        "Portal Source URL",
+                    ]
+                )
                 empty_cases_df.to_excel(writer, index=False, sheet_name="All Extracted Cases")
+
+            stage_rows = _extract_stage_telemetry_rows(claims)
+            df_stages = pd.DataFrame(stage_rows)
+            if not df_stages.empty:
+                df_stages.to_excel(writer, index=False, sheet_name="Detailed Stage Telemetry")
+            else:
+                empty_stages_df = pd.DataFrame(
+                    columns=[
+                        "Claim Number",
+                        "Exposure Number",
+                        "Primary Key",
+                        "Policy State",
+                        "Loss Location State",
+                        "Claim Status",
+                        "Telemetry Scope",
+                        "County Portal",
+                        "Portal Key",
+                        "Stage Key",
+                        "Stage Name",
+                        "Stage Status",
+                        "Duration (s)",
+                        "Start Time",
+                        "End Time",
+                        "Target Party Searched",
+                        "Date of Loss (DOL)",
+                        "Cases Found",
+                        "Result Category",
+                        "Portal Source URL",
+                        "Stage Detail",
+                        "Error Detail",
+                    ]
+                )
+                empty_stages_df.to_excel(writer, index=False, sheet_name="Detailed Stage Telemetry")
+
         out.seek(0)
         return Response(
             content=out.getvalue(),
@@ -1089,26 +1598,86 @@ async def export_claims(
 
 class AsyncExportRequest(BaseModel):
     format: str = "xlsx"
+    view: str = "summary"
     status: str | None = None
     state: str | None = None
     search: str | None = None
     claim_ids: list[str] | None = None
 
 
+ACTIVE_EXPORT_TASKS: dict[str, dict[str, Any]] = {}
+
+
+async def _run_in_process_export(
+    task_id: str,
+    export_format: str,
+    view: str,
+    filters: dict[str, Any],
+    claim_ids: list[str] | None,
+):
+    """Background execution runner for export tasks ensuring zero failure from disconnected workers."""
+    try:
+        from app.tasks.export_tasks import _generate_export_data
+
+        class ProgressTracker:
+            def update_state(self, state="PROGRESS", meta=None):
+                if meta and isinstance(meta, dict):
+                    ACTIVE_EXPORT_TASKS[task_id] = {
+                        "task_id": task_id,
+                        "status": state,
+                        "percent": meta.get("percent", 50),
+                        "current": meta.get("current", 0),
+                        "total": meta.get("total", 0),
+                        "message": meta.get("status", "Processing export..."),
+                    }
+
+        result = await _generate_export_data(
+            export_format=export_format,
+            view=view,
+            filters=filters,
+            claim_ids=claim_ids,
+            task_instance=ProgressTracker(),
+        )
+        filename = result.get("filename", "")
+        ACTIVE_EXPORT_TASKS[task_id] = {
+            "task_id": task_id,
+            "status": "SUCCESS",
+            "percent": 100,
+            "result": {
+                **result,
+                "download_url": f"/api/v1/claims/export-async/download/{filename}",
+            },
+        }
+    except Exception as e:
+        logger.error(f"Async export job failed: {e}", exc_info=True)
+        ACTIVE_EXPORT_TASKS[task_id] = {
+            "task_id": task_id,
+            "status": "FAILURE",
+            "percent": 0,
+            "error": str(e),
+        }
+
+
 @router.post("/export-async")
 async def trigger_async_export(payload: AsyncExportRequest):
-    """Trigger background Celery export task for large claim datasets."""
+    """Trigger background export task for large claim datasets."""
+    import uuid
+
     filters = {
         "status": payload.status,
         "state": payload.state,
         "search": payload.search,
     }
-    try:
-        if getattr(celery_app.conf, "task_always_eager", False):
+
+    # If Celery is configured in always_eager mode (e.g. during specific automated test suites)
+    if getattr(celery_app.conf, "task_always_eager", False):
+        try:
             from app.tasks.export_tasks import export_claims_dataset_task
+
             task = export_claims_dataset_task.apply(
                 kwargs={
                     "export_format": payload.format,
+                    "view": payload.view,
                     "filters": filters,
                     "claim_ids": payload.claim_ids,
                 }
@@ -1118,45 +1687,45 @@ async def trigger_async_export(payload: AsyncExportRequest):
                 "task_id": task.id,
                 "message": f"Asynchronous export task queued in {payload.format.upper()} format.",
             }
+        except Exception as e:
+            logger.warning(
+                f"Eager Celery task execution failed, falling back to managed async: {e}"
+            )
 
-        task = celery_app.send_task(
-            "app.tasks.export_tasks.export_claims_dataset_task",
-            kwargs={
-                "export_format": payload.format,
-                "filters": filters,
-                "claim_ids": payload.claim_ids,
-            },
-            queue="notifications",
-            retry=False,
-            retry_policy={"max_retries": 0},
-        )
-        return {
-            "success": True,
-            "task_id": task.id,
-            "message": f"Asynchronous export task queued in {payload.format.upper()} format.",
-        }
-    except Exception as e:
-        logger.warning(f"Celery broker unavailable, falling back to in-process export: {e}")
-        from app.tasks.export_tasks import _generate_export_data
-        result = await _generate_export_data(
+    task_id = f"exp-{uuid.uuid4().hex[:12]}"
+    ACTIVE_EXPORT_TASKS[task_id] = {
+        "task_id": task_id,
+        "status": "PROGRESS",
+        "percent": 15,
+        "message": f"Export task queued in {payload.format.upper()} format...",
+    }
+
+    asyncio.create_task(
+        _run_in_process_export(
+            task_id=task_id,
             export_format=payload.format,
+            view=payload.view,
             filters=filters,
             claim_ids=payload.claim_ids,
         )
-        return {
-            "success": True,
-            "task_id": f"sync-{result['export_id']}",
-            "direct_result": result,
-            "message": f"Export completed ({result['total_rows']} rows).",
-        }
+    )
+
+    return {
+        "success": True,
+        "task_id": task_id,
+        "message": f"Asynchronous export task queued in {payload.format.upper()} format.",
+    }
 
 
 @router.get("/export-async/{task_id}/status")
 async def get_async_export_status(task_id: str):
     """Poll progress status of an asynchronous background export task."""
+    if task_id in ACTIVE_EXPORT_TASKS:
+        return ACTIVE_EXPORT_TASKS[task_id]
     if task_id.startswith("sync-"):
         export_id = task_id.replace("sync-", "")
         from app.tasks.export_tasks import EXPORT_DIR
+
         matches = list(EXPORT_DIR.glob(f"*{export_id[:8]}*"))
         filename = matches[0].name if matches else f"claims_export_{export_id}.xlsx"
         return {
@@ -1216,6 +1785,7 @@ async def get_async_export_status(task_id: str):
 async def download_async_export_file(filename: str):
     """Stream generated export file to client."""
     from app.tasks.export_tasks import EXPORT_DIR
+
     target = EXPORT_DIR / filename
     if not target.exists():
         matches = list(EXPORT_DIR.glob(f"*{filename}*"))
@@ -1274,7 +1844,7 @@ async def bulk_delete_claims(
     """Delete multiple selected claims and their associated scraped cases and match results."""
     if not payload.claim_ids:
         return BulkActionResponse(success=True, affected_count=0, message="No claim IDs provided.")
-    
+
     # In SQLite / SQLAlchemy, cascading relationship takes care of children
     query = select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
     res = await db.execute(query)
@@ -1301,7 +1871,9 @@ async def bulk_delete_claims(
     await db.commit()
 
     logger.info(f"Bulk deleted {count} claims.")
-    return BulkActionResponse(success=True, affected_count=count, message=f"Successfully deleted {count} claims.")
+    return BulkActionResponse(
+        success=True, affected_count=count, message=f"Successfully deleted {count} claims."
+    )
 
 
 @router.post("/bulk-status", response_model=BulkActionResponse)
@@ -1313,7 +1885,7 @@ async def bulk_update_claim_status(
     """Update status for multiple selected claims."""
     if not payload.claim_ids or not payload.status:
         raise HTTPException(status_code=400, detail="Both claim_ids and status are required.")
-    
+
     ctx = extract_client_context(request)
     modifier_email = ctx["user_email"] or "user"
     query = select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
@@ -1339,7 +1911,11 @@ async def bulk_update_claim_status(
     )
     await db.commit()
 
-    return BulkActionResponse(success=True, affected_count=count, message=f"Status updated to {payload.status.value} for {count} claims.")
+    return BulkActionResponse(
+        success=True,
+        affected_count=count,
+        message=f"Status updated to {payload.status.value} for {count} claims.",
+    )
 
 
 @router.post("/bulk-start", response_model=BulkActionResponse)
@@ -1353,9 +1929,10 @@ async def bulk_start_claims(
         return BulkActionResponse(success=True, affected_count=0, message="No claim IDs provided.")
 
     settings = await get_system_settings_async()
-    if settings.automation.anticaptcha_enabled and not (
-        settings.automation.anticaptcha_api_key or ""
-    ).strip():
+    if (
+        settings.automation.anticaptcha_enabled
+        and not (settings.automation.anticaptcha_api_key or "").strip()
+    ):
         raise HTTPException(
             status_code=422,
             detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers.",
@@ -1366,10 +1943,15 @@ async def bulk_start_claims(
     # The remainder (or all, if paused) are set to NEW so the auto-queue runner
     # picks them up sequentially as slots become available.
     from app.tasks.queue_runner import is_auto_queue_enabled
+
     auto_enabled = is_auto_queue_enabled()
 
-    max_concurrency = max(1, min(10, int(getattr(settings.automation, "max_concurrent_claims", 1) or 1)))
-    active_q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
+    max_concurrency = max(
+        1, min(10, int(getattr(settings.automation, "max_concurrent_claims", 1) or 1))
+    )
+    active_q = select(ClaimRecord).where(
+        ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
+    )
     active_res = await db.execute(active_q)
     active_count = len(list(active_res.scalars().all()))
     available_slots = max(0, max_concurrency - active_count) if auto_enabled else 0
@@ -1451,6 +2033,7 @@ async def bulk_retry_claims(
     claims = res.scalars().all()
     count = 0
     from app.tasks.queue_runner import is_auto_queue_enabled
+
     auto_enabled = is_auto_queue_enabled()
 
     for c in claims:
@@ -1480,7 +2063,11 @@ async def bulk_retry_claims(
         ip_address=ctx["ip_address"],
         user_agent=ctx["user_agent"],
         status="SUCCESS",
-        details={"affected_count": count, "failed_portals_only": payload.failed_portals_only, "claim_ids": payload.claim_ids},
+        details={
+            "affected_count": count,
+            "failed_portals_only": payload.failed_portals_only,
+            "claim_ids": payload.claim_ids,
+        },
     )
     await db.commit()
 
@@ -1494,9 +2081,13 @@ async def bulk_retry_claims(
 @router.get("/{claim_id}", response_model=ClaimResponse)
 async def get_claim_detail(claim_id: str, db: AsyncSession = Depends(get_db)):
     """Retrieve full details of a specific claim."""
-    query = select(ClaimRecord).where(ClaimRecord.id == claim_id).options(
-        selectinload(ClaimRecord.scraped_cases),
-        selectinload(ClaimRecord.match_pairs),
+    query = (
+        select(ClaimRecord)
+        .where(ClaimRecord.id == claim_id)
+        .options(
+            selectinload(ClaimRecord.scraped_cases),
+            selectinload(ClaimRecord.match_pairs),
+        )
     )
     res = await db.execute(query)
     claim = res.scalar_one_or_none()
@@ -1599,12 +2190,13 @@ async def start_single_claim(
         raise HTTPException(status_code=404, detail="Claim record not found")
 
     settings = await get_system_settings_async()
-    if settings.automation.anticaptcha_enabled and not (
-        settings.automation.anticaptcha_api_key or ""
-    ).strip():
+    if (
+        settings.automation.anticaptcha_enabled
+        and not (settings.automation.anticaptcha_api_key or "").strip()
+    ):
         raise HTTPException(
             status_code=422,
-            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scraper."
+            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scraper.",
         )
 
     ctx = extract_client_context(request)
@@ -1714,7 +2306,10 @@ async def push_claim_to_guidewire(
         args=[claim.id],
         queue="notifications",
     )
-    return {"status": "success", "message": f"Guidewire dispatch queued for claim {claim.claim_number}."}
+    return {
+        "status": "success",
+        "message": f"Guidewire dispatch queued for claim {claim.claim_number}.",
+    }
 
 
 @router.post("/{claim_id}/run-bot/{bot_key}")
@@ -1754,6 +2349,7 @@ async def run_single_bot(
 
     # Update individual bot status to IN_PROGRESS and mark claim
     from app.models.claim import BotStatusEnum
+
     if b_key == "all":
         for attr in valid_bots.values():
             if attr:
@@ -1867,7 +2463,11 @@ async def retry_failed_portals(
     }
 
 
-@router.get("/{claim_id}/audit-logs", response_model=list[AuditLogResponse], summary="Get claim audit history")
+@router.get(
+    "/{claim_id}/audit-logs",
+    response_model=list[AuditLogResponse],
+    summary="Get claim audit history",
+)
 async def get_claim_audit_logs(
     claim_id: str,
     db: AsyncSession = Depends(get_db),
@@ -1931,12 +2531,15 @@ async def get_claim_screenshots(claim_id: str, db: AsyncSession = Depends(get_db
     ]
 
 
-@router.get("/{claim_id}/screenshots/{screenshot_id}/image", summary="Stream binary screenshot image")
-async def get_claim_screenshot_image(claim_id: str, screenshot_id: str, db: AsyncSession = Depends(get_db)):
+@router.get(
+    "/{claim_id}/screenshots/{screenshot_id}/image", summary="Stream binary screenshot image"
+)
+async def get_claim_screenshot_image(
+    claim_id: str, screenshot_id: str, db: AsyncSession = Depends(get_db)
+):
     """Stream the raw screenshot PNG image for operator inspection."""
-    query = (
-        select(ErrorScreenshot)
-        .where(ErrorScreenshot.id == screenshot_id, ErrorScreenshot.claim_id == claim_id)
+    query = select(ErrorScreenshot).where(
+        ErrorScreenshot.id == screenshot_id, ErrorScreenshot.claim_id == claim_id
     )
     res = await db.execute(query)
     record = res.scalar_one_or_none()
@@ -1950,7 +2553,12 @@ async def get_claim_screenshot_image(claim_id: str, screenshot_id: str, db: Asyn
     else:
         # Check hierarchical directory: screenshots/{claim_id}/{portal_key}/{filename}
         if record.claim_id and record.portal_key and file_path:
-            hierarchical_path = settings.SCREENSHOTS_DIR / str(record.claim_id) / str(record.portal_key) / Path(file_path).name
+            hierarchical_path = (
+                settings.SCREENSHOTS_DIR
+                / str(record.claim_id)
+                / str(record.portal_key)
+                / Path(file_path).name
+            )
             if hierarchical_path.exists():
                 resolved_path = hierarchical_path
         if not resolved_path and file_path:
@@ -1981,15 +2589,31 @@ async def get_claim_portal_log(claim_id: str, portal_key: str):
     try:
         with open(log_file, encoding="utf-8") as f:
             log_text = f.read()
-        return {"claim_id": claim_id, "portal_key": portal_key, "log_text": log_text, "exists": True}
+        return {
+            "claim_id": claim_id,
+            "portal_key": portal_key,
+            "log_text": log_text,
+            "exists": True,
+        }
     except Exception as e:
-        return {"claim_id": claim_id, "portal_key": portal_key, "log_text": f"Error reading log: {e}", "exists": False}
+        return {
+            "claim_id": claim_id,
+            "portal_key": portal_key,
+            "log_text": f"Error reading log: {e}",
+            "exists": False,
+        }
 
 
-@router.get("/{claim_id}/combined-logs", response_model=ClaimCombinedLogsResponse, summary="Get combined audit, processing, and exception logs for claim")
+@router.get(
+    "/{claim_id}/combined-logs",
+    response_model=ClaimCombinedLogsResponse,
+    summary="Get combined audit, processing, and exception logs for claim",
+)
 async def get_claim_combined_logs(
     claim_id: str,
-    sort_order: str = Query("desc", description="Sort order: 'desc' (default, latest at top) or 'asc' (chronological)"),
+    sort_order: str = Query(
+        "desc", description="Sort order: 'desc' (default, latest at top) or 'asc' (chronological)"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieve comprehensive unified logs for a claim including:
@@ -2008,17 +2632,14 @@ async def get_claim_combined_logs(
         raise HTTPException(status_code=404, detail="Claim record not found")
 
     # 1. Fetch Audit Logs
-    audit_query = (
-        select(AuditLog)
-        .where(
-            or_(
-                AuditLog.entity_id == claim.id,
-                AuditLog.claim_number == claim.claim_number,
-                AuditLog.entity_id == claim.claim_number,
-                AuditLog.claim_number == claim.id,
-                AuditLog.entity_id == claim_id,
-                AuditLog.claim_number == claim_id,
-            )
+    audit_query = select(AuditLog).where(
+        or_(
+            AuditLog.entity_id == claim.id,
+            AuditLog.claim_number == claim.claim_number,
+            AuditLog.entity_id == claim.claim_number,
+            AuditLog.claim_number == claim.id,
+            AuditLog.entity_id == claim_id,
+            AuditLog.claim_number == claim_id,
         )
     )
     if sort_order.lower() == "asc":
@@ -2033,8 +2654,16 @@ async def get_claim_combined_logs(
     if not audit_responses:
         base_time = claim.created_at or datetime.now(UTC)
         mod_time = claim.updated_at or base_time
-        rec_status_val = claim.record_status.value if hasattr(claim.record_status, "value") else str(claim.record_status)
-        fuzzy_val = claim.fuzzy_match_status.value if hasattr(claim.fuzzy_match_status, "value") else str(claim.fuzzy_match_status)
+        rec_status_val = (
+            claim.record_status.value
+            if hasattr(claim.record_status, "value")
+            else str(claim.record_status)
+        )
+        fuzzy_val = (
+            claim.fuzzy_match_status.value
+            if hasattr(claim.fuzzy_match_status, "value")
+            else str(claim.fuzzy_match_status)
+        )
 
         synth = [
             AuditLogResponse(
@@ -2112,7 +2741,6 @@ async def get_claim_combined_logs(
             )
         audit_responses = synth
 
-
     # 2. Fetch Screenshots for visual exception diagnostics
     ss_query = (
         select(ErrorScreenshot)
@@ -2144,7 +2772,11 @@ async def get_claim_combined_logs(
 
     # Process events from AuditLog entries
     for a in audit_entries:
-        level = "ERROR" if a.status in ("FAILURE", "FAILED") else ("WARNING" if a.status in ("WARNING", "MANUAL_REVIEW") else "INFO")
+        level = (
+            "ERROR"
+            if a.status in ("FAILURE", "FAILED")
+            else ("WARNING" if a.status in ("WARNING", "MANUAL_REVIEW") else "INFO")
+        )
         stage = None
         portal_key = None
         if isinstance(a.details, dict):
@@ -2180,7 +2812,11 @@ async def get_claim_combined_logs(
     if claim.action_timings and isinstance(claim.action_timings, dict):
         stages = claim.action_timings.get("stages", {})
         if isinstance(stages, dict):
-            ref_date = (claim.created_at.date().isoformat() if claim.created_at else datetime.now(UTC).date().isoformat())
+            ref_date = (
+                claim.created_at.date().isoformat()
+                if claim.created_at
+                else datetime.now(UTC).date().isoformat()
+            )
             for s_key, s_val in stages.items():
                 if isinstance(s_val, dict):
                     raw_ts = s_val.get("start_time")
@@ -2209,7 +2845,9 @@ async def get_claim_combined_logs(
             if not any(c_name.lower() in (pl.message or "").lower() for pl in processing_logs):
                 processing_logs.append(
                     ProcessingLogEntry(
-                        timestamp=claim.updated_at.isoformat() if claim.updated_at else (claim.created_at.isoformat() if claim.created_at else None),
+                        timestamp=claim.updated_at.isoformat()
+                        if claim.updated_at
+                        else (claim.created_at.isoformat() if claim.created_at else None),
                         level="INFO",
                         stage="scraping",
                         portal_key=c_name.lower().replace(" ", "_"),
@@ -2263,7 +2901,9 @@ async def get_claim_combined_logs(
                 ex_type = a.details.get("exception_type", a.action)
 
             # Avoid exact duplicates if screenshot already captured this
-            if not any(el.portal_key == portal_key and el.message == a.description for el in exception_logs):
+            if not any(
+                el.portal_key == portal_key and el.message == a.description for el in exception_logs
+            ):
                 exception_logs.append(
                     ExceptionLogEntry(
                         id=f"audit-{a.id}",
@@ -2271,7 +2911,12 @@ async def get_claim_combined_logs(
                         portal_key=portal_key,
                         portal_name=portal_name,
                         exception_type=ex_type,
-                        message=(a.details.get("error_message") if isinstance(a.details, dict) and a.details.get("error_message") else a.description) or "Error logged in audit trail",
+                        message=(
+                            a.details.get("error_message")
+                            if isinstance(a.details, dict) and a.details.get("error_message")
+                            else a.description
+                        )
+                        or "Error logged in audit trail",
                         stack_trace=stack_trace,
                         page_url=None,
                         screenshot_url=None,
@@ -2336,9 +2981,13 @@ async def export_single_claim(
     db: AsyncSession = Depends(get_db),
 ):
     """Export single claim record, all scraped court cases, and fuzzy matches in Excel, CSV, JSON, or PDF format."""
-    query = select(ClaimRecord).where(ClaimRecord.id == claim_id).options(
-        selectinload(ClaimRecord.scraped_cases),
-        selectinload(ClaimRecord.match_pairs),
+    query = (
+        select(ClaimRecord)
+        .where(ClaimRecord.id == claim_id)
+        .options(
+            selectinload(ClaimRecord.scraped_cases),
+            selectinload(ClaimRecord.match_pairs),
+        )
     )
     res = await db.execute(query)
     claim = res.scalar_one_or_none()
@@ -2346,6 +2995,7 @@ async def export_single_claim(
         raise HTTPException(status_code=404, detail="Claim record not found")
 
     import json
+
     c_num = claim.claim_number.replace(" ", "_").replace("/", "_")
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
@@ -2364,20 +3014,56 @@ async def export_single_claim(
     insured = f"{claim.insured_first_name or ''} {claim.insured_last_name or ''}".strip()
     claimant = f"{claim.claimant_first_name or ''} {claim.claimant_last_name or ''}".strip()
     driver = f"{claim.driver_first_name or ''} {claim.driver_last_name or ''}".strip()
-    rec_status = claim.record_status.value if hasattr(claim.record_status, "value") else str(claim.record_status)
-    fuzzy_status = claim.fuzzy_match_status.value if hasattr(claim.fuzzy_match_status, "value") else str(claim.fuzzy_match_status)
+    rec_status = (
+        claim.record_status.value
+        if hasattr(claim.record_status, "value")
+        else str(claim.record_status)
+    )
+    fuzzy_status = (
+        claim.fuzzy_match_status.value
+        if hasattr(claim.fuzzy_match_status, "value")
+        else str(claim.fuzzy_match_status)
+    )
     loss_loc = f"{claim.loss_location_state or ''}".strip(", ")
     gw_pushed = "Yes" if getattr(claim, "guidewire_pushed", False) else "No"
     duration_str = str(claim.total_duration_seconds or "")
     created_at_str = claim.created_at.strftime("%Y-%m-%d %H:%M:%S") if claim.created_at else ""
 
-    bot_broward = str(claim.fl_botstatus_broward.value if hasattr(claim.fl_botstatus_broward, "value") else claim.fl_botstatus_broward)
-    bot_hills = str(claim.fl_botstatus_hillsborough.value if hasattr(claim.fl_botstatus_hillsborough, "value") else claim.fl_botstatus_hillsborough)
-    bot_miami = str(claim.fl_botstatus_miami.value if hasattr(claim.fl_botstatus_miami, "value") else claim.fl_botstatus_miami)
-    bot_travis = str(claim.te_botstatus_travis.value if hasattr(claim.te_botstatus_travis, "value") else claim.te_botstatus_travis)
-    bot_dallas = str(claim.te_botstatus_dallas.value if hasattr(claim.te_botstatus_dallas, "value") else claim.te_botstatus_dallas)
-    bot_harris = str(claim.te_botstatus_harris.value if hasattr(claim.te_botstatus_harris, "value") else claim.te_botstatus_harris)
-    bot_cclerk = str(claim.te_botstatus_cclerk.value if hasattr(claim.te_botstatus_cclerk, "value") else claim.te_botstatus_cclerk)
+    bot_broward = str(
+        claim.fl_botstatus_broward.value
+        if hasattr(claim.fl_botstatus_broward, "value")
+        else claim.fl_botstatus_broward
+    )
+    bot_hills = str(
+        claim.fl_botstatus_hillsborough.value
+        if hasattr(claim.fl_botstatus_hillsborough, "value")
+        else claim.fl_botstatus_hillsborough
+    )
+    bot_miami = str(
+        claim.fl_botstatus_miami.value
+        if hasattr(claim.fl_botstatus_miami, "value")
+        else claim.fl_botstatus_miami
+    )
+    bot_travis = str(
+        claim.te_botstatus_travis.value
+        if hasattr(claim.te_botstatus_travis, "value")
+        else claim.te_botstatus_travis
+    )
+    bot_dallas = str(
+        claim.te_botstatus_dallas.value
+        if hasattr(claim.te_botstatus_dallas, "value")
+        else claim.te_botstatus_dallas
+    )
+    bot_harris = str(
+        claim.te_botstatus_harris.value
+        if hasattr(claim.te_botstatus_harris, "value")
+        else claim.te_botstatus_harris
+    )
+    bot_cclerk = str(
+        claim.te_botstatus_cclerk.value
+        if hasattr(claim.te_botstatus_cclerk, "value")
+        else claim.te_botstatus_cclerk
+    )
     bot_hcdistrict = str(getattr(claim, "te_botstatus_hcdistrict", "") or "")
 
     claim_resp = _map_claim_to_response(claim)
@@ -2388,13 +3074,75 @@ async def export_single_claim(
             f_date = c.filing_date or ""
             raw_payload = c.raw_payload if isinstance(c.raw_payload, dict) else {}
             best_match = next(
-                (m for m in (claim.match_pairs or []) if (getattr(m, "court_case_id", None) == c.id) or (getattr(m, "case_style", "") == c.case_style)),
-                None
+                (
+                    m
+                    for m in (claim.match_pairs or [])
+                    if (getattr(m, "court_case_id", None) == c.id)
+                    or (getattr(m, "case_style", "") == c.case_style)
+                ),
+                None,
             )
             raw_json_str = json.dumps(raw_payload, default=str)
-            scraped_at_str = c.created_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(c, "created_at", None) else ""
+            scraped_at_str = (
+                c.created_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(c, "created_at", None) else ""
+            )
 
-            case_rows.append({
+            case_rows.append(
+                {
+                    "Claim Number": claim.claim_number,
+                    "Exposure Number": claim.exposure_number or "1",
+                    "Primary Key": claim.primary_key or "",
+                    "Date of Loss (DOL)": claim.dol or "",
+                    "Policy State": claim.policy_state or "",
+                    "Loss Location": loss_loc,
+                    "Insured First Name": claim.insured_first_name or "",
+                    "Insured Last Name": claim.insured_last_name or "",
+                    "Insured Party": insured or "N/A",
+                    "Claimant First Name": claim.claimant_first_name or "",
+                    "Claimant Last Name": claim.claimant_last_name or "",
+                    "Claimant Party": claimant or "N/A",
+                    "Driver First Name": claim.driver_first_name or "",
+                    "Driver Last Name": claim.driver_last_name or "",
+                    "Driver Party": driver or "N/A",
+                    "Record Status": rec_status,
+                    "Fuzzy Match Status": fuzzy_status,
+                    "Total Duration (Seconds)": duration_str,
+                    "Guidewire Pushed": gw_pushed,
+                    "Guidewire Activity ID": claim.activity_id or "None",
+                    "Case Number": c.case_number or "",
+                    "Case Style": c.case_style or "",
+                    "County": c.county_name or "",
+                    "Website URL": c.source_url or "",
+                    "Filing Date": f_date,
+                    "Case Status": c.case_status or "",
+                    "Case Type": c.case_type or "",
+                    "Best Match Party": getattr(best_match, "party_name", "") if best_match else "",
+                    "Best Match Score": getattr(best_match, "similarity_score", "")
+                    if best_match
+                    else "",
+                    "Match Review Status": (
+                        best_match.review_status.value
+                        if hasattr(best_match.review_status, "value")
+                        else str(best_match.review_status)
+                    )
+                    if best_match
+                    else "",
+                    "Bot Broward": bot_broward,
+                    "Bot Hillsborough": bot_hills,
+                    "Bot Miami": bot_miami,
+                    "Bot Travis": bot_travis,
+                    "Bot Dallas": bot_dallas,
+                    "Bot Harris JP": bot_harris,
+                    "Bot Harris Clerk": bot_cclerk,
+                    "Bot Harris District": bot_hcdistrict,
+                    "Created At": created_at_str,
+                    "Scraped At": scraped_at_str,
+                    "Raw Case Payload (JSON)": raw_json_str,
+                }
+            )
+    else:
+        case_rows.append(
+            {
                 "Claim Number": claim.claim_number,
                 "Exposure Number": claim.exposure_number or "1",
                 "Primary Key": claim.primary_key or "",
@@ -2415,16 +3163,16 @@ async def export_single_claim(
                 "Total Duration (Seconds)": duration_str,
                 "Guidewire Pushed": gw_pushed,
                 "Guidewire Activity ID": claim.activity_id or "None",
-                "Case Number": c.case_number or "",
-                "Case Style": c.case_style or "",
-                "County": c.county_name or "",
-                "Website URL": c.source_url or "",
-                "Filing Date": f_date,
-                "Case Status": c.case_status or "",
-                "Case Type": c.case_type or "",
-                "Best Match Party": getattr(best_match, "party_name", "") if best_match else "",
-                "Best Match Score": getattr(best_match, "similarity_score", "") if best_match else "",
-                "Match Review Status": (best_match.review_status.value if hasattr(best_match.review_status, "value") else str(best_match.review_status)) if best_match else "",
+                "Case Number": "NO_CASES_FOUND",
+                "Case Style": "",
+                "County": "",
+                "Website URL": "",
+                "Filing Date": "",
+                "Case Status": "",
+                "Case Type": "",
+                "Best Match Party": "",
+                "Best Match Score": "",
+                "Match Review Status": "",
                 "Bot Broward": bot_broward,
                 "Bot Hillsborough": bot_hills,
                 "Bot Miami": bot_miami,
@@ -2434,53 +3182,10 @@ async def export_single_claim(
                 "Bot Harris Clerk": bot_cclerk,
                 "Bot Harris District": bot_hcdistrict,
                 "Created At": created_at_str,
-                "Scraped At": scraped_at_str,
-                "Raw Case Payload (JSON)": raw_json_str,
-            })
-    else:
-        case_rows.append({
-            "Claim Number": claim.claim_number,
-            "Exposure Number": claim.exposure_number or "1",
-            "Primary Key": claim.primary_key or "",
-            "Date of Loss (DOL)": claim.dol or "",
-            "Policy State": claim.policy_state or "",
-            "Loss Location": loss_loc,
-            "Insured First Name": claim.insured_first_name or "",
-            "Insured Last Name": claim.insured_last_name or "",
-            "Insured Party": insured or "N/A",
-            "Claimant First Name": claim.claimant_first_name or "",
-            "Claimant Last Name": claim.claimant_last_name or "",
-            "Claimant Party": claimant or "N/A",
-            "Driver First Name": claim.driver_first_name or "",
-            "Driver Last Name": claim.driver_last_name or "",
-            "Driver Party": driver or "N/A",
-            "Record Status": rec_status,
-            "Fuzzy Match Status": fuzzy_status,
-            "Total Duration (Seconds)": duration_str,
-            "Guidewire Pushed": gw_pushed,
-            "Guidewire Activity ID": claim.activity_id or "None",
-            "Case Number": "NO_CASES_FOUND",
-            "Case Style": "",
-            "County": "",
-            "Website URL": "",
-            "Filing Date": "",
-            "Case Status": "",
-            "Case Type": "",
-            "Best Match Party": "",
-            "Best Match Score": "",
-            "Match Review Status": "",
-            "Bot Broward": bot_broward,
-            "Bot Hillsborough": bot_hills,
-            "Bot Miami": bot_miami,
-            "Bot Travis": bot_travis,
-            "Bot Dallas": bot_dallas,
-            "Bot Harris JP": bot_harris,
-            "Bot Harris Clerk": bot_cclerk,
-            "Bot Harris District": bot_hcdistrict,
-            "Created At": created_at_str,
-            "Scraped At": "",
-            "Raw Case Payload (JSON)": "{}",
-        })
+                "Scraped At": "",
+                "Raw Case Payload (JSON)": "{}",
+            }
+        )
 
     df_cases = pd.DataFrame(case_rows)
 
@@ -2489,7 +3194,9 @@ async def export_single_claim(
         return Response(
             content=csv_bytes,
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=claim_{c_num}_cases_{timestamp}.csv"},
+            headers={
+                "Content-Disposition": f"attachment; filename=claim_{c_num}_cases_{timestamp}.csv"
+            },
         )
 
     # 3. XLSX Export (Multi-sheet: Overview, Scraped Cases, Matches, Telemetry, 8 Bots Status, Raw JSON)
@@ -2516,7 +3223,6 @@ async def export_single_claim(
                 {"Field": "Guidewire Pushed", "Value": gw_pushed},
                 {"Field": "Guidewire Activity ID", "Value": claim.activity_id or "None"},
                 {"Field": "Total Cases Scraped", "Value": len(cases_to_export)},
-
                 {"Field": "Created At", "Value": created_at_str},
                 {"Field": "Bot Broward", "Value": bot_broward},
                 {"Field": "Bot Hillsborough", "Value": bot_hills},
@@ -2536,18 +3242,13 @@ async def export_single_claim(
             match_rows = []
             for m in claim.match_pairs:
                 case_num = (
-                    m.court_case.case_number
-                    if hasattr(m, "court_case") and m.court_case
-                    else "N/A"
+                    m.court_case.case_number if hasattr(m, "court_case") and m.court_case else "N/A"
                 )
-                case_style = (
-                    m.case_style
-                    or (m.court_case.case_style if hasattr(m, "court_case") and m.court_case else "")
+                case_style = m.case_style or (
+                    m.court_case.case_style if hasattr(m, "court_case") and m.court_case else ""
                 )
                 county = (
-                    m.court_case.county_name
-                    if hasattr(m, "court_case") and m.court_case
-                    else ""
+                    m.court_case.county_name if hasattr(m, "court_case") and m.court_case else ""
                 )
                 status_val = (
                     m.review_status.value
@@ -2559,37 +3260,30 @@ async def export_single_claim(
                     if hasattr(m, "party_type") and hasattr(m.party_type, "value")
                     else str(getattr(m, "party_type", ""))
                 )
-                match_rows.append({
-                    "Case Number": case_num,
-                    "Case Style": case_style,
-                    "County": county,
-                    "Party Type": party_type_val,
-                    "Party Name": getattr(m, "party_name", ""),
-                    "Similarity Score": getattr(m, "similarity_score", 0.0),
-                    "Threshold Applied": getattr(m, "threshold_applied", 0.60),
-                    "Is Match": "Yes" if getattr(m, "is_match", False) else "No",
-                    "Review Status": status_val,
-                    "Reviewed By": getattr(m, "reviewed_by", None) or "Automated",
-                    "Review Notes": getattr(m, "review_notes", None) or "",
-                })
-            pd.DataFrame(match_rows or [{"Note": "No match records evaluated yet"}]).to_excel(writer, index=False, sheet_name="Fuzzy Matches")
+                match_rows.append(
+                    {
+                        "Case Number": case_num,
+                        "Case Style": case_style,
+                        "County": county,
+                        "Party Type": party_type_val,
+                        "Party Name": getattr(m, "party_name", ""),
+                        "Similarity Score": getattr(m, "similarity_score", 0.0),
+                        "Threshold Applied": getattr(m, "threshold_applied", 0.60),
+                        "Is Match": "Yes" if getattr(m, "is_match", False) else "No",
+                        "Review Status": status_val,
+                        "Reviewed By": getattr(m, "reviewed_by", None) or "Automated",
+                        "Review Notes": getattr(m, "review_notes", None) or "",
+                    }
+                )
+            pd.DataFrame(match_rows or [{"Note": "No match records evaluated yet"}]).to_excel(
+                writer, index=False, sheet_name="Fuzzy Matches"
+            )
 
-            # Sheet 4: Execution Telemetry
-            stages_data = []
-            timings = claim.action_timings or {}
-            stages = timings.get("stages", {})
-            for sk, sval in stages.items():
-                if isinstance(sval, dict):
-                    stages_data.append({
-                        "Stage Key": sk,
-                        "Stage Name": sval.get("name", sk),
-                        "Start Time": sval.get("start_time", ""),
-                        "End Time": sval.get("end_time", ""),
-                        "Duration (s)": sval.get("duration_seconds", ""),
-                        "Status": sval.get("status", ""),
-                        "Detail": sval.get("detail") or sval.get("url") or sval.get("party") or "",
-                    })
-            pd.DataFrame(stages_data or [{"Note": "No stage telemetry recorded"}]).to_excel(writer, index=False, sheet_name="Stage Telemetry")
+            # Sheet 4: Detailed Stage Execution Telemetry
+            single_stage_rows = _extract_stage_telemetry_rows([claim])
+            pd.DataFrame(single_stage_rows or [{"Note": "No stage telemetry recorded"}]).to_excel(
+                writer, index=False, sheet_name="Stage Telemetry"
+            )
 
             # Sheet 5: 8 Bots Scraper Status
             bots_list = _build_bot_details(claim)
@@ -2598,7 +3292,9 @@ async def export_single_claim(
                     "County Portal": b.name,
                     "Website URL": b.website_url,
                     "Target For Policy": b.target,
-                    "Execution Status": b.status.value if hasattr(b.status, "value") else str(b.status),
+                    "Execution Status": b.status.value
+                    if hasattr(b.status, "value")
+                    else str(b.status),
                     "Cases Found": b.cases_found,
                 }
                 for b in bots_list
@@ -2606,13 +3302,17 @@ async def export_single_claim(
             pd.DataFrame(bots_data).to_excel(writer, index=False, sheet_name="8 Bots Status")
 
             # Sheet 6: Full Raw JSON
-            pd.DataFrame([{"Raw JSON Payload": full_json_str}]).to_excel(writer, index=False, sheet_name="Complete Raw JSON")
+            pd.DataFrame([{"Raw JSON Payload": full_json_str}]).to_excel(
+                writer, index=False, sheet_name="Complete Raw JSON"
+            )
 
         out.seek(0)
         return Response(
             content=out.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename=claim_{c_num}_report_{timestamp}.xlsx"},
+            headers={
+                "Content-Disposition": f"attachment; filename=claim_{c_num}_report_{timestamp}.xlsx"
+            },
         )
 
     # 4. PDF (Full high-fidelity authentic vector PDF rendering)
@@ -2629,18 +3329,19 @@ async def export_single_claim(
             )
         except Exception as e:
             import traceback
+
             tb = traceback.format_exc()
             logger.error(f"Error generating Playwright PDF export:\n{tb}")
             print(f"[PDF_EXPORT_ERROR]\n{tb}", flush=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to generate PDF report: {type(e).__name__}: {str(e) or repr(e)}"
+                detail=f"Failed to generate PDF report: {type(e).__name__}: {str(e) or repr(e)}",
             )
 
 
 def _render_claim_pdf_sync(claim_id: str) -> bytes:
     """Renders authentic vector PDF using synchronous Playwright in a worker thread.
-    
+
     Bypasses Windows asyncio SelectorEventLoop subprocess limitations.
     """
     from playwright.sync_api import sync_playwright
@@ -2649,7 +3350,7 @@ def _render_claim_pdf_sync(claim_id: str) -> bytes:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
         )
         context = browser.new_context(
             viewport={"width": 1400, "height": 900},

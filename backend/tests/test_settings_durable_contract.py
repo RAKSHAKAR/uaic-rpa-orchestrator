@@ -47,7 +47,9 @@ async def isolated_settings(tmp_path, monkeypatch):
             Base.metadata.create_all,
             tables=[AutomationSetting.__table__, SettingsAuditLog.__table__],
         )
-    monkeypatch.setattr(service, "TaskAsyncSessionLocal", async_sessionmaker(engine, expire_on_commit=False))
+    monkeypatch.setattr(
+        service, "TaskAsyncSessionLocal", async_sessionmaker(engine, expire_on_commit=False)
+    )
     cache = MemoryRedis()
     monkeypatch.setattr(service.aioredis, "from_url", lambda *_args, **_kwargs: cache)
     yield cache
@@ -173,8 +175,12 @@ async def test_api_masks_secrets_and_reports_stale_revision(isolated_settings, m
         active["automation"]["captcha_wait_seconds"] = 45
         retained = await client.post("/api/v1/settings", json=active)
         assert retained.status_code == 200
-        assert (await service.get_system_settings_async()).integration.guidewire_api_key == "unit-test-secret"
-        assert (await service.get_system_settings_async()).automation.anticaptcha_api_key == "unit-test-anticaptcha-secret"
+        assert (
+            await service.get_system_settings_async()
+        ).integration.guidewire_api_key == "unit-test-secret"
+        assert (
+            await service.get_system_settings_async()
+        ).automation.anticaptcha_api_key == "unit-test-anticaptcha-secret"
 
         def unavailable_session():
             raise RuntimeError("isolated database unavailable")
@@ -186,7 +192,8 @@ async def test_api_masks_secrets_and_reports_stale_revision(isolated_settings, m
 
 
 @pytest.mark.asyncio
-async def test_api_rejects_change_to_fixed_v4_unique_name_threshold(isolated_settings):
+async def test_api_accepts_and_persists_unique_names_threshold(isolated_settings, monkeypatch):
+    monkeypatch.setattr(settings_endpoint, "record_audit_event_background", lambda **_kwargs: None)
     application = FastAPI()
     application.include_router(settings_endpoint.router, prefix="/api/v1/settings")
     async with AsyncClient(
@@ -194,10 +201,14 @@ async def test_api_rejects_change_to_fixed_v4_unique_name_threshold(isolated_set
     ) as client:
         current = (await client.get("/api/v1/settings")).json()
         current["matcher"]["unique_names_threshold"] = 0.75
-        rejected = await client.post("/api/v1/settings", json=current)
+        accepted = await client.post("/api/v1/settings", json=current)
+        assert accepted.status_code == 200
+        assert (await service.get_system_settings_async()).matcher.unique_names_threshold == 0.75
 
-    assert rejected.status_code == 422
-    assert (await service.get_system_settings_async()).matcher.unique_names_threshold == 0.60
+        # Test out of range rejection
+        current["matcher"]["unique_names_threshold"] = 1.5
+        rejected = await client.post("/api/v1/settings", json=current)
+        assert rejected.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -213,7 +224,9 @@ async def test_branding_save_returns_committed_document(isolated_settings, monke
         response = await client.post("/api/v1/settings/branding", json=branding)
         assert response.status_code == 200
         assert response.json()["app_title"] == "Unit Test Identity"
-        assert (await service.get_system_settings_async()).branding.app_title == "Unit Test Identity"
+        assert (
+            await service.get_system_settings_async()
+        ).branding.app_title == "Unit Test Identity"
 
 
 @pytest.mark.parametrize(

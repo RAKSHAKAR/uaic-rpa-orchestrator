@@ -1,5 +1,5 @@
-import subprocess
 import os
+import subprocess
 import time
 
 lockfile = r"C:\Users\priyer\.gemini\antigravity-ide\scratch\Bot_UAIC\backend\data\browser_profile\chrome\lockfile"

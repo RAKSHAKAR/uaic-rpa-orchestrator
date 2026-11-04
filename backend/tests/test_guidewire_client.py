@@ -12,6 +12,7 @@ from app.services.guidewire_client import GuidewireClient, format_claim_number
 # 1. Claim Number Formatting (Power Automate logic)
 # ============================================================================
 
+
 def test_format_claim_number():
     # 9-digit numbers must be prefixed with '0' to make 10 digits
     assert format_claim_number("123456789") == "0123456789"
@@ -28,6 +29,7 @@ def test_format_claim_number():
 # ============================================================================
 # 2. Header Construction Across Auth Types
 # ============================================================================
+
 
 def test_guidewire_client_headers():
     # Bearer auth
@@ -55,6 +57,7 @@ def test_guidewire_client_headers():
 # ============================================================================
 # 3. Payload and Mock Execution
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_guidewire_send_case_update_mock_mode():
@@ -91,6 +94,7 @@ async def test_guidewire_send_case_update_mock_mode():
 # ============================================================================
 # 4. Live Request Simulation (Mocked httpx)
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_guidewire_send_case_update_live_success():
@@ -147,6 +151,7 @@ async def test_guidewire_send_case_update_live_unauthorized():
 # ============================================================================
 # 5. Interactive Test Connection Runner
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_guidewire_interactive_test_connection():

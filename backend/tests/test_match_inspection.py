@@ -111,4 +111,7 @@ async def test_match_inspection_enriched_pending_and_detail():
         after_data = res_after.json()
         assert after_data["review_status"] == "APPROVED"
         assert after_data["reviewed_by"] == "Senior Adjuster Jane"
-        assert after_data["review_notes"] == "Cross-verified vehicle VIN and driver license from police report."
+        assert (
+            after_data["review_notes"]
+            == "Cross-verified vehicle VIN and driver license from police report."
+        )

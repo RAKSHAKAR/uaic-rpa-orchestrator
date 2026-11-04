@@ -1,18 +1,23 @@
 import asyncio
-import os
-import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import openpyxl
 
 from app.core.database import TaskAsyncSessionLocal
-from app.models.claim import ClaimRecord, IngestionBatch, RecordStatusEnum, BotStatusEnum, FuzzyMatchStatusEnum
-from app.models.court_case import ScrapedCourtCase
-from app.models.match_result import MatchPair, MatchReviewStatusEnum, PartyTypeEnum
-from app.models.guidewire import GuidewireActivity
 from app.models.audit_log import AuditLog
+from app.models.claim import (
+    BotStatusEnum,
+    ClaimRecord,
+    FuzzyMatchStatusEnum,
+    IngestionBatch,
+    RecordStatusEnum,
+)
+from app.models.court_case import ScrapedCourtCase
+from app.models.guidewire import GuidewireActivity
 from app.services.guidewire_client import GuidewireClient
 from app.services.settings_service import get_system_settings_async
+
 
 async def run_e2e_live_demo():
     print("=== STARTING LIVE END-TO-END WORKFLOW FOR 2 REAL RECORDS ===")
@@ -271,7 +276,7 @@ async def run_e2e_live_demo():
         ]:
             session.add(AuditLog(
                 id=str(uuid.uuid4()),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 action="BATCH_IMPORTED",
                 entity_type="BATCH",
                 entity_id=batch_id,
@@ -283,7 +288,7 @@ async def run_e2e_live_demo():
             ))
             session.add(AuditLog(
                 id=str(uuid.uuid4()),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 action="SCRAPING_COMPLETED",
                 entity_type="CLAIM",
                 entity_id=cid,
@@ -295,7 +300,7 @@ async def run_e2e_live_demo():
             ))
             session.add(AuditLog(
                 id=str(uuid.uuid4()),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 action="FUZZY_MATCHING_COMPLETED",
                 entity_type="CLAIM",
                 entity_id=cid,
@@ -307,7 +312,7 @@ async def run_e2e_live_demo():
             ))
             session.add(AuditLog(
                 id=str(uuid.uuid4()),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 action="GUIDEWIRE_ACTIVITY_CREATED",
                 entity_type="GUIDEWIRE",
                 entity_id=cid,
@@ -315,7 +320,7 @@ async def run_e2e_live_demo():
                 user_id="celery_worker",
                 user_email="orchestrator@system.local",
                 status="SUCCESS",
-                description=f"Successfully pushed litigation update to Guidewire ClaimCenter (Mock Mode HTTP 200).",
+                description="Successfully pushed litigation update to Guidewire ClaimCenter (Mock Mode HTTP 200).",
             ))
 
         await session.commit()

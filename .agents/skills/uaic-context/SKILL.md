@@ -122,3 +122,31 @@ Before declaring any engineering task complete, ALWAYS execute and verify:
 7. **Frontend Type Check & Build**: `cd frontend && npx tsc --noEmit && npm run build` (zero errors).
 
 
+
+## Mandatory 15 Master Governance & Quality Rules (IMP-2026-1031-003)
+
+Every AI assistant or engineer contributing to this repository MUST strictly abide by these 15 rules:
+1. **Inspect current implementation before changing anything**: Examine existing settings, configuration services, browser automation architecture, Celery queues, concurrency controls, portal scrapers, and documentation. Never assume a feature is missing or broken without verifying.
+2. **Respect the existing solution architecture**: Do not rebuild working systems. Target Python 3.14, FastAPI, Playwright sync sessions, Redis, and Next.js 14 App Router without architectural degradation.
+3. **Verify settings propagation end to end**: Confirm settings flow seamlessly: Settings Page → API → Database → Configuration Service → Celery Task → Browser Engine → Portal Scraper.
+4. **Verify browser compatibility**: Support Google Chrome, Microsoft Edge, and Playwright Chromium with genuine binary resolution and version detection. Never silently switch engines.
+5. **Verify extension loading and configuration**: Ensure Anti-Captcha extension loads in dedicated profiles with pre-synchronized API keys and toolbar pinning across all Chromium browsers.
+6. **Stop execution when mandatory browser prerequisites fail**: If extension loading or browser initialization fails, fail-fast with BLOCKED_EXTENSION_INITIALIZATION and dispatch an actionable IT Support notification. Never continue silently.
+7. **Never falsely report CAPTCHA success**: Verify genuine DOM tokens (cf-turnstile-response, g-recaptcha-response, .antigate_solver_solved) before continuing.
+8. **Validate actual GUI/headless behavior**: Attended mode must open a visible browser with authentic human pacing and cursor movement; Headless mode must run in the background. Never claim visible interaction occurred in headless mode.
+9. **Verify all portal routing and dispatch rules**: Route FL claims to 3 bots (Broward, Hillsborough, Miami-Dade), TX claims to 5 bots (Travis, Dallas, Harris JP, Harris Clerk, Harris District), and cross-state claims to all 8 bots concurrently. Quarantine missing/ambiguous state claims to NEEDS_REVIEW.
+10. **Investigate the full IDE Problems panel**: Methodically resolve all real TypeScript, Python, ESLint, and import errors.
+11. **Fix spelling and encoding problems**: Maintain pure UTF-8 without BOMs, resolve legitimate spelling errors, and register verified domain terms into cspell.json.
+12. **Resolve browser console and terminal errors**: Guarantee zero unhandled promise rejections, React errors, failed API calls, CORS failures, or Celery startup crashes.
+13. **Run relevant regression and E2E tests**: Execute backend pytest and frontend Playwright test suites to guarantee 100% pass rates.
+14. **Verify diagrams and charts remain visible**: Prevent auto-polling re-renders from unmounting diagrams, flowcharts, 9-stage steppers, and chart SVG rings. Ensure resilient fallback tracks.
+15. **Provide actual execution evidence before claiming completion**: Embed verifiable command outputs, automated test logs, and authentic WebP recordings before marking any task complete.
+
+## Canonical Artifact & Directory Governance (IMP-2026-1031-002)
+- Execution recordings: docs/recordings/ (Zero recordings directly in docs/).
+- Screenshots and extracted frames: docs/frames/.
+- Images and visual documentation assets: docs/images/.
+- All executable project scripts: scripts/.
+- All E2E testing implementation and test-related artifacts: e2e/.
+- Technical, functional, architecture and operational documentation: docs/.
+- Protected directories: anticaptcha-plugin_v0.83/ and .agents/.

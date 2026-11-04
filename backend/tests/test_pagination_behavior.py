@@ -28,7 +28,13 @@ async def test_tc_pag_004_travis_no_15_row_cap():
     for i in range(total_mock_rows):
         row_mock = MagicMock()
         row_mock.locator.return_value.all_inner_texts = AsyncMock(
-            return_value=[f"D-1-GN-24-00{i:04d}", f"Plaintiff v. Defendant {i}", "01/15/2023", "ACTIVE", "CIVIL"]
+            return_value=[
+                f"D-1-GN-24-00{i:04d}",
+                f"Plaintiff v. Defendant {i}",
+                "01/15/2023",
+                "ACTIVE",
+                "CIVIL",
+            ]
         )
         mock_rows.append(row_mock)
 
@@ -44,7 +50,9 @@ async def test_tc_pag_004_travis_no_15_row_cap():
     mock_el.wait_for = AsyncMock()
     mock_el.fill = AsyncMock()
     mock_el.click = AsyncMock()
-    mock_el.get_attribute = AsyncMock(return_value="k-state-disabled")  # End pagination after page 1
+    mock_el.get_attribute = AsyncMock(
+        return_value="k-state-disabled"
+    )  # End pagination after page 1
 
     def loc_side_effect(sel):
         if ".k-grid-content" in sel or "table.k-selectable" in sel or "table tbody tr" in sel:
@@ -75,7 +83,13 @@ async def test_tc_pag_005_dallas_no_15_row_cap():
     for i in range(total_mock_rows):
         row_mock = MagicMock()
         row_mock.locator.return_value.all_inner_texts = AsyncMock(
-            return_value=[f"DC-23-00{i:04d}", f"Smith - Plaintiff vs Jones | Defendant {i}", "02/20/2023", "ACTIVE", "CIVIL"]
+            return_value=[
+                f"DC-23-00{i:04d}",
+                f"Smith - Plaintiff vs Jones | Defendant {i}",
+                "02/20/2023",
+                "ACTIVE",
+                "CIVIL",
+            ]
         )
         mock_rows.append(row_mock)
 
@@ -121,7 +135,12 @@ async def test_tc_pag_006_harris_jp_no_15_row_cap():
     for i in range(total_mock_rows):
         row_mock = MagicMock()
         row_mock.locator.return_value.all_inner_texts = AsyncMock(
-            return_value=[f"23-JP-00{i:04d}", f"State Farm v. Driver {i}", "03/10/2023", "Case Status: Open"]
+            return_value=[
+                f"23-JP-00{i:04d}",
+                f"State Farm v. Driver {i}",
+                "03/10/2023",
+                "Case Status: Open",
+            ]
         )
         mock_rows.append(row_mock)
 

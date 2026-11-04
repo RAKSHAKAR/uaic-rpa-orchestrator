@@ -24,10 +24,13 @@ if TYPE_CHECKING:
 
 class ErrorScreenshot(Base):
     """Stores error screenshots and diagnostics captured when a portal scraper fails."""
+
     __tablename__ = "error_screenshots"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    claim_id: Mapped[str] = mapped_column(String(36), ForeignKey("claim_records.id", ondelete="CASCADE"), nullable=False, index=True)
+    claim_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("claim_records.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     portal_key: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     portal_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -40,4 +43,6 @@ class ErrorScreenshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     # Relationships
-    claim: Mapped["ClaimRecord"] = relationship("ClaimRecord", back_populates="error_screenshots", lazy="selectin")
+    claim: Mapped["ClaimRecord"] = relationship(
+        "ClaimRecord", back_populates="error_screenshots", lazy="selectin"
+    )

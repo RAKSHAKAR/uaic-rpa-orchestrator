@@ -148,7 +148,9 @@ class MockEmailProvider(BaseEmailProvider):
             "recipients": to_addresses,
         }
 
-        logger.info(f"[MockEmail] Successfully recorded email '{subject}' to {to_addresses} in {duration_ms:.1f}ms")
+        logger.info(
+            f"[MockEmail] Successfully recorded email '{subject}' to {to_addresses} in {duration_ms:.1f}ms"
+        )
         return EmailDeliveryResult(
             success=True,
             provider="local_mock",
@@ -169,7 +171,7 @@ class MockEmailProvider(BaseEmailProvider):
 
 class DirectMxEmailProvider(BaseEmailProvider):
     """Direct Inbound MX Gateway Email Transport with STARTTLS encryption and delivery receipt capture.
-    
+
     Resolves recipient domain MX records (e.g. damcogroup-com.mail.protection.outlook.com) and
     delivers directly to enterprise destination gateways on port 25 with STARTTLS.
     Bypasses tenant-level basic SMTP client authentication blocks.
@@ -219,7 +221,9 @@ class DirectMxEmailProvider(BaseEmailProvider):
         # 2. Fallback to domain itself
         return dom
 
-    def test_connection(self, recipient_domain: str | None = None, domain: str | None = None) -> EmailConnectionTestResult:
+    def test_connection(
+        self, recipient_domain: str | None = None, domain: str | None = None
+    ) -> EmailConnectionTestResult:
         """Verify reachability and STARTTLS handshake with destination MX gateway."""
         start_time = time.perf_counter()
         target_domain = (domain or recipient_domain or self.fallback_recipient_domain).strip()
@@ -304,7 +308,9 @@ class DirectMxEmailProvider(BaseEmailProvider):
                 code, resp = server.data(msg.as_string())
                 server.quit()
 
-            resp_str = resp.decode("utf-8", errors="ignore") if isinstance(resp, bytes) else str(resp)
+            resp_str = (
+                resp.decode("utf-8", errors="ignore") if isinstance(resp, bytes) else str(resp)
+            )
             duration_ms = (time.perf_counter() - start_time) * 1000.0
 
             internal_id_match = re.search(r"InternalId=([0-9a-zA-Z_-]+)", resp_str)
@@ -379,7 +385,9 @@ class MailDevEmailProvider(BaseEmailProvider):
         self.default_from_name = default_from_name
         self.default_from_email = default_from_email
 
-    def test_connection(self, recipient_domain: str | None = None, domain: str | None = None) -> EmailConnectionTestResult:
+    def test_connection(
+        self, recipient_domain: str | None = None, domain: str | None = None
+    ) -> EmailConnectionTestResult:
         start_time = time.perf_counter()
         try:
             with smtplib.SMTP(self.host, self.port, timeout=self.timeout) as server:
@@ -428,7 +436,7 @@ class MailDevEmailProvider(BaseEmailProvider):
         if bcc_addresses:
             all_recipients.extend(bcc_addresses)
 
-        msg_id = f"<uaic-maildev-{int(time.time()*1000)}-{uuid.uuid4().hex[:8]}@test.com>"
+        msg_id = f"<uaic-maildev-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}@test.com>"
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = sender_header
@@ -460,7 +468,9 @@ class MailDevEmailProvider(BaseEmailProvider):
             for att in attachments:
                 fname = att.get("filename", "attachment")
                 content = att.get("content", b"")
-                part = MIMEApplication(content if isinstance(content, bytes) else content.encode("utf-8"))
+                part = MIMEApplication(
+                    content if isinstance(content, bytes) else content.encode("utf-8")
+                )
                 part.add_header("Content-Disposition", f'attachment; filename="{fname}"')
                 msg.attach(part)
 
@@ -483,7 +493,9 @@ class MailDevEmailProvider(BaseEmailProvider):
                 "timestamp": datetime.now(UTC).isoformat(),
                 "recipients": all_recipients,
             }
-            logger.info(f"[MailDev] Delivered message {msg_id} to {self.host}:{self.port}. View at {self.web_url}")
+            logger.info(
+                f"[MailDev] Delivered message {msg_id} to {self.host}:{self.port}. View at {self.web_url}"
+            )
             return EmailDeliveryResult(
                 success=True,
                 provider="maildev",
@@ -591,7 +603,9 @@ class SmtpEmailProvider(BaseEmailProvider):
                 code, resp = server.data(msg.as_string())
                 server.quit()
 
-            resp_str = resp.decode("utf-8", errors="ignore") if isinstance(resp, bytes) else str(resp)
+            resp_str = (
+                resp.decode("utf-8", errors="ignore") if isinstance(resp, bytes) else str(resp)
+            )
             duration_ms = (time.perf_counter() - start_time) * 1000.0
 
             receipt = {
@@ -695,6 +709,7 @@ class GraphEmailProvider(BaseEmailProvider):
         try:
             import urllib.error
             import urllib.request
+
             token_url = f"https://login.microsoftonline.com/{self.tenant_id}/v2.0"
             req = urllib.request.Request(token_url, headers={"User-Agent": "UAIC-Orchestrator/4.0"})
             try:
@@ -789,8 +804,11 @@ class SesEmailProvider(BaseEmailProvider):
         try:
             import urllib.error
             import urllib.request
+
             endpoint_url = f"https://email.{self.region}.amazonaws.com"
-            req = urllib.request.Request(endpoint_url, headers={"User-Agent": "UAIC-Orchestrator/4.0"})
+            req = urllib.request.Request(
+                endpoint_url, headers={"User-Agent": "UAIC-Orchestrator/4.0"}
+            )
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout):
                     pass
@@ -1103,7 +1121,9 @@ class TemplateRenderer:
         return cls.VARIABLE_REGEX.sub(replacer, template_str)
 
 
-def get_email_provider(email_settings: EmailSettings, override_provider: str | None = None) -> BaseEmailProvider:
+def get_email_provider(
+    email_settings: EmailSettings, override_provider: str | None = None
+) -> BaseEmailProvider:
     """Factory creating the configured email provider instance with optional override."""
     provider_type = (override_provider or email_settings.provider or "local_mock").lower().strip()
 
@@ -1116,7 +1136,11 @@ def get_email_provider(email_settings: EmailSettings, override_provider: str | N
 
     if provider_type == "maildev":
         maildev_port = email_settings.smtp_port if email_settings.smtp_port in [1025, 25] else 1025
-        maildev_host = email_settings.smtp_host if email_settings.smtp_host not in ["smtp.office365.com", ""] else "localhost"
+        maildev_host = (
+            email_settings.smtp_host
+            if email_settings.smtp_host not in ["smtp.office365.com", ""]
+            else "localhost"
+        )
         return MailDevEmailProvider(
             host=maildev_host,
             port=maildev_port,

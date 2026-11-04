@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 class ScrapedCourtCaseSchema(BaseModel):
     """Schema for individual scraped court case."""
+
     id: str
     claim_id: str
     county_name: str

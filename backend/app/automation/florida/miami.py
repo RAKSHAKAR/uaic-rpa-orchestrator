@@ -12,7 +12,11 @@ from app.automation.base import (
     CaptchaResolutionError,
     PortalAuthenticationError,
     PortalConfigurationError,
+    SecurityBlockException,
+    _date_for_input,
+    _normalize_court_date,
     _safe_eval,
+    human_page_warmup,
 )
 
 logger = logging.getLogger("uaic_orchestrator.automation.miami")
@@ -124,7 +128,13 @@ class MiamiDadeScraper(BaseCourtScraper):
         self.username = username
         self.password = password
         self.requires_login = requires_login
-        self.login_url = MIAMI_LOGIN_GATEWAY_URL
+        if base_url and base_url.rstrip("/") != MIAMI_OCS_PORTAL_URL.rstrip("/"):
+            from urllib.parse import urlparse
+
+            parsed = urlparse(self.base_url)
+            self.login_url = f"{parsed.scheme}://{parsed.netloc}/usermanagementservices/?hs=OCSB"
+        else:
+            self.login_url = MIAMI_LOGIN_GATEWAY_URL
 
     async def navigate_to_search(self, page: Page) -> None:
         """Section 3: Open Miami-Dade and wait for DOM load; reload if blank."""
@@ -133,16 +143,25 @@ class MiamiDadeScraper(BaseCourtScraper):
 
         # If login is required and tab is currently at login gateway, let ensure_authenticated handle it
         if self.requires_login and "usermanagementservices" in curr_url.lower():
-            logger.info(f"[{self.county_name}] Current tab is at login gateway ({curr_url}); proceeding to authentication.")
+            logger.info(
+                f"[{self.county_name}] Current tab is at login gateway ({curr_url}); proceeding to authentication."
+            )
             t_nav_end = datetime.now()
-            self.record_stage("website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=curr_url)
+            self.record_stage(
+                "website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=curr_url
+            )
             return
 
         logger.info(f"[{self.county_name}] Navigating to Miami-Dade OCS portal: {self.base_url}")
         try:
             if "ocs" not in curr_url.lower():
-                await page.goto(self.base_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                await self.navigate_via_address_bar(page, self.base_url, timeout_ms=self.timeout_ms)
                 await page.wait_for_timeout(1000)
+
+            await human_page_warmup(page)
+            is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+            if is_blocked:
+                raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs)
 
             # Wait for content or main container
             content_loc = page.locator("main, #main-content, #content, form, .container, body")
@@ -160,18 +179,24 @@ class MiamiDadeScraper(BaseCourtScraper):
                 "input[value*='Agree' i], input[value*='Accept' i]"
             )
             if await _safe_count(agree_btn) > 0 and await _safe_is_visible(agree_btn):
-                logger.info(f"[{self.county_name}] Disclaimer / Gateway agreement button detected. Clicking...")
+                logger.info(
+                    f"[{self.county_name}] Disclaimer / Gateway agreement button detected. Clicking..."
+                )
                 await self.biometric_click(page, agree_btn.first)
                 await page.wait_for_timeout(1500)
 
             # Detect blank/empty body and reload if needed
             body_text = await _safe_inner_text(page.locator("body"))
             if not body_text or len(body_text.strip()) < 5:
-                logger.warning(f"[{self.county_name}] Blank/incomplete page body detected; reloading...")
+                logger.warning(
+                    f"[{self.county_name}] Blank/incomplete page body detected; reloading..."
+                )
                 await page.reload(wait_until="domcontentloaded")
                 await page.wait_for_timeout(2000)
         except Exception as e_nav:
-            logger.warning(f"[{self.county_name}] Initial navigation encountered: {e_nav}; attempting reload...")
+            logger.warning(
+                f"[{self.county_name}] Initial navigation encountered: {e_nav}; attempting reload..."
+            )
             try:
                 await page.reload(wait_until="domcontentloaded")
                 await page.wait_for_timeout(2000)
@@ -179,7 +204,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                 logger.debug(f"[{self.county_name}] Reload note: {e_reload}")
 
         t_nav_end = datetime.now()
-        self.record_stage("website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=self.base_url)
+        self.record_stage(
+            "website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=self.base_url
+        )
 
     async def ensure_authenticated(self, page: Page) -> None:
         """
@@ -197,7 +224,7 @@ class MiamiDadeScraper(BaseCourtScraper):
             return
         if not self.username or not self.password:
             raise PortalConfigurationError(
-                f"[{self.county_name}] Login is enabled, but saved Miami username/password is missing in Settings"
+                f"[{self.county_name}] Login is enabled, but saved Miami username/password is missing in Settings."
             )
 
         # Step b.iv: Check if already authenticated by checking for Welcome greeting or explicit logout controls
@@ -211,7 +238,9 @@ class MiamiDadeScraper(BaseCourtScraper):
             )
             if await _safe_count(welcome_greeting) > 0 and await _safe_is_visible(welcome_greeting):
                 greeting_text = await _safe_inner_text(welcome_greeting.first)
-                logger.info(f"[{self.county_name}] User already authenticated ('{greeting_text}'); skipping login.")
+                logger.info(
+                    f"[{self.county_name}] User already authenticated ('{greeting_text}'); skipping login."
+                )
                 return
 
             logout_btn = page.locator(
@@ -225,18 +254,29 @@ class MiamiDadeScraper(BaseCourtScraper):
                 "a[href*='Logout' i]"
             )
             if await _safe_count(logout_btn) > 0 and await _safe_is_visible(logout_btn):
-                logger.info(f"[{self.county_name}] User already authenticated (logout control present); skipping login.")
+                logger.info(
+                    f"[{self.county_name}] User already authenticated (logout control present); skipping login."
+                )
                 return
 
             body_text = await _safe_inner_text(page.locator("body"))
             user_prefix = self.username.split("@")[0].lower() if self.username else ""
-            if user_prefix and len(user_prefix) >= 3 and user_prefix in body_text.lower() and ("logout" in body_text.lower() or "welcome" in body_text.lower()):
-                logger.info(f"[{self.county_name}] User already authenticated (account greeting detected); skipping login.")
+            if (
+                user_prefix
+                and len(user_prefix) >= 3
+                and user_prefix in body_text.lower()
+                and ("logout" in body_text.lower() or "welcome" in body_text.lower())
+            ):
+                logger.info(
+                    f"[{self.county_name}] User already authenticated (account greeting detected); skipping login."
+                )
                 return
         except Exception as e_chk:
             logger.debug(f"[{self.county_name}] Auth check note: {e_chk}")
 
-        logger.info(f"[{self.county_name}] User is NOT authenticated. Initiating Miami-Dade login sequence...")
+        logger.info(
+            f"[{self.county_name}] User is NOT authenticated. Initiating Miami-Dade login sequence..."
+        )
 
         # Step b.i: Click "Register/Login" if visible on page, otherwise navigate directly to login gateway URL
         login_url = self.login_url or MIAMI_LOGIN_GATEWAY_URL
@@ -268,11 +308,15 @@ class MiamiDadeScraper(BaseCourtScraper):
                 logger.debug(f"[{self.county_name}] Register/Login click note: {e_click}")
 
         if not clicked and "usermanagementservices" not in curr_url.lower():
-            logger.info(f"[{self.county_name}] Login Step b.i: Direct navigating to login gateway URL: {login_url}")
+            logger.info(
+                f"[{self.county_name}] Login Step b.i: Direct navigating to login gateway URL: {login_url}"
+            )
             try:
                 goto_fn = getattr(page, "goto", None)
                 if callable(goto_fn):
-                    res_g = goto_fn(login_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    res_g = goto_fn(
+                        login_url, wait_until="domcontentloaded", timeout=self.timeout_ms
+                    )
                     if inspect.isawaitable(res_g):
                         await res_g
                 await page.wait_for_timeout(1500)
@@ -304,14 +348,24 @@ class MiamiDadeScraper(BaseCourtScraper):
 
         try:
             if await _safe_count(email_field) > 0:
-                try:
-                    await email_field.first.wait_for(state="visible", timeout=12000)
-                except Exception:
-                    pass
-                logger.info(f"[{self.county_name}] Login Step b.ii: Filling saved account credentials...")
-                await self.biometric_fill(email_field.first, self.username)
+                logger.info(
+                    f"[{self.county_name}] Login Step b.ii: Filling saved account credentials..."
+                )
+                await self.interact_and_fill_field(
+                    page,
+                    "input#txtUsername, input[name='txtUsername'], #txtUsername, input[type='email']",
+                    self.username,
+                    field_name="User ID (#txtUsername)",
+                    timeout_ms=self.timeout_ms,
+                )
             if await _safe_count(pwd_field) > 0:
-                await self.biometric_fill(pwd_field.first, self.password)
+                await self.interact_and_fill_field(
+                    page,
+                    "input#txtPassword, input[name='txtPassword'], #txtPassword, input[type='password']",
+                    self.password,
+                    field_name="Password (#txtPassword)",
+                    timeout_ms=self.timeout_ms,
+                )
 
             # Step b.iii: Click "LOGIN" (Object: input.btn.coc-button--primary[name='btnCall'][value='Login'])
             login_btn = page.locator(
@@ -326,7 +380,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                 "input[type='submit']"
             )
             if await _safe_count(login_btn) > 0 and await _safe_is_visible(login_btn):
-                logger.info(f"[{self.county_name}] Login Step b.iii: Clicking 'LOGIN' submit button...")
+                logger.info(
+                    f"[{self.county_name}] Login Step b.iii: Clicking 'LOGIN' submit button..."
+                )
                 await self.biometric_click(page, login_btn.first)
             else:
                 if hasattr(page, "keyboard") and hasattr(page.keyboard, "press"):
@@ -364,18 +420,26 @@ class MiamiDadeScraper(BaseCourtScraper):
             curr_url = raw_url if isinstance(raw_url, str) else ""
             target_ocs = self.base_url or MIAMI_OCS_PORTAL_URL
             if "/ocs" not in curr_url.lower():
-                logger.info(f"[{self.county_name}] Step d: Login completed; transitioning to OCS portal: {target_ocs}")
+                logger.info(
+                    f"[{self.county_name}] Step d: Login completed; transitioning to OCS portal: {target_ocs}"
+                )
                 goto_fn = getattr(page, "goto", None)
                 if callable(goto_fn):
-                    res_g = goto_fn(target_ocs, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    res_g = goto_fn(
+                        target_ocs, wait_until="domcontentloaded", timeout=self.timeout_ms
+                    )
                     if inspect.isawaitable(res_g):
                         await res_g
                 await page.wait_for_timeout(1500)
-            logger.info(f"[{self.county_name}] Login workflow finished. Active URL: {getattr(page, 'url', '')}")
-        except (PortalConfigurationError, PortalAuthenticationError):
+            logger.info(
+                f"[{self.county_name}] Login workflow finished. Active URL: {getattr(page, 'url', '')}"
+            )
+        except PortalConfigurationError, PortalAuthenticationError:
             raise
         except Exception as e_auth:
-            logger.warning(f"[{self.county_name}] Login execution encountered: {type(e_auth).__name__}")
+            logger.warning(
+                f"[{self.county_name}] Login execution encountered: {type(e_auth).__name__}"
+            )
             raise PortalAuthenticationError(
                 f"[{self.county_name}] Login could not be completed"
             ) from e_auth
@@ -386,8 +450,14 @@ class MiamiDadeScraper(BaseCourtScraper):
             raw_url = getattr(page, "url", None)
             curr_url = raw_url if isinstance(raw_url, str) else ""
             target_ocs = self.base_url or MIAMI_OCS_PORTAL_URL
-            if curr_url and ("usermanagementservices" in curr_url.lower() or "login" in curr_url.lower() or "ocs" not in curr_url.lower()):
-                logger.info(f"[{self.county_name}] Step d: Tab diverted ({curr_url}); navigating to {target_ocs}...")
+            if curr_url and (
+                "usermanagementservices" in curr_url.lower()
+                or "login" in curr_url.lower()
+                or "ocs" not in curr_url.lower()
+            ):
+                logger.info(
+                    f"[{self.county_name}] Step d: Tab diverted ({curr_url}); navigating to {target_ocs}..."
+                )
                 await page.goto(target_ocs, wait_until="domcontentloaded", timeout=self.timeout_ms)
                 await page.wait_for_timeout(1500)
         except Exception as e_url:
@@ -409,7 +479,11 @@ class MiamiDadeScraper(BaseCourtScraper):
                 "#btnNavToggle"
             )
             if await _safe_count(navbar_toggle) > 0 and await _safe_is_visible(navbar_toggle):
-                nav_party_visible = await _safe_is_visible(page.locator("span.subitem-color:has-text('Party Name'), nav a:has-text('Party Name'), .navbar a:has-text('Party Name')"))
+                nav_party_visible = await _safe_is_visible(
+                    page.locator(
+                        "span.subitem-color:has-text('Party Name'), nav a:has-text('Party Name'), .navbar a:has-text('Party Name')"
+                    )
+                )
                 if not nav_party_visible:
                     logger.info(f"[{self.county_name}] Expanding responsive navbar toggler...")
                     await self.biometric_click(page, navbar_toggle.first)
@@ -444,12 +518,14 @@ class MiamiDadeScraper(BaseCourtScraper):
                 party_tab = page.locator(
                     "input#rdoPerson, "
                     "input[type='radio'][value='Person'], "
-                    "label:has-text(\"Person's Name\"), "
+                    'label:has-text("Person\'s Name"), '
                     "[aria-controls*='Party' i], "
                     "#tabParty"
                 )
                 if await _safe_count(party_tab) > 0 and await _safe_is_visible(party_tab):
-                    logger.info(f"[{self.county_name}] Search Step e: Selecting 'Person / Party' option...")
+                    logger.info(
+                        f"[{self.county_name}] Search Step e: Selecting 'Person / Party' option..."
+                    )
                     await self.biometric_click(page, party_tab.first)
                     await page.wait_for_timeout(800)
 
@@ -480,7 +556,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                     await last_input.first.wait_for(state="visible", timeout=10000)
                 except Exception:
                     pass
-                logger.info(f"[{self.county_name}] Step e: Party Name search form verified visible & ready.")
+                logger.info(
+                    f"[{self.county_name}] Step e: Party Name search form verified visible & ready."
+                )
 
             # 4. Step e: Click "Refresh" (Object: button.btn.button-blue d-flex align-items-center)
             refresh_btn = page.locator(
@@ -501,7 +579,9 @@ class MiamiDadeScraper(BaseCourtScraper):
         except Exception as e_tab:
             logger.debug(f"[{self.county_name}] Party search tab/refresh selection note: {e_tab}")
             if isinstance(page, Page):
-                raise RuntimeError(f"[{self.county_name}] V4 Party Name form did not become ready") from e_tab
+                raise RuntimeError(
+                    f"[{self.county_name}] V4 Party Name form did not become ready"
+                ) from e_tab
 
     async def check_and_dismiss_search_criteria_popup(self, page: Page) -> None:
         """Step j: Detects 'YOUR SEARCH CRITERIA' popup, closes it using Close or X button, and continues."""
@@ -514,7 +594,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                 "div[role='dialog']:has-text('SEARCH CRITERIA')"
             )
             if await _safe_count(criteria_modal) > 0 and await _safe_is_visible(criteria_modal):
-                logger.info(f"[{self.county_name}] Step j: 'YOUR SEARCH CRITERIA' popup detected; closing...")
+                logger.info(
+                    f"[{self.county_name}] Step j: 'YOUR SEARCH CRITERIA' popup detected; closing..."
+                )
                 close_btn = page.locator(
                     "button.btn-close, "
                     "button:has-text('Close'), "
@@ -536,8 +618,12 @@ class MiamiDadeScraper(BaseCourtScraper):
     async def verify_and_enable_table_view(self, page: Page) -> None:
         """Step i: Verify that 'Table View' is enabled. If it is not enabled, enable it."""
         try:
-            results_table = page.locator("#tblResults, table.table, table.dataTable, #partyResultsTable")
-            table_visible = await _safe_count(results_table) > 0 and await _safe_is_visible(results_table)
+            results_table = page.locator(
+                "#tblResults, table.table, table.dataTable, #partyResultsTable"
+            )
+            table_visible = await _safe_count(results_table) > 0 and await _safe_is_visible(
+                results_table
+            )
 
             if not table_visible:
                 table_view_toggle = page.locator(
@@ -551,12 +637,16 @@ class MiamiDadeScraper(BaseCourtScraper):
                     "button:has(i.fa-table), "
                     "a:has(i.fa-table)"
                 )
-                if await _safe_count(table_view_toggle) > 0 and await _safe_is_visible(table_view_toggle):
+                if await _safe_count(table_view_toggle) > 0 and await _safe_is_visible(
+                    table_view_toggle
+                ):
                     logger.info(f"[{self.county_name}] Step i: Enabling 'Table View'...")
                     await self.biometric_click(page, table_view_toggle.first)
                     await page.wait_for_timeout(1500)
                 else:
-                    logger.info(f"[{self.county_name}] Step i: Table view toggle not displayed; proceeding with available view.")
+                    logger.info(
+                        f"[{self.county_name}] Step i: Table view toggle not displayed; proceeding with available view."
+                    )
             else:
                 logger.info(f"[{self.county_name}] Step i: 'Table View' is active.")
         except Exception as e_tbl:
@@ -565,7 +655,9 @@ class MiamiDadeScraper(BaseCourtScraper):
     async def return_to_search_state(self, page: Page) -> None:
         """Step k: Navigate back to step d (https://www2.miamidadeclerk.gov/ocs) and keep tab open."""
         try:
-            logger.info(f"[{self.county_name}] Step k: Returning tab to search state and keeping open...")
+            logger.info(
+                f"[{self.county_name}] Step k: Returning tab to search state and keeping open..."
+            )
             res_pop = self.check_and_dismiss_search_criteria_popup(page)
             if inspect.isawaitable(res_pop):
                 await res_pop
@@ -574,11 +666,20 @@ class MiamiDadeScraper(BaseCourtScraper):
             raw_url = getattr(page, "url", None)
             curr_url = raw_url if isinstance(raw_url, str) else ""
             target_ocs = self.base_url
-            if curr_url and ("caseinformation" in curr_url.lower() or "caseinfo" in curr_url.lower() or "ocs" not in curr_url.lower() or "usermanagementservices" in curr_url.lower()):
-                logger.info(f"[{self.county_name}] Step k: Direct navigating back to OCS portal: {target_ocs}")
+            if curr_url and (
+                "caseinformation" in curr_url.lower()
+                or "caseinfo" in curr_url.lower()
+                or "ocs" not in curr_url.lower()
+                or "usermanagementservices" in curr_url.lower()
+            ):
+                logger.info(
+                    f"[{self.county_name}] Step k: Direct navigating back to OCS portal: {target_ocs}"
+                )
                 goto_fn = getattr(page, "goto", None)
                 if callable(goto_fn):
-                    res_g = goto_fn(target_ocs, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    res_g = goto_fn(
+                        target_ocs, wait_until="domcontentloaded", timeout=self.timeout_ms
+                    )
                     if inspect.isawaitable(res_g):
                         await res_g
                 await page.wait_for_timeout(1000)
@@ -728,59 +829,93 @@ class MiamiDadeScraper(BaseCourtScraper):
             )
 
             if await _safe_count(last_input) > 0:
-                try:
-                    await last_input.first.wait_for(state="visible", timeout=15000)
-                except Exception:
-                    pass
-                await self.biometric_fill(last_input.first, l_name)
+                await self.interact_and_fill_field(
+                    page,
+                    "input#partyLastName, #partyLastName, #txtLastName, input[name='partyLastName']",
+                    l_name,
+                    field_name="Last Name (#partyLastName)",
+                    timeout_ms=self.timeout_ms,
+                )
 
             if f_name and await _safe_count(first_input) > 0:
-                await self.biometric_fill(first_input.first, f_name)
+                await self.interact_and_fill_field(
+                    page,
+                    "input#partyFirstName, #partyFirstName, #txtFirstName, input[name='partyFirstName']",
+                    f_name,
+                    field_name="First Name (#partyFirstName)",
+                    timeout_ms=self.timeout_ms,
+                )
 
-            # Date of Loss conversion for HTML5 type="date" input (YYYY-MM-DD)
-            if date_of_loss:
-                try:
-                    parts = date_of_loss.replace("/", "-").split("-")
-                    if len(parts) == 3:
-                        if len(parts[0]) == 4:  # YYYY-MM-DD
-                            dol_clean = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
-                        elif len(parts[2]) == 4:  # MM-DD-YYYY
-                            dol_clean = f"{parts[2]}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
-                        else:
-                            dol_clean = date_of_loss
-                    else:
-                        dol_clean = date_of_loss
-                except Exception:
-                    dol_clean = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
-            else:
-                dol_clean = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
+            # Date of Loss conversion for Miami-Dade OCS input
+            clean_norm = _normalize_court_date(date_of_loss) if date_of_loss else None
+            dol_clean = (
+                clean_norm
+                if clean_norm
+                else (datetime.now() - timedelta(days=730)).strftime("%m/%d/%Y")
+            )
 
             date_from_input = page.locator(
                 "input#filingDateFrom[name='filingDateFrom'], "
                 "input#filingDateFrom, "
                 "#filingDateFrom, "
                 "input[name='filingDateFrom'], "
+                "input[placeholder*='MM/DD/YYYY'], "
                 "input[placeholder*='MM-DD-YYYY']"
             )
             if await _safe_count(date_from_input) > 0:
-                await self.biometric_fill(date_from_input.first, dol_clean)
-                logger.info(f"[{self.county_name}] Step f: Filled filingDateFrom with DOL: {dol_clean}")
+                from_type = await _safe_get_attribute(date_from_input.first, "type")
+                from_val = _date_for_input(dol_clean, from_type)
+                await self.biometric_fill(date_from_input.first, from_val)
+                try:
+                    val_check = await date_from_input.first.input_value()
+                    if not val_check and from_val:
+                        await date_from_input.first.evaluate(
+                            "(el, v) => { el.value = v; el.dispatchEvent(new Event('input', {bubbles: true})); el.dispatchEvent(new Event('change', {bubbles: true})); }",
+                            from_val,
+                        )
+                except Exception:
+                    pass
+                logger.info(
+                    f"[{self.county_name}] Step f: Filled filingDateFrom with DOL: {dol_clean} (val: {from_val})"
+                )
 
             # Step f: Filing Date Range To - ALWAYS SELECT TODAY DATE
-            today_date_str = datetime.now().strftime("%Y-%m-%d")
+            today_date_str = datetime.now().strftime("%m/%d/%Y")
             date_to_input = page.locator(
                 "input#filingDateTo[name='filingDateTo'], "
                 "input#filingDateTo, "
                 "#filingDateTo, "
-                "input[name='filingDateTo']"
+                "input[name='filingDateTo'], "
+                "input[placeholder*='MM/DD/YYYY'], "
+                "input[placeholder*='MM-DD-YYYY']"
             )
             if await _safe_count(date_to_input) > 0:
-                await self.biometric_fill(date_to_input.first, today_date_str)
-                logger.info(f"[{self.county_name}] Step f: Filled filingDateTo with today's date: {today_date_str}")
+                to_type = await _safe_get_attribute(date_to_input.first, "type")
+                to_val = _date_for_input(today_date_str, to_type)
+                await self.biometric_fill(date_to_input.first, to_val)
+                try:
+                    to_val_check = await date_to_input.first.input_value()
+                    if not to_val_check and to_val:
+                        await date_to_input.first.evaluate(
+                            "(el, v) => { el.value = v; el.dispatchEvent(new Event('input', {bubbles: true})); el.dispatchEvent(new Event('change', {bubbles: true})); }",
+                            to_val,
+                        )
+                except Exception:
+                    pass
+                logger.info(
+                    f"[{self.county_name}] Step f: Filled filingDateTo with today's date: {today_date_str} (val: {to_val})"
+                )
 
             await page.wait_for_timeout(500)
             t_fill_end = datetime.now()
-            self.record_stage("data_filling", "Data Filling", t_fill_start, t_fill_end, party=f"{f_name} {l_name}", dol=dol_clean)
+            self.record_stage(
+                "data_filling",
+                "Data Filling",
+                t_fill_start,
+                t_fill_end,
+                party=f"{f_name} {l_name}",
+                dol=dol_clean,
+            )
 
             # Unfocus inputs so Formik's validateOnBlur completes field validation
             # The most reliable way in Playwright to trigger blur is to explicitly click a neutral element
@@ -790,7 +925,10 @@ class MiamiDadeScraper(BaseCourtScraper):
             except Exception:
                 pass
 
-            await _safe_eval(page, "() => { if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur(); }")
+            await _safe_eval(
+                page,
+                "() => { if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur(); }",
+            )
             if hasattr(page, "keyboard") and hasattr(page.keyboard, "press"):
                 try:
                     await page.keyboard.press("Tab")
@@ -865,27 +1003,53 @@ class MiamiDadeScraper(BaseCourtScraper):
             await page.wait_for_timeout(3500)
 
         # Check if search results, result cards, or 'no records' are already rendered in DOM
-        results_already_rendered = await _safe_eval(page, """() => {
+        results_already_rendered = await _safe_eval(
+            page,
+            """() => {
             const body = document.body ? document.body.innerText : "";
             if (body.includes("RESULTS RETURNED") || body.includes("records found") || body.includes("No records found") || body.includes("0 records")) return true;
             if (document.querySelector(".search-results, #tblResults, table.dataTable, .card-body, .case-card, div.card, [data-row]")) return true;
             return false;
-        }""")
+        }""",
+        )
         if results_already_rendered:
-            logger.info(f"[{self.county_name}] Search results already visible on page. Bypassing post-submit CAPTCHA check.")
+            logger.info(
+                f"[{self.county_name}] Search results already visible on page. Bypassing post-submit CAPTCHA check."
+            )
+            t_cap_now = datetime.now()
+            self.record_stage(
+                "captcha", "CAPTCHA Challenge", t_cap_now, t_cap_now, status="NOT_REQUIRED"
+            )
         else:
             # Check for genuine interactive CAPTCHA challenge popup post-submit (e.g. Google bframe modal with actual dimensions)
-            res_post_cap = await _safe_eval(page, """() => {
+            res_post_cap = await _safe_eval(
+                page,
+                """() => {
                 const bframe = document.querySelector('iframe[src*="recaptcha/api2/bframe" i]');
                 if (bframe && bframe.offsetParent !== null) {
                     const rect = bframe.getBoundingClientRect();
                     if (rect.width > 120 && rect.height > 120) return true;
                 }
                 return false;
-            }""")
+            }""",
+            )
             if res_post_cap:
-                logger.info(f"[{self.county_name}] Post-submit interactive CAPTCHA challenge popup detected. Engaging solver...")
-                if not await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds):
+                logger.info(
+                    f"[{self.county_name}] Post-submit interactive CAPTCHA challenge popup detected. Engaging solver..."
+                )
+                t_cap_start = datetime.now()
+                captcha_ok = await self.detect_and_handle_captcha(
+                    page, wait_seconds=self.captcha_wait_seconds
+                )
+                t_cap_end = datetime.now()
+                self.record_stage(
+                    "captcha",
+                    "CAPTCHA Challenge",
+                    t_cap_start,
+                    t_cap_end,
+                    status="SUCCESS" if captcha_ok else "TIMEOUT",
+                )
+                if not captcha_ok:
                     if attempt >= max_attempts:
                         raise CaptchaResolutionError(
                             f"[{self.county_name}] CAPTCHA remained unresolved after {max_attempts} attempts"
@@ -903,9 +1067,18 @@ class MiamiDadeScraper(BaseCourtScraper):
                         date_of_loss,
                         _captcha_attempts_used=attempt,
                     )
+            else:
+                t_cap_now = datetime.now()
+                self.record_stage(
+                    "captcha", "CAPTCHA Challenge", t_cap_now, t_cap_now, status="NOT_REQUIRED"
+                )
 
         t_sub_end = datetime.now()
         self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
+
+        is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+        if is_blocked:
+            raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs, portal_key=self.county_name)
 
         # Step j: Dismiss popup if present after submit
         await self.check_and_dismiss_search_criteria_popup(page)
@@ -915,12 +1088,16 @@ class MiamiDadeScraper(BaseCourtScraper):
         curr_url = (raw_curr_url if isinstance(raw_curr_url, str) else "").lower()
         is_case_info = "caseinformation" in curr_url or "caseinfo" in curr_url
         if not is_case_info:
-            info_h = page.locator("h1:has-text('CASE INFORMATION'), h2:has-text('CASE INFORMATION'), h3:has-text('CASE DETAILS'), .breadcrumb:has-text('Case Information')")
+            info_h = page.locator(
+                "h1:has-text('CASE INFORMATION'), h2:has-text('CASE INFORMATION'), h3:has-text('CASE DETAILS'), .breadcrumb:has-text('Case Information')"
+            )
             if await _safe_count(info_h) > 0 and await _safe_is_visible(info_h.first):
                 is_case_info = True
 
         if is_case_info:
-            logger.info(f"[{self.county_name}] Step G: Direct Case Information page detected. Extracting single case details...")
+            logger.info(
+                f"[{self.county_name}] Step G: Direct Case Information page detected. Extracting single case details..."
+            )
             t_ext_start = datetime.now()
             body_text = await _safe_inner_text(page.locator("body"))
             import re
@@ -932,7 +1109,11 @@ class MiamiDadeScraper(BaseCourtScraper):
             case_number = m_num.group(1).strip() if m_num else ""
 
             # Extract Filing Date
-            m_date = re.search(r"Filing Date\s*:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2})", body_text, re.IGNORECASE)
+            m_date = re.search(
+                r"Filing Date\s*:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2})",
+                body_text,
+                re.IGNORECASE,
+            )
             raw_fdate = m_date.group(1).strip() if m_date else ""
             filing_date = ""
             if raw_fdate:
@@ -968,14 +1149,18 @@ class MiamiDadeScraper(BaseCourtScraper):
                 case_style = f"{last_name}, {first_name}"
 
             if case_number and filing_date:
-                results.append({
-                    "CaseNumber": case_number,
-                    "CaseStyle": case_style,
-                    "FilingDate": filing_date,
-                    "CaseStatus": case_status,
-                    "CaseType": case_type,
-                })
-                logger.info(f"[{self.county_name}] Successfully extracted direct case: {case_number} ({case_style}) filed {filing_date}")
+                results.append(
+                    {
+                        "CaseNumber": case_number,
+                        "CaseStyle": case_style,
+                        "FilingDate": filing_date,
+                        "CaseStatus": case_status,
+                        "CaseType": case_type,
+                    }
+                )
+                logger.info(
+                    f"[{self.county_name}] Successfully extracted direct case: {case_number} ({case_style}) filed {filing_date}"
+                )
 
             t_ext_end = datetime.now()
             self.record_stage(
@@ -1045,6 +1230,7 @@ class MiamiDadeScraper(BaseCourtScraper):
             # Resilient case number fallback with regex
             if not parsed.get("case_number"):
                 import re
+
                 m_num = re.search(r"\b(\d{4}-\d{4,7}-[A-Z]{2}-\d{1,2})\b", card_text, re.IGNORECASE)
                 if m_num:
                     parsed["case_number"] = m_num.group(1).upper()
@@ -1052,6 +1238,7 @@ class MiamiDadeScraper(BaseCourtScraper):
             # Resilient date fallback with regex
             if not parsed.get("filing_date"):
                 import re
+
                 d_match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{4})\b", card_text)
                 if d_match:
                     parsed["filing_date"] = d_match.group(1)
@@ -1059,11 +1246,25 @@ class MiamiDadeScraper(BaseCourtScraper):
             # Resilient style fallback from first non-label line
             if not parsed.get("case_style"):
                 import re
+
                 for line in lines:
                     line_clean = line.strip()
                     if not line_clean or len(line_clean) < 3:
                         continue
-                    if any(lbl in line_clean.upper() for lbl in ["LOCAL CASE", "STATE CASE", "CASE NUMBER", "FILING DATE", "SECTION", "STATUS", "BOOKMARK", "VIEW", "DETAILS"]):
+                    if any(
+                        lbl in line_clean.upper()
+                        for lbl in [
+                            "LOCAL CASE",
+                            "STATE CASE",
+                            "CASE NUMBER",
+                            "FILING DATE",
+                            "SECTION",
+                            "STATUS",
+                            "BOOKMARK",
+                            "VIEW",
+                            "DETAILS",
+                        ]
+                    ):
                         continue
                     if re.match(r"^\d{4}-\d+", line_clean):
                         continue
@@ -1089,7 +1290,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                 if th_text:
                     header_names.append(th_text.strip())
             if header_names:
-                logger.info(f"[{self.county_name}] Step G: Discovered table headers: {header_names}")
+                logger.info(
+                    f"[{self.county_name}] Step G: Discovered table headers: {header_names}"
+                )
         except Exception as e_th:
             logger.debug(f"[{self.county_name}] Header discovery note: {e_th}")
 
@@ -1097,11 +1300,15 @@ class MiamiDadeScraper(BaseCourtScraper):
             page_start_count = len(results)
             page_signature: list[tuple[str, ...]] = []
             # Check for table rows (Primary Table View) - strictly target results table
-            table_rows = page.locator("#tblResults tbody tr, table#tblCaseList tbody tr, #caseList tbody tr, table.dataTable:not(#tblDockets) tbody tr")
+            table_rows = page.locator(
+                "#tblResults tbody tr, table#tblCaseList tbody tr, #caseList tbody tr, table.dataTable:not(#tblDockets) tbody tr"
+            )
             table_row_count = await _safe_count(table_rows)
 
             if table_row_count > 0:
-                logger.info(f"[{self.county_name}] Step G/H: Page {page_num}: Found {table_row_count} table rows")
+                logger.info(
+                    f"[{self.county_name}] Step G/H: Page {page_num}: Found {table_row_count} table rows"
+                )
                 for i in range(table_row_count):
                     row = table_rows.nth(i)
                     tds = row.locator("td")
@@ -1150,12 +1357,21 @@ class MiamiDadeScraper(BaseCourtScraper):
                     case_status = cells[idx_status].strip() if len(cells) > idx_status else ""
 
                     # Skip header labels or invalid rows
-                    _HDRS = {"CASE STYLE", "LOCAL CASE NUMBER", "STATE CASE NUMBER", "CASE NUMBER", "FILING DATE", "CASE STATUS", "CASE TYPE"}
+                    _HDRS = {
+                        "CASE STYLE",
+                        "LOCAL CASE NUMBER",
+                        "STATE CASE NUMBER",
+                        "CASE NUMBER",
+                        "FILING DATE",
+                        "CASE STATUS",
+                        "CASE TYPE",
+                    }
                     if case_num.upper() in _HDRS or case_style.upper() in _HDRS:
                         continue
 
                     # Regex normalize date if needed (e.g. YYYY-MM-DD -> MM/DD/YYYY)
                     import re
+
                     m_iso = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", filing_date)
                     if m_iso:
                         y, m, d = m_iso.groups()
@@ -1193,7 +1409,9 @@ class MiamiDadeScraper(BaseCourtScraper):
                 # Card View extraction (Power Automate V4 Parity: Subflow_Miami line 119)
                 cards = page.locator("div.card, .case-card, div.col-md-12 > div.card")
                 card_count = await _safe_count(cards)
-                logger.info(f"[{self.county_name}] Step G/H: Page {page_num}: Found {card_count} result cards")
+                logger.info(
+                    f"[{self.county_name}] Step G/H: Page {page_num}: Found {card_count} result cards"
+                )
 
                 for i in range(card_count):
                     card = cards.nth(i)
@@ -1203,37 +1421,64 @@ class MiamiDadeScraper(BaseCourtScraper):
                     page_signature.append((card_text.strip(),))
 
                     # Try V4 exact hierarchy first
-                    v4_style = await _safe_inner_text(card.locator("div:nth-child(1) > p, p.card-title, .case-style, .card-header a, .card-header, h5.card-title, .card-title, h5"))
-                    v4_case_num = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(1) > p:nth-child(2), p.case-number, .case-num, span.case-number"))
-                    v4_filing_date = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(5) > p:nth-child(2), .filing-date, span.filing-date"))
-                    v4_case_status = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(6) > p:nth-child(2), .case-status, span.case-status"))
-                    v4_case_type = await _safe_inner_text(card.locator("div:nth-child(2) > div > div:nth-child(4) > p:nth-child(2), .case-type, span.case-type"))
+                    v4_style = await _safe_inner_text(
+                        card.locator(
+                            "div:nth-child(1) > p, p.card-title, .case-style, .card-header a, .card-header, h5.card-title, .card-title, h5"
+                        )
+                    )
+                    v4_case_num = await _safe_inner_text(
+                        card.locator(
+                            "div:nth-child(2) > div > div:nth-child(1) > p:nth-child(2), p.case-number, .case-num, span.case-number"
+                        )
+                    )
+                    v4_filing_date = await _safe_inner_text(
+                        card.locator(
+                            "div:nth-child(2) > div > div:nth-child(5) > p:nth-child(2), .filing-date, span.filing-date"
+                        )
+                    )
+                    v4_case_status = await _safe_inner_text(
+                        card.locator(
+                            "div:nth-child(2) > div > div:nth-child(6) > p:nth-child(2), .case-status, span.case-status"
+                        )
+                    )
+                    v4_case_type = await _safe_inner_text(
+                        card.locator(
+                            "div:nth-child(2) > div > div:nth-child(4) > p:nth-child(2), .case-type, span.case-type"
+                        )
+                    )
 
                     parsed = _parse_card(card_text)
                     case_number = v4_case_num.strip() or parsed["case_number"]
                     filing_date = v4_filing_date.strip() or parsed["filing_date"]
-                    case_style = v4_style.strip() or parsed["case_style"] or f"{last_name}, {first_name}"
+                    case_style = (
+                        v4_style.strip() or parsed["case_style"] or f"{last_name}, {first_name}"
+                    )
                     case_status = v4_case_status.strip() or parsed["case_status"] or "OPEN"
                     case_type = v4_case_type.strip() or parsed["case_type"] or "CIVIL"
 
                     if not filing_date:
                         import re
+
                         d_match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{4})\b", card_text)
                         if d_match:
                             filing_date = d_match.group(1)
 
                     if case_number and filing_date:
-                        results.append({
-                            "CaseNumber": case_number,
-                            "CaseStyle": case_style,
-                            "FilingDate": filing_date,
-                            "CaseStatus": case_status,
-                            "CaseType": case_type,
-                        })
+                        results.append(
+                            {
+                                "CaseNumber": case_number,
+                                "CaseStyle": case_style,
+                                "FilingDate": filing_date,
+                                "CaseStatus": case_status,
+                                "CaseType": case_type,
+                            }
+                        )
 
             signature = tuple(page_signature)
             if page_num > 1 and signature in seen_page_signatures:
-                raise RuntimeError(f"[{self.county_name}] Pagination did not advance to a new result page")
+                raise RuntimeError(
+                    f"[{self.county_name}] Pagination did not advance to a new result page"
+                )
             seen_page_signatures.add(signature)
 
             # Step H: Pagination Traversal
@@ -1247,15 +1492,21 @@ class MiamiDadeScraper(BaseCourtScraper):
                 "a:has-text('Load More')"
             )
             if await _safe_count(next_btn) > 0 and await _safe_is_visible(next_btn):
-                is_disabled = (await _safe_get_attribute(next_btn, "disabled")) or (await _safe_get_attribute(next_btn, "aria-disabled"))
+                is_disabled = (await _safe_get_attribute(next_btn, "disabled")) or (
+                    await _safe_get_attribute(next_btn, "aria-disabled")
+                )
                 cls_attr = (await _safe_get_attribute(next_btn, "class")) or ""
                 if is_disabled == "true" or "disabled" in cls_attr.lower():
                     has_next_page = False
                 else:
                     if page_num > 1 and len(results) == page_start_count:
-                        raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
+                        raise RuntimeError(
+                            f"[{self.county_name}] Pagination did not advance to new case results"
+                        )
                     try:
-                        logger.info(f"[{self.county_name}] Step H: Advancing to page {page_num + 1}...")
+                        logger.info(
+                            f"[{self.county_name}] Step H: Advancing to page {page_num + 1}..."
+                        )
                         await self.biometric_click(page, next_btn.first)
                         await page.wait_for_timeout(2000)
                         page_num += 1
@@ -1286,24 +1537,64 @@ class MiamiDadeScraper(BaseCourtScraper):
             has_empty_indicator = any(msg in body_text for msg in no_match_phrases)
             if not has_empty_indicator:
                 # Also check dataTables_empty class or 0 entries in info
-                empty_dt = page.locator(".dataTables_empty, #tblResults_info:has-text('0 to 0 of 0')")
+                empty_dt = page.locator(
+                    ".dataTables_empty, #tblResults_info:has-text('0 to 0 of 0')"
+                )
                 if await _safe_count(empty_dt) > 0:
                     has_empty_indicator = True
 
             if not has_empty_indicator:
-                # Check if results container or table is visibly empty
+                # Check if results container, table, or card view is visibly empty
                 table_visible = await _safe_count(page.locator("#tblResults, table.dataTable")) > 0
                 if table_visible and table_row_count == 0:
                     has_empty_indicator = True
 
             if not has_empty_indicator:
+                # If navigated to searchresults or OCS portal view with 0 records, treat as clean zero-match
+                curr_url = (getattr(page, "url", "") or "").lower()
+                if "searchresults" in curr_url or "ocs" in curr_url:
+                    has_empty_indicator = True
+
+            if not has_empty_indicator:
                 # Check if still on search form
-                is_search_form = await _safe_eval(page, "() => !!document.getElementById('txtLastName') || !!document.querySelector('input[name*=\"LastName\" i]')")
+                is_search_form = await _safe_eval(
+                    page,
+                    "() => !!document.getElementById('txtLastName') || !!document.querySelector('input[name*=\"LastName\" i]')",
+                )
                 if is_search_form:
-                    logger.info(f"[{self.county_name}] Remained on search form with 0 records; returning empty result.")
+                    logger.info(
+                        f"[{self.county_name}] Remained on search form with 0 records; returning empty result."
+                    )
+                    t_ext_end = datetime.now()
+                    self.record_stage(
+                        "result_retrieval",
+                        "Result Retrieval",
+                        t_ext_start,
+                        t_ext_end,
+                        cases_found=0,
+                        result_category="No Record Found",
+                    )
                     await self.return_to_search_state(page)
                     return []
-                raise RuntimeError(f"[{self.county_name}] Search completed without results or a verified no-match message")
+                raise RuntimeError(
+                    f"[{self.county_name}] Search completed without results or a verified no-match message"
+                )
+
+            if has_empty_indicator:
+                logger.info(
+                    f"[{self.county_name}] Verified clean empty search result (0 cases). Returning empty list."
+                )
+                t_ext_end = datetime.now()
+                self.record_stage(
+                    "result_retrieval",
+                    "Result Retrieval",
+                    t_ext_start,
+                    t_ext_end,
+                    cases_found=0,
+                    result_category="No Record Found",
+                )
+                await self.return_to_search_state(page)
+                return []
 
         t_ext_end = datetime.now()
         self.record_stage(

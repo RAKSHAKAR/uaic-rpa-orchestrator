@@ -543,6 +543,67 @@ export default function OperationalHealthPage() {
             </Link>
           </div>
 
+          {/* GAP-C: Portal Routing & Configuration Compliance Banner */}
+          {healthData?.portal_settings_summary && (
+            <div
+              className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                healthData.portal_settings_summary.all_8_enabled
+                  ? "bg-emerald-50/60 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/50"
+                  : "bg-amber-50/60 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2 rounded-lg ${
+                    healthData.portal_settings_summary.all_8_enabled
+                      ? "bg-emerald-500 text-white"
+                      : "bg-amber-500 text-white"
+                  }`}
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      Portal Routing & Bot Coverage Compliance: {healthData.portal_settings_summary.enabled_count}/8 Active
+                    </h3>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        healthData.portal_settings_summary.all_8_enabled
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300"
+                      }`}
+                    >
+                      {healthData.portal_settings_summary.routing_compliance}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                    Florida (3/3):{" "}
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {healthData.portal_settings_summary.fl_routing_ok
+                        ? "Active (Broward, Hillsborough, Miami-Dade)"
+                        : "Degraded"}
+                    </span>
+                    {" • "}
+                    Texas (5/5):{" "}
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {healthData.portal_settings_summary.tx_routing_ok
+                        ? "Active (Travis, Dallas, Harris JP, CClerk, HCDistrict)"
+                        : "Degraded"}
+                    </span>
+                    {" • "}
+                    Cross-State:{" "}
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {healthData.portal_settings_summary.cross_state_routing_ok
+                        ? "All 8 Dispatched Concurrently"
+                        : "Incomplete"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {healthData &&
               Object.entries(healthData.portals).map(([key, portal]) => {

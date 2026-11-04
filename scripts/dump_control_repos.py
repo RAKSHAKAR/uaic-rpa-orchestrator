@@ -1,12 +1,12 @@
-import json
 import glob
+import json
 
 output = []
 for p in glob.glob('PowerAutomateSolutions/BotCreation_1_0_0_7/**/ControlRepository*.json', recursive=True):
     output.append("=" * 80)
     output.append(f"FILE: {p}")
     output.append("=" * 80)
-    with open(p, 'r', encoding='utf-8') as f:
+    with open(p, encoding='utf-8') as f:
         data = json.load(f)
     for s in data.get('Screens', []):
         s_name = s.get('Name', '')

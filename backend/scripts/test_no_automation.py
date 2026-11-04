@@ -1,7 +1,9 @@
 import asyncio
-from playwright.async_api import async_playwright
 import os
 import shutil
+
+from playwright.async_api import async_playwright
+
 
 async def main():
     profile_dir = os.path.abspath("test_chrome_profile3")
@@ -35,7 +37,7 @@ async def main():
             headless=False,
             args=launch_args,
             ignore_default_args=[
-                "--disable-extensions", 
+                "--disable-extensions",
                 "--disable-component-extensions-with-background-pages",
                 "--enable-automation"
             ]

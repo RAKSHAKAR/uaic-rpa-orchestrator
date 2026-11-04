@@ -1,6 +1,5 @@
 """Quick claim status checker for E2E verification."""
 import json
-import sys
 import urllib.request
 
 BASE = "http://localhost:8000/api/v1"

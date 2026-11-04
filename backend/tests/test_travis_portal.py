@@ -156,7 +156,14 @@ async def test_captcha_success_and_immediate_submit(travis_scraper):
     mock_body.inner_text = AsyncMock(return_value="Results found")
 
     mock_row = MagicMock()
-    cells = ["D-1-GN-26-000123", "SMITH, JANE VS DOE, JOHN", "01/15/2026", "OPEN", "CIVIL", "Public"]
+    cells = [
+        "D-1-GN-26-000123",
+        "SMITH, JANE VS DOE, JOHN",
+        "01/15/2026",
+        "OPEN",
+        "CIVIL",
+        "Public",
+    ]
     tds = [MagicMock(inner_text=AsyncMock(return_value=c)) for c in cells]
     tds_loc = MagicMock()
     tds_loc.count = AsyncMock(return_value=len(cells))
@@ -191,11 +198,12 @@ async def test_captcha_success_and_immediate_submit(travis_scraper):
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(travis_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(travis_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)):
-
+    with (
+        patch.object(travis_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(travis_scraper, "click_smart_search", AsyncMock()),
+        patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+    ):
         results = await travis_scraper.search_by_party_name(
             first_name="JANE",
             last_name="SMITH",
@@ -237,11 +245,12 @@ async def test_captcha_failure_and_retry_loop(travis_scraper):
     mock_page.locator.side_effect = locator_side_effect
 
     # Attempt 1: False, Attempt 2: False, Attempt 3: False -> returns []
-    with patch.object(travis_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(travis_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=False)):
-
+    with (
+        patch.object(travis_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(travis_scraper, "click_smart_search", AsyncMock()),
+        patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=False)),
+    ):
         with pytest.raises(CaptchaResolutionError):
             await travis_scraper.search_by_party_name(
                 first_name="BOB",
@@ -273,14 +282,30 @@ async def test_extract_all_columns_including_access_level_and_dynamic_headers(tr
     mock_body.inner_text = AsyncMock(return_value="Cases Found")
 
     # Dynamic headers
-    headers = ["Case Number", "Style / Defendant", "Filing Date", "Case Status", "Type", "Access Level", "Judicial Officer"]
+    headers = [
+        "Case Number",
+        "Style / Defendant",
+        "Filing Date",
+        "Case Status",
+        "Type",
+        "Access Level",
+        "Judicial Officer",
+    ]
     mock_th_elements = [MagicMock(inner_text=AsyncMock(return_value=h)) for h in headers]
     mock_th_loc = MagicMock()
     mock_th_loc.count = AsyncMock(return_value=len(headers))
     mock_th_loc.nth.side_effect = lambda idx: mock_th_elements[idx]
 
     # Row cells
-    cells = ["C-1-CR-26-9999", "WILLIAMS, BOB | DEFENDANT", "03/20/2026", "PENDING", "COUNTY COURT", "Restricted", "HON. JUDGE TRAVIS"]
+    cells = [
+        "C-1-CR-26-9999",
+        "WILLIAMS, BOB | DEFENDANT",
+        "03/20/2026",
+        "PENDING",
+        "COUNTY COURT",
+        "Restricted",
+        "HON. JUDGE TRAVIS",
+    ]
     tds = [MagicMock(inner_text=AsyncMock(return_value=c)) for c in cells]
     tds_loc = MagicMock()
     tds_loc.count = AsyncMock(return_value=len(cells))
@@ -319,11 +344,12 @@ async def test_extract_all_columns_including_access_level_and_dynamic_headers(tr
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(travis_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(travis_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)):
-
+    with (
+        patch.object(travis_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(travis_scraper, "click_smart_search", AsyncMock()),
+        patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+    ):
         results = await travis_scraper.search_by_party_name(
             first_name="BOB",
             last_name="WILLIAMS",
@@ -426,11 +452,12 @@ async def test_pagination_traversal(travis_scraper):
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(travis_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(travis_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)):
-
+    with (
+        patch.object(travis_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(travis_scraper, "click_smart_search", AsyncMock()),
+        patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+    ):
         results = await travis_scraper.search_by_party_name(
             first_name="TEST",
             last_name="USER",
@@ -632,12 +659,13 @@ async def test_search_by_party_name_exact_query_format_and_submit_selector(travi
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(travis_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(travis_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)), \
-         patch.object(travis_scraper, "return_to_search_state", AsyncMock()):
-
+    with (
+        patch.object(travis_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(travis_scraper, "click_smart_search", AsyncMock()),
+        patch.object(travis_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(travis_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+        patch.object(travis_scraper, "return_to_search_state", AsyncMock()),
+    ):
         results = await travis_scraper.search_by_party_name(
             first_name="JOHN",
             last_name="DOE",
@@ -662,7 +690,9 @@ async def test_v4_case_detail_reads_style_and_date_in_separate_tab(travis_scrape
 
     def detail_locator(selector):
         locator = MagicMock()
-        locator.first.inner_text = AsyncMock(return_value=values["div > span"] if selector.count("> div") == 5 else values["span"])
+        locator.first.inner_text = AsyncMock(
+            return_value=values["div > span"] if selector.count("> div") == 5 else values["span"]
+        )
         return locator
 
     detail_page.locator.side_effect = detail_locator

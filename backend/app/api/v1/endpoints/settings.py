@@ -3,7 +3,9 @@
 import asyncio
 import json
 import logging
+import os
 import re
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -87,7 +89,15 @@ async def update_system_settings_endpoint(payload: SettingsUpdateRequest, reques
             ip_address=ctx["ip_address"],
             user_agent=ctx["user_agent"],
             status="SUCCESS",
-            details={"updated_sections": ["automation", "portals", "fuzzy_matcher", "integration", "storage"]},
+            details={
+                "updated_sections": [
+                    "automation",
+                    "portals",
+                    "fuzzy_matcher",
+                    "integration",
+                    "storage",
+                ]
+            },
         )
         return redact_system_settings(saved)
     except SettingsConflictError as exc:
@@ -125,15 +135,23 @@ async def reset_system_settings_endpoint(request: Request = None):
         raise HTTPException(status_code=500, detail="Settings could not be reset") from None
 
 
-@router.get("/branding", response_model=BrandingSettings, summary="Get brand identity configuration")
+@router.get(
+    "/branding", response_model=BrandingSettings, summary="Get brand identity configuration"
+)
 async def get_branding_settings_endpoint():
     """Retrieve brand identity configuration."""
     sys_settings = await get_system_settings_async()
     return sys_settings.branding or BrandingSettings()
 
 
-@router.post("/branding", response_model=BrandingSettings, summary="Update brand identity configuration")
-@router.put("/branding", response_model=BrandingSettings, summary="Update brand identity configuration (PUT)")
+@router.post(
+    "/branding", response_model=BrandingSettings, summary="Update brand identity configuration"
+)
+@router.put(
+    "/branding",
+    response_model=BrandingSettings,
+    summary="Update brand identity configuration (PUT)",
+)
 async def update_branding_settings_endpoint(payload: BrandingSettings, request: Request = None):
     """Update and persist brand identity configuration."""
     sys_settings = await get_system_settings_async()
@@ -154,7 +172,11 @@ async def update_branding_settings_endpoint(payload: BrandingSettings, request: 
     return sys_settings.branding
 
 
-@router.post("/branding/reset", response_model=BrandingSettings, summary="Reset brand identity configuration to defaults")
+@router.post(
+    "/branding/reset",
+    response_model=BrandingSettings,
+    summary="Reset brand identity configuration to defaults",
+)
 async def reset_branding_settings_endpoint(request: Request = None):
     """Reset brand identity to defaults without modifying other system configurations."""
     sys_settings = await get_system_settings_async()
@@ -174,36 +196,56 @@ async def reset_branding_settings_endpoint(request: Request = None):
     return sys_settings.branding
 
 
-@router.post("/test-guidewire", response_model=GuidewireTestResponse, summary="Test Guidewire ClaimCenter API Connection")
+@router.post(
+    "/test-guidewire",
+    response_model=GuidewireTestResponse,
+    summary="Test Guidewire ClaimCenter API Connection",
+)
 async def test_guidewire_endpoint(payload: GuidewireTestRequest | None = None):
     """
     Swagger/Postman-style interactive connection tester for Guidewire ClaimCenter API.
     Returns HTTP status code, duration in ms, request payload, and full response body/headers.
     """
     settings = await get_system_settings_async()
-    
+
     # Initialize client using active settings, allowing payload overrides
     client = GuidewireClient(
-        api_url=payload.api_url if payload and payload.api_url else settings.integration.guidewire_api_url,
-        auth_type=payload.auth_type if payload and payload.auth_type else settings.integration.guidewire_auth_type,
-        api_key=payload.api_key if payload and payload.api_key else settings.integration.guidewire_api_key,
-        client_id=payload.client_id if payload and payload.client_id is not None else settings.integration.guidewire_client_id,
-        client_secret=payload.client_secret if payload and payload.client_secret else settings.integration.guidewire_client_secret,
+        api_url=payload.api_url
+        if payload and payload.api_url
+        else settings.integration.guidewire_api_url,
+        auth_type=payload.auth_type
+        if payload and payload.auth_type
+        else settings.integration.guidewire_auth_type,
+        api_key=payload.api_key
+        if payload and payload.api_key
+        else settings.integration.guidewire_api_key,
+        client_id=payload.client_id
+        if payload and payload.client_id is not None
+        else settings.integration.guidewire_client_id,
+        client_secret=payload.client_secret
+        if payload and payload.client_secret
+        else settings.integration.guidewire_client_secret,
         timeout=float(payload.timeout_seconds or settings.integration.guidewire_timeout_seconds),
-        mock_mode=payload.mock_mode if payload and payload.mock_mode is not None else settings.integration.guidewire_mock_mode,
+        mock_mode=payload.mock_mode
+        if payload and payload.mock_mode is not None
+        else settings.integration.guidewire_mock_mode,
     )
-    
+
     test_payload = payload.model_copy(deep=True) if payload else None
     if test_payload:
         # The Settings GET response intentionally hides these secrets. A blank
         # test field therefore means use the committed credential, not erase it.
         test_payload.api_key = test_payload.api_key or settings.integration.guidewire_api_key
-        test_payload.client_secret = test_payload.client_secret or settings.integration.guidewire_client_secret
+        test_payload.client_secret = (
+            test_payload.client_secret or settings.integration.guidewire_client_secret
+        )
         test_payload.client_id = test_payload.client_id or settings.integration.guidewire_client_id
     return await client.test_connection(test_payload)
 
 
-@router.post("/test-portal", response_model=PortalTestResponse, summary="Ping Court Scraper Portal URL")
+@router.post(
+    "/test-portal", response_model=PortalTestResponse, summary="Ping Court Scraper Portal URL"
+)
 async def test_court_portal_endpoint(payload: PortalTestRequest):
     """
     Tests live reachability and latency of a county court clerk website.
@@ -211,7 +253,11 @@ async def test_court_portal_endpoint(payload: PortalTestRequest):
     return await test_court_portal(payload)
 
 
-@router.get("/browser-test-page", response_class=HTMLResponse, summary="Interactive Browser Test & AntiCaptcha Verification Page")
+@router.get(
+    "/browser-test-page",
+    response_class=HTMLResponse,
+    summary="Interactive Browser Test & AntiCaptcha Verification Page",
+)
 async def browser_test_page():
     """Interactive visual landing page displayed during visible attended browser verification."""
     return """<!DOCTYPE html>
@@ -385,7 +431,11 @@ async def browser_test_page():
 </html>"""
 
 
-@router.post("/test-browser", response_model=BrowserTestResponse, summary="Test Browser Launch in Attended GUI or Headless mode")
+@router.post(
+    "/test-browser",
+    response_model=BrowserTestResponse,
+    summary="Test Browser Launch in Attended GUI or Headless mode",
+)
 async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
     """
     Launches Google Chrome and executes a live verification in either:
@@ -395,15 +445,29 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
     runtime_settings = await get_system_settings_async()
     auto_cfg = runtime_settings.automation
 
-    target_headless = payload.headless if (payload and payload.headless is not None) else auto_cfg.headless_mode
-    browser_engine = (payload.browser_engine if (payload and payload.browser_engine) else getattr(auto_cfg, "browser_engine", "chrome")).lower()
+    target_headless = (
+        payload.headless if (payload and payload.headless is not None) else auto_cfg.headless_mode
+    )
+    browser_engine = (
+        payload.browser_engine
+        if (payload and payload.browser_engine)
+        else getattr(auto_cfg, "browser_engine", "chrome")
+    ).lower()
     test_url = (payload.test_url if payload and payload.test_url else "").strip()
     if not test_url or test_url == "https://example.com":
         test_url = "http://127.0.0.1:8000/api/v1/settings/browser-test-page"
     timeout_sec = payload.timeout_seconds if (payload and payload.timeout_seconds) else 40
 
-    configured_chrome = payload.chrome_binary_path if (payload and payload.chrome_binary_path) else getattr(auto_cfg, "chrome_binary_path", None)
-    configured_ext = payload.chrome_extension_dir if (payload and payload.chrome_extension_dir) else auto_cfg.chrome_extension_dir
+    configured_chrome = (
+        payload.chrome_binary_path
+        if (payload and payload.chrome_binary_path)
+        else getattr(auto_cfg, "chrome_binary_path", None)
+    )
+    configured_ext = (
+        payload.chrome_extension_dir
+        if (payload and payload.chrome_extension_dir)
+        else auto_cfg.chrome_extension_dir
+    )
 
     # Check if we should test the extension (passed from frontend)
     test_extension = getattr(payload, "test_extension", True) if payload else True
@@ -412,9 +476,9 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
     if browser_engine == "chromium":
         chrome_exe = ChromeSession.find_chromium_executable(configured_chrome)
     elif browser_engine in ("edge", "msedge", "microsoft-edge"):
-        chrome_exe = ChromeSession.find_default_edge_executable()
+        chrome_exe = ChromeSession.find_edge_executable(configured_chrome)
     else:
-        chrome_exe = ChromeSession.find_chrome_executable(configured_chrome) or ChromeSession.find_chromium_executable()
+        chrome_exe = ChromeSession.find_chrome_executable(configured_chrome)
 
     # Omit extension completely if this is a pure browser test
     ext_path = ExtensionManager.resolve_extension_path(configured_ext) if test_extension else None
@@ -448,7 +512,9 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
 
         # Check if the frontend passed 'force_kill' in the payload dict/model
         force_kill = getattr(payload, "force_kill", False) if payload else False
-        use_isolated = not bool(auto_cfg.chrome_user_data_dir and str(auto_cfg.chrome_user_data_dir).strip())
+        use_isolated = not bool(
+            auto_cfg.chrome_user_data_dir and str(auto_cfg.chrome_user_data_dir).strip()
+        )
 
         session = ChromeSession(
             headless=target_headless,
@@ -486,8 +552,14 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             # In attended mode, inject a visual banner and wait 3.5 seconds so operator sees it
             if not target_headless:
                 try:
-                    engine_name = "Chromium" if browser_engine == "chromium" else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
-                    ext_status_txt = " + AntiCaptcha Pinned" if (session and session.extension_loaded) else ""
+                    engine_name = (
+                        "Chromium"
+                        if browser_engine == "chromium"
+                        else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+                    )
+                    ext_status_txt = (
+                        " + AntiCaptcha Pinned" if (session and session.extension_loaded) else ""
+                    )
                     await page.evaluate(f"""() => {{
                         const b = document.createElement('div');
                         b.id = 'uaic-test-banner';
@@ -511,11 +583,31 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
         page_title = await run_browser_coroutine(_do_browser_test)
         dur_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-        engine_title = "Chromium" if browser_engine == "chromium" else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
-        ext_loaded = bool(session.extension_loaded) if (session and isinstance(getattr(session, "extension_loaded", None), bool)) else False
-        ext_id = session.extension_id if (session and isinstance(getattr(session, "extension_id", None), str)) else None
-        worker_active = bool(session.service_worker_active) if (session and isinstance(getattr(session, "service_worker_active", None), bool)) else False
-        warning = session.warning_message if (session and isinstance(getattr(session, "warning_message", None), str)) else None
+        engine_title = (
+            "Chromium"
+            if browser_engine == "chromium"
+            else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+        )
+        ext_loaded = (
+            bool(session.extension_loaded)
+            if (session and isinstance(getattr(session, "extension_loaded", None), bool))
+            else False
+        )
+        ext_id = (
+            session.extension_id
+            if (session and isinstance(getattr(session, "extension_id", None), str))
+            else None
+        )
+        worker_active = (
+            bool(session.service_worker_active)
+            if (session and isinstance(getattr(session, "service_worker_active", None), bool))
+            else False
+        )
+        warning = (
+            session.warning_message
+            if (session and isinstance(getattr(session, "warning_message", None), str))
+            else None
+        )
 
         if not test_extension:
             ext_summary = ""
@@ -532,18 +624,29 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             try:
                 cur_settings = await get_system_settings_async()
                 cur_settings.automation.extension_setup_verified = True
-                cur_settings.automation.extension_setup_timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+                cur_settings.automation.extension_setup_timestamp = datetime.now(UTC).strftime(
+                    "%Y-%m-%d %H:%M:%S UTC"
+                )
                 await save_system_settings_async(cur_settings)
             except Exception as set_err:
                 logger.warning(f"Could not persist extension verification status: {set_err}")
 
+        detected_ver = None
+        try:
+            raw_ver = ChromeSession.get_browser_version(browser_engine, chrome_exe)
+            if isinstance(raw_ver, str):
+                detected_ver = raw_ver
+        except Exception:
+            pass
         return BrowserTestResponse(
             success=True,
             mode=mode_label,
             browser_engine=browser_engine,
             headless=target_headless,
-            chrome_found=bool(chrome_exe) if browser_engine == "chrome" else True,
-            chrome_executable=str(chrome_exe) if (chrome_exe and browser_engine == "chrome") else None,
+            chrome_found=bool(chrome_exe),
+            chrome_executable=str(chrome_exe) if chrome_exe else None,
+            browser_version=detected_ver,
+            executable_path=str(chrome_exe) if chrome_exe else None,
             extension_found=bool(ext_path),
             extension_path=str(ext_path) if ext_path else None,
             extension_loaded=ext_loaded,
@@ -564,13 +667,17 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
             browser_engine=browser_engine,
             headless=target_headless,
             chrome_found=bool(chrome_exe) if browser_engine == "chrome" else True,
-            chrome_executable=str(chrome_exe) if (chrome_exe and browser_engine == "chrome") else None,
+            chrome_executable=str(chrome_exe)
+            if (chrome_exe and browser_engine == "chrome")
+            else None,
             extension_found=bool(ext_path),
             extension_path=str(ext_path) if ext_path else None,
             extension_loaded=False,
             extension_id=None,
             service_worker_active=False,
-            warning=session.warning_message if (session and isinstance(getattr(session, "warning_message", None), str)) else None,
+            warning=session.warning_message
+            if (session and isinstance(getattr(session, "warning_message", None), str))
+            else None,
             page_title=None,
             duration_ms=dur_ms,
             message=f"Browser test failed in {mode_label} mode: {e_fmt}",
@@ -578,7 +685,11 @@ async def test_browser_endpoint(payload: BrowserTestRequest | None = None):
         )
 
 
-@router.post("/test-fleet", response_model=FleetTestResponse, summary="Test Parallel Browser Fleet Concurrency Launch")
+@router.post(
+    "/test-fleet",
+    response_model=FleetTestResponse,
+    summary="Test Parallel Browser Fleet Concurrency Launch",
+)
 async def test_fleet_endpoint(payload: FleetTestRequest | None = None):
     """
     Launches N parallel browser instances simultaneously (1 to 10 concurrency)
@@ -588,9 +699,23 @@ async def test_fleet_endpoint(payload: FleetTestRequest | None = None):
     runtime_settings = await get_system_settings_async()
     auto_cfg = runtime_settings.automation
 
-    target_headless = payload.headless if (payload and payload.headless is not None) else auto_cfg.headless_mode
-    browser_engine = (payload.browser_engine if (payload and payload.browser_engine) else getattr(auto_cfg, "browser_engine", "chrome")).lower()
-    concurrency = min(max(payload.concurrency if (payload and payload.concurrency) else getattr(auto_cfg, "max_concurrent_claims", 2), 1), 10)
+    target_headless = (
+        payload.headless if (payload and payload.headless is not None) else auto_cfg.headless_mode
+    )
+    browser_engine = (
+        payload.browser_engine
+        if (payload and payload.browser_engine)
+        else getattr(auto_cfg, "browser_engine", "chrome")
+    ).lower()
+    concurrency = min(
+        max(
+            payload.concurrency
+            if (payload and payload.concurrency)
+            else getattr(auto_cfg, "max_concurrent_claims", 2),
+            1,
+        ),
+        10,
+    )
     test_url = (payload.test_url if (payload and payload.test_url) else "").strip()
     if not test_url or test_url == "https://example.com":
         test_url = "http://127.0.0.1:8000/api/v1/settings/browser-test-page"
@@ -659,7 +784,11 @@ async def test_fleet_endpoint(payload: FleetTestRequest | None = None):
 
             if not target_headless:
                 try:
-                    engine_name = "Chromium" if browser_engine == "chromium" else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+                    engine_name = (
+                        "Chromium"
+                        if browser_engine == "chromium"
+                        else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+                    )
                     ext_txt = " + AntiCaptcha" if session.extension_loaded else ""
                     await page.evaluate(f"""() => {{
                         const b = document.createElement('div');
@@ -733,7 +862,11 @@ async def test_fleet_endpoint(payload: FleetTestRequest | None = None):
     succeeded = sum(1 for w in worker_results if w.status == "success")
     all_success = (succeeded == concurrency) and (concurrency > 0)
 
-    engine_title = "Chromium" if browser_engine == "chromium" else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+    engine_title = (
+        "Chromium"
+        if browser_engine == "chromium"
+        else ("Google Chrome" if browser_engine == "chrome" else "Microsoft Edge")
+    )
     msg = (
         f"Successfully launched {succeeded}/{concurrency} parallel {engine_title} browsers in {mode_label} mode "
         f"with isolated profiles in {total_fleet_ms}ms."
@@ -755,7 +888,9 @@ async def test_fleet_endpoint(payload: FleetTestRequest | None = None):
     )
 
 
-@router.post("/validate-extension", summary="Validate Anti-Captcha Extension & Engine Compatibility")
+@router.post(
+    "/validate-extension", summary="Validate Anti-Captcha Extension & Engine Compatibility"
+)
 async def validate_anticaptcha_extension(payload: dict[str, Any] | None = None):
     """
     Validates Anti-Captcha extension installation, API key configuration,
@@ -764,13 +899,21 @@ async def validate_anticaptcha_extension(payload: dict[str, Any] | None = None):
     runtime_settings = await get_system_settings_async()
     auto_cfg = runtime_settings.automation
 
-    configured_ext = (payload.get("chrome_extension_dir") if payload else None) or auto_cfg.chrome_extension_dir
-    api_key = (payload.get("anticaptcha_api_key") if payload else None) or auto_cfg.anticaptcha_api_key
+    configured_ext = (
+        payload.get("chrome_extension_dir") if payload else None
+    ) or auto_cfg.chrome_extension_dir
+    api_key = (
+        payload.get("anticaptcha_api_key") if payload else None
+    ) or auto_cfg.anticaptcha_api_key
 
     ext_path = ExtensionManager.resolve_extension_path(configured_ext)
     dir_exists = bool(ext_path and ext_path.is_dir())
     manifest_valid = bool(dir_exists and (ext_path / "manifest.json").is_file())
-    key_synced = ExtensionManager.is_extension_configured(ext_path, api_key) if (dir_exists and api_key) else False
+    key_synced = (
+        ExtensionManager.is_extension_configured(ext_path, api_key)
+        if (dir_exists and api_key)
+        else False
+    )
 
     return {
         "status": "VALID" if (dir_exists and manifest_valid and key_synced) else "WARNING",
@@ -783,25 +926,31 @@ async def validate_anticaptcha_extension(payload: dict[str, Any] | None = None):
             "chrome": {
                 "supported": True,
                 "status": "Verified & Active (Default & Recommended)",
-                "note": "Google Chrome supports unpacked extensions with dedicated profile isolation, toolbar pinning, and service worker activation."
+                "note": "Google Chrome supports unpacked extensions with dedicated profile isolation, toolbar pinning, and service worker activation.",
             },
             "chromium": {
                 "supported": True,
                 "status": "Verified & Active (Bundled Fallback)",
-                "note": "Playwright bundled Chromium mounts unpacked extensions with 100% verified success."
+                "note": "Playwright bundled Chromium mounts unpacked extensions with 100% verified success.",
             },
             "msedge": {
                 "supported": True,
                 "status": "Verified & Active",
-                "note": "Microsoft Edge supports unpacked extensions with modern toolbar pinning and service worker activation."
-            }
+                "note": "Microsoft Edge supports unpacked extensions with modern toolbar pinning and service worker activation.",
+            },
         },
         "recommended_engine": "chrome",
-        "message": "Anti-Captcha extension verified and ready for county court scraping." if (dir_exists and manifest_valid) else "AntiCaptcha extension directory or manifest not found."
+        "message": "Anti-Captcha extension verified and ready for county court scraping."
+        if (dir_exists and manifest_valid)
+        else "AntiCaptcha extension directory or manifest not found.",
     }
 
 
-@router.post("/setup-extension", response_model=ExtensionSetupResponse, summary="Configure & Pin AntiCaptcha Extension to Browser Toolbar")
+@router.post(
+    "/setup-extension",
+    response_model=ExtensionSetupResponse,
+    summary="Configure & Pin AntiCaptcha Extension to Browser Toolbar",
+)
 async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     """
     One-time configuration of the AntiCaptcha extension in persistent browser profile,
@@ -812,8 +961,12 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     runtime_settings = await get_system_settings_async()
     auto_cfg = runtime_settings.automation
 
-    api_key = (payload.get("anticaptcha_api_key") if payload else None) or auto_cfg.anticaptcha_api_key
-    configured_ext = (payload.get("chrome_extension_dir") if payload else None) or auto_cfg.chrome_extension_dir
+    api_key = (
+        payload.get("anticaptcha_api_key") if payload else None
+    ) or auto_cfg.anticaptcha_api_key
+    configured_ext = (
+        payload.get("chrome_extension_dir") if payload else None
+    ) or auto_cfg.chrome_extension_dir
     ext_path = ExtensionManager.resolve_extension_path(configured_ext)
     current_engine = (auto_cfg.browser_engine or "chrome").lower()
 
@@ -837,7 +990,10 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
             pinned_actions = prefs_data.get("toolbar", {}).get("pinned_actions", [])
             pinned_exts = prefs_data.get("extensions", {}).get("pinned_extensions", [])
             from app.automation.browser_manager import KNOWN_ANTICAPTCHA_IDS
-            toolbar_pinned = any(any(kid in str(item) for kid in KNOWN_ANTICAPTCHA_IDS) for item in pinned_actions)
+
+            toolbar_pinned = any(
+                any(kid in str(item) for kid in KNOWN_ANTICAPTCHA_IDS) for item in pinned_actions
+            )
             ext_pinned = any(kid in pinned_exts for kid in KNOWN_ANTICAPTCHA_IDS)
             if any(kid in pinned_exts for kid in KNOWN_ANTICAPTCHA_IDS):
                 for kid in KNOWN_ANTICAPTCHA_IDS:
@@ -851,20 +1007,37 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     worker_active = False
     session: ChromeSession | None = None
     ChromeSession.clean_profile_locks_and_orphans(persistent_dir, force_kill=False)
+
+    # Sanitize any stale Secure Preferences in persistent profile to avoid Chrome HMAC mismatch
+    for def_dir in (persistent_dir, persistent_dir / "Default"):
+        sec_pref = def_dir / "Secure Preferences"
+        if sec_pref.is_file():
+            try:
+                sec_pref.unlink(missing_ok=True)
+            except Exception:
+                pass
+
     try:
+
         async def _verify_profile():
             nonlocal session, worker_active
             try:
+                # Modern Chrome MV3 service workers require display context; launch in attended visible mode on desktop
+                verify_headless = (
+                    False if (sys.platform == "win32" or "DISPLAY" in os.environ) else True
+                )
                 session = ChromeSession(
-                    headless=True,
+                    headless=verify_headless,
                     extension_path=ext_path,
                     anticaptcha_api_key=api_key,
                     user_data_dir=str(persistent_dir),
                     browser_engine=auto_cfg.browser_engine or "chrome",
                     auto_cfg=auto_cfg,
                 )
-                await asyncio.wait_for(session.start(), timeout=45.0)
+                await asyncio.wait_for(session.start(), timeout=20.0)
                 worker_active = bool(session.service_worker_active or session.extension_loaded)
+                if not verify_headless:
+                    await asyncio.sleep(1.0)
                 return True
             finally:
                 if session:
@@ -883,7 +1056,9 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
             log_file = log_dir / "execution.log"
             timestamp_str = datetime.now().isoformat()
             with open(log_file, "a", encoding="utf-8") as f_log:
-                f_log.write(f"[{timestamp_str}] [ERROR] Extension verification failure: {type(e).__name__}: {e}\n")
+                f_log.write(
+                    f"[{timestamp_str}] [ERROR] Extension verification failure: {type(e).__name__}: {e}\n"
+                )
         except Exception as e_log:
             logger.debug(f"Could not record setup error log: {e_log}")
 
@@ -905,7 +1080,9 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
         success=is_verified,
         status="ok" if is_verified else "warning",
         verified=is_verified,
-        message="AntiCaptcha extension configured, verified, and pinned to browser toolbar." if is_verified else "AntiCaptcha extension configured, but service worker verification timed out or was not detected.",
+        message="AntiCaptcha extension configured, verified, and pinned to browser toolbar."
+        if is_verified
+        else "AntiCaptcha extension configured, but service worker verification timed out or was not detected.",
         extension_id=(session.extension_id if session and session.extension_id else verified_id),
         toolbar_action_verified=toolbar_pinned or ext_pinned,
         pinned_to_toolbar=toolbar_pinned or ext_pinned,
@@ -918,10 +1095,13 @@ async def setup_extension_endpoint(payload: dict[str, Any] | None = None):
     )
 
 
-@router.post("/test-storage", response_model=StorageTestResponse, summary="Test Storage Provider Connection")
+@router.post(
+    "/test-storage", response_model=StorageTestResponse, summary="Test Storage Provider Connection"
+)
 async def test_storage_endpoint(req: StorageTestRequest):
     """Test connectivity, permissions, and accessibility for configured storage provider (Local, S3, Azure, GCS)."""
     from app.services.storage_service import StorageService
+
     active = (await get_system_settings_async()).storage
     for field in ("s3_secret_key", "azure_connection_string", "gcs_credentials_json"):
         if not getattr(req, field):
@@ -929,13 +1109,26 @@ async def test_storage_endpoint(req: StorageTestRequest):
     return await StorageService.test_connection(req)
 
 
-@router.post("/storage/cleanup", response_model=StorageCleanupResponse, summary="Purge Expired Storage Artifacts")
-async def cleanup_storage_endpoint(req: StorageCleanupRequest | None = None, request: Request = None):
+@router.post(
+    "/storage/cleanup",
+    response_model=StorageCleanupResponse,
+    summary="Purge Expired Storage Artifacts",
+)
+async def cleanup_storage_endpoint(
+    req: StorageCleanupRequest | None = None, request: Request = None
+):
     """Purge screenshots, logs, and artifacts older than the configured or specified retention days."""
     from app.services.storage_service import StorageService
+
     active = await get_system_settings_async()
-    retention_days = (req.retention_days if req and req.retention_days is not None else active.storage.retention_days) or 30
-    res = await StorageService.cleanup_expired_storage(retention_days=retention_days, storage_cfg=active.storage)
+    retention_days = (
+        req.retention_days
+        if req and req.retention_days is not None
+        else active.storage.retention_days
+    ) or 30
+    res = await StorageService.cleanup_expired_storage(
+        retention_days=retention_days, storage_cfg=active.storage
+    )
     ctx = extract_client_context(request)
     record_audit_event_background(
         action="STORAGE_PURGED",
@@ -946,13 +1139,18 @@ async def cleanup_storage_endpoint(req: StorageCleanupRequest | None = None, req
         ip_address=ctx["ip_address"],
         user_agent=ctx["user_agent"],
         status="SUCCESS",
-        details={"files_purged": res.files_purged, "bytes_freed": res.bytes_freed, "retention_days": retention_days},
+        details={
+            "files_purged": res.files_purged,
+            "bytes_freed": res.bytes_freed,
+            "retention_days": retention_days,
+        },
     )
     return res
 
 
-
-@router.post("/test-proxy", response_model=ProxyTestResponse, summary="Test Proxy Server Connectivity")
+@router.post(
+    "/test-proxy", response_model=ProxyTestResponse, summary="Test Proxy Server Connectivity"
+)
 async def test_proxy_endpoint(req: ProxyTestRequest):
     """
     Tests HTTP connectivity through the configured proxy server by attempting to
@@ -962,7 +1160,12 @@ async def test_proxy_endpoint(req: ProxyTestRequest):
     it for automated county court scraping sessions.
     """
     active = (await get_system_settings_async()).proxy
-    if not req.password and req.host == active.host and req.port == active.port and req.username == active.username:
+    if (
+        not req.password
+        and req.host == active.host
+        and req.port == active.port
+        and req.username == active.username
+    ):
         req.password = active.password
     authenticated = bool(req.username and req.password)
 
@@ -1011,8 +1214,10 @@ async def test_proxy_endpoint(req: ProxyTestRequest):
             error_detail=err,
         )
 
+
 class LogoUploadResponse(BaseModel):
     """Response model for uploaded branding logo asset."""
+
     success: bool
     url: str
     filename: str
@@ -1045,7 +1250,9 @@ def _get_uploads_dir() -> Path:
     return fallback
 
 
-@router.post("/upload-logo", response_model=LogoUploadResponse, summary="Upload custom logo or favicon image")
+@router.post(
+    "/upload-logo", response_model=LogoUploadResponse, summary="Upload custom logo or favicon image"
+)
 async def upload_logo_endpoint(file: UploadFile = File(...)):
     """
     Upload a custom branding icon or logo (PNG, JPG, SVG, ICO, WEBP).
@@ -1069,7 +1276,11 @@ async def upload_logo_endpoint(file: UploadFile = File(...)):
             detail=f"File exceeds maximum allowed size of 2 MB (received {len(content) / (1024 * 1024):.2f} MB).",
         )
 
-    if file.content_type and file.content_type.lower() not in ALLOWED_IMAGE_MIMES and "octet-stream" not in file.content_type:
+    if (
+        file.content_type
+        and file.content_type.lower() not in ALLOWED_IMAGE_MIMES
+        and "octet-stream" not in file.content_type
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid MIME type '{file.content_type}'. Must be a valid image.",
@@ -1119,7 +1330,11 @@ async def get_uploaded_logo_endpoint(filename: str):
     raise HTTPException(status_code=404, detail="Brand logo file not found.")
 
 
-@router.post("/email/test-connection", response_model=EmailConnectionTestResponse, summary="Test Email Provider Connection")
+@router.post(
+    "/email/test-connection",
+    response_model=EmailConnectionTestResponse,
+    summary="Test Email Provider Connection",
+)
 async def test_email_connection_endpoint(payload: EmailConnectionTestRequest | None = None):
     """Test connection, TLS handshake, and authentication with the configured or requested email provider."""
     sys_settings = await get_system_settings_async()
@@ -1156,7 +1371,12 @@ async def test_email_connection_endpoint(payload: EmailConnectionTestRequest | N
         target_cfg = email_cfg
 
     provider = get_email_provider(target_cfg)
-    if hasattr(provider, "test_connection") and payload and payload.recipient_domain and target_cfg.provider == "direct_mx":
+    if (
+        hasattr(provider, "test_connection")
+        and payload
+        and payload.recipient_domain
+        and target_cfg.provider == "direct_mx"
+    ):
         res = provider.test_connection(recipient_domain=payload.recipient_domain)
     else:
         res = provider.test_connection()
@@ -1169,8 +1389,12 @@ async def test_email_connection_endpoint(payload: EmailConnectionTestRequest | N
     )
 
 
-@router.post("/email/test-send", response_model=TestEmailSendResponse, summary="Send Live Test Email")
-async def test_email_send_endpoint(payload: TestEmailSendRequest, db: AsyncSession = Depends(get_db)):
+@router.post(
+    "/email/test-send", response_model=TestEmailSendResponse, summary="Send Live Test Email"
+)
+async def test_email_send_endpoint(
+    payload: TestEmailSendRequest, db: AsyncSession = Depends(get_db)
+):
     """Dispatch an actual test notification email to the specified recipient and record in delivery log."""
     t0 = time.perf_counter()
     recipient = payload.recipient.strip()
@@ -1232,7 +1456,10 @@ async def test_anticaptcha_api_key(payload: AntiCaptchaTestRequest):
     Returns balance (USD) and latency. Used by the Settings > Automation > Anti-Captcha UI card.
     """
     t0 = time.perf_counter()
-    api_key = payload.api_key.strip() or ((await get_system_settings_async()).automation.anticaptcha_api_key or "").strip()
+    api_key = (
+        payload.api_key.strip()
+        or ((await get_system_settings_async()).automation.anticaptcha_api_key or "").strip()
+    )
 
     if not api_key:
         raise HTTPException(status_code=422, detail="api_key must not be empty")

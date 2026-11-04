@@ -1,4 +1,4 @@
-﻿# E2E Tests
+# E2E Tests
 
 End-to-end and browser automation tests for the UAIC Claim & RPA Orchestrator.
 

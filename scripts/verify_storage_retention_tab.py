@@ -8,10 +8,8 @@ Tests:
 
 import json
 import os
-import sys
-import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 BASE_API = "http://127.0.0.1:8000/api/v1"
 BASE_UI = "http://localhost:3000/settings"
@@ -61,7 +59,7 @@ def run_backend_verification():
     status, updated_settings = req("POST", "/settings", update_payload)
     assert status == 200, f"Expected 200 from POST /settings update, got {status}"
     assert updated_settings.get("storage", {}).get("retention_days") == 45
-    print(f"  [PASS] POST /settings: Updated retention_days to 45")
+    print("  [PASS] POST /settings: Updated retention_days to 45")
 
     # 4. POST /settings/storage/cleanup
     status, purge_res = req("POST", "/settings/storage/cleanup", {"retention_days": 45})

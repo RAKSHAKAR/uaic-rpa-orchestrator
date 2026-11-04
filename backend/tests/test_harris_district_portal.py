@@ -334,17 +334,33 @@ async def test_search_by_party_name_full_workflow_and_schema(scraper):
     mock_row1 = MagicMock()
     mock_tds1 = MagicMock()
     mock_tds1.count = AsyncMock(return_value=7)
-    mock_tds1.all_inner_texts = AsyncMock(return_value=[
-        "2023-12345", "SMITH, JOHN VS DOE, JANE", "001", "ACTIVE", "CIVIL", "01/15/2023", "MOTOR VEHICLE ACCIDENT"
-    ])
+    mock_tds1.all_inner_texts = AsyncMock(
+        return_value=[
+            "2023-12345",
+            "SMITH, JOHN VS DOE, JANE",
+            "001",
+            "ACTIVE",
+            "CIVIL",
+            "01/15/2023",
+            "MOTOR VEHICLE ACCIDENT",
+        ]
+    )
     mock_row1.locator.return_value = mock_tds1
 
     mock_row2 = MagicMock()
     mock_tds2 = MagicMock()
     mock_tds2.count = AsyncMock(return_value=7)
-    mock_tds2.all_inner_texts = AsyncMock(return_value=[
-        "2024-67890", "SMITH, JOHN VS ROE, RICHARD", "002", "DISPOSED", "CIVIL", "05/20/2024", "CONTRACT - OTHER"
-    ])
+    mock_tds2.all_inner_texts = AsyncMock(
+        return_value=[
+            "2024-67890",
+            "SMITH, JOHN VS ROE, RICHARD",
+            "002",
+            "DISPOSED",
+            "CIVIL",
+            "05/20/2024",
+            "CONTRACT - OTHER",
+        ]
+    )
     mock_row2.locator.return_value = mock_tds2
 
     # V4 preserves separate result rows even when multiple party roles point
@@ -352,9 +368,17 @@ async def test_search_by_party_name_full_workflow_and_schema(scraper):
     mock_row3 = MagicMock()
     mock_tds3 = MagicMock()
     mock_tds3.count = AsyncMock(return_value=7)
-    mock_tds3.all_inner_texts = AsyncMock(return_value=[
-        "2023-12345", "SMITH, JOHN VS DOE, JANE", "SECOND PARTY ROLE", "ACTIVE", "CIVIL", "01/15/2023", "MOTOR VEHICLE ACCIDENT"
-    ])
+    mock_tds3.all_inner_texts = AsyncMock(
+        return_value=[
+            "2023-12345",
+            "SMITH, JOHN VS DOE, JANE",
+            "SECOND PARTY ROLE",
+            "ACTIVE",
+            "CIVIL",
+            "01/15/2023",
+            "MOTOR VEHICLE ACCIDENT",
+        ]
+    )
     mock_row3.locator.return_value = mock_tds3
 
     mock_rows = MagicMock()
@@ -378,7 +402,11 @@ async def test_search_by_party_name_full_workflow_and_schema(scraper):
             return mock_search_btn
         if "dgSearchResults" in selector and "pager" in selector:
             return mock_pager
-        if "dgSearchResults" in selector or "grid-results" in selector or "table tbody tr" in selector:
+        if (
+            "dgSearchResults" in selector
+            or "grid-results" in selector
+            or "table tbody tr" in selector
+        ):
             return mock_rows
         fallback = MagicMock()
         fallback.count = AsyncMock(return_value=0)
@@ -447,9 +475,9 @@ async def test_pagination_traversal(scraper):
     mock_row_p1 = MagicMock()
     mock_tds_p1 = MagicMock()
     mock_tds_p1.count = AsyncMock(return_value=7)
-    mock_tds_p1.all_inner_texts = AsyncMock(return_value=[
-        "PAGE1-001", "STYLE PAGE 1", "", "ACTIVE", "", "01/01/2023", "CIVIL 1"
-    ])
+    mock_tds_p1.all_inner_texts = AsyncMock(
+        return_value=["PAGE1-001", "STYLE PAGE 1", "", "ACTIVE", "", "01/01/2023", "CIVIL 1"]
+    )
     mock_row_p1.locator.return_value = mock_tds_p1
 
     mock_rows_p1 = MagicMock()
@@ -460,9 +488,9 @@ async def test_pagination_traversal(scraper):
     mock_row_p2 = MagicMock()
     mock_tds_p2 = MagicMock()
     mock_tds_p2.count = AsyncMock(return_value=7)
-    mock_tds_p2.all_inner_texts = AsyncMock(return_value=[
-        "PAGE2-002", "STYLE PAGE 2", "", "ACTIVE", "", "02/02/2023", "CIVIL 2"
-    ])
+    mock_tds_p2.all_inner_texts = AsyncMock(
+        return_value=["PAGE2-002", "STYLE PAGE 2", "", "ACTIVE", "", "02/02/2023", "CIVIL 2"]
+    )
     mock_row_p2.locator.return_value = mock_tds_p2
 
     mock_rows_p2 = MagicMock()
@@ -486,7 +514,11 @@ async def test_pagination_traversal(scraper):
             return mock_search_btn
         if "dgSearchResults" in selector and "pager" in selector:
             return mock_pager
-        if "dgSearchResults" in selector or "grid-results" in selector or "table tbody tr" in selector:
+        if (
+            "dgSearchResults" in selector
+            or "grid-results" in selector
+            or "table tbody tr" in selector
+        ):
             curr = row_cycle[min(call_idx["rows"], len(row_cycle) - 1)]
             call_idx["rows"] += 1
             return curr
@@ -551,9 +583,9 @@ async def test_sequential_multiple_unique_names_on_same_page(scraper):
     mock_row1 = MagicMock()
     mock_tds1 = MagicMock()
     mock_tds1.count = AsyncMock(return_value=7)
-    mock_tds1.all_inner_texts = AsyncMock(return_value=[
-        "N1-001", "DOE, JOHN VS X", "", "OPEN", "", "01/01/2023", "FAMILY"
-    ])
+    mock_tds1.all_inner_texts = AsyncMock(
+        return_value=["N1-001", "DOE, JOHN VS X", "", "OPEN", "", "01/01/2023", "FAMILY"]
+    )
     mock_row1.locator.return_value = mock_tds1
 
     mock_rows1 = MagicMock()
@@ -564,9 +596,9 @@ async def test_sequential_multiple_unique_names_on_same_page(scraper):
     mock_row2 = MagicMock()
     mock_tds2 = MagicMock()
     mock_tds2.count = AsyncMock(return_value=7)
-    mock_tds2.all_inner_texts = AsyncMock(return_value=[
-        "N2-002", "SMITH, BOB VS Y", "", "ACTIVE", "", "02/02/2023", "TORTS"
-    ])
+    mock_tds2.all_inner_texts = AsyncMock(
+        return_value=["N2-002", "SMITH, BOB VS Y", "", "ACTIVE", "", "02/02/2023", "TORTS"]
+    )
     mock_row2.locator.return_value = mock_tds2
 
     mock_rows2 = MagicMock()
@@ -589,7 +621,11 @@ async def test_sequential_multiple_unique_names_on_same_page(scraper):
             return mock_search_btn
         if "dgSearchResults" in selector and "pager" in selector:
             return mock_pager
-        if "dgSearchResults" in selector or "grid-results" in selector or "table tbody tr" in selector:
+        if (
+            "dgSearchResults" in selector
+            or "grid-results" in selector
+            or "table tbody tr" in selector
+        ):
             if call_count["search"] == 1:
                 return mock_rows1
             return mock_rows2
@@ -736,7 +772,11 @@ async def test_step_d_date_range_inputs_and_today_end_date(scraper):
             return mock_end_date
         if "btnPartySearch" in selector or "btnSearch" in selector:
             return mock_search_btn
-        if "dgSearchResults" in selector or "grid-results" in selector or "table tbody tr" in selector:
+        if (
+            "dgSearchResults" in selector
+            or "grid-results" in selector
+            or "table tbody tr" in selector
+        ):
             return mock_rows
         fallback = MagicMock()
         fallback.count = AsyncMock(return_value=0)
@@ -793,7 +833,11 @@ async def test_step_e_exact_search_button_selector(scraper):
         if "btnPartySearch" in selector:
             clicked_selector.append(selector)
             return mock_search_btn
-        if "dgSearchResults" in selector or "grid-results" in selector or "table tbody tr" in selector:
+        if (
+            "dgSearchResults" in selector
+            or "grid-results" in selector
+            or "table tbody tr" in selector
+        ):
             return mock_rows
         fallback = MagicMock()
         fallback.count = AsyncMock(return_value=0)

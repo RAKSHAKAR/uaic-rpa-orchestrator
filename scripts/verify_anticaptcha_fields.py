@@ -1,6 +1,6 @@
 import re
 
-with open('frontend/src/types/index.ts', 'r', encoding='utf-8') as f:
+with open('frontend/src/types/index.ts', encoding='utf-8') as f:
     types_content = f.read()
 
 # Extract AntiCaptchaSettings interface
@@ -11,7 +11,7 @@ if match:
     for fld in fields:
         print(f" - {fld}")
 
-with open('frontend/src/app/settings/page.tsx', 'r', encoding='utf-8') as f:
+with open('frontend/src/app/settings/page.tsx', encoding='utf-8') as f:
     page_content = f.read()
 
 print("\nChecking presence of each AntiCaptcha field in settings/page.tsx:")

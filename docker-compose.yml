@@ -36,12 +36,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_fastapi
-    command: bash -c "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & export DISPLAY=:99 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"
+    command: bash -c "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & export DISPLAY=:99 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
     volumes:
       - ./backend/app:/app/app
       - ./backend/screenshots:/app/screenshots
       - ./backend/logs:/app/logs
       - ./backend/uploads:/app/uploads
+      - ./backend/orchestrator.db:/app/orchestrator.db:ro
       - ./anticaptcha-plugin_v0.83:/app/anticaptcha-plugin_v0.83
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
@@ -57,19 +58,23 @@ services:
     depends_on:
       - db
       - redis
-    restart: always
+    restart: "no"
 
   celery_worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: uaic_celery_worker
-    command: bash -c "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 && Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & export DISPLAY=:99 && celery -A app.core.celery_app worker --concurrency=10 --loglevel=info"
+    command: bash -c "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 && Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & export DISPLAY=:99 && which fluxbox >/dev/null 2>&1 && (fluxbox &) ; which x11vnc >/dev/null 2>&1 && (x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever -shared &) ; which websockify >/dev/null 2>&1 && (websockify --web /usr/share/novnc 6080 localhost:5900 &) ; celery -A app.core.celery_app worker --concurrency=2 --loglevel=info"
+    ports:
+      - "6080:6080"
+      - "5900:5900"
     volumes:
       - ./backend/app:/app/app
       - ./backend/screenshots:/app/screenshots
       - ./backend/logs:/app/logs
       - ./backend/uploads:/app/uploads
+      - ./backend/orchestrator.db:/app/orchestrator.db:ro
       - ./anticaptcha-plugin_v0.83:/app/anticaptcha-plugin_v0.83
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
@@ -83,7 +88,7 @@ services:
     depends_on:
       - db
       - redis
-    restart: always
+    restart: "no"
 
   celery_beat:
     build:
@@ -102,7 +107,27 @@ services:
     depends_on:
       - db
       - redis
-    restart: always
+    restart: "no"
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: uaic_flower
+    command: celery -A app.core.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaic_db}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - SECRET_KEY=${SECRET_KEY:-supersecretdevelopmentkeyfororchestrator}
+      - APP_ENV=${APP_ENV:-development}
+      - DEBUG=${DEBUG:-true}
+    depends_on:
+      - redis
+    restart: "no"
 
   frontend:
     build:
@@ -116,7 +141,8 @@ services:
     environment:
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-    restart: always
+      - INTERNAL_API_URL=http://backend:8000
+    restart: "no"
 
 volumes:
   postgres_data:

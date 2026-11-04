@@ -24,7 +24,9 @@ class TemplateUpdateRequest(BaseModel):
     """Payload to save or update a custom dynamic notification template."""
 
     name: str | None = None
-    subject_template: str = Field(..., min_length=1, description="Subject template with variable placeholders")
+    subject_template: str = Field(
+        ..., min_length=1, description="Subject template with variable placeholders"
+    )
     body_template_html: str = Field(..., min_length=1, description="HTML body template")
     body_template_text: str | None = Field(None, description="Plaintext fallback template")
     is_active: bool = True
@@ -208,10 +210,15 @@ PARAMETER_CATALOG: list[dict[str, str]] = [
 async def get_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=5, le=500),
-    status: str | None = Query(None, description="Filter by status: SENT, FAILED, QUEUED, SENDING, SKIPPED"),
+    status: str | None = Query(
+        None, description="Filter by status: SENT, FAILED, QUEUED, SENDING, SKIPPED"
+    ),
     event_type: str | None = Query(None, description="Filter by event type"),
     search: str | None = Query(None, description="Search recipient, subject, or claim number"),
-    sort_by: str = Query("created_at", description="Field to sort by: created_at, event_type, recipient, subject, provider, status, latency_ms"),
+    sort_by: str = Query(
+        "created_at",
+        description="Field to sort by: created_at, event_type, recipient, subject, provider, status, latency_ms",
+    ),
     sort_order: str = Query("desc", description="Sort order: 'desc' (default) or 'asc'"),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -265,25 +272,27 @@ async def get_notifications(
 
     serialized = []
     for item in items:
-        serialized.append({
-            "id": item.id,
-            "event_type": item.event_type,
-            "claim_id": item.claim_id,
-            "claim_number": item.claim_number,
-            "recipient": item.recipient,
-            "cc": item.cc,
-            "bcc": item.bcc,
-            "subject": item.subject,
-            "provider": item.provider,
-            "status": item.status,
-            "error_message": item.error_message,
-            "retry_count": item.retry_count,
-            "created_at": _format_ts(item.created_at) or "",
-            "sent_at": _format_ts(item.sent_at),
-            "failed_at": _format_ts(item.failed_at),
-            "delivery_receipt": item.delivery_receipt,
-            "details": item.details,
-        })
+        serialized.append(
+            {
+                "id": item.id,
+                "event_type": item.event_type,
+                "claim_id": item.claim_id,
+                "claim_number": item.claim_number,
+                "recipient": item.recipient,
+                "cc": item.cc,
+                "bcc": item.bcc,
+                "subject": item.subject,
+                "provider": item.provider,
+                "status": item.status,
+                "error_message": item.error_message,
+                "retry_count": item.retry_count,
+                "created_at": _format_ts(item.created_at) or "",
+                "sent_at": _format_ts(item.sent_at),
+                "failed_at": _format_ts(item.failed_at),
+                "delivery_receipt": item.delivery_receipt,
+                "details": item.details,
+            }
+        )
 
     return {
         "items": serialized,
@@ -306,50 +315,58 @@ async def get_notification_templates(db: AsyncSession = Depends(get_db)) -> list
     for event_key, default_tpl in TemplateRenderer.DEFAULT_TEMPLATES.items():
         custom = db_templates.get(event_key.upper())
         if custom:
-            templates.append({
-                "id": custom.id,
-                "name": custom.name or default_tpl["name"],
-                "event_type": event_key,
-                "subject_template": custom.subject_template,
-                "body_template_html": custom.body_template_html,
-                "body_template_text": custom.body_template_text or "",
-                "is_active": custom.is_active,
-                "is_custom": True,
-                "updated_at": custom.updated_at.isoformat() if custom.updated_at else (custom.created_at.isoformat() if custom.created_at else None),
-                "available_variables": [p["token"] for p in PARAMETER_CATALOG],
-                "parameter_catalog": PARAMETER_CATALOG,
-            })
+            templates.append(
+                {
+                    "id": custom.id,
+                    "name": custom.name or default_tpl["name"],
+                    "event_type": event_key,
+                    "subject_template": custom.subject_template,
+                    "body_template_html": custom.body_template_html,
+                    "body_template_text": custom.body_template_text or "",
+                    "is_active": custom.is_active,
+                    "is_custom": True,
+                    "updated_at": custom.updated_at.isoformat()
+                    if custom.updated_at
+                    else (custom.created_at.isoformat() if custom.created_at else None),
+                    "available_variables": [p["token"] for p in PARAMETER_CATALOG],
+                    "parameter_catalog": PARAMETER_CATALOG,
+                }
+            )
         else:
-            templates.append({
-                "id": event_key,
-                "name": default_tpl["name"],
-                "event_type": event_key,
-                "subject_template": default_tpl["subject"],
-                "body_template_html": default_tpl["body_html"],
-                "body_template_text": default_tpl.get("body_text", ""),
-                "is_active": True,
-                "is_custom": False,
-                "updated_at": None,
-                "available_variables": [p["token"] for p in PARAMETER_CATALOG],
-                "parameter_catalog": PARAMETER_CATALOG,
-            })
+            templates.append(
+                {
+                    "id": event_key,
+                    "name": default_tpl["name"],
+                    "event_type": event_key,
+                    "subject_template": default_tpl["subject"],
+                    "body_template_html": default_tpl["body_html"],
+                    "body_template_text": default_tpl.get("body_text", ""),
+                    "is_active": True,
+                    "is_custom": False,
+                    "updated_at": None,
+                    "available_variables": [p["token"] for p in PARAMETER_CATALOG],
+                    "parameter_catalog": PARAMETER_CATALOG,
+                }
+            )
 
     # Add any custom templates created in DB that aren't in default list
     for ev_key, custom in db_templates.items():
         if ev_key not in TemplateRenderer.DEFAULT_TEMPLATES:
-            templates.append({
-                "id": custom.id,
-                "name": custom.name,
-                "event_type": custom.event_type,
-                "subject_template": custom.subject_template,
-                "body_template_html": custom.body_template_html,
-                "body_template_text": custom.body_template_text or "",
-                "is_active": custom.is_active,
-                "is_custom": True,
-                "updated_at": custom.updated_at.isoformat() if custom.updated_at else None,
-                "available_variables": [p["token"] for p in PARAMETER_CATALOG],
-                "parameter_catalog": PARAMETER_CATALOG,
-            })
+            templates.append(
+                {
+                    "id": custom.id,
+                    "name": custom.name,
+                    "event_type": custom.event_type,
+                    "subject_template": custom.subject_template,
+                    "body_template_html": custom.body_template_html,
+                    "body_template_text": custom.body_template_text or "",
+                    "is_active": custom.is_active,
+                    "is_custom": True,
+                    "updated_at": custom.updated_at.isoformat() if custom.updated_at else None,
+                    "available_variables": [p["token"] for p in PARAMETER_CATALOG],
+                    "parameter_catalog": PARAMETER_CATALOG,
+                }
+            )
 
     return templates
 
@@ -470,7 +487,7 @@ async def preview_template(
         '<tr style="background-color: #f1f5f9; text-align: left;"><th style="padding: 6px 10px;">Case Number</th><th style="padding: 6px 10px;">Filing Date</th><th style="padding: 6px 10px;">Case Style</th><th style="padding: 6px 10px;">Status</th></tr>'
         '<tr style="border-top: 1px solid #e2e8f0;"><td style="padding: 6px 10px; font-family: monospace; font-weight: bold; color: #0284c7;">CACE-24-001234</td><td style="padding: 6px 10px;">03/15/2024</td><td style="padding: 6px 10px;">JOHNATHAN DOE vs AUTO INS CO</td><td style="padding: 6px 10px;"><span style="background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 11px;">OPEN</span></td></tr>'
         '<tr style="border-top: 1px solid #e2e8f0;"><td style="padding: 6px 10px; font-family: monospace; font-weight: bold; color: #0284c7;">COCE-24-005678</td><td style="padding: 6px 10px;">05/20/2024</td><td style="padding: 6px 10px;">JANE SMITH vs JOHNATHAN DOE</td><td style="padding: 6px 10px;"><span style="background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 11px;">PENDING</span></td></tr>'
-        '</table>'
+        "</table>"
     )
     sample_context = {
         "claim_number": "0100456789",
@@ -512,9 +529,19 @@ async def preview_template(
     custom_tpl = res.scalar_one_or_none()
     default_tpl = TemplateRenderer.get_template(ev_type)
 
-    subject_tpl = payload.subject_template or (custom_tpl.subject_template if custom_tpl else default_tpl["subject"])
-    html_tpl = payload.body_template_html or payload.template_str or (custom_tpl.body_template_html if custom_tpl else default_tpl["body_html"])
-    text_tpl = payload.body_template_text or (custom_tpl.body_template_text if custom_tpl and custom_tpl.body_template_text else default_tpl.get("body_text", ""))
+    subject_tpl = payload.subject_template or (
+        custom_tpl.subject_template if custom_tpl else default_tpl["subject"]
+    )
+    html_tpl = (
+        payload.body_template_html
+        or payload.template_str
+        or (custom_tpl.body_template_html if custom_tpl else default_tpl["body_html"])
+    )
+    text_tpl = payload.body_template_text or (
+        custom_tpl.body_template_text
+        if custom_tpl and custom_tpl.body_template_text
+        else default_tpl.get("body_text", "")
+    )
 
     rendered_subject = TemplateRenderer.render(subject_tpl, sample_context)
     rendered_html = TemplateRenderer.render(html_tpl, sample_context, escape_html=False)

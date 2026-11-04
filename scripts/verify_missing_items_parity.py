@@ -1,8 +1,8 @@
 """Verification script for full missing items parity, count accuracy, and UI components."""
 
 import asyncio
-import os
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 DOCS_DIR = Path("docs")

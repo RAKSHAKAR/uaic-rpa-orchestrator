@@ -119,7 +119,9 @@ def test_spreadsheet_matrix_service_layer(
     unique_names = generate_unique_names_for_claim(claim, fuzzy_threshold=0.60)
     assert len(unique_names) == len(expected_names), f"Row {row_num} count mismatch"
     extracted_names = [item["name"] for item in unique_names]
-    assert extracted_names == expected_names, f"Row {row_num} names mismatch: {extracted_names} != {expected_names}"
+    assert extracted_names == expected_names, (
+        f"Row {row_num} names mismatch: {extracted_names} != {expected_names}"
+    )
 
     # Verify search order numbers
     for idx, item in enumerate(unique_names, start=1):
@@ -129,7 +131,9 @@ def test_spreadsheet_matrix_service_layer(
 
     # Verify dual/triple search counters
     dual, triple = derive_search_counts_fuzzy(claim, fuzzy_threshold=0.60)
-    assert (dual, triple) == expected_counts, f"Row {row_num} count mismatch: {(dual, triple)} != {expected_counts}"
+    assert (dual, triple) == expected_counts, (
+        f"Row {row_num} count mismatch: {(dual, triple)} != {expected_counts}"
+    )
 
 
 @pytest.mark.asyncio
@@ -143,13 +147,28 @@ async def test_spreadsheet_matrix_api_endpoint_3_arrays(
     """Verify /api/v1/matches/unique-names endpoint with 3-array request payload structure."""
     payload = {
         "Claimants": [
-            {"FirstName": claimant["first"], "LastName": claimant["last"], "MiddleName": "", "Suffix": ""}
+            {
+                "FirstName": claimant["first"],
+                "LastName": claimant["last"],
+                "MiddleName": "",
+                "Suffix": "",
+            }
         ],
         "Insureds": [
-            {"FirstName": insured["first"], "LastName": insured["last"], "MiddleName": "", "Suffix": ""}
+            {
+                "FirstName": insured["first"],
+                "LastName": insured["last"],
+                "MiddleName": "",
+                "Suffix": "",
+            }
         ],
         "Drivers": [
-            {"FirstName": driver["first"], "LastName": driver["last"], "MiddleName": "", "Suffix": ""}
+            {
+                "FirstName": driver["first"],
+                "LastName": driver["last"],
+                "MiddleName": "",
+                "Suffix": "",
+            }
         ],
         "threshold": 0.60,
     }
@@ -169,7 +188,9 @@ async def test_spreadsheet_matrix_api_endpoint_3_arrays(
     assert "claim_number" not in data
 
     extracted_names = [item["name"] for item in data["unique_names"]]
-    assert extracted_names == expected_names, f"Row {row_num} API names mismatch: {extracted_names} != {expected_names}"
+    assert extracted_names == expected_names, (
+        f"Row {row_num} API names mismatch: {extracted_names} != {expected_names}"
+    )
 
 
 @pytest.mark.asyncio
@@ -182,9 +203,7 @@ async def test_unique_names_api_exact_user_maria_martinez():
         "Insureds": [
             {"FirstName": "MARIA", "LastName": "MARTINEZ", "MiddleName": "", "Suffix": ""}
         ],
-        "Drivers": [
-            {"FirstName": "MARIA", "LastName": "MARTINEZ", "MiddleName": "", "Suffix": ""}
-        ],
+        "Drivers": [{"FirstName": "MARIA", "LastName": "MARTINEZ", "MiddleName": "", "Suffix": ""}],
     }
 
     transport = ASGITransport(app=app)
@@ -239,13 +258,16 @@ async def test_unique_names_api_exact_user_cornelius_bright():
 @pytest.mark.asyncio
 async def test_unique_names_api_flat_backward_compatibility():
     """Verify backwards-compatible flat fields: insured_first_name, driver_first_name, claimant_first_name."""
+    # NOTE: JOHN DOE / JANE DOE are correctly flagged as unsearchable placeholders.
+    # Use real non-placeholder names: CARLOS RAMIREZ (insured), DIANA SANTOS (driver),
+    # CARLOS RAMIREZ (claimant, duplicate of insured) → 2 unique names expected.
     payload = {
-        "insured_first_name": "JOHN",
-        "insured_last_name": "DOE",
-        "driver_first_name": "JANE",
-        "driver_last_name": "DOE",
-        "claimant_first_name": "JOHN",
-        "claimant_last_name": "DOE",
+        "insured_first_name": "CARLOS",
+        "insured_last_name": "RAMIREZ",
+        "driver_first_name": "DIANA",
+        "driver_last_name": "SANTOS",
+        "claimant_first_name": "CARLOS",
+        "claimant_last_name": "RAMIREZ",
         "threshold": 0.60,
     }
 
@@ -256,7 +278,7 @@ async def test_unique_names_api_flat_backward_compatibility():
     assert response.status_code == 200, response.text
     data = response.json()
 
-    # Insured (JOHN DOE) + Driver (JANE DOE) = 2 unique names (Claimant JOHN DOE duplicates Insured)
+    # Insured (CARLOS RAMIREZ) + Driver (DIANA SANTOS) = 2 unique names (Claimant duplicates Insured)
     assert data["total_unique_names"] == 2
-    assert data["unique_names"][0]["name"] == "JOHN DOE"
-    assert data["unique_names"][1]["name"] == "JANE DOE"
+    assert data["unique_names"][0]["name"] == "CARLOS RAMIREZ"
+    assert data["unique_names"][1]["name"] == "DIANA SANTOS"

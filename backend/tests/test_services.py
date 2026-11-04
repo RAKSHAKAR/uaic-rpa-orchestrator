@@ -67,25 +67,34 @@ def test_calculate_match_score():
 
 def test_is_case_eligible():
     # Eligible case
-    assert is_case_eligible(
-        filing_date="2021-06-15",
-        case_status="OPEN",
-        case_type="CIRCUIT CIVIL",
-    ) is True
+    assert (
+        is_case_eligible(
+            filing_date="2021-06-15",
+            case_status="OPEN",
+            case_type="CIRCUIT CIVIL",
+        )
+        is True
+    )
 
     # Ineligible old filing date
-    assert is_case_eligible(
-        filing_date="2005-01-01",
-        case_status="OPEN",
-        case_type="CIRCUIT CIVIL",
-    ) is False
+    assert (
+        is_case_eligible(
+            filing_date="2005-01-01",
+            case_status="OPEN",
+            case_type="CIRCUIT CIVIL",
+        )
+        is False
+    )
 
     # Ineligible case status
-    assert is_case_eligible(
-        filing_date="2022-01-01",
-        case_status="EXPUNGED AND PURGED",
-        case_type="CIRCUIT CIVIL",
-    ) is False
+    assert (
+        is_case_eligible(
+            filing_date="2022-01-01",
+            case_status="EXPUNGED AND PURGED",
+            case_type="CIRCUIT CIVIL",
+        )
+        is False
+    )
 
 
 def test_format_claim_number():

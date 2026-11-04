@@ -10,13 +10,12 @@ from app.services.notification_service import NotificationService
 def mock_db_session():
     return AsyncMock(spec=AsyncSession)
 
+
 @pytest.mark.asyncio
 @patch("app.services.notification_service.get_system_settings_async")
 @patch("app.services.notification_service.celery_app")
 async def test_digest_mode_holds_notification_as_pending(
-    mock_celery_app,
-    mock_get_settings,
-    mock_db_session
+    mock_celery_app, mock_get_settings, mock_db_session
 ):
     mock_settings = AsyncMock()
     mock_settings.email.digest_mode = "daily_digest"
@@ -32,12 +31,12 @@ async def test_digest_mode_holds_notification_as_pending(
     mock_db_session.execute.return_value = mock_result
 
     context = {"claim_number": "123456789"}
-    
+
     notification = await NotificationService.emit_event(
         db=mock_db_session,
         event_type="GUIDEWIRE_ACTIVITY_CREATED",
         context=context,
-        idempotency_key="test_key_digest"
+        idempotency_key="test_key_digest",
     )
 
     assert notification is not None
@@ -46,13 +45,12 @@ async def test_digest_mode_holds_notification_as_pending(
     mock_db_session.add.assert_called_once()
     mock_db_session.commit.assert_called()
 
+
 @pytest.mark.asyncio
 @patch("app.services.notification_service.get_system_settings_async")
 @patch("app.services.notification_service.celery_app")
 async def test_immediate_mode_queues_notification(
-    mock_celery_app,
-    mock_get_settings,
-    mock_db_session
+    mock_celery_app, mock_get_settings, mock_db_session
 ):
     mock_settings = AsyncMock()
     mock_settings.email.digest_mode = "immediate"
@@ -68,12 +66,12 @@ async def test_immediate_mode_queues_notification(
     mock_db_session.execute.return_value = mock_result
 
     context = {"claim_number": "987654321"}
-    
+
     notification = await NotificationService.emit_event(
         db=mock_db_session,
         event_type="GUIDEWIRE_ACTIVITY_CREATED",
         context=context,
-        idempotency_key="test_key_immediate"
+        idempotency_key="test_key_immediate",
     )
 
     assert notification is not None

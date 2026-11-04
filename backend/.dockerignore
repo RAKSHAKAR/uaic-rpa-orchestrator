@@ -36,6 +36,12 @@ data/**
 cache
 cache/**
 celerybeat-schedule*
+test-results
+test-results/**
+playwright-report
+playwright-report/**
+blob-report
+blob-report/**
 
 # Persistent Test Browser Profiles & Diagnostic Dumps
 test_*profile*
@@ -76,6 +82,9 @@ uploads/**
 
 # Local Databases (Containers use managed PostgreSQL/Redis)
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.db.bak
 *.sqlite
 *.sqlite3

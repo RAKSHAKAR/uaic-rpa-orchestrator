@@ -1,7 +1,9 @@
 import asyncio
-from playwright.async_api import async_playwright
-import os
 import json
+import os
+
+from playwright.async_api import async_playwright
+
 
 async def main():
     profile_dir = os.path.abspath("test_dev_mode_profile")
@@ -34,7 +36,7 @@ async def main():
     # 3. Read Preferences file
     pref_path = os.path.join(profile_dir, "Default", "Preferences")
     if os.path.exists(pref_path):
-        with open(pref_path, "r", encoding="utf-8") as f:
+        with open(pref_path, encoding="utf-8") as f:
             prefs = json.load(f)
             print("EXTENSIONS PREF:", json.dumps(prefs.get("extensions", {}), indent=2))
             print("PROFILE PREF:", json.dumps(prefs.get("profile", {}), indent=2))

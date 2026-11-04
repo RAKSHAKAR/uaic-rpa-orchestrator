@@ -78,7 +78,9 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 allowed_statuses=matcher_cfg.whitelisted_statuses,
                 allowed_types=matcher_cfg.whitelisted_case_types,
             ):
-                logger.info(f"Skipping ineligible case {court_case.case_number} (Filing Date {court_case.filing_date} < minimum {matcher_cfg.min_filing_date})")
+                logger.info(
+                    f"Skipping ineligible case {court_case.case_number} (Filing Date {court_case.filing_date} < minimum {matcher_cfg.min_filing_date})"
+                )
                 filtered_case = FilteredOutCase(
                     id=uuid.uuid4(),
                     claim_id=claim.id,
@@ -194,7 +196,9 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
             "start_time": datetime.now().strftime("%H:%M:%S.%f")[:-3],
             "end_time": datetime.now().strftime("%H:%M:%S.%f")[:-3],
             "duration_seconds": max(fuzzy_duration, 0.001),
-            "status": "SUCCESS" if positive_matches else ("MANUAL_REVIEW" if borderline_matches else "NO_MATCH"),
+            "status": "SUCCESS"
+            if positive_matches
+            else ("MANUAL_REVIEW" if borderline_matches else "NO_MATCH"),
             "positive_matches": len(positive_matches),
             "borderline_matches": len(borderline_matches),
             "detail": f"{len(positive_matches)} matched ({matcher_cfg.scorer_algorithm})",
@@ -223,7 +227,11 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                         c_date = c.get("FilingDate", "N/A")
                         c_status = c.get("CaseStatus", "ACTIVE")
                         c_url = c.get("CountyWebsite", "#")
-                        link_html = f'<a href="{c_url}" target="_blank" style="color: #0284c7; text-decoration: underline; font-weight: bold;">{c_num}</a>' if c_url != "#" else f'<strong>{c_num}</strong>'
+                        link_html = (
+                            f'<a href="{c_url}" target="_blank" style="color: #0284c7; text-decoration: underline; font-weight: bold;">{c_num}</a>'
+                            if c_url != "#"
+                            else f"<strong>{c_num}</strong>"
+                        )
                         case_rows.append(f"""
                         <tr style="border-bottom: 1px solid #e2e8f0;">
                           <td style="padding: 8px; font-family: monospace; font-size: 12px;">{link_html}</td>
@@ -245,7 +253,7 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                         </tr>
                       </thead>
                       <tbody>
-                        {''.join(case_rows)}
+                        {"".join(case_rows)}
                       </tbody>
                     </table>
                     """
@@ -260,14 +268,20 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                             "claimant_name": f"{claim.claimant_first_name} {claim.claimant_last_name}".strip(),
                             "party_name": f"{claim.claimant_first_name} {claim.claimant_last_name}".strip(),
                             "matched_count": len(positive_matches),
-                            "county_name": positive_matches[0].get("CountyWebsite", "Florida/Texas Court") if positive_matches else "Court Portal",
+                            "county_name": positive_matches[0].get(
+                                "CountyWebsite", "Florida/Texas Court"
+                            )
+                            if positive_matches
+                            else "Court Portal",
                             "matched_cases_table": cases_table_html,
                         },
                         claim_id=claim.id,
                         claim_number=claim.claim_number,
                         idempotency_key=f"COURT_CASE_MATCHED:{claim.id}",
                     )
-                    logger.info(f"Claim {claim.claim_number}: Dispatched direct system match notification ({len(positive_matches)} cases).")
+                    logger.info(
+                        f"Claim {claim.claim_number}: Dispatched direct system match notification ({len(positive_matches)} cases)."
+                    )
                 except Exception as notif_err:
                     logger.warning(f"Direct match notification dispatch note: {notif_err}")
 
@@ -283,7 +297,9 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 if dispatch_mode == "direct_system":
                     claim.record_status = RecordStatusEnum.COMPLETED
                     await session.commit()
-                    logger.info(f"Claim {claim.claim_number}: Match processing completed via direct system notification.")
+                    logger.info(
+                        f"Claim {claim.claim_number}: Match processing completed via direct system notification."
+                    )
                 else:
                     logger.info(
                         f"Claim {claim.claim_number}: auto_push_on_match disabled or guidewire push bypassed. Advancing queue."
@@ -292,30 +308,47 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                     is_auto_queue_enabled,
                     remove_active_queue_item_id,
                 )
+
                 remove_active_queue_item_id(claim.id)
                 if is_auto_queue_enabled():
-                    celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+                    celery_app.send_task(
+                        "app.tasks.queue_runner.advance_auto_queue_task", queue="default"
+                    )
         if positive_matches:
-            claim.record_status = RecordStatusEnum.COMPLETED if dispatch_mode == "direct_system" else RecordStatusEnum.MATCH_FOUND
+            claim.record_status = (
+                RecordStatusEnum.COMPLETED
+                if dispatch_mode == "direct_system"
+                else RecordStatusEnum.MATCH_FOUND
+            )
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.COMPLETED
             claim.modified_by = "worker:fuzzy_matcher"
-            total_sec = (timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0) + fuzzy_duration
+            total_sec = (
+                timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0
+            ) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
-            logger.info(f"Claim {claim.claim_number}: {len(positive_matches)} positive matches confirmed.")
+            logger.info(
+                f"Claim {claim.claim_number}: {len(positive_matches)} positive matches confirmed."
+            )
         elif borderline_matches:
             claim.record_status = RecordStatusEnum.MANUAL_REVIEW
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.PENDING_REVIEW
             claim.modified_by = "worker:fuzzy_matcher"
-            total_sec = (timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0) + fuzzy_duration
+            total_sec = (
+                timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0
+            ) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
-            logger.info(f"Claim {claim.claim_number}: {len(borderline_matches)} borderline matches flagged for manual review.")
+            logger.info(
+                f"Claim {claim.claim_number}: {len(borderline_matches)} borderline matches flagged for manual review."
+            )
         else:
             claim.record_status = RecordStatusEnum.NO_MATCH_FOUND
             claim.fuzzy_match_status = FuzzyMatchStatusEnum.NO_MATCH_FOUND
             claim.modified_by = "worker:fuzzy_matcher"
-            total_sec = (timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0) + fuzzy_duration
+            total_sec = (
+                timings.get("total_scraping_seconds") or claim.total_duration_seconds or 0.0
+            ) + fuzzy_duration
             claim.total_duration_seconds = round(total_sec, 2)
             await session.commit()
             logger.info(f"Claim {claim.claim_number}: No matching court cases found.")
@@ -334,7 +367,9 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
                 claim_number=claim.claim_number,
                 user_id="celery_worker",
                 user_email="orchestrator@system.local",
-                status="SUCCESS" if positive_matches else ("MANUAL_REVIEW" if borderline_matches else "NO_MATCH"),
+                status="SUCCESS"
+                if positive_matches
+                else ("MANUAL_REVIEW" if borderline_matches else "NO_MATCH"),
                 details={
                     "positive_matches_count": len(positive_matches),
                     "borderline_matches_count": len(borderline_matches),
@@ -349,9 +384,12 @@ async def _async_evaluate_fuzzy_matches(claim_id: str):
         # Advance automatic queue if no positive matches are awaiting Guidewire dispatch
         if not positive_matches:
             from app.tasks.queue_runner import is_auto_queue_enabled, remove_active_queue_item_id
+
             remove_active_queue_item_id(claim.id)
             if is_auto_queue_enabled():
-                celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
+                celery_app.send_task(
+                    "app.tasks.queue_runner.advance_auto_queue_task", queue="default"
+                )
 
 
 @celery_app.task(name="app.tasks.fuzzy_tasks.evaluate_fuzzy_matches_task", bind=True, max_retries=3)
@@ -409,7 +447,9 @@ async def _async_notify_guidewire(claim_id: str):
             "end_time": datetime.now().strftime("%H:%M:%S.%f")[:-3],
             "duration_seconds": max(gw_duration, 0.001),
             "status": "SUCCESS" if gw_res.get("success") else "FAILED",
-            "detail": "Dispatched to Guidewire API" if gw_res.get("success") else str(gw_res.get("error")),
+            "detail": "Dispatched to Guidewire API"
+            if gw_res.get("success")
+            else str(gw_res.get("error")),
         }
 
         claim.modified_by = "worker:guidewire_sync"
@@ -417,7 +457,12 @@ async def _async_notify_guidewire(claim_id: str):
             claim.record_status = RecordStatusEnum.COMPLETED
             claim.last_error = None
             resp = gw_res.get("response", {})
-            claim.activity_id = str(resp.get("ActivityID") or resp.get("activityId") or resp.get("activity_id") or "GW-AUTO-CREATED")
+            claim.activity_id = str(
+                resp.get("ActivityID")
+                or resp.get("activityId")
+                or resp.get("activity_id")
+                or "GW-AUTO-CREATED"
+            )
             timings["guidewire_dispatch"]["activity_id"] = claim.activity_id
             stages["guidewire_trigger"]["detail"] = f"Activity ID: {claim.activity_id}"
 
@@ -438,7 +483,9 @@ async def _async_notify_guidewire(claim_id: str):
                     idempotency_key=f"GUIDEWIRE_ACTIVITY_CREATED:{claim.id}:{claim.activity_id}",
                 )
             except Exception as notif_err:
-                logger.warning(f"Notification dispatch note on Guidewire activity success: {notif_err}")
+                logger.warning(
+                    f"Notification dispatch note on Guidewire activity success: {notif_err}"
+                )
         else:
             claim.last_error = f"Guidewire notification error: {gw_res.get('error')}"
             timings["guidewire_dispatch"]["alert_recipient"] = integ.notification_email
@@ -462,7 +509,9 @@ async def _async_notify_guidewire(claim_id: str):
                     idempotency_key=f"GUIDEWIRE_ACTIVITY_FAILED:{claim.id}:{int(time.time())}",
                 )
             except Exception as notif_err:
-                logger.warning(f"Notification dispatch note on Guidewire activity failure: {notif_err}")
+                logger.warning(
+                    f"Notification dispatch note on Guidewire activity failure: {notif_err}"
+                )
 
         try:
             gw_ok = bool(gw_res.get("success"))
@@ -508,9 +557,9 @@ async def _async_notify_guidewire(claim_id: str):
             logger.warning(f"Could not persist GuidewireActivity audit entity: {gw_act_err}")
 
         total_sec = (
-            timings.get("total_scraping_seconds", 0.0) +
-            timings.get("fuzzy_matching", {}).get("duration_seconds", 0.0) +
-            gw_duration
+            timings.get("total_scraping_seconds", 0.0)
+            + timings.get("fuzzy_matching", {}).get("duration_seconds", 0.0)
+            + gw_duration
         )
         claim.total_duration_seconds = round(total_sec, 2)
         claim.action_timings = timings
@@ -519,6 +568,7 @@ async def _async_notify_guidewire(claim_id: str):
 
         # Advance automatic sequential queue runner
         from app.tasks.queue_runner import is_auto_queue_enabled, remove_active_queue_item_id
+
         remove_active_queue_item_id(claim.id)
         if is_auto_queue_enabled():
             celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")

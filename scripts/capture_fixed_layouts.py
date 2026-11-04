@@ -1,5 +1,6 @@
 """Capture screenshots of the 5 routes demonstrating fixed shell layout and scrolling main container."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 PAGES = [

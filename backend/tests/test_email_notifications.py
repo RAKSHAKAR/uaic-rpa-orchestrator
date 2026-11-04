@@ -88,7 +88,13 @@ async def test_notification_service_master_switch():
             result_enabled = await NotificationService.emit_event(
                 db=db,
                 event_type="GUIDEWIRE_ACTIVITY_CREATED",
-                context={"claim_number": "0100000001", "exposure_number": "001", "activity_id": "ACT-123", "party_name": "JOHN DOE", "matched_count": 1},
+                context={
+                    "claim_number": "0100000001",
+                    "exposure_number": "001",
+                    "activity_id": "ACT-123",
+                    "party_name": "JOHN DOE",
+                    "matched_count": 1,
+                },
                 idempotency_key="TEST:MASTER:TOGGLE:1",
             )
             assert result_enabled is not None
@@ -116,7 +122,13 @@ async def test_notification_service_idempotency():
         first = await NotificationService.emit_event(
             db=db,
             event_type="GUIDEWIRE_ACTIVITY_CREATED",
-            context={"claim_number": "0100999999", "exposure_number": "001", "activity_id": "ACT-999", "party_name": "ALICE SMITH", "matched_count": 1},
+            context={
+                "claim_number": "0100999999",
+                "exposure_number": "001",
+                "activity_id": "ACT-999",
+                "party_name": "ALICE SMITH",
+                "matched_count": 1,
+            },
             idempotency_key=test_key,
         )
         assert first is not None
@@ -125,11 +137,19 @@ async def test_notification_service_idempotency():
         second = await NotificationService.emit_event(
             db=db,
             event_type="GUIDEWIRE_ACTIVITY_CREATED",
-            context={"claim_number": "0100999999", "exposure_number": "001", "activity_id": "ACT-999", "party_name": "ALICE SMITH", "matched_count": 1},
+            context={
+                "claim_number": "0100999999",
+                "exposure_number": "001",
+                "activity_id": "ACT-999",
+                "party_name": "ALICE SMITH",
+                "matched_count": 1,
+            },
             idempotency_key=test_key,
         )
         assert second is not None
-        assert first.id == second.id, "Second call must return the existing notification without creating a new record"
+        assert first.id == second.id, (
+            "Second call must return the existing notification without creating a new record"
+        )
 
 
 @pytest.mark.asyncio
@@ -294,6 +314,7 @@ async def test_send_email_delivery_receipt_mock_automated(mocker):
 
         # Execute asynchronous delivery handler synchronously for test
         from app.tasks.notification_tasks import _execute_notification_delivery
+
         exec_res = await _execute_notification_delivery(notif_id)
         assert exec_res["success"] is True
 
@@ -319,7 +340,10 @@ async def test_direct_mx_delivery_to_damcogroup_automated(mocker):
 
     mock_smtp = mocker.MagicMock()
     mock_smtp.__enter__.return_value = mock_smtp
-    mock_smtp.data.return_value = (250, b"2.6.0 <msg@test.com> [InternalId=123456, Hostname=damcogroup-com.mail.protection.outlook.com] Queued mail for delivery")
+    mock_smtp.data.return_value = (
+        250,
+        b"2.6.0 <msg@test.com> [InternalId=123456, Hostname=damcogroup-com.mail.protection.outlook.com] Queued mail for delivery",
+    )
     mocker.patch("smtplib.SMTP", return_value=mock_smtp)
 
     provider = DirectMxEmailProvider()
@@ -332,10 +356,17 @@ async def test_direct_mx_delivery_to_damcogroup_automated(mocker):
     assert res.success is True
     assert res.provider == "direct_mx"
     assert res.delivery_receipt is not None
-    assert "damcogroup-com.mail.protection.outlook.com" in res.delivery_receipt.get("gateway_host", "")
+    assert "damcogroup-com.mail.protection.outlook.com" in res.delivery_receipt.get(
+        "gateway_host", ""
+    )
     # Server response from Microsoft 365 gateway indicates queued mail
     resp_str = str(res.delivery_receipt.get("server_response", "")).lower()
-    assert "250" in resp_str or "queued" in resp_str or "2.6.0" in resp_str or res.delivery_receipt.get("server_code") == 250
+    assert (
+        "250" in resp_str
+        or "queued" in resp_str
+        or "2.6.0" in resp_str
+        or res.delivery_receipt.get("server_code") == 250
+    )
 
 
 @pytest.mark.asyncio
@@ -406,6 +437,7 @@ async def test_maildev_provider_send_and_receipt_automated():
 
         # Execute asynchronous delivery handler synchronously for test
         from app.tasks.notification_tasks import _execute_notification_delivery
+
         exec_res = await _execute_notification_delivery(notif_id)
         assert exec_res["success"] is True
 
@@ -473,14 +505,21 @@ async def test_template_studio_crud_and_preview(mocker):
         assert put_resp.status_code == 200
         put_data = put_resp.json()
         assert put_data["is_custom"] is True
-        assert put_data["subject_template"] == "DOCKET MATCH: Claim {{claim_number}} ({{matched_count}})"
+        assert (
+            put_data["subject_template"]
+            == "DOCKET MATCH: Claim {{claim_number}} ({{matched_count}})"
+        )
 
         # 5. Verify emit_event uses custom template from DB
         async with AsyncSessionLocal() as db:
             notif = await NotificationService.emit_event(
                 db=db,
                 event_type="COURT_CASE_MATCHED",
-                context={"claim_number": "0100112233", "insured_name": "SARAH CONNOR", "matched_count": 3},
+                context={
+                    "claim_number": "0100112233",
+                    "insured_name": "SARAH CONNOR",
+                    "matched_count": 3,
+                },
                 idempotency_key=f"TEST:CUSTOM:TPL:{uuid.uuid4().hex[:8]}",
             )
             assert notif is not None
@@ -501,7 +540,9 @@ async def test_template_variable_aliases():
     # Test {{county}} and {{county_name}}
     tpl1 = "Match in {{county}} (alias for {{county_name}})"
     ctx1 = {"county": "Broward County"}
-    assert TemplateRenderer.render(tpl1, ctx1) == "Match in Broward County (alias for Broward County)"
+    assert (
+        TemplateRenderer.render(tpl1, ctx1) == "Match in Broward County (alias for Broward County)"
+    )
 
     # Test {{activity_id}} and {{activityId}}
     tpl2 = "Guidewire Activity {{activity_id}} / {{activityId}}"
@@ -515,7 +556,10 @@ async def test_template_variable_aliases():
         "case_style": "JOHN DOE VS JANE SMITH",
         "suit_filed_date": "2024-05-14",
     }
-    assert TemplateRenderer.render(tpl3, ctx3) == "Case COCE-24-001234 - JOHN DOE VS JANE SMITH filed on 2024-05-14"
+    assert (
+        TemplateRenderer.render(tpl3, ctx3)
+        == "Case COCE-24-001234 - JOHN DOE VS JANE SMITH filed on 2024-05-14"
+    )
 
 
 @pytest.mark.asyncio
@@ -551,7 +595,9 @@ async def test_graph_and_ses_email_providers():
     from app.services.email_service import GraphEmailProvider, SesEmailProvider, get_email_provider
 
     # Graph provider instance
-    graph_p = GraphEmailProvider(tenant_id="test-tenant", client_id="test-client", client_secret="test-secret")
+    graph_p = GraphEmailProvider(
+        tenant_id="test-tenant", client_id="test-client", client_secret="test-secret"
+    )
     conn_g = graph_p.test_connection()
     assert conn_g.success is True
     assert conn_g.provider == "graph"
@@ -567,7 +613,9 @@ async def test_graph_and_ses_email_providers():
     assert send_g.delivery_receipt["protocol"] == "GRAPH-REST-v1.0"
 
     # SES provider instance
-    ses_p = SesEmailProvider(region="us-east-1", access_key_id="test-key", secret_access_key="test-secret")
+    ses_p = SesEmailProvider(
+        region="us-east-1", access_key_id="test-key", secret_access_key="test-secret"
+    )
     conn_s = ses_p.test_connection()
     assert conn_s.success is True
     assert conn_s.provider == "ses"
@@ -584,6 +632,7 @@ async def test_graph_and_ses_email_providers():
 
     # Factory instantiation
     from app.schemas.settings import EmailSettings
+
     assert isinstance(get_email_provider(EmailSettings(provider="graph")), GraphEmailProvider)
     assert isinstance(get_email_provider(EmailSettings(provider="ses")), SesEmailProvider)
 
@@ -622,7 +671,9 @@ async def test_transactional_safety_email_failure_isolation(mocker):
     except Exception:
         workflow_completed = False
 
-    assert workflow_completed is True, "Parent workflow must remain intact even if notification engine fails"
+    assert workflow_completed is True, (
+        "Parent workflow must remain intact even if notification engine fails"
+    )
 
 
 @pytest.mark.asyncio
@@ -636,7 +687,11 @@ async def test_notifications_search_and_filter_endpoint(mocker):
         await NotificationService.emit_event(
             db=db,
             event_type="GUIDEWIRE_ACTIVITY_CREATED",
-            context={"claim_number": test_claim, "party_name": "FILTER TEST INSURED", "activity_id": "ACT-FILTER-1"},
+            context={
+                "claim_number": test_claim,
+                "party_name": "FILTER TEST INSURED",
+                "activity_id": "ACT-FILTER-1",
+            },
             idempotency_key=f"TEST:FILTER:{uuid.uuid4().hex[:8]}",
         )
 
@@ -659,5 +714,3 @@ async def test_notifications_search_and_filter_endpoint(mocker):
         assert resp_ev.status_code == 200
         data_ev = resp_ev.json()
         assert "items" in data_ev
-
-

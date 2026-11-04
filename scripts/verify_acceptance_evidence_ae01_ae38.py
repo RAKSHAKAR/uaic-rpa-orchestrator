@@ -8,23 +8,26 @@ secret masking, transactional safety, and notification delivery history.
 import asyncio
 import json
 import logging
-import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add backend to sys.path
 backend_dir = Path(__file__).resolve().parent.parent / "backend"
 sys.path.insert(0, str(backend_dir))
 
-from httpx import ASGITransport, AsyncClient
-from app.main import app
 from app.core.database import AsyncSessionLocal
+from app.main import app
 from app.models.notification import Notification
-from app.services.email_service import TemplateRenderer, GraphEmailProvider, SesEmailProvider, MockEmailProvider
+from app.services.email_service import (
+    GraphEmailProvider,
+    MockEmailProvider,
+    SesEmailProvider,
+    TemplateRenderer,
+)
 from app.services.notification_service import NotificationService
 from app.services.settings_service import get_system_settings_async, save_system_settings_async
-from app.schemas.settings import EmailSettings
+from httpx import ASGITransport, AsyncClient
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("acceptance_evidence")
@@ -260,7 +263,7 @@ async def run_all_verifications():
                 db=db,
                 event_type="GUIDEWIRE_ACTIVITY_CREATED",
                 context={"claim_number": "0100777777", "activity_id": "ACT-GW-AE15", "party_name": "SARAH CONNOR", "matched_count": 2},
-                idempotency_key=f"AE15:{datetime.now(timezone.utc).timestamp()}",
+                idempotency_key=f"AE15:{datetime.now(UTC).timestamp()}",
             )
             gw_ok = gw_notif is not None and "ACT-GW-AE15" in gw_notif.body_html
             record_evidence(
@@ -276,7 +279,7 @@ async def run_all_verifications():
                 db=db,
                 event_type="GUIDEWIRE_ACTIVITY_FAILED",
                 context={"claim_number": "0100777777", "error_message": "HTTP 500 ClaimCenter internal gateway failure"},
-                idempotency_key=f"AE17:{datetime.now(timezone.utc).timestamp()}",
+                idempotency_key=f"AE17:{datetime.now(UTC).timestamp()}",
             )
             gw_fail_ok = gw_fail_notif is not None and "HTTP 500" in gw_fail_notif.body_html
             record_evidence(
@@ -323,7 +326,7 @@ async def run_all_verifications():
 
         # AE-021: Idempotency Key Deduplication
         async with AsyncSessionLocal() as db:
-            idemp_key = f"IDEMP-TEST-{datetime.now(timezone.utc).timestamp()}"
+            idemp_key = f"IDEMP-TEST-{datetime.now(UTC).timestamp()}"
             n1 = await NotificationService.emit_event(
                 db=db,
                 event_type="GUIDEWIRE_ACTIVITY_CREATED",

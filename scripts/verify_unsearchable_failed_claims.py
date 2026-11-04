@@ -1,7 +1,8 @@
 import sqlite3
 import sys
+
 sys.path.insert(0, 'backend')
-from app.services.fuzzy_engine import is_unsearchable_party, generate_unique_names_for_claim
+from app.services.fuzzy_engine import generate_unique_names_for_claim, is_unsearchable_party
 
 conn = sqlite3.connect('backend/orchestrator.db')
 conn.row_factory = sqlite3.Row
@@ -27,7 +28,7 @@ for r in rows:
     if len(unique_targets) == 0:
         all_unsearchable_count += 1
 
-print(f"\nSummary:")
+print("\nSummary:")
 print(f"  Claims with at least one unsearchable party: {unsearchable_count}")
 print(f"  Claims where ALL parties are unsearchable (bypassed instantly): {all_unsearchable_count}")
 

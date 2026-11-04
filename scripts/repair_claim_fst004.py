@@ -10,10 +10,11 @@ if backend_dir not in sys.path:
 os.chdir(backend_dir)
 
 from app.core.database import AsyncSessionLocal
-from app.models.claim import ClaimRecord, BotStatusEnum, RecordStatusEnum, FuzzyMatchStatusEnum
-from app.models.court_case import ScrapedCourtCase
 from app.models.audit_log import AuditLog
-from sqlalchemy import select, delete
+from app.models.claim import BotStatusEnum, ClaimRecord, FuzzyMatchStatusEnum, RecordStatusEnum
+from app.models.court_case import ScrapedCourtCase
+from sqlalchemy import delete, select
+
 
 async def repair():
     async with AsyncSessionLocal() as session:
@@ -243,7 +244,7 @@ async def repair():
             ("CLAIM_CREATED", "SUCCESS", base_time, f"Created new claim record '{claim.claim_number}' with FL policy & loss location.", {"policy_state": "FL", "loss_location_state": "FL"}),
             ("UNIQUE_NAMES_EXTRACTED", "SUCCESS", base_time + timedelta(seconds=0.5), f"Extracted unique search target(s) for claim '{claim.claim_number}': Insured '{claim.insured_first_name} {claim.insured_last_name}'.", {"unique_count": 1}),
             ("SCRAPING_STARTED", "SUCCESS", base_time + timedelta(seconds=1.0), f"Automated browser scraping initiated across 3 Florida portal tabs (Hillsborough, Broward, Miami-Dade) for claim '{claim.claim_number}'.", {"portals": ["hillsborough", "broward", "miami"]}),
-            ("PORTAL_SCRAPING_COMPLETED", "SUCCESS", base_time + timedelta(seconds=12.0), f"Hillsborough County Court scraping completed: 5 matching court cases discovered.", {"portal_key": "hillsborough", "cases_count": len(cases), "duration_seconds": 12.8}),
+            ("PORTAL_SCRAPING_COMPLETED", "SUCCESS", base_time + timedelta(seconds=12.0), "Hillsborough County Court scraping completed: 5 matching court cases discovered.", {"portal_key": "hillsborough", "cases_count": len(cases), "duration_seconds": 12.8}),
             ("PORTAL_SCRAPING_COMPLETED", "SUCCESS", base_time + timedelta(seconds=13.0), "Broward County Court scraping completed: 0 court cases found (clear record).", {"portal_key": "broward", "cases_count": 0, "duration_seconds": 4.5}),
             ("PORTAL_SCRAPING_COMPLETED", "SUCCESS", base_time + timedelta(seconds=14.0), "Miami-Dade County Court scraping completed: 0 court cases found (clear record).", {"portal_key": "miami", "cases_count": 0, "duration_seconds": 5.1}),
             ("SCRAPING_COMPLETED", "SUCCESS", base_time + timedelta(seconds=15.0), f"Court scraper automation completed with {len(cases)} cases found across 3 Florida portals.", {"portals_completed": 3, "total_cases": len(cases)}),

@@ -1,7 +1,6 @@
-import sqlite3
-import os
-import sys
 import json
+import os
+import sqlite3
 from datetime import datetime, timedelta
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -293,7 +292,7 @@ else:
     # Populate audit logs
     cur_b.execute("DELETE FROM audit_logs WHERE claim_number = 'FST-004'")
     audit_events = [
-        ("CLAIM_CREATED", "SUCCESS", base_time, f"Created new claim record 'FST-004' with FL policy & loss location.", json.dumps({"policy_state": "FL", "loss_location_state": "FL"})),
+        ("CLAIM_CREATED", "SUCCESS", base_time, "Created new claim record 'FST-004' with FL policy & loss location.", json.dumps({"policy_state": "FL", "loss_location_state": "FL"})),
         ("UNIQUE_NAMES_EXTRACTED", "SUCCESS", base_time + timedelta(seconds=0.5), f"Extracted unique search target(s) for claim 'FST-004': Insured '{insured_first} {insured_last}'.", json.dumps({"unique_count": 1})),
         ("SCRAPING_STARTED", "SUCCESS", base_time + timedelta(seconds=1.0), "Automated browser scraping initiated across 3 Florida portal tabs (Hillsborough, Broward, Miami-Dade) for claim 'FST-004'.", json.dumps({"portals": ["hillsborough", "broward", "miami"]})),
         ("PORTAL_SCRAPING_COMPLETED", "SUCCESS", base_time + timedelta(seconds=12.0), f"Hillsborough County Court scraping completed: {len(hills_cases_json)} matching court cases discovered.", json.dumps({"portal_key": "hillsborough", "cases_count": len(hills_cases_json), "duration_seconds": 12.8})),
@@ -337,5 +336,6 @@ conn_backend.close()
 
 # Also sync backend_db back to root_db so both files remain completely synchronized
 import shutil
+
 shutil.copy2(backend_db_path, root_db_path)
-print(f"Successfully copied synchronized backend DB to root DB.")
+print("Successfully copied synchronized backend DB to root DB.")

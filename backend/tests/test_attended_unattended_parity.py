@@ -24,7 +24,14 @@ from app.services.guidewire_client import format_claim_number
 
 MockClaim = namedtuple(
     "MockClaim",
-    ["insured_first_name", "insured_last_name", "driver_first_name", "driver_last_name", "claimant_first_name", "claimant_last_name"],
+    [
+        "insured_first_name",
+        "insured_last_name",
+        "driver_first_name",
+        "driver_last_name",
+        "claimant_first_name",
+        "claimant_last_name",
+    ],
     defaults=["", "", "", "", "", ""],
 )
 
@@ -92,7 +99,14 @@ def test_parity_strict_portal_schemas():
 
     assert "CaseType" not in allowed_schemas["te_harris_jp"]
     assert "CaseType" not in allowed_schemas["te_harris_cclerk"]
-    for p in ["fl_broward", "fl_hillsborough", "fl_miami", "te_dallas", "te_travis", "te_harris_district"]:
+    for p in [
+        "fl_broward",
+        "fl_hillsborough",
+        "fl_miami",
+        "te_dallas",
+        "te_travis",
+        "te_harris_district",
+    ]:
         assert "CaseType" in allowed_schemas[p]
 
 
@@ -196,9 +210,14 @@ def test_parity_claims_synthesized_stage_detail_reflects_settings(mocker):
     mock_claim.total_duration_seconds = 12.5
     mock_claim.scraped_cases = []
     for attr in [
-        "fl_jsonbody_broward", "fl_jsonbody_hillsborough", "fl_jsonbody_miami",
-        "te_jsonbody_travis", "te_jsonbody_dallas", "te_jsonbody_harris",
-        "te_jsonbody_cclerk", "te_jsonbody_hcdistrict"
+        "fl_jsonbody_broward",
+        "fl_jsonbody_hillsborough",
+        "fl_jsonbody_miami",
+        "te_jsonbody_travis",
+        "te_jsonbody_dallas",
+        "te_jsonbody_harris",
+        "te_jsonbody_cclerk",
+        "te_jsonbody_hcdistrict",
     ]:
         setattr(mock_claim, attr, [])
 
@@ -206,7 +225,9 @@ def test_parity_claims_synthesized_stage_detail_reflects_settings(mocker):
     mock_settings_hl = MagicMock()
     mock_settings_hl.automation.headless_mode = True
     mock_settings_hl.automation.browser_engine = "chrome"
-    mocker.patch("app.services.settings_service.get_system_settings_sync", return_value=mock_settings_hl)
+    mocker.patch(
+        "app.services.settings_service.get_system_settings_sync", return_value=mock_settings_hl
+    )
 
     timings = _normalize_action_timings({}, claim=mock_claim)
     assert "stages" in timings
@@ -219,10 +240,11 @@ def test_parity_claims_synthesized_stage_detail_reflects_settings(mocker):
     mock_settings_att = MagicMock()
     mock_settings_att.automation.headless_mode = False
     mock_settings_att.automation.browser_engine = "msedge"
-    mocker.patch("app.services.settings_service.get_system_settings_sync", return_value=mock_settings_att)
+    mocker.patch(
+        "app.services.settings_service.get_system_settings_sync", return_value=mock_settings_att
+    )
 
     timings_att = _normalize_action_timings({}, claim=mock_claim)
     detail_att = timings_att["stages"]["browser_launch"]["detail"]
     assert "Attended (Visible GUI)" in detail_att
     assert "Microsoft Edge" in detail_att
-

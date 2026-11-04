@@ -73,6 +73,7 @@ def test_extension_manager_resolution_and_sync(tmp_path):
 async def test_profile_preferences_pinned_extensions(tmp_path, mocker):
     """Verify ChromeSession writes pinned_extensions and developer_mode to Default/Preferences."""
     import json
+
     session = ChromeSession(
         user_data_dir=str(tmp_path),
         browser_engine="chromium",
@@ -89,7 +90,7 @@ async def test_profile_preferences_pinned_extensions(tmp_path, mocker):
 
     mocker.patch(
         "app.automation.browser_manager.async_playwright",
-        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance))
+        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance)),
     )
 
     await session.start()
@@ -98,7 +99,6 @@ async def test_profile_preferences_pinned_extensions(tmp_path, mocker):
     prefs = json.loads(pref_file.read_text(encoding="utf-8"))
     assert prefs["extensions"]["ui"]["developer_mode"] is True
     assert "gcpdbjbmekkdlkpldjgffhmapgpdlcpj" in prefs["extensions"]["pinned_extensions"]
-
 
 
 def test_chrome_session_executable_discovery():
@@ -119,7 +119,9 @@ def test_chrome_session_engine_arguments():
     session_edge = ChromeSession(browser_engine="msedge")
     assert session_edge.browser_engine == "msedge"
 
-    session_chrome = ChromeSession(browser_engine="chrome", chrome_binary_path=r"C:\Custom\chrome.exe")
+    session_chrome = ChromeSession(
+        browser_engine="chrome", chrome_binary_path=r"C:\Custom\chrome.exe"
+    )
     assert session_chrome.browser_engine == "chrome"
     assert session_chrome.chrome_binary_path == r"C:\Custom\chrome.exe"
 
@@ -150,7 +152,7 @@ async def test_modern_headless_extension_args(tmp_path, mocker):
 
     mocker.patch(
         "app.automation.browser_manager.async_playwright",
-        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance))
+        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance)),
     )
 
     ctx = await session.start()
@@ -160,8 +162,10 @@ async def test_modern_headless_extension_args(tmp_path, mocker):
     # In Playwright, to load extensions headless, context headless must be False with --headless=new in args
     assert call_kwargs["headless"] is False
     assert "--headless=new" in call_kwargs["args"]
-    assert call_kwargs.get("channel") == "msedge" or "edge" in str(call_kwargs.get("executable_path", "")).lower()
-
+    assert (
+        call_kwargs.get("channel") == "msedge"
+        or "edge" in str(call_kwargs.get("executable_path", "")).lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -172,8 +176,8 @@ async def test_captcha_manager_condition_based_solving():
 
     # First check indicates challenge present, second evaluate indicates SOLVED
     eval_side_effects = [
-        True,       # _is_challenge_present: True
-        "SOLVED",   # evaluate in polling loop: 'SOLVED'
+        True,  # _is_challenge_present: True
+        "SOLVED",  # evaluate in polling loop: 'SOLVED'
     ]
     mock_page.evaluate = AsyncMock(side_effect=eval_side_effects)
     mock_page.wait_for_timeout = AsyncMock()
@@ -246,14 +250,20 @@ async def test_chrome_profile_seeding_and_args(tmp_path, mocker):
     (mock_source_default / "Preferences").write_text('{"pref": true}', encoding="utf-8")
     (mock_source_default / "Secure Preferences").write_text('{"secure": true}', encoding="utf-8")
 
-    mocker.patch.object(ChromeSession, "find_default_chrome_user_data_dir", return_value=mock_source)
+    mocker.patch.object(
+        ChromeSession, "find_default_chrome_user_data_dir", return_value=mock_source
+    )
     mocker.patch.object(ChromeSession, "get_persistent_profile_dir", return_value=mock_source)
-    mocker.patch.object(ChromeSession, "find_chrome_executable", return_value=mock_source / "chrome.exe")
+    mocker.patch.object(
+        ChromeSession, "find_chrome_executable", return_value=mock_source / "chrome.exe"
+    )
 
     captured_kwargs = {}
 
     mock_context = MagicMock()
-    mock_context.service_workers = [MagicMock(url="chrome-extension://gcpdbjbmekkdlkpldjgffhmapgpdlcpj/js/service_worker.js")]
+    mock_context.service_workers = [
+        MagicMock(url="chrome-extension://gcpdbjbmekkdlkpldjgffhmapgpdlcpj/js/service_worker.js")
+    ]
     mock_context.background_pages = []
     mock_page = MagicMock()
     mock_page.goto = AsyncMock()
@@ -262,6 +272,7 @@ async def test_chrome_profile_seeding_and_args(tmp_path, mocker):
     mock_context.new_page = AsyncMock(return_value=mock_page)
 
     mock_chromium = MagicMock()
+
     async def mock_launch(**kwargs):
         nonlocal captured_kwargs
         captured_kwargs = kwargs
@@ -300,6 +311,7 @@ async def test_engine_specific_user_agent_injection(mocker):
 
     mock_context = MagicMock(service_workers=[], background_pages=[])
     mock_chromium = MagicMock()
+
     async def mock_launch(**kwargs):
         nonlocal captured_kwargs
         captured_kwargs = kwargs
@@ -337,7 +349,9 @@ def test_is_extension_configured(tmp_path):
 
     # Case 2: Configured with matching key
     config_file = js_dir / "config_ac_api_key.js"
-    config_file.write_text("var antiCapApiKey = 'test_api_key_123'; solve_turnstile = true;", encoding="utf-8")
+    config_file.write_text(
+        "var antiCapApiKey = 'test_api_key_123'; solve_turnstile = true;", encoding="utf-8"
+    )
     assert ExtensionManager.is_extension_configured(ext_dir, "test_api_key_123") is True
 
     # Case 3: Different key
@@ -352,6 +366,7 @@ async def test_edge_preferences_pinned_and_toolbar_flags(tmp_path, mocker):
     captured_kwargs = {}
     mock_context = MagicMock(service_workers=[], background_pages=[])
     mock_chromium = MagicMock()
+
     async def mock_launch(**kwargs):
         nonlocal captured_kwargs
         captured_kwargs = kwargs
@@ -453,3 +468,78 @@ async def test_single_session_proxy_injection(mocker):
     assert proxy_dict["server"] == "http://10.0.0.5:3128"
     assert proxy_dict["username"] == "my_proxy_user"
     assert proxy_dict["password"] == "my_proxy_password"
+
+
+@pytest.mark.asyncio
+async def test_single_session_runner_close_method(mocker, tmp_path: Path):
+    """Verify SingleSessionBrowserRunner.close() closes tabs, context, playwright, and cleans profile locks."""
+    mock_clean = mocker.patch(
+        "app.automation.browser_manager.ChromeSession.clean_profile_locks_and_orphans"
+    )
+    mock_tab = MagicMock(is_closed=MagicMock(return_value=False), close=AsyncMock())
+    mock_context = MagicMock()
+    mock_context.pages = [mock_tab]
+    mock_context.close = AsyncMock()
+    mock_pw_instance = MagicMock(stop=AsyncMock())
+
+    mocker.patch(
+        "app.automation.session_runner.async_playwright",
+        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance)),
+    )
+
+    custom_prof = tmp_path / "close_test_prof"
+    custom_prof.mkdir()
+
+    runner = SingleSessionBrowserRunner(
+        browser_engine="chromium",
+        headless=True,
+        user_data_dir=str(custom_prof),
+    )
+    runner.context = mock_context
+    runner.playwright = mock_pw_instance
+    runner.tabs["test_portal"] = mock_tab
+    runner.profile_to_use = str(custom_prof)
+
+    await runner.close()
+
+    mock_tab.close.assert_awaited()
+    mock_context.close.assert_awaited()
+    mock_pw_instance.stop.assert_awaited()
+    mock_clean.assert_called_with(str(custom_prof), force_kill=True)
+    assert runner.context is None
+    assert runner.playwright is None
+    assert len(runner.tabs) == 0
+
+
+@pytest.mark.asyncio
+async def test_require_extension_escalation_raises_blocked_error(tmp_path, mocker):
+    """Verify that ChromeSession raises BlockedExtensionInitializationError when require_extension is True and extension fails to load."""
+    from app.automation.browser_manager import BlockedExtensionInitializationError
+
+    dummy_ext = tmp_path / "ext"
+    dummy_ext.mkdir()
+    (dummy_ext / "manifest.json").write_text('{"name": "test"}', encoding="utf-8")
+
+    session = ChromeSession(
+        headless=True,
+        extension_path=dummy_ext,
+        browser_engine="chromium",
+        require_extension=True,
+    )
+
+    mock_context = MagicMock(service_workers=[], background_pages=[])
+    mock_chromium = MagicMock()
+    mock_chromium.launch_persistent_context = AsyncMock(return_value=mock_context)
+    mock_pw_instance = MagicMock(chromium=mock_chromium)
+
+    mocker.patch(
+        "app.automation.browser_manager.async_playwright",
+        return_value=MagicMock(start=AsyncMock(return_value=mock_pw_instance)),
+    )
+
+    with pytest.raises(BlockedExtensionInitializationError) as exc_info:
+        await session.start()
+
+    assert "Anti-Captcha Extension Setup Failed" in str(exc_info.value)
+    assert exc_info.value.code == "BLOCKED_EXTENSION_INITIALIZATION"
+    assert exc_info.value.engine == "chromium"

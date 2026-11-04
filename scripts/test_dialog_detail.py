@@ -1,9 +1,10 @@
 import asyncio
 import ctypes
-import time
-import threading
 import shutil
+import threading
+import time
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 ext_dir = str(Path('anticaptcha-plugin_v0.83').resolve())

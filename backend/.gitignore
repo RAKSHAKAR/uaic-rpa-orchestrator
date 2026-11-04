@@ -11,6 +11,8 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -22,14 +24,23 @@ htmlcov/
 .env.*
 !.env.example
 
-# Local SQLite & Runtime Databases
+# Local SQLite & Runtime Databases (including WAL & Shared Memory)
 *.sqlite
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.db.bak
 app.db
 
 # Celery Beat Schedule
 celerybeat-schedule*
+
+# Playwright & Browser Automation Test Outputs
+test-results/
+playwright-report/
+blob-report/
 
 # Runtime Outputs
 *.log
@@ -54,4 +65,3 @@ exports/*
 *.bak
 test_*.png
 *.png
-

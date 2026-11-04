@@ -19,6 +19,7 @@ import app.compat  # noqa: F401
 if sys.platform == "win32":
     try:
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -74,7 +75,11 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown events with clean connection pool disposal."""
     logger.info("Starting UAIC Claim & RPA Orchestrator Backend (Python 3.14.7)...")
     await init_db()
+    from app.services.db_sync_service import auto_seed_from_sqlite_if_empty
+
+    await auto_seed_from_sqlite_if_empty()
     from app.core.http_client import HTTPClient
+
     HTTPClient.get_client()
     logger.info("Database schema initialized successfully.")
     yield
@@ -84,8 +89,9 @@ async def lifespan(app: FastAPI):
         logger.info("HTTP client closed cleanly.")
     except Exception as e:
         logger.warning(f"Error closing HTTP client: {e}")
-        
+
     from app.core.database import engine, task_engine
+
     try:
         await engine.dispose()
         await task_engine.dispose()
@@ -138,13 +144,14 @@ async def favicon():
     return Response(status_code=204)
 
 
-@app.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse, response_model_exclude_none=True)
+@app.post(
+    "/fuzzymatchapi", response_model=DirectFuzzyMatchResponse, response_model_exclude_none=True
+)
 def root_fuzzy_match_parity(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResponse:
     """Legacy Power Automate Desktop root-level fuzzy match parity route with optional filing_date filtering and batch cases support."""
     from app.api.v1.endpoints.matches import fuzzy_match_direct
 
     return fuzzy_match_direct(payload)
-
 
 
 @app.get("/health")
@@ -170,5 +177,3 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", settings.PORT))
     host = os.environ.get("HOST", settings.HOST)
     uvicorn.run("app.main:app", host=host, port=port, reload=settings.DEBUG)
-
-

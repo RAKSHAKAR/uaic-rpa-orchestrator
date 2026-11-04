@@ -1,7 +1,9 @@
 import asyncio
 import tempfile
 from pathlib import Path
+
 from playwright.async_api import async_playwright
+
 
 async def test_chrome_flags(flag_name, extra_args=[], ignore_args=["--disable-extensions"]):
     repo_root = Path(__file__).resolve().parent.parent

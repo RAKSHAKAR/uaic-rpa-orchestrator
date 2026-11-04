@@ -7,8 +7,9 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from app.core.database import AsyncSessionLocal
-from app.models.claim import ClaimRecord, RecordStatusEnum, BotStatusEnum
-from sqlalchemy import select, update
+from app.models.claim import BotStatusEnum, ClaimRecord, RecordStatusEnum
+from sqlalchemy import select
+
 
 async def reset_claims():
     async with AsyncSessionLocal() as s:

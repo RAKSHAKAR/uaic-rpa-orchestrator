@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Activity, ShieldCheck, Cpu, HardDrive, ExternalLink } from "lucide-react";
 import { api } from "../lib/api";
@@ -18,11 +18,11 @@ export const Footer: React.FC = () => {
     return "Google Chrome";
   };
 
-  const applyAutomationSettings = (auto: any) => {
+  const applyAutomationSettings = useCallback((auto: any) => {
     if (!auto) return;
     setEngineName(formatEngineLabel(auto.browser_engine));
     setExecutionMode(auto.headless_mode ? "Headless" : "Attended GUI");
-  };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -79,7 +79,7 @@ export const Footer: React.FC = () => {
         window.removeEventListener("storage", handleStorageEvent);
       }
     };
-  }, []);
+  }, [applyAutomationSettings]);
 
   return (
     <footer className="no-print w-full mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/90 text-slate-600 dark:text-slate-400 text-xs transition-colors">

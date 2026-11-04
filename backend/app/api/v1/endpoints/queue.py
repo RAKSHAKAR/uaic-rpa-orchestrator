@@ -28,18 +28,22 @@ from app.services.settings_service import get_system_settings_async
 logger = logging.getLogger("uaic_orchestrator.queue")
 router = APIRouter()
 
+
 async def _validate_anticaptcha():
     settings_obj = await get_system_settings_async()
-    if settings_obj.automation.anticaptcha_enabled and not (
-        settings_obj.automation.anticaptcha_api_key or ""
-    ).strip():
+    if (
+        settings_obj.automation.anticaptcha_enabled
+        and not (settings_obj.automation.anticaptcha_api_key or "").strip()
+    ):
         raise HTTPException(
             status_code=422,
-            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers."
+            detail="Anti-Captcha API key is not configured in Automation Settings. Cannot start scrapers.",
         )
 
 
-def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> LiveQueueItemResponse:
+def _format_live_queue_item(
+    claim: ClaimRecord, position: int | None = None
+) -> LiveQueueItemResponse:
     """Format ClaimRecord into a structured LiveQueueItemResponse with portal coverage."""
     policy_st = (claim.policy_state or "").upper()
     loss_st = (claim.loss_location_state or "").upper()
@@ -54,18 +58,57 @@ def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> 
         portals = ["Harris County Clerk", "Dallas", "Harris JP", "Harris District", "Travis"]
     else:
         portals = [
-            "Broward", "Hillsborough", "Miami-Dade",
-            "Harris County Clerk", "Dallas", "Harris JP", "Harris District", "Travis"
+            "Broward",
+            "Hillsborough",
+            "Miami-Dade",
+            "Harris County Clerk",
+            "Dallas",
+            "Harris JP",
+            "Harris District",
+            "Travis",
         ]
 
     bot_statuses = {
-        "fl_broward": str(claim.fl_botstatus_broward.value if hasattr(claim.fl_botstatus_broward, "value") else claim.fl_botstatus_broward),
-        "fl_hillsborough": str(claim.fl_botstatus_hillsborough.value if hasattr(claim.fl_botstatus_hillsborough, "value") else claim.fl_botstatus_hillsborough),
-        "fl_miami": str(claim.fl_botstatus_miami.value if hasattr(claim.fl_botstatus_miami, "value") else claim.fl_botstatus_miami),
-        "te_travis": str(claim.te_botstatus_travis.value if hasattr(claim.te_botstatus_travis, "value") else claim.te_botstatus_travis),
-        "te_dallas": str(claim.te_botstatus_dallas.value if hasattr(claim.te_botstatus_dallas, "value") else claim.te_botstatus_dallas),
-        "te_harris": str(claim.te_botstatus_harris.value if hasattr(claim.te_botstatus_harris, "value") else claim.te_botstatus_harris),
-        "te_cclerk": str(claim.te_botstatus_cclerk.value if hasattr(claim.te_botstatus_cclerk, "value") else claim.te_botstatus_cclerk),
+        "fl_broward": str(
+            claim.fl_botstatus_broward.value
+            if hasattr(claim.fl_botstatus_broward, "value")
+            else claim.fl_botstatus_broward
+        ),
+        "fl_hillsborough": str(
+            claim.fl_botstatus_hillsborough.value
+            if hasattr(claim.fl_botstatus_hillsborough, "value")
+            else claim.fl_botstatus_hillsborough
+        ),
+        "fl_miami": str(
+            claim.fl_botstatus_miami.value
+            if hasattr(claim.fl_botstatus_miami, "value")
+            else claim.fl_botstatus_miami
+        ),
+        "te_travis": str(
+            claim.te_botstatus_travis.value
+            if hasattr(claim.te_botstatus_travis, "value")
+            else claim.te_botstatus_travis
+        ),
+        "te_dallas": str(
+            claim.te_botstatus_dallas.value
+            if hasattr(claim.te_botstatus_dallas, "value")
+            else claim.te_botstatus_dallas
+        ),
+        "te_harris": str(
+            claim.te_botstatus_harris.value
+            if hasattr(claim.te_botstatus_harris, "value")
+            else claim.te_botstatus_harris
+        ),
+        "te_cclerk": str(
+            claim.te_botstatus_cclerk.value
+            if hasattr(claim.te_botstatus_cclerk, "value")
+            else claim.te_botstatus_cclerk
+        ),
+        "te_hcdistrict": str(
+            claim.te_botstatus_hcdistrict.value
+            if hasattr(claim.te_botstatus_hcdistrict, "value")
+            else claim.te_botstatus_hcdistrict
+        ),
     }
 
     insured = f"{claim.insured_first_name or ''} {claim.insured_last_name or ''}".strip() or None
@@ -76,12 +119,30 @@ def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> 
     if isinstance(claim.action_timings, dict):
         raw_started = claim.action_timings.get("started_at")
         if raw_started:
-            started_at = raw_started if (raw_started.endswith("Z") or "+" in raw_started) else f"{raw_started}Z"
-    if not started_at and str(claim.record_status.value if hasattr(claim.record_status, "value") else claim.record_status) == "SCRAPING_IN_PROGRESS":
+            started_at = (
+                raw_started
+                if (raw_started.endswith("Z") or "+" in raw_started)
+                else f"{raw_started}Z"
+            )
+    if (
+        not started_at
+        and str(
+            claim.record_status.value
+            if hasattr(claim.record_status, "value")
+            else claim.record_status
+        )
+        == "SCRAPING_IN_PROGRESS"
+    ):
         ref_time = claim.updated_at or claim.created_at
         if ref_time:
-            iso_val = ref_time.isoformat()
-            started_at = iso_val if (iso_val.endswith("Z") or "+" in iso_val) else f"{iso_val}Z"
+            now_dt = utc_now()
+            ref_dt_naive = (
+                ref_time.replace(tzinfo=None) if getattr(ref_time, "tzinfo", None) else ref_time
+            )
+            age_sec = (now_dt - ref_dt_naive).total_seconds()
+            if age_sec <= 300:
+                iso_val = ref_time.isoformat()
+                started_at = iso_val if (iso_val.endswith("Z") or "+" in iso_val) else f"{iso_val}Z"
 
     return LiveQueueItemResponse(
         id=claim.id,
@@ -93,8 +154,16 @@ def _format_live_queue_item(claim: ClaimRecord, position: int | None = None) -> 
         dol=claim.dol,
         policy_state=claim.policy_state,
         loss_location_state=claim.loss_location_state,
-        record_status=str(claim.record_status.value if hasattr(claim.record_status, "value") else claim.record_status),
-        fuzzy_match_status=str(claim.fuzzy_match_status.value if hasattr(claim.fuzzy_match_status, "value") else claim.fuzzy_match_status),
+        record_status=str(
+            claim.record_status.value
+            if hasattr(claim.record_status, "value")
+            else claim.record_status
+        ),
+        fuzzy_match_status=str(
+            claim.fuzzy_match_status.value
+            if hasattr(claim.fuzzy_match_status, "value")
+            else claim.fuzzy_match_status
+        ),
         queue_position=position,
         portals_to_run=portals,
         bot_statuses=bot_statuses,
@@ -121,7 +190,9 @@ def _get_redis_queues_sync() -> dict[str, int]:
     if time.time() < _REDIS_STATUS_OFFLINE_UNTIL or getattr(settings, "SEMAPHORE_BYPASS", False):
         return queues
     try:
-        r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=0.2, socket_timeout=0.2)
+        r = redis.Redis.from_url(
+            settings.CELERY_BROKER_URL, socket_connect_timeout=0.2, socket_timeout=0.2
+        )
         for q_name in queues:
             queues[q_name] = r.llen(q_name) or 0
     except Exception as e:
@@ -148,7 +219,9 @@ async def get_queue_status(db: AsyncSession = Depends(get_db)):
     workers_online = await asyncio.to_thread(_get_workers_online_sync)
 
     counts_res = await db.execute(
-        select(ClaimRecord.record_status, func.count(ClaimRecord.id)).group_by(ClaimRecord.record_status)
+        select(ClaimRecord.record_status, func.count(ClaimRecord.id)).group_by(
+            ClaimRecord.record_status
+        )
     )
     status_counts = dict(counts_res.all())
     active_tasks = status_counts.get(RecordStatusEnum.SCRAPING_IN_PROGRESS, 0)
@@ -159,13 +232,16 @@ async def get_queue_status(db: AsyncSession = Depends(get_db)):
         + status_counts.get(RecordStatusEnum.MATCH_FOUND, 0)
         + status_counts.get(RecordStatusEnum.NO_MATCH_FOUND, 0)
     )
-    db_pending = status_counts.get(RecordStatusEnum.NEW, 0) + status_counts.get(RecordStatusEnum.MANUAL_REVIEW, 0)
+    db_pending = status_counts.get(RecordStatusEnum.NEW, 0) + status_counts.get(
+        RecordStatusEnum.MANUAL_REVIEW, 0
+    )
     redis_pending = sum(queues.values())
     pending_tasks = max(redis_pending, db_pending)
     total_claims = sum(status_counts.values())
 
     try:
         from app.models.court_case import ScrapedCourtCase
+
         cases_cnt_res = await db.execute(select(func.count(ScrapedCourtCase.id)))
         total_cases_extracted = cases_cnt_res.scalar() or 0
     except Exception:
@@ -183,7 +259,6 @@ async def get_queue_status(db: AsyncSession = Depends(get_db)):
     )
 
 
-
 @router.post("/retrigger")
 async def retrigger_failed_claims(
     request: Request = None,
@@ -192,9 +267,9 @@ async def retrigger_failed_claims(
 ):
     """Manually retrigger failed or stuck claims for RPA scraping and fuzzy matching."""
     await _validate_anticaptcha()
-    
+
     query = select(ClaimRecord)
-    
+
     if payload and payload.claim_ids:
         query = query.where(ClaimRecord.id.in_(payload.claim_ids))
     else:
@@ -213,7 +288,7 @@ async def retrigger_failed_claims(
 
     res = await db.execute(query)
     claims_to_retrigger = res.scalars().all()
-    
+
     if not claims_to_retrigger:
         return {"message": "No matching claims found to retrigger", "count": 0}
 
@@ -230,11 +305,23 @@ async def retrigger_failed_claims(
 
     retriggered_ids = []
     for claim in claims_to_retrigger:
+        is_worker_restart = bool(claim.last_error and "worker restart" in claim.last_error.lower())
+        timings = claim.action_timings if isinstance(claim.action_timings, dict) else {}
+        has_zero_portals = not timings.get("portals")
+
         claim.record_status = RecordStatusEnum.NEW
-        claim.retry_count += 1
+        if is_worker_restart and has_zero_portals:
+            claim.retry_count = 0
+        else:
+            claim.retry_count = (claim.retry_count or 0) + 1
         claim.last_error = None
         for attr in portal_status_attrs:
-            if getattr(claim, attr, None) in (BotStatusEnum.FAILED, BotStatusEnum.BLOCKED, "FAILED", "BLOCKED"):
+            if getattr(claim, attr, None) in (
+                BotStatusEnum.FAILED,
+                BotStatusEnum.BLOCKED,
+                "FAILED",
+                "BLOCKED",
+            ):
                 setattr(claim, attr, BotStatusEnum.NOT_TRIGGERED)
         retriggered_ids.append(claim.id)
 
@@ -257,7 +344,10 @@ async def retrigger_failed_claims(
         ip_address=ctx["ip_address"],
         user_agent=ctx["user_agent"],
         status="SUCCESS",
-        details={"retriggered_count": len(retriggered_ids), "claim_ids": [str(cid) for cid in retriggered_ids]},
+        details={
+            "retriggered_count": len(retriggered_ids),
+            "claim_ids": [str(cid) for cid in retriggered_ids],
+        },
     )
 
     return {
@@ -271,6 +361,7 @@ async def retrigger_failed_claims(
 async def get_auto_queue_mode():
     """Get status of the sequential automatic queue runner."""
     from app.tasks.queue_runner import get_active_queue_item_id, is_auto_queue_enabled
+
     enabled = is_auto_queue_enabled()
     active_id = get_active_queue_item_id()
     return {
@@ -288,6 +379,7 @@ async def toggle_auto_queue_mode(payload: dict, request: Request = None):
         await _validate_anticaptcha()
 
     from app.tasks.queue_runner import is_auto_queue_enabled, set_auto_queue_enabled
+
     set_auto_queue_enabled(enabled)
     if enabled:
         celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
@@ -315,6 +407,7 @@ async def toggle_auto_queue_mode(payload: dict, request: Request = None):
 async def pause_queue(request: Request = None):
     """Pause automatic queue execution."""
     from app.tasks.queue_runner import set_auto_queue_enabled
+
     set_auto_queue_enabled(False)
 
     ctx = extract_client_context(request)
@@ -336,19 +429,23 @@ async def pause_queue(request: Request = None):
 async def start_all_queue(request: Request = None, db: AsyncSession = Depends(get_db)):
     """Start automatic sequential execution of all NEW queue items and recover any stuck claims."""
     await _validate_anticaptcha()
-    
+
     from app.tasks.queue_runner import set_active_queue_item_id, set_auto_queue_enabled
 
     # Reset any orphaned SCRAPING_IN_PROGRESS claims to NEW
     stuck_res = await db.execute(
-        select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
+        select(ClaimRecord).where(
+            ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
+        )
     )
     stuck_claims = stuck_res.scalars().all()
     for c in stuck_claims:
         c.record_status = RecordStatusEnum.NEW
     if stuck_claims:
         await db.commit()
-        logger.info(f"Reset {len(stuck_claims)} stuck SCRAPING_IN_PROGRESS claims to NEW for start-all.")
+        logger.info(
+            f"Reset {len(stuck_claims)} stuck SCRAPING_IN_PROGRESS claims to NEW for start-all."
+        )
 
     set_active_queue_item_id("")
     set_auto_queue_enabled(True)
@@ -367,18 +464,35 @@ async def start_all_queue(request: Request = None, db: AsyncSession = Depends(ge
         details={"reset_claims_count": len(stuck_claims)},
     )
 
-    return {"status": "started", "message": f"Automatic sequential queue processing started ({len(stuck_claims)} claims queued)."}
+    return {
+        "status": "started",
+        "message": f"Automatic sequential queue processing started ({len(stuck_claims)} claims queued).",
+    }
 
 
 @router.get("/live", response_model=LiveQueueStateResponse)
 async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
     """Fetch real-time queue execution state, including all active running claims across parallel workers and pending items in FIFO order."""
     from app.services.settings_service import get_system_settings_async
-    from app.tasks.queue_runner import get_active_queue_item_ids, is_auto_queue_enabled
+    from app.tasks.queue_runner import (
+        get_active_queue_item_ids,
+        is_auto_queue_enabled,
+        reconcile_stale_active_claims_async,
+    )
+
+    # Pre-flight real-time check: reconcile and evict any ghost/orphaned in-progress claims
+    try:
+        await reconcile_stale_active_claims_async(db)
+    except Exception as e_evict:
+        logger.debug(f"Live queue pre-flight eviction check note: {e_evict}")
 
     enabled = is_auto_queue_enabled()
     settings_obj = await get_system_settings_async()
-    max_concurrency = getattr(settings_obj.automation, "max_concurrent_claims", None) or getattr(settings_obj.queue, "max_concurrent_claims", 1) or 1
+    max_concurrency = (
+        getattr(settings_obj.automation, "max_concurrent_claims", None)
+        or getattr(settings_obj.queue, "max_concurrent_claims", 1)
+        or 1
+    )
     max_concurrency = max(1, min(10, int(max_concurrency)))
 
     # Fetch all claims currently scraping (parallel worker fleet)
@@ -389,39 +503,8 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
         .limit(max_concurrency)
     )
     active_claims_raw = list(active_res.scalars().all())
-    active_claims = []
-    has_recovered = False
-    now_utc = utc_now()
-    for c in active_claims_raw:
-        ref_time = None
-        if isinstance(c.action_timings, dict):
-            raw_st = c.action_timings.get("started_at")
-            if raw_st:
-                try:
-                    from datetime import datetime
-                    clean_st = raw_st.rstrip("Z").split("+")[0]
-                    ref_time = datetime.fromisoformat(clean_st)
-                except Exception:
-                    pass
-        if not ref_time:
-            ref_time = c.updated_at or c.created_at
-        if ref_time:
-            ref_naive = ref_time.replace(tzinfo=None) if getattr(ref_time, "tzinfo", None) else ref_time
-            if abs((now_utc - ref_naive).total_seconds()) > 900:  # > 15 minutes
-                c.record_status = RecordStatusEnum.FAILED
-                c.last_error = "RPA Scraping SLA exceeded (timeout > 15m)"
-                has_recovered = True
-                continue
-        active_claims.append(c)
-
-    if has_recovered:
-        try:
-            await db.commit()
-        except Exception:
-            pass
-
-    active_items = [_format_live_queue_item(c, position=0) for c in active_claims]
-    active_ids = {c.id for c in active_claims}
+    active_items = [_format_live_queue_item(c, position=0) for c in active_claims_raw]
+    active_ids = {c.id for c in active_claims_raw}
 
     # If DB has no active claims, check Redis active IDs as fallback
     if not active_items:
@@ -451,8 +534,7 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
     pending_claims = pending_res.scalars().all()
 
     pending_items = [
-        _format_live_queue_item(c, position=idx + 1)
-        for idx, c in enumerate(pending_claims)
+        _format_live_queue_item(c, position=idx + 1) for idx, c in enumerate(pending_claims)
     ]
 
     # Total counts
@@ -462,7 +544,9 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
     total_pending = pending_count_res.scalar_one() or 0
 
     in_progress_count_res = await db.execute(
-        select(func.count(ClaimRecord.id)).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
+        select(func.count(ClaimRecord.id)).where(
+            ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
+        )
     )
     total_in_progress = in_progress_count_res.scalar_one() or 0
 
@@ -470,14 +554,16 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
     recent_query = (
         select(ClaimRecord)
         .where(
-            ClaimRecord.record_status.in_([
-                RecordStatusEnum.SCRAPING_COMPLETED,
-                RecordStatusEnum.MATCH_FOUND,
-                RecordStatusEnum.NO_MATCH_FOUND,
-                RecordStatusEnum.MANUAL_REVIEW,
-                RecordStatusEnum.COMPLETED,
-                RecordStatusEnum.FAILED,
-            ])
+            ClaimRecord.record_status.in_(
+                [
+                    RecordStatusEnum.SCRAPING_COMPLETED,
+                    RecordStatusEnum.MATCH_FOUND,
+                    RecordStatusEnum.NO_MATCH_FOUND,
+                    RecordStatusEnum.MANUAL_REVIEW,
+                    RecordStatusEnum.COMPLETED,
+                    RecordStatusEnum.FAILED,
+                ]
+            )
         )
         .order_by(ClaimRecord.updated_at.desc())
         .limit(10)
@@ -510,12 +596,31 @@ async def get_live_queue_state(db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/evict-stale")
+async def evict_stale_queue_claims(db: AsyncSession = Depends(get_db)):
+    """Manually force-flush all stale/zombie claims stuck in SCRAPING_IN_PROGRESS."""
+    from app.tasks.queue_runner import reconcile_stale_active_claims_async
+
+    evicted = await reconcile_stale_active_claims_async(db, force=True)
+    return {"status": "success", "evicted_count": evicted}
+
+
+@router.post("/evict-worker/{claim_id}")
+async def evict_single_worker_claim(claim_id: str, db: AsyncSession = Depends(get_db)):
+    """Manually force-flush a specific stuck worker claim, freeing its concurrency slot."""
+    from app.tasks.queue_runner import reconcile_stale_active_claims_async
+
+    evicted = await reconcile_stale_active_claims_async(db, claim_id=claim_id, force=True)
+    return {"status": "success", "claim_id": claim_id, "evicted": evicted > 0}
+
+
 @router.post("/run-next")
 async def run_next_queue_item(request: Request = None):
     """Trigger the queue runner to pick and process the next pending claim immediately."""
     await _validate_anticaptcha()
-    
+
     from app.tasks.queue_runner import set_auto_queue_enabled
+
     set_auto_queue_enabled(True)
     celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
 
@@ -539,12 +644,14 @@ async def update_queue_concurrency(payload: ConcurrencyUpdateRequest, request: R
     """Set the number of parallel concurrent claim executions (1 to 10 parallel claims)."""
     concurrency = max(1, min(10, payload.concurrency))
     from app.services.settings_service import get_system_settings_async, save_system_settings_async
+
     curr_settings = await get_system_settings_async()
     curr_settings.automation.max_concurrent_claims = concurrency
     curr_settings.queue.max_concurrent_claims = concurrency
     await save_system_settings_async(curr_settings)
 
     from app.tasks.queue_runner import is_auto_queue_enabled
+
     if is_auto_queue_enabled():
         celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
 
@@ -561,7 +668,10 @@ async def update_queue_concurrency(payload: ConcurrencyUpdateRequest, request: R
         details={"concurrency": concurrency},
     )
 
-    return {"concurrency": concurrency, "message": f"Execution concurrency updated to {concurrency} parallel workers."}
+    return {
+        "concurrency": concurrency,
+        "message": f"Execution concurrency updated to {concurrency} parallel workers.",
+    }
 
 
 @router.post("/seed-demo")
@@ -576,18 +686,114 @@ async def seed_demo_claims(
 
     count = min(25, max(1, payload.count if payload else 10))
     sample_pool = [
-        {"insured_first": "James", "insured_last": "Rodriguez", "claimant_first": "Carlos", "claimant_last": "Gomez", "state": "FL", "city": "Miami", "county": "Miami-Dade"},
-        {"insured_first": "Maria", "insured_last": "Gonzalez", "claimant_first": "Elena", "claimant_last": "Hernandez", "state": "FL", "city": "Fort Lauderdale", "county": "Broward"},
-        {"insured_first": "David", "insured_last": "Williams", "claimant_first": "Ashley", "claimant_last": "Miller", "state": "FL", "city": "Tampa", "county": "Hillsborough"},
-        {"insured_first": "Michael", "insured_last": "Smith", "claimant_first": "Brenda", "claimant_last": "Johnson", "state": "TX", "city": "Houston", "county": "Harris"},
-        {"insured_first": "Robert", "insured_last": "Davis", "claimant_first": "Marcus", "claimant_last": "Jackson", "state": "TX", "city": "Dallas", "county": "Dallas"},
-        {"insured_first": "Sarah", "insured_last": "Jenkins", "claimant_first": "Kevin", "claimant_last": "Taylor", "state": "TX", "city": "Austin", "county": "Travis"},
-        {"insured_first": "Daniel", "insured_last": "Martinez", "claimant_first": "Sofia", "claimant_last": "Alvarez", "state": "FL", "city": "Hollywood", "county": "Broward"},
-        {"insured_first": "Jennifer", "insured_last": "Brown", "claimant_first": "Brian", "claimant_last": "Wilson", "state": "FL", "city": "Miami Beach", "county": "Miami-Dade"},
-        {"insured_first": "Christopher", "insured_last": "Garcia", "claimant_first": "Lucas", "claimant_last": "Perez", "state": "TX", "city": "Pasadena", "county": "Harris"},
-        {"insured_first": "Amanda", "insured_last": "Clark", "claimant_first": "Jason", "claimant_last": "White", "state": "TX", "city": "Richardson", "county": "Dallas"},
-        {"insured_first": "Thomas", "insured_last": "Hall", "claimant_first": "Diana", "claimant_last": "Allen", "state": "FL", "city": "Brandon", "county": "Hillsborough"},
-        {"insured_first": "Patricia", "insured_last": "Young", "claimant_first": "Eric", "claimant_last": "King", "state": "TX", "city": "Round Rock", "county": "Travis"},
+        {
+            "insured_first": "James",
+            "insured_last": "Rodriguez",
+            "claimant_first": "Carlos",
+            "claimant_last": "Gomez",
+            "state": "FL",
+            "city": "Miami",
+            "county": "Miami-Dade",
+        },
+        {
+            "insured_first": "Maria",
+            "insured_last": "Gonzalez",
+            "claimant_first": "Elena",
+            "claimant_last": "Hernandez",
+            "state": "FL",
+            "city": "Fort Lauderdale",
+            "county": "Broward",
+        },
+        {
+            "insured_first": "David",
+            "insured_last": "Williams",
+            "claimant_first": "Ashley",
+            "claimant_last": "Miller",
+            "state": "FL",
+            "city": "Tampa",
+            "county": "Hillsborough",
+        },
+        {
+            "insured_first": "Michael",
+            "insured_last": "Smith",
+            "claimant_first": "Brenda",
+            "claimant_last": "Johnson",
+            "state": "TX",
+            "city": "Houston",
+            "county": "Harris",
+        },
+        {
+            "insured_first": "Robert",
+            "insured_last": "Davis",
+            "claimant_first": "Marcus",
+            "claimant_last": "Jackson",
+            "state": "TX",
+            "city": "Dallas",
+            "county": "Dallas",
+        },
+        {
+            "insured_first": "Sarah",
+            "insured_last": "Jenkins",
+            "claimant_first": "Kevin",
+            "claimant_last": "Taylor",
+            "state": "TX",
+            "city": "Austin",
+            "county": "Travis",
+        },
+        {
+            "insured_first": "Daniel",
+            "insured_last": "Martinez",
+            "claimant_first": "Sofia",
+            "claimant_last": "Alvarez",
+            "state": "FL",
+            "city": "Hollywood",
+            "county": "Broward",
+        },
+        {
+            "insured_first": "Jennifer",
+            "insured_last": "Brown",
+            "claimant_first": "Brian",
+            "claimant_last": "Wilson",
+            "state": "FL",
+            "city": "Miami Beach",
+            "county": "Miami-Dade",
+        },
+        {
+            "insured_first": "Christopher",
+            "insured_last": "Garcia",
+            "claimant_first": "Lucas",
+            "claimant_last": "Perez",
+            "state": "TX",
+            "city": "Pasadena",
+            "county": "Harris",
+        },
+        {
+            "insured_first": "Amanda",
+            "insured_last": "Clark",
+            "claimant_first": "Jason",
+            "claimant_last": "White",
+            "state": "TX",
+            "city": "Richardson",
+            "county": "Dallas",
+        },
+        {
+            "insured_first": "Thomas",
+            "insured_last": "Hall",
+            "claimant_first": "Diana",
+            "claimant_last": "Allen",
+            "state": "FL",
+            "city": "Brandon",
+            "county": "Hillsborough",
+        },
+        {
+            "insured_first": "Patricia",
+            "insured_last": "Young",
+            "claimant_first": "Eric",
+            "claimant_last": "King",
+            "state": "TX",
+            "city": "Round Rock",
+            "county": "Travis",
+        },
     ]
 
     created_ids = []
@@ -624,6 +830,7 @@ async def seed_demo_claims(
 
     # Trigger queue advancement if enabled
     from app.tasks.queue_runner import is_auto_queue_enabled
+
     if is_auto_queue_enabled():
         celery_app.send_task("app.tasks.queue_runner.advance_auto_queue_task", queue="default")
 
@@ -665,16 +872,18 @@ async def run_selected_claims(
 
     auto_enabled = is_auto_queue_enabled()
     runtime_settings = await _get_settings()
-    max_concurrency = max(1, min(10, int(getattr(runtime_settings.automation, "max_concurrent_claims", 1) or 1)))
+    max_concurrency = max(
+        1, min(10, int(getattr(runtime_settings.automation, "max_concurrent_claims", 1) or 1))
+    )
 
-    active_q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
+    active_q = select(ClaimRecord).where(
+        ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS
+    )
     active_res = await db.execute(active_q)
     active_count = len(list(active_res.scalars().all()))
     available_slots = max(0, max_concurrency - active_count) if auto_enabled else 0
 
-    res = await db.execute(
-        select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids))
-    )
+    res = await db.execute(select(ClaimRecord).where(ClaimRecord.id.in_(payload.claim_ids)))
     claims = list(res.scalars().all())
 
     dispatched = []
@@ -713,7 +922,11 @@ async def run_selected_claims(
         ip_address=ctx["ip_address"],
         user_agent=ctx["user_agent"],
         status="SUCCESS",
-        details={"dispatched": dispatched, "queued_sequential": queued, "fleet_limit": max_concurrency},
+        details={
+            "dispatched": dispatched,
+            "queued_sequential": queued,
+            "fleet_limit": max_concurrency,
+        },
     )
 
     return {
@@ -724,4 +937,3 @@ async def run_selected_claims(
         "fleet_limit": max_concurrency,
         "claim_ids": dispatched,
     }
-

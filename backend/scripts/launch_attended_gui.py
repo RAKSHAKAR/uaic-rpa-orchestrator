@@ -10,7 +10,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from playwright.async_api import async_playwright
+
 from app.services.settings_service import get_system_settings_sync
+
 
 async def main():
     print("=" * 70)
@@ -21,7 +23,7 @@ async def main():
     auto_cfg = settings.automation
     print(f"[*] Active Mode: {'Headless (Background)' if auto_cfg.headless_mode else 'Attended (Visible GUI)'}")
     print(f"[*] AntiCaptcha Key: {auto_cfg.anticaptcha_api_key[:8]}... configured")
-    print(f"[*] Launching visible Chromium browser window onto your desktop...")
+    print("[*] Launching visible Chromium browser window onto your desktop...")
     
     p = await async_playwright().start()
     # Force visible GUI (headless=False)

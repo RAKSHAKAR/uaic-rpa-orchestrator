@@ -1,5 +1,4 @@
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -7,8 +6,9 @@ backend_dir = str(Path(__file__).resolve().parent.parent / "backend")
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from app.services.settings_service import get_system_settings_async, save_system_settings_async
 from app.schemas.settings import SettingsUpdateRequest
+from app.services.settings_service import get_system_settings_async, save_system_settings_async
+
 
 async def main():
     current = await get_system_settings_async()

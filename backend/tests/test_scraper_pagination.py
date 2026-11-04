@@ -46,7 +46,9 @@ def make_mock_button(visible: bool = True, disabled: bool = False) -> MagicMock:
     """Creates a mock Playwright button locator with synchronous first property and async methods."""
     btn_item = AsyncMock()
     btn_item.is_visible = AsyncMock(return_value=visible)
-    btn_item.get_attribute = AsyncMock(return_value="k-link k-state-disabled" if disabled else "k-link")
+    btn_item.get_attribute = AsyncMock(
+        return_value="k-link k-state-disabled" if disabled else "k-link"
+    )
     btn_item.click = AsyncMock()
     btn_item.wait_for = AsyncMock()
 
@@ -65,11 +67,14 @@ def make_default_locator(is_visible: bool = False) -> MagicMock:
     item.wait_for = AsyncMock()
     item.click = AsyncMock()
     item.fill = AsyncMock()
+    item.input_value = AsyncMock(return_value="")
     item.inner_text = AsyncMock(return_value="")
     item.get_attribute = AsyncMock(return_value=None)
 
     loc = MagicMock()
     loc.count = AsyncMock(return_value=1 if is_visible else 0)
+    loc.input_value = AsyncMock(return_value="")
+    loc.fill = AsyncMock()
     loc.first = item
     loc.locator = MagicMock(return_value=loc)
     return loc
@@ -85,11 +90,17 @@ async def test_dallas_kendo_multi_page_pagination():
     # Page 1: 2 rows; Page 2: 1 row
     # Dallas columns: [CaseNumber, CaseStyle, FilingDate, CaseStatus, CaseType]
     p1_rows = [
-        make_mock_row(["DC-25-001", "SMITH VS DOE", "01/10/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]),
-        make_mock_row(["DC-25-002", "JONES VS DOE", "01/12/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]),
+        make_mock_row(
+            ["DC-25-001", "SMITH VS DOE", "01/10/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]
+        ),
+        make_mock_row(
+            ["DC-25-002", "JONES VS DOE", "01/12/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]
+        ),
     ]
     p2_rows = [
-        make_mock_row(["DC-25-003", "BROWN VS DOE", "01/14/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]),
+        make_mock_row(
+            ["DC-25-003", "BROWN VS DOE", "01/14/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]
+        ),
     ]
 
     grid_p1 = make_mock_grid(p1_rows)
@@ -206,7 +217,9 @@ async def test_travis_kendo_multi_page_pagination():
     mock_page.inner_text.return_value = "Search Results - 1 case"
 
     travis_rows = [
-        make_mock_row(["D-1-GN-25-001", "STATE VS DOE", "03/01/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]),
+        make_mock_row(
+            ["D-1-GN-25-001", "STATE VS DOE", "03/01/2025", "ACTIVE", "DISTRICT COURTS – CIVIL"]
+        ),
     ]
     grid = make_mock_grid(travis_rows)
     next_btn = make_mock_button(visible=False)
@@ -246,7 +259,14 @@ async def test_travis_kendo_multi_page_pagination():
 def test_all_8_portals_strict_schema_contracts():
     """Validates output schema conformance for all 8 portal scrapers."""
     # 1. Florida Portals: Broward, Hillsborough, Miami -> Must include CaseType, exactly 6 fields
-    fl_standard_fields = {"CaseNumber", "CaseStyle", "CountyWebsite", "FilingDate", "CaseStatus", "CaseType"}
+    fl_standard_fields = {
+        "CaseNumber",
+        "CaseStyle",
+        "CountyWebsite",
+        "FilingDate",
+        "CaseStatus",
+        "CaseType",
+    }
 
     broward_sample = {
         "CaseNumber": "CACE-25-001",

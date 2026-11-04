@@ -25,6 +25,7 @@ from app.models.court_case import ScrapedCourtCase
 # Module-level DB setup (mirrors test_api.py pattern)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module", autouse=True)
 async def setup_database():
     """Ensure schema exists for all tests in this module."""
@@ -35,6 +36,7 @@ async def setup_database():
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _seed_claim(
     claim_number: str = "TST-001",
@@ -98,6 +100,7 @@ async def _seed_court_case(
 # ===========================================================================
 # 1. GET /api/v1/matches/extract-names
 # ===========================================================================
+
 
 class TestExtractNames:
     """Tests for the unique party-name extraction endpoint."""
@@ -214,6 +217,7 @@ class TestExtractNames:
 # 2. POST /api/v1/matches/fuzzy-search
 # ===========================================================================
 
+
 class TestFuzzySearch:
     """Tests for the legacy Power Automate fuzzy-search endpoint."""
 
@@ -238,10 +242,13 @@ class TestFuzzySearch:
         """With no matching court cases, response is valid with total=0."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "ZZZNOMATCH999",
-                "threshold": 0.99,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "ZZZNOMATCH999",
+                    "threshold": 0.99,
+                },
+            )
         assert res.status_code == 200
         data = res.json()
         assert data["total"] == 0
@@ -254,7 +261,9 @@ class TestFuzzySearch:
     @pytest.mark.asyncio
     async def test_fuzzy_search_finds_high_similarity_match(self):
         """A name matching the seeded case style is returned above default threshold."""
-        claim_id = await _seed_claim("FST-001", "Alice", "Johnson", "Bob", "Williams", "Carol", "Martinez")
+        claim_id = await _seed_claim(
+            "FST-001", "Alice", "Johnson", "Bob", "Williams", "Carol", "Martinez"
+        )
         await _seed_court_case(
             claim_id=claim_id,
             case_number="2024-FST-001",
@@ -262,10 +271,13 @@ class TestFuzzySearch:
         )
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Alice Johnson",
-                "threshold": 0.60,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Alice Johnson",
+                    "threshold": 0.60,
+                },
+            )
         assert res.status_code == 200
         data = res.json()
         assert data["total"] >= 1
@@ -290,18 +302,28 @@ class TestFuzzySearch:
         )
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Henry Adams",
-                "threshold": 0.60,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Henry Adams",
+                    "threshold": 0.60,
+                },
+            )
         assert res.status_code == 200
         data = res.json()
         assert data["total"] >= 1
         item = next((m for m in data["matches"] if m["case_number"] == "2024-FST-002"), None)
         assert item is not None, "Expected case 2024-FST-002 in results"
         # Verify all schema fields present
-        for field in ["court_case_id", "case_number", "case_style", "county_name",
-                      "filing_date", "case_status", "similarity_score"]:
+        for field in [
+            "court_case_id",
+            "case_number",
+            "case_style",
+            "county_name",
+            "filing_date",
+            "case_status",
+            "similarity_score",
+        ]:
             assert field in item, f"Missing field: {field}"
         assert 0.0 <= item["similarity_score"] <= 1.0
 
@@ -310,15 +332,20 @@ class TestFuzzySearch:
         """Results are sorted highest similarity_score first."""
         claim_id = await _seed_claim("FST-003", "Mark", "Torres", "X", "Y", "Z", "Z")
         # High match
-        await _seed_court_case(claim_id, "2024-FST-003A", "TORRES MARK VS PROGRESSIVE INS", "Broward")
+        await _seed_court_case(
+            claim_id, "2024-FST-003A", "TORRES MARK VS PROGRESSIVE INS", "Broward"
+        )
         # Lower match
         await _seed_court_case(claim_id, "2024-FST-003B", "SMITH JOHN VS GEICO COMPANY", "Dallas")
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Mark Torres",
-                "threshold": 0.10,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Mark Torres",
+                    "threshold": 0.10,
+                },
+            )
         assert res.status_code == 200
         scores = [m["similarity_score"] for m in res.json()["matches"]]
         assert scores == sorted(scores, reverse=True), "Matches must be sorted by similarity desc"
@@ -329,14 +356,19 @@ class TestFuzzySearch:
         claim_id = await _seed_claim("FST-004", "Emma", "Wilson", "X", "Y", "Z", "Z")
         # Seed 5 cases all matching
         for i in range(5):
-            await _seed_court_case(claim_id, f"2024-FST-004-{i}", f"WILSON EMMA VS COMPANY {i}", "Hillsborough")
+            await _seed_court_case(
+                claim_id, f"2024-FST-004-{i}", f"WILSON EMMA VS COMPANY {i}", "Hillsborough"
+            )
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Emma Wilson",
-                "threshold": 0.60,
-                "limit": 2,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Emma Wilson",
+                    "threshold": 0.60,
+                    "limit": 2,
+                },
+            )
         assert res.status_code == 200
         data = res.json()
         assert len(data["matches"]) <= 2
@@ -345,27 +377,36 @@ class TestFuzzySearch:
     async def test_fuzzy_search_high_threshold_excludes_low_matches(self):
         """Setting threshold=0.99 excludes borderline matches."""
         claim_id = await _seed_claim("FST-005", "Partial", "Match", "X", "Y", "Z", "Z")
-        await _seed_court_case(claim_id, "2024-FST-005", "TOTALLY DIFFERENT STYLE VS NOBODY", "Travis")
+        await _seed_court_case(
+            claim_id, "2024-FST-005", "TOTALLY DIFFERENT STYLE VS NOBODY", "Travis"
+        )
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Partial Match",
-                "threshold": 0.99,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Partial Match",
+                    "threshold": 0.99,
+                },
+            )
         assert res.status_code == 200
         # The low-similarity case should be excluded at threshold 0.99
         for match in res.json()["matches"]:
-            assert match["case_number"] != "2024-FST-005", \
+            assert match["case_number"] != "2024-FST-005", (
                 "Low-similarity case should not appear at threshold=0.99"
+            )
 
     @pytest.mark.asyncio
     async def test_fuzzy_search_default_threshold_is_0_60(self):
         """When threshold is omitted, the response confirms threshold_applied=0.6."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Test Name",
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Test Name",
+                },
+            )
         assert res.status_code == 200
         data = res.json()
         assert data["threshold_applied"] == 0.6
@@ -375,31 +416,39 @@ class TestFuzzySearch:
         """Cases with filing dates before min_filing_year are excluded."""
         claim_id = await _seed_claim("FST-006", "Old", "Case", "X", "Y", "Z", "Z")
         await _seed_court_case(
-            claim_id, "2024-FST-OLD",
+            claim_id,
+            "2024-FST-OLD",
             "OLD CASE VS OLD COMPANY",
             "Broward",
             filing_date="2005-01-15",
         )
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Old Case",
-                "threshold": 0.60,
-                "min_filing_year": 2010,
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Old Case",
+                    "threshold": 0.60,
+                    "min_filing_year": 2010,
+                },
+            )
         assert res.status_code == 200
         for match in res.json()["matches"]:
-            assert match["case_number"] != "2024-FST-OLD", \
+            assert match["case_number"] != "2024-FST-OLD", (
                 "Pre-2010 case must be excluded when min_filing_year=2010"
+            )
 
     @pytest.mark.asyncio
     async def test_fuzzy_search_duration_ms_is_non_negative(self):
         """duration_ms field is always present and non-negative."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "Some Name",
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "Some Name",
+                },
+            )
         assert res.status_code == 200
         assert res.json()["duration_ms"] >= 0.0
 
@@ -408,9 +457,12 @@ class TestFuzzySearch:
         """The search_name field in the response matches the submitted value."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post("/api/v1/matches/fuzzy-search", json={
-                "search_name": "  Echo Test  ",
-            })
+            res = await client.post(
+                "/api/v1/matches/fuzzy-search",
+                json={
+                    "search_name": "  Echo Test  ",
+                },
+            )
         assert res.status_code == 200
         # search_name should be stripped
         assert res.json()["search_name"] == "Echo Test"
@@ -419,6 +471,7 @@ class TestFuzzySearch:
 # ===========================================================================
 # 3. POST /api/v1/settings/test-anticaptcha
 # ===========================================================================
+
 
 class TestAntiCaptchaEndpoint:
     """Tests for the Anti-Captcha API key balance test endpoint."""
@@ -571,6 +624,7 @@ class TestAntiCaptchaEndpoint:
 # 4. ClaimRowSchema — Deprecated field ingestion cleanup
 # ===========================================================================
 
+
 class TestClaimRowSchemaDeprecatedFields:
     """Verify garaging_city, garaging_state, loss_location_city, loss_location_county
     are no longer part of the ClaimRowSchema Excel ingestion aliases."""
@@ -578,8 +632,14 @@ class TestClaimRowSchemaDeprecatedFields:
     def test_deprecated_fields_not_in_schema_model_fields(self):
         """The 4 deprecated Excel aliases must not appear in ClaimRowSchema.model_fields."""
         from app.schemas.claim import ClaimRowSchema
+
         fields = ClaimRowSchema.model_fields
-        deprecated = ["garaging_city", "garaging_state", "loss_location_city", "loss_location_county"]
+        deprecated = [
+            "garaging_city",
+            "garaging_state",
+            "loss_location_city",
+            "loss_location_county",
+        ]
         for dep in deprecated:
             assert dep not in fields, (
                 f"Deprecated field '{dep}' must be removed from ClaimRowSchema ingestion mapping"
@@ -588,7 +648,13 @@ class TestClaimRowSchemaDeprecatedFields:
     def test_deprecated_fields_not_in_schema_aliases(self):
         """The 4 deprecated column header aliases must not appear in ClaimRowSchema field metadata."""
         from app.schemas.claim import ClaimRowSchema
-        deprecated_aliases = {"Garaging City", "Garaging State", "Loss Location City", "Loss Location County"}
+
+        deprecated_aliases = {
+            "Garaging City",
+            "Garaging State",
+            "Loss Location City",
+            "Loss Location County",
+        }
         present_aliases = set()
         for field_info in ClaimRowSchema.model_fields.values():
             if field_info.alias:
@@ -601,10 +667,19 @@ class TestClaimRowSchemaDeprecatedFields:
     def test_required_fields_still_present(self):
         """Core ingestion fields (claim_number, dol, policy_state, loss_location_state) remain."""
         from app.schemas.claim import ClaimRowSchema
-        required = ["claim_number", "dol", "policy_state", "loss_location_state",
-                    "insured_first_name", "insured_last_name",
-                    "claimant_first_name", "claimant_last_name",
-                    "driver_first_name", "driver_last_name"]
+
+        required = [
+            "claim_number",
+            "dol",
+            "policy_state",
+            "loss_location_state",
+            "insured_first_name",
+            "insured_last_name",
+            "claimant_first_name",
+            "claimant_last_name",
+            "driver_first_name",
+            "driver_last_name",
+        ]
         fields = ClaimRowSchema.model_fields
         for f in required:
             assert f in fields, f"Required ingestion field '{f}' was accidentally removed"
@@ -612,6 +687,7 @@ class TestClaimRowSchemaDeprecatedFields:
     def test_claimrowschema_parses_row_without_deprecated_columns(self):
         """ClaimRowSchema successfully validates a row that omits all 4 deprecated columns."""
         from app.schemas.claim import ClaimRowSchema
+
         row = {
             "Claim Number": "TST-SCHEMA-001",
             "Insured First Name": "John",
@@ -625,8 +701,9 @@ class TestClaimRowSchemaDeprecatedFields:
             "Policy State": "Florida",
             "Exposure Number": "001",
         }
-        schema = ClaimRowSchema.model_validate(row, from_attributes=False, context=None,
-                                               strict=False, by_alias=True)
+        schema = ClaimRowSchema.model_validate(
+            row, from_attributes=False, context=None, strict=False, by_alias=True
+        )
         assert schema.claim_number == "TST-SCHEMA-001"
         assert schema.insured_first_name == "John"
         assert schema.dol == "01/15/2024"
@@ -634,8 +711,14 @@ class TestClaimRowSchemaDeprecatedFields:
     def test_claimrecord_orm_model_no_longer_has_deprecated_columns(self):
         """The DB ORM model (ClaimRecord) completely removes all 4 deprecated geographic columns."""
         from app.models.claim import ClaimRecord
+
         orm_cols = {col.key for col in ClaimRecord.__table__.columns}
-        for col in ["garaging_city", "garaging_state", "loss_location_city", "loss_location_county"]:
+        for col in [
+            "garaging_city",
+            "garaging_state",
+            "loss_location_city",
+            "loss_location_county",
+        ]:
             assert col not in orm_cols, (
                 f"ORM column '{col}' must be completely removed from ClaimRecord table"
             )

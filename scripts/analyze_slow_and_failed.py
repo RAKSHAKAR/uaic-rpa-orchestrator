@@ -1,6 +1,6 @@
-import sqlite3
 import json
-from collections import defaultdict, Counter
+import sqlite3
+from collections import Counter, defaultdict
 
 DB_PATH = r"backend/orchestrator.db"
 
@@ -28,8 +28,8 @@ def main():
 
     # Average durations by routing
     cursor.execute("""
-        SELECT 
-            CASE 
+        SELECT
+            CASE
                 WHEN policy_state = 'Florida' OR policy_state = 'FL' THEN 'FL'
                 WHEN policy_state = 'Texas' OR policy_state = 'TX' THEN 'TX'
                 ELSE 'CROSS_STATE'

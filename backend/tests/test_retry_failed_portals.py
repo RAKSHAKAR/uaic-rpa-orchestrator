@@ -28,12 +28,14 @@ async def sample_claim_with_failures():
             exposure_number="1",
             policy_state="FL",
             loss_location_state="FL",
-            insured_first_name="John",
-            insured_last_name="Doe",
+            # NOTE: John Doe / Jane Doe are correctly filtered as unsearchable placeholders.
+            # Use real non-placeholder names so the orchestrator generates unique search targets.
+            insured_first_name="Carlos",
+            insured_last_name="Mendez",
             claimant_first_name="Jane",
-            claimant_last_name="Smith",
-            driver_first_name="John",
-            driver_last_name="Doe",
+            claimant_last_name="Williams",
+            driver_first_name="Carlos",
+            driver_last_name="Mendez",
             dol="05/12/2023",
             record_status=RecordStatusEnum.FAILED,
             retry_count=1,
@@ -53,7 +55,7 @@ async def sample_claim_with_failures():
             county_name="Broward County Clerk",
             county_website="https://www.browardclerk.org",
             case_number="CACE-23-001234",
-            case_style="Smith vs Doe",
+            case_style="Williams vs Mendez",
             filing_date="06/01/2023",
             case_status="Open",
             case_type="Civil",
@@ -78,7 +80,9 @@ async def test_retry_failed_endpoint_success(sample_claim_with_failures):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         with patch("app.api.v1.endpoints.claims.celery_app.send_task") as mock_send_task:
-            response = await client.post(f"/api/v1/claims/{sample_claim_with_failures}/retry-failed")
+            response = await client.post(
+                f"/api/v1/claims/{sample_claim_with_failures}/retry-failed"
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
@@ -146,9 +150,10 @@ async def test_bulk_retry_failed_portals_only(sample_claim_with_failures):
     """Test POST /api/v1/claims/bulk-retry with failed_portals_only=True."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("app.tasks.queue_runner.is_auto_queue_enabled", return_value=True), patch(
-            "app.api.v1.endpoints.claims.celery_app.send_task"
-        ) as mock_send_task:
+        with (
+            patch("app.tasks.queue_runner.is_auto_queue_enabled", return_value=True),
+            patch("app.api.v1.endpoints.claims.celery_app.send_task") as mock_send_task,
+        ):
             response = await client.post(
                 "/api/v1/claims/bulk-retry",
                 json={"claim_ids": [sample_claim_with_failures], "failed_portals_only": True},
@@ -216,9 +221,10 @@ async def test_async_orchestrate_scrapers_retry_failed_only(sample_claim_with_fa
     MiamiDadeScraper.search_on_page = miami_mock
 
     try:
-        with patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner), \
-             patch("app.tasks.scraper_tasks.celery_app.send_task") as mock_fuzzy_task:
-
+        with (
+            patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner),
+            patch("app.tasks.scraper_tasks.celery_app.send_task") as mock_fuzzy_task,
+        ):
             await _async_orchestrate_scrapers(
                 claim_id=sample_claim_with_failures,
                 single_bot_key=None,
@@ -249,7 +255,9 @@ async def test_async_orchestrate_scrapers_retry_failed_only(sample_claim_with_fa
         assert claim.record_status == RecordStatusEnum.SCRAPING_COMPLETED
 
         # Check scraped cases
-        cases_q = select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == sample_claim_with_failures)
+        cases_q = select(ScrapedCourtCase).where(
+            ScrapedCourtCase.claim_id == sample_claim_with_failures
+        )
         res = await session.execute(cases_q)
         all_cases = res.scalars().all()
 
@@ -257,7 +265,9 @@ async def test_async_orchestrate_scrapers_retry_failed_only(sample_claim_with_fa
         # same case number appears for the two distinct party searches.
         case_numbers = [c.case_number for c in all_cases]
         assert case_numbers.count("CACE-23-001234") == 1, "Original Broward case must be preserved!"
-        assert case_numbers.count("HILL-2023-9999") == 2, "Both Hillsborough search rows must be inserted!"
+        assert case_numbers.count("HILL-2023-9999") == 2, (
+            "Both Hillsborough search rows must be inserted!"
+        )
         assert len(all_cases) == 3
 
 
@@ -270,7 +280,10 @@ async def test_async_retrigger_failed_cases_scheduled_task(sample_claim_with_fai
         await session.commit()
 
     with (
-        patch("app.tasks.retry_tasks.get_system_settings_async", AsyncMock(return_value=SystemSettings())),
+        patch(
+            "app.tasks.retry_tasks.get_system_settings_async",
+            AsyncMock(return_value=SystemSettings()),
+        ),
         patch("app.tasks.retry_tasks.is_portal_in_cooldown", return_value=(False, 0, "")),
         patch("app.tasks.retry_tasks.celery_app.send_task") as mock_send_task,
     ):

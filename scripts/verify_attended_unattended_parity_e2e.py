@@ -22,29 +22,24 @@ Validates:
 """
 
 import asyncio
-import json
 import logging
-import os
 import sys
 import uuid
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # Ensure backend is in python path
 BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 
-from app.automation.base import resolve_extension_dir, sync_anticaptcha_api_key
+from app.automation.base import resolve_extension_dir
 from app.automation.browser_manager import ChromeSession, ExtensionManager
 from app.automation.session_runner import derive_search_counts, get_search_party_pairs
-from app.core.config import settings
 from app.core.database import Base, TaskAsyncSessionLocal, engine
 from app.models.claim import ClaimRecord, RecordStatusEnum
-from app.models.match_result import MatchReviewStatusEnum, PartyTypeEnum
-from app.services.excel_parser import convert_excel_date, resolve_county_bot_targets
+from app.models.match_result import PartyTypeEnum
+from app.services.excel_parser import resolve_county_bot_targets
 from app.services.fuzzy_engine import (
-    clean_case_style,
     clean_party_name,
     evaluate_case_against_parties,
     is_case_eligible,
@@ -164,8 +159,8 @@ class ParityValidationSuite:
     """Executes identical end-to-end claim automation in Attended and Unattended modes."""
 
     def __init__(self):
-        self.results_attended: Dict[str, Any] = {}
-        self.results_unattended: Dict[str, Any] = {}
+        self.results_attended: dict[str, Any] = {}
+        self.results_unattended: dict[str, Any] = {}
         self.anti_captcha_path = resolve_extension_dir()
 
     async def init_db(self):
@@ -182,7 +177,7 @@ class ParityValidationSuite:
         logger.info(f"Verified AntiCaptcha extension at: {ext_path}")
         return ext_path
 
-    async def run_browser_session_validation(self, headless: bool) -> Dict[str, Any]:
+    async def run_browser_session_validation(self, headless: bool) -> dict[str, Any]:
         """
         Validates browser launch, extension loading, and service worker status
         in either Attended (headless=False) or Unattended (headless=True) mode.
@@ -226,7 +221,7 @@ class ParityValidationSuite:
                 import shutil
                 shutil.rmtree(session.profile_to_use, ignore_errors=True)
 
-    def validate_state_routing(self) -> Dict[str, Any]:
+    def validate_state_routing(self) -> dict[str, Any]:
         """Validates FL, TX, and Cross-State routing matrices."""
         fl_fl = resolve_county_bot_targets("FL", "FL")
         tx_tx = resolve_county_bot_targets("TX", "TX")
@@ -254,7 +249,7 @@ class ParityValidationSuite:
         logger.info("State Routing Matrix validated: FL(3), TX(5), Cross-State(8).")
         return {"FL": 3, "TX": 5, "CrossState": 8}
 
-    def validate_name_derivation_and_party_pairs(self) -> Dict[str, Any]:
+    def validate_name_derivation_and_party_pairs(self) -> dict[str, Any]:
         """Validates all 5 DualSearch / TripleSearch combinations."""
         from collections import namedtuple
         MockC = namedtuple("MockC", ["insured_first_name", "insured_last_name", "driver_first_name", "driver_last_name", "claimant_first_name", "claimant_last_name"])
@@ -287,7 +282,7 @@ class ParityValidationSuite:
         logger.info("Unique Name Derivation verified for all 5 scenarios.")
         return {"scenarios_tested": 5, "status": "PASS"}
 
-    def validate_portal_schemas(self) -> Dict[str, Any]:
+    def validate_portal_schemas(self) -> dict[str, Any]:
         """Enforces strict county court portal output schemas."""
         for portal_key, cases in SAMPLE_CASES.items():
             for case in cases:
@@ -307,14 +302,14 @@ class ParityValidationSuite:
         logger.info("Strict Output Schemas verified for all 8 portals (No CaseType on Harris JP/Clerk).")
         return {"portals_validated": len(SAMPLE_CASES), "status": "PASS"}
 
-    async def execute_claim_workflow(self, mode: str) -> Dict[str, Any]:
+    async def execute_claim_workflow(self, mode: str) -> dict[str, Any]:
         """
         Executes a complete mock claim workflow:
         Ingestion -> State Routing -> 8 Scrapers (with pagination) -> RapidFuzz Cascade -> Guidewire Push
         """
-        logger.info(f"==================================================")
+        logger.info("==================================================")
         logger.info(f"  EXECUTING WORKFLOW IN [{mode.upper()}] MODE")
-        logger.info(f"==================================================")
+        logger.info("==================================================")
 
         # 1. Mock Ingestion Record
         claim_num_raw = "123456789"  # 9-digit to verify '0' prefix rule
@@ -494,7 +489,7 @@ class ParityValidationSuite:
         print(f" [OK] Matched Cases Count Parity:   {self.results_attended['matched_cases_count']} == {self.results_unattended['matched_cases_count']}")
         print(f" [OK] Guidewire Claim Number:       {self.results_attended['guidewire_claim_number']} == {self.results_unattended['guidewire_claim_number']}")
         print(f" [OK] Final Claim Record Status:    {self.results_attended['final_status']} == {self.results_unattended['final_status']}")
-        print(f" [OK] RapidFuzz Cascade Integrity:  All scores and party assignments match 100%.")
+        print(" [OK] RapidFuzz Cascade Integrity:  All scores and party assignments match 100%.")
 
         print("\nSUCCESS: Complete Attended vs. Unattended Parity verified with 0 discrepancies!\n")
 

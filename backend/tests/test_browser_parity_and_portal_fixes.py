@@ -80,7 +80,9 @@ async def test_hillsborough_clicks_green_search_under_date_filed():
 
     def loc_side_effect(sel):
         if "btnSubmitPartySearch" in sel or "btn-success" in sel:
-            assert "button:has-text('Search')" not in sel, "Global button:has-text('Search') must not be present"
+            assert "button:has-text('Search')" not in sel, (
+                "Global button:has-text('Search') must not be present"
+            )
             return down_btn
         if "dataTables_empty" in sel:
             return empty_msg
@@ -111,7 +113,9 @@ async def test_miami_initiates_login_when_unauthenticated():
 
     mock_body = MagicMock()
     # Notice: Body has public welcome text that previously triggered false positive
-    mock_body.inner_text = AsyncMock(return_value="Welcome to the Miami-Dade County Clerk and Comptroller Online Court Services")
+    mock_body.inner_text = AsyncMock(
+        return_value="Welcome to the Miami-Dade County Clerk and Comptroller Online Court Services"
+    )
 
     mock_login_link = MagicMock()
     mock_login_link.count = AsyncMock(return_value=1)

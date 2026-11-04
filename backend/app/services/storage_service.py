@@ -19,7 +19,6 @@ from app.schemas.settings import (
 logger = logging.getLogger("uaic_orchestrator.storage")
 
 
-
 class StorageService:
     """Provides abstracted storage operations across Local disk, AWS S3, Azure Blob, and GCS."""
 
@@ -90,6 +89,7 @@ class StorageService:
         if provider == "s3" and storage_cfg and storage_cfg.s3_bucket_name:
             try:
                 import boto3
+
                 s3_kwargs: dict[str, Any] = {"region_name": storage_cfg.s3_region or "us-east-1"}
                 if storage_cfg.s3_access_key and storage_cfg.s3_secret_key:
                     s3_kwargs["aws_access_key_id"] = storage_cfg.s3_access_key
@@ -113,18 +113,27 @@ class StorageService:
         elif provider == "azure_blob" and storage_cfg and storage_cfg.azure_connection_string:
             try:
                 from azure.storage.blob import BlobServiceClient
-                blob_service = BlobServiceClient.from_connection_string(storage_cfg.azure_connection_string)
-                container_client = blob_service.get_container_client(storage_cfg.azure_container_name or "screenshots")
+
+                blob_service = BlobServiceClient.from_connection_string(
+                    storage_cfg.azure_connection_string
+                )
+                container_client = blob_service.get_container_client(
+                    storage_cfg.azure_container_name or "screenshots"
+                )
                 if not container_client.exists():
                     container_client.create_container()
                 blob_client = container_client.get_blob_client(filename)
                 blob_client.upload_blob(image_bytes, overwrite=True)
                 stored_provider = "azure_blob"
                 remote_url = blob_client.url
-                storage_notes = f"Uploaded to Azure Blob container '{storage_cfg.azure_container_name}'"
+                storage_notes = (
+                    f"Uploaded to Azure Blob container '{storage_cfg.azure_container_name}'"
+                )
                 logger.info(f"Screenshot uploaded to Azure Blob: {remote_url}")
             except Exception as e:
-                logger.warning(f"Azure Blob upload failed for {filename}, retained on local disk: {e}")
+                logger.warning(
+                    f"Azure Blob upload failed for {filename}, retained on local disk: {e}"
+                )
                 storage_notes = f"Azure Blob upload failed ({e}); saved to local fallback"
 
         # 4. Upload to GCS if configured
@@ -197,6 +206,7 @@ class StorageService:
                 )
             try:
                 import boto3
+
                 s3_kwargs: dict[str, Any] = {"region_name": req.s3_region or "us-east-1"}
                 if req.s3_access_key and req.s3_secret_key:
                     s3_kwargs["aws_access_key_id"] = req.s3_access_key
@@ -231,8 +241,11 @@ class StorageService:
                 )
             try:
                 from azure.storage.blob import BlobServiceClient
+
                 blob_service = BlobServiceClient.from_connection_string(req.azure_connection_string)
-                container_client = blob_service.get_container_client(req.azure_container_name or "screenshots")
+                container_client = blob_service.get_container_client(
+                    req.azure_container_name or "screenshots"
+                )
                 exists = container_client.exists()
                 dur = round((time.perf_counter() - t_start) * 1000, 2)
                 return StorageTestResponse(
@@ -240,7 +253,10 @@ class StorageService:
                     storage_provider="azure_blob",
                     message=f"Azure Blob Storage connected successfully! Container '{req.azure_container_name or 'screenshots'}' exists={exists}.",
                     duration_ms=dur,
-                    details={"container": req.azure_container_name or "screenshots", "exists": exists},
+                    details={
+                        "container": req.azure_container_name or "screenshots",
+                        "exists": exists,
+                    },
                 )
             except Exception as e:
                 dur = round((time.perf_counter() - t_start) * 1000, 2)
@@ -332,7 +348,9 @@ class StorageService:
                 paginator = s3.get_paginator("list_objects_v2")
                 cutoff_dt = datetime.fromtimestamp(cutoff_epoch, tz=UTC)
 
-                for page in paginator.paginate(Bucket=storage_cfg.s3_bucket_name, Prefix="screenshots/"):
+                for page in paginator.paginate(
+                    Bucket=storage_cfg.s3_bucket_name, Prefix="screenshots/"
+                ):
                     for obj in page.get("Contents", []):
                         if obj["LastModified"] < cutoff_dt:
                             s3.delete_object(Bucket=storage_cfg.s3_bucket_name, Key=obj["Key"])
@@ -350,4 +368,3 @@ class StorageService:
             storage_provider=provider,
             message=f"Storage cleanup completed successfully. Purged {purged_count} expired files ({bytes_freed / 1024:.1f} KB freed) across {provider} storage.",
         )
-

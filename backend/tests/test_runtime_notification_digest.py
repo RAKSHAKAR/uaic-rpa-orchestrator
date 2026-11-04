@@ -34,16 +34,18 @@ async def test_hourly_digest_groups_prior_hour_and_retains_current_hour(tmp_path
             ("Earlier case B", current_hour - timedelta(minutes=20)),
             ("Current case", current_hour + timedelta(minutes=1)),
         ):
-            db.add(Notification(
-                event_type="SCRAPER_FAILED",
-                recipient="ops@example.test",
-                subject=subject,
-                body_html="<p>Update</p>",
-                body_text="Update",
-                provider="local_mock",
-                status="PENDING_DIGEST",
-                created_at=created,
-            ))
+            db.add(
+                Notification(
+                    event_type="SCRAPER_FAILED",
+                    recipient="ops@example.test",
+                    subject=subject,
+                    body_html="<p>Update</p>",
+                    body_text="Update",
+                    provider="local_mock",
+                    status="PENDING_DIGEST",
+                    created_at=created,
+                )
+            )
         await db.commit()
 
     try:
@@ -67,7 +69,9 @@ async def test_hourly_digest_groups_prior_hour_and_retains_current_hour(tmp_path
 
 
 async def _settings():
-    return SimpleNamespace(email=SimpleNamespace(
-        email_notifications_enabled=True,
-        digest_mode="hourly_digest",
-    ))
+    return SimpleNamespace(
+        email=SimpleNamespace(
+            email_notifications_enabled=True,
+            digest_mode="hourly_digest",
+        )
+    )

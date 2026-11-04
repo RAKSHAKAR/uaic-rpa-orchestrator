@@ -20,6 +20,26 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   let label = status;
 
   switch (status) {
+    case "DISPATCHED":
+      colorClasses = "bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800/60";
+      label = "Dispatched";
+      break;
+    case "QUEUED":
+      colorClasses = "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/60";
+      label = "Queued";
+      break;
+    case "RUNNING":
+      colorClasses = "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/60 animate-pulse";
+      label = "Running";
+      break;
+    case "NEEDS_REVIEW":
+      colorClasses = "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/60 ring-1 ring-purple-400/30";
+      label = "Needs Review";
+      break;
+    case "BLOCKED":
+      colorClasses = "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/60";
+      label = "Blocked";
+      break;
     case "NEW":
       colorClasses = "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800/60";
       label = "New";

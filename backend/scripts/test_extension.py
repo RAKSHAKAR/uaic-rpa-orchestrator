@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from pathlib import Path
+
 from app.automation.session_runner import SingleSessionBrowserRunner
 
 logging.basicConfig(level=logging.INFO)

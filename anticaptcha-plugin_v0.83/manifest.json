@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "default_locale": "en",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwTjBpnr0tC/chGqfwI8z6DBYXuoFRM1s4/+4UvoVi0mrMtTsii/EtYor64Bou4ITWEcb2oohsbr8qJ20/DYJk5WvZBt/OzAHPvSdg2ASVEB6jSEgGmPi5sicyiliUZp7UVMH+fdN/QUDgETTZVMDmxFhntpDV1xX871+DUVR8fHIQUCG0DwzVCAyW6sUovMXu2vmLKkkl9jfcfe6t8Au1/bwxpQcu27W62NB9C+bx+tC79DipMuA3DWgfNCO+ndaxJ//jOOWsfdZIES7V5pIeJyWbD46qZ461DdYJLvnjdugA6qMEccwQogREh5cdXvo+jMY8N2yvfVvi+5qttUgYQIDAQAB",
 
   "oauth2": {
     "client_id": "216545209139-4lbiot8mq929jriphbqgad4jtiutuqib.apps.googleusercontent.com",

@@ -1,12 +1,12 @@
-import json
 import glob
+import json
 import os
 import re
 
 # Load all control repositories
 repos = {}
 for p in glob.glob('PowerAutomateSolutions/BotCreation_1_0_0_7/**/ControlRepository*.json', recursive=True):
-    with open(p, 'r', encoding='utf-8') as f:
+    with open(p, encoding='utf-8') as f:
         data = json.load(f)
         for s in data.get('Screens', []):
             s_name = s.get('Name', '')
@@ -42,7 +42,7 @@ for fname in sorted(os.listdir(subflows_dir)):
     if not fname.endswith('.robin') or fname.startswith('Subflow_Error') or fname.startswith('Subflow_Send'):
         continue
     path = os.path.join(subflows_dir, fname)
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(path, encoding='utf-8', errors='ignore') as f:
         content = f.read()
     
     print("=" * 80)

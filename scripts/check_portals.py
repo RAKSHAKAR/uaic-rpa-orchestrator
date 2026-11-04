@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -14,6 +13,7 @@ try:
 except ImportError:
     from backend.app.core.database import AsyncSessionLocal  # type: ignore[import-not-found]
 from sqlalchemy import text
+
 
 async def check():
     async with AsyncSessionLocal() as s:

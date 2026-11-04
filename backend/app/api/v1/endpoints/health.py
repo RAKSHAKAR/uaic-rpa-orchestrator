@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,7 +44,9 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.get("/detailed", tags=["Health"], summary="Comprehensive System Observability & Diagnostics")
+@router.get(
+    "/detailed", tags=["Health"], summary="Comprehensive System Observability & Diagnostics"
+)
 async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Exhaustive health assessment across API, Database, Redis, Celery, Chrome,
 
@@ -62,7 +65,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
             "app_name": settings.APP_NAME,
             "environment": settings.APP_ENV,
             "version": "1.0.0",
-            "python_version": os.sys.version.split()[0],
+            "python_version": sys.version.split()[0],
         },
     }
 
@@ -106,6 +109,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
         redis_start = time.perf_counter()
         try:
             import asyncio
+
             client = aioredis.from_url(settings.REDIS_URL, socket_timeout=1.0)
             await asyncio.wait_for(client.ping(), timeout=1.0)
             redis_latency = round((time.perf_counter() - redis_start) * 1000, 2)
@@ -156,7 +160,9 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
                 "status": celery_status,
                 "details": {
                     "active_workers": workers_count,
-                    "worker_hosts": [list(item.keys())[0] for item in ping_res if isinstance(item, dict)],
+                    "worker_hosts": [
+                        list(item.keys())[0] for item in ping_res if isinstance(item, dict)
+                    ],
                     "broker": settings.CELERY_BROKER_URL.split("@")[-1],
                 },
             }
@@ -224,7 +230,11 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
     ext_dir = ExtensionManager.resolve_extension_path(sys_settings.automation.chrome_extension_dir)
     api_key_configured = bool(sys_settings.automation.anticaptcha_api_key)
     ext_detected = ext_dir is not None
-    ext_status = "healthy" if (ext_detected and api_key_configured) else ("warning" if ext_detected else "critical")
+    ext_status = (
+        "healthy"
+        if (ext_detected and api_key_configured)
+        else ("warning" if ext_detected else "critical")
+    )
     if ext_status == "critical":
         overall_status = "critical"
     elif ext_status == "warning" and overall_status == "healthy":
@@ -358,6 +368,41 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
         },
     }
 
+    # GAP-C (IMP-2026-1007-004): Portal Settings Summary — shows enabled/disabled flags from live DB.
+    # Operators can confirm routing compliance without querying SQLite directly.
+    portal_enabled_map = {
+        "broward": p.broward_enabled,
+        "hillsborough": p.hillsborough_enabled,
+        "miami": p.miami_enabled,
+        "travis": p.travis_enabled,
+        "dallas": p.dallas_enabled,
+        "harris_jp": p.harris_jp_enabled,
+        "harris_cclerk": p.harris_cclerk_enabled,
+        "harris_district": p.harris_district_enabled,
+    }
+    fl_portals_enabled = all(portal_enabled_map[k] for k in ("broward", "hillsborough", "miami"))
+    tx_portals_enabled = all(
+        portal_enabled_map[k]
+        for k in ("travis", "dallas", "harris_jp", "harris_cclerk", "harris_district")
+    )
+    all_8_enabled = all(portal_enabled_map.values())
+    enabled_count = sum(1 for v in portal_enabled_map.values() if v)
+    disabled_portals = [k for k, v in portal_enabled_map.items() if not v]
+
+    portal_settings_summary = {
+        "enabled_count": enabled_count,
+        "total_portals": 8,
+        "all_8_enabled": all_8_enabled,
+        "fl_routing_ok": fl_portals_enabled,
+        "tx_routing_ok": tx_portals_enabled,
+        "cross_state_routing_ok": all_8_enabled,
+        "disabled_portals": disabled_portals,
+        "routing_compliance": "OK"
+        if all_8_enabled
+        else f"DEGRADED — {len(disabled_portals)} portal(s) disabled: {disabled_portals}",
+        "portal_flags": portal_enabled_map,
+    }
+
     return {
         "status": overall_status,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -365,6 +410,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)) -> dict[str,
         "version": "1.0.0",
         "components": components,
         "portals": portals_dict,
+        "portal_settings_summary": portal_settings_summary,
     }
 
 
@@ -449,4 +495,3 @@ portals_router = APIRouter()
 async def ping_portal_alias(portal_key: str) -> dict[str, Any]:
     """Alias for testing portal reachability directly at /api/v1/portals/{portal_key}/ping."""
     return await ping_portal_endpoint(portal_key)
-

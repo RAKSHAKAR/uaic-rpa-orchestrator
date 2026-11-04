@@ -7,10 +7,9 @@ Full reset for proper live E2E test:
 5. Verify settings are correct
 """
 import json
-import urllib.request
-import urllib.error
 import subprocess
-import sys
+import urllib.error
+import urllib.request
 
 BASE = "http://localhost:8000/api/v1"
 
@@ -98,6 +97,7 @@ tx_resp = json.loads(tx_result.stdout)
 print(f"  TX Upload: {tx_resp.get('filename')} -> status={tx_resp.get('status')}, id={tx_resp.get('id')}")
 
 import time
+
 print("  Waiting 8s for ingest workers...")
 time.sleep(8)
 

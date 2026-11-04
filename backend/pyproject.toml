@@ -44,10 +44,31 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py314"
+src = ["app", "tests", "."]
+exclude = [
+    "scripts",
+    "app/scripts",
+    "data",
+    ".venv",
+    "diagnose_settings.py",
+    "fix_texas_claims.py",
+    "generate_html_report.py",
+    "run_live_e2e_demo.py",
+    "seed_user_claim.py",
+    "seed_rich_data.py",
+    "run_e2e.py",
+    "live_e2e_verification.py",
+    "frontend",
+    "e2e/frontend",
+    "node_modules",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501", "W293", "E741", "E402", "UP037"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

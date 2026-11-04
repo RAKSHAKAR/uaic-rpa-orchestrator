@@ -1,6 +1,8 @@
 import asyncio
-from playwright.async_api import async_playwright
 import os
+
+from playwright.async_api import async_playwright
+
 
 async def main():
     profile_dir = os.path.abspath("test_dev_mode_profile2")

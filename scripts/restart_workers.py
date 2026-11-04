@@ -1,8 +1,6 @@
-import subprocess
-import os
-import sys
 import json
-import time
+import subprocess
+
 
 def get_processes():
     out = subprocess.check_output(

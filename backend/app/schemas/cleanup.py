@@ -29,7 +29,6 @@ class CleanupCategoryEnum(StrEnum):
     ALL_SUPPORTED = "all_supported"
 
 
-
 class TimeScopeEnum(StrEnum):
     CURRENT_MONTH = "current_month"
     PREVIOUS_MONTH = "previous_month"

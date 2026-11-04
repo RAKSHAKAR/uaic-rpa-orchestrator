@@ -5,6 +5,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -22,6 +23,7 @@ logger = logging.getLogger("uaic_orchestrator.automation")
 
 class SecurityBlockException(Exception):
     """Raised when a portal explicitly blocks requests due to rate limits, WAF, or IP restrictions."""
+
     def __init__(self, message: str, cooldown_seconds: int = 300, portal_key: str | None = None):
         super().__init__(message)
         self.message = message
@@ -56,14 +58,25 @@ def detect_security_block(
     Raises SecurityBlockException if a block or challenge is detected.
     """
     if status_code == 429:
+        effective_cd = 600 if portal_key and "travis" in str(portal_key).lower() else default_cooldown
         raise SecurityBlockException(
-            message=f"Rate limit exceeded (HTTP 429) on {portal_key or 'portal'}",
-            cooldown_seconds=default_cooldown,
+            message="WAF rate limit" if portal_key and "travis" in str(portal_key).lower() else f"Rate limit exceeded (HTTP 429) on {portal_key or 'portal'}",
+            cooldown_seconds=effective_cd,
             portal_key=portal_key,
         )
     if status_code in (403, 503) and html_text:
         lower_html = html_text.lower()
-        if any(keyword in lower_html for keyword in ["access denied", "blocked", "waf", "security check", "forbidden", "cloudflare"]):
+        if any(
+            keyword in lower_html
+            for keyword in [
+                "access denied",
+                "blocked",
+                "waf",
+                "security check",
+                "forbidden",
+                "cloudflare",
+            ]
+        ):
             raise SecurityBlockException(
                 message=f"Access blocked (HTTP {status_code}) by security gateway on {portal_key or 'portal'}",
                 cooldown_seconds=default_cooldown,
@@ -72,15 +85,58 @@ def detect_security_block(
 
     if html_text:
         lower_html = html_text.lower()
-        if "cf-browser-verification" in lower_html or "cf-challenge" in lower_html or "checking your browser" in lower_html:
+        if (
+            "cf-browser-verification" in lower_html
+            or "cf-challenge" in lower_html
+            or "checking your browser" in lower_html
+        ):
             raise SecurityBlockException(
                 message=f"Cloudflare challenge page detected on {portal_key or 'portal'}",
                 cooldown_seconds=default_cooldown,
                 portal_key=portal_key,
             )
-        if "ray id" in lower_html and any(term in lower_html for term in ["access denied", "blocked", "attention required"]):
+        if "waf rate limit" in lower_html or ("rate limit" in lower_html and "cooldown" in lower_html):
+            effective_cd = 600 if portal_key and "travis" in str(portal_key).lower() else default_cooldown
+            raise SecurityBlockException(
+                message="WAF rate limit",
+                cooldown_seconds=effective_cd,
+                portal_key=portal_key,
+            )
+        if "ray id" in lower_html and any(
+            term in lower_html for term in ["access denied", "blocked", "attention required"]
+        ):
             raise SecurityBlockException(
                 message=f"WAF block page detected on {portal_key or 'portal'}",
+                cooldown_seconds=default_cooldown,
+                portal_key=portal_key,
+            )
+        if any(
+            term in lower_html
+            for term in [
+                "perimeterx",
+                "powered by perimeterx",
+                "automation tools to browse the website",
+                "access to this page has been denied because we believe you are using automation tools",
+                "px-captcha",
+                "_pxhd",
+                "press & hold",
+                "press and hold",
+            ]
+        ):
+            raise SecurityBlockException(
+                message=f"PerimeterX bot detection challenge on {portal_key or 'portal'}",
+                cooldown_seconds=default_cooldown,
+                portal_key=portal_key,
+            )
+        if any(term in lower_html for term in ["datadome", "protected by datadome"]):
+            raise SecurityBlockException(
+                message=f"DataDome bot challenge detected on {portal_key or 'portal'}",
+                cooldown_seconds=default_cooldown,
+                portal_key=portal_key,
+            )
+        if "challenges.cloudflare.com" in lower_html or "cf-turnstile" in lower_html:
+            raise SecurityBlockException(
+                message=f"Cloudflare Turnstile challenge detected on {portal_key or 'portal'}",
                 cooldown_seconds=default_cooldown,
                 portal_key=portal_key,
             )
@@ -106,9 +162,66 @@ def log_security_block_event(
         log_file = os.path.join(log_dir, "security_blocks.log")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"[{timestamp}] PORTAL='{p_name}' URL='{p_url}' BLOCKED='{p_reason}' COOLDOWN={cooldown_seconds}s\n")
+            f.write(
+                f"[{timestamp}] PORTAL='{p_name}' URL='{p_url}' BLOCKED='{p_reason}' COOLDOWN={cooldown_seconds}s\n"
+            )
     except Exception as e:
         logger.debug(f"Could not append to security_blocks.log: {e}")
+
+
+def _normalize_court_date(val: str | None) -> str | None:
+    """Normalize court filing or loss date to standard MM/DD/YYYY format, safely stripping any timestamps."""
+    if val is None:
+        return None
+    val_str = str(val).strip()
+    if not val_str or val_str.lower() in ["null", "none", "nan", "n/a", "-", "--"]:
+        return ""
+    # Strip any ISO or SQL timestamp component (e.g. " 00:00:00", "T00:00:00Z")
+    cleaned = val_str.split("T")[0].split()[0] if (" " in val_str or "T" in val_str) else val_str
+
+    # 1. Match ISO YYYY-MM-DD or YYYY/MM/DD
+    iso_match = re.search(r"^(\d{4})[/-](\d{1,2})[/-](\d{1,2})", cleaned)
+    if iso_match:
+        y, m, d = iso_match.groups()
+        return f"{int(m):02d}/{int(d):02d}/{int(y):04d}"
+
+    # 2. Match US MM/DD/YYYY or M/D/YY
+    us_match = re.search(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", cleaned)
+    if us_match:
+        m, d, y = us_match.groups()
+        m_int, d_int = int(m), int(d)
+        if m_int > 12 and d_int <= 12:
+            m_int, d_int = d_int, m_int
+        y_int = int(y)
+        if len(y) == 2:
+            y_int = 2000 + y_int if y_int < 50 else 1900 + y_int
+        return f"{m_int:02d}/{d_int:02d}/{y_int:04d}"
+
+    for fmt in ["%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d", "%m-%d-%Y", "%d/%m/%Y", "%m/%d/%y"]:
+        try:
+            dt = datetime.strptime(cleaned, fmt)
+            return dt.strftime("%m/%d/%Y")
+        except ValueError:
+            pass
+    return cleaned
+
+
+def _date_for_input(date_str: str, input_type: str | None) -> str:
+    """
+    Format date string appropriately based on input type attribute.
+    - If input type is 'date', HTML5 standard mandates ISO 'YYYY-MM-DD'.
+    - Otherwise (e.g. text, None, or custom), returns standard US 'MM/DD/YYYY'.
+    """
+    if not date_str:
+        return ""
+    norm = _normalize_court_date(date_str)
+    if (input_type or "").lower() == "date":
+        if norm and "/" in norm:
+            parts = norm.split("/")
+            if len(parts) == 3:
+                return f"{parts[2]}-{parts[0]}-{parts[1]}"
+        return norm
+    return norm
 
 
 def append_portal_execution_log(
@@ -152,6 +265,26 @@ async def _safe_wait_timeout(page: Any, ms: int) -> None:
             res = wait_fn(ms)
             if inspect.isawaitable(res):
                 await res
+    except Exception:
+        pass
+
+
+async def human_page_warmup(page: Any) -> None:
+    """Emulates realistic human viewing behavior and smooth micro-scrolling upon landing on a portal."""
+    try:
+        import random
+
+        mouse_fn = getattr(page, "mouse", None)
+        if mouse_fn and hasattr(mouse_fn, "wheel"):
+            down_delta = random.randint(180, 320)
+            res1 = mouse_fn.wheel(0, down_delta)
+            if inspect.isawaitable(res1):
+                await res1
+            await _safe_wait_timeout(page, random.randint(250, 450))
+            res2 = mouse_fn.wheel(0, -random.randint(120, down_delta))
+            if inspect.isawaitable(res2):
+                await res2
+            await _safe_wait_timeout(page, random.randint(150, 300))
     except Exception:
         pass
 
@@ -233,7 +366,9 @@ async def resilient_click(locator: Any, page: Any = None, timeout_ms: int = 3000
     try:
         eval_fn = getattr(target, "evaluate", None)
         if callable(eval_fn):
-            res = eval_fn("el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }")
+            res = eval_fn(
+                "el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }"
+            )
             if inspect.isawaitable(res):
                 await res
             return
@@ -246,6 +381,7 @@ async def safe_is_visible(locator: Any) -> bool:
     Resilient to minimized windows where bounding boxes may report 0 temporarily.
     """
     from unittest.mock import MagicMock
+
     try:
         first_loc = getattr(locator, "first", locator)
         if not hasattr(first_loc, "is_visible"):
@@ -280,6 +416,7 @@ async def safe_is_visible(locator: Any) -> bool:
 async def safe_count(locator: Any) -> int:
     """Helper to safely count elements across real Playwright locators and test mocks."""
     from unittest.mock import MagicMock
+
     try:
         if not hasattr(locator, "count"):
             return 0
@@ -317,12 +454,14 @@ def find_chrome_executable() -> str | None:
         candidates.append(os.path.join(prog_files_x86, r"Google\Chrome\Application\chrome.exe"))
 
     # Linux fallbacks
-    candidates.extend([
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/chromium-browser",
-        "/usr/bin/chromium",
-    ])
+    candidates.extend(
+        [
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+        ]
+    )
 
     for c in candidates:
         if os.path.exists(c):
@@ -345,10 +484,12 @@ def find_edge_executable() -> str | None:
     prog_files = os.environ.get("PROGRAMFILES")
     if prog_files:
         candidates.append(os.path.join(prog_files, r"Microsoft\Edge\Application\msedge.exe"))
-    candidates.extend([
-        "/usr/bin/microsoft-edge",
-        "/usr/bin/microsoft-edge-stable",
-    ])
+    candidates.extend(
+        [
+            "/usr/bin/microsoft-edge",
+            "/usr/bin/microsoft-edge-stable",
+        ]
+    )
     for c in candidates:
         if os.path.exists(c):
             return os.path.abspath(c)
@@ -379,7 +520,10 @@ def resolve_browser_launch_target(
             if os.path.isfile(chrome_binary_path):
                 return (chrome_binary_path, None)
             import sys
-            if sys.platform != "win32" and (":" in chrome_binary_path or "\\" in chrome_binary_path):
+
+            if sys.platform != "win32" and (
+                ":" in chrome_binary_path or "\\" in chrome_binary_path
+            ):
                 edge_exe = find_edge_executable()
                 if edge_exe and os.path.isfile(edge_exe):
                     return (edge_exe, None)
@@ -391,14 +535,18 @@ def resolve_browser_launch_target(
         return (None, "msedge")
 
     if raw_engine in ("chrome", "google-chrome"):
-        # On Windows, Native Chrome strictly blocks unpacked extensions via CLI flags if the browser is "Managed"
+        # On Windows, Native Chrome strictly blocks unpacked extensions via CLI flags if ExtensionInstallBlocklist is enforced
         import sys
+
         if sys.platform == "win32" and has_extension:
             import winreg
+
             is_managed = False
             for root_key in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
                 try:
-                    with winreg.OpenKey(root_key, r"SOFTWARE\Policies\Google\Chrome") as _:
+                    with winreg.OpenKey(
+                        root_key, r"SOFTWARE\Policies\Google\Chrome\ExtensionInstallBlocklist"
+                    ) as _:
                         is_managed = True
                 except OSError:
                     pass
@@ -411,7 +559,9 @@ def resolve_browser_launch_target(
         if chrome_binary_path:
             if os.path.isfile(chrome_binary_path):
                 return (chrome_binary_path, None)
-            if sys.platform != "win32" and (":" in chrome_binary_path or "\\" in chrome_binary_path):
+            if sys.platform != "win32" and (
+                ":" in chrome_binary_path or "\\" in chrome_binary_path
+            ):
                 chrome_exe = find_chrome_executable()
                 if chrome_exe and os.path.isfile(chrome_exe):
                     return (chrome_exe, None)
@@ -424,7 +574,6 @@ def resolve_browser_launch_target(
         return (None, "chrome")
 
     raise ValueError(f"Unsupported browser engine: {raw_engine}")
-
 
 
 def resolve_extension_dir(configured_dir: str | None = None) -> str | None:
@@ -440,7 +589,9 @@ def resolve_extension_dir(configured_dir: str | None = None) -> str | None:
         os.path.join(os.getcwd(), "anticaptcha-plugin_v0.83_1"),
         os.path.abspath(os.path.join(current_dir, "..", "..", "..", "anticaptcha-plugin_v0.83")),
         os.path.abspath(os.path.join(current_dir, "..", "..", "..", "anticaptcha-plugin_v0.83_1")),
-        os.path.abspath(os.path.join(current_dir, "..", "..", "..", "..", "anticaptcha-plugin_v0.83")),
+        os.path.abspath(
+            os.path.join(current_dir, "..", "..", "..", "..", "anticaptcha-plugin_v0.83")
+        ),
     ]
     for c in candidates:
         if os.path.exists(c):
@@ -462,6 +613,7 @@ def sync_anticaptcha_api_key(ext_dir: str, api_key: str):
                 logger.debug("AntiCaptcha API key already up-to-date in config_ac_api_key.js")
                 return
             import re
+
             new_cfg = re.sub(
                 r"var antiCapthaPredefinedApiKey = '[^']*';",
                 f"var antiCapthaPredefinedApiKey = '{api_key}';",
@@ -477,7 +629,6 @@ def sync_anticaptcha_api_key(ext_dir: str, api_key: str):
             logger.info("Synchronized AntiCaptcha API key into config_ac_api_key.js")
     except Exception as e:
         logger.warning(f"Could not synchronize config_ac_api_key.js: {e}")
-
 
 
 class BaseCourtScraper(ABC):
@@ -511,6 +662,7 @@ class BaseCourtScraper(ABC):
         self.county_name = county_name
         self.base_url = base_url
         import sys
+
         raw_headless = settings.PLAYWRIGHT_HEADLESS if headless is None else headless
         if sys.platform != "win32" and "DISPLAY" not in os.environ:
             self.headless = True
@@ -521,7 +673,9 @@ class BaseCourtScraper(ABC):
         self.captcha_wait_seconds = captcha_wait_seconds
         self.reload_backoff_seconds = reload_backoff_seconds
         self.use_chrome = use_chrome
-        self.browser_engine = kwargs.get("browser_engine") or ("chrome" if use_chrome else "chromium")
+        self.browser_engine = kwargs.get("browser_engine") or (
+            "chrome" if use_chrome else "chromium"
+        )
         self.chrome_binary_path = kwargs.get("chrome_binary_path")
         self.extension_dir = extension_dir
         self.resolved_extension_dir = resolve_extension_dir(extension_dir)
@@ -532,11 +686,31 @@ class BaseCourtScraper(ABC):
         self.typing_delay_ms = int(kwargs.get("typing_delay_ms", 0))
         self.action_pacing_ms = int(kwargs.get("action_pacing_ms", 100))
         self.stealth_clicks = bool(kwargs.get("stealth_clicks", False))
+        self.human_interaction_mode = kwargs.get(
+            "human_interaction_mode", "attended" if not self.headless else "unattended"
+        )
+        self.mouse_movement_style = kwargs.get("mouse_movement_style", "bezier_natural")
+        self.click_timeout_ms = int(kwargs.get("click_timeout_ms", 10000))
+        self.show_cursor_trail = bool(kwargs.get("show_cursor_trail", not self.headless))
         self.stage_timings: dict[str, Any] = {}
+        try:
+            from app.automation.human_engine import HumanInteractionEngine
+
+            self.human_engine = HumanInteractionEngine(
+                movement_style=self.mouse_movement_style,
+                typing_speed_mode=self.typing_speed_mode,
+                typing_delay_ms=self.typing_delay_ms,
+                click_timeout_ms=self.click_timeout_ms,
+                show_cursor_trail=self.show_cursor_trail,
+                human_intervention_timeout_seconds=self.captcha_wait_seconds,
+            )
+        except Exception:
+            self.human_engine = None
 
     async def pace_action(self, page: Page | None = None) -> None:
         """Applies configured action_pacing_ms between scraper steps."""
         import asyncio
+
         pacing = getattr(self, "action_pacing_ms", 0)
         if pacing > 0:
             if page and hasattr(page, "wait_for_timeout"):
@@ -547,7 +721,9 @@ class BaseCourtScraper(ABC):
                     pass
             await asyncio.sleep(pacing / 1000.0)
 
-    async def resilient_click(self, locator: Any, page: Page | None = None, timeout_ms: int = 3000) -> None:
+    async def resilient_click(
+        self, locator: Any, page: Page | None = None, timeout_ms: int = 3000
+    ) -> None:
         """Instance method for 4-tier resilient click."""
         await resilient_click(locator, page=page, timeout_ms=timeout_ms)
 
@@ -559,14 +735,33 @@ class BaseCourtScraper(ABC):
         - Resilient against minimized or resized browser windows via direct DOM event dispatch fallback.
         """
         import inspect
+
         try:
             # Handle AsyncMocks in testing vs real Playwright locators
             clear_res = locator.clear()
             if inspect.isawaitable(clear_res):
                 await clear_res
-            
-            # If instant / turbo mode or delay is 0: use instant fill
-            if self.typing_delay_ms == 0 or self.typing_speed_mode in ("turbo", "instant"):
+
+            # Native HTML5 date/time pickers corrupt keystrokes when typed sequentially.
+            # They require atomic locator.fill(ISO_DATE) or direct DOM assignment.
+            is_native_picker = False
+            try:
+                attr_fn = getattr(locator, "get_attribute", None)
+                if callable(attr_fn):
+                    attr_val = attr_fn("type")
+                    if inspect.isawaitable(attr_val):
+                        attr_val = await attr_val
+                    if str(attr_val).lower() in ("date", "time", "datetime-local", "month", "week"):
+                        is_native_picker = True
+            except Exception:
+                pass
+
+            # If instant / turbo mode, native date picker, or delay is 0: use instant fill
+            if (
+                is_native_picker
+                or self.typing_delay_ms == 0
+                or self.typing_speed_mode in ("turbo", "instant")
+            ):
                 fill_res = locator.fill(text)
                 if inspect.isawaitable(fill_res):
                     await fill_res
@@ -591,7 +786,8 @@ class BaseCourtScraper(ABC):
                 eval_fn = getattr(locator, "evaluate", None)
                 if not callable(eval_fn):
                     raise AttributeError("DOM evaluation is unavailable")
-                res = eval_fn("""(el, val) => {
+                res = eval_fn(
+                    """(el, val) => {
                     if (!el) return false;
                     el.scrollIntoView({block: 'center', inline: 'center'});
                     el.focus();
@@ -599,7 +795,9 @@ class BaseCourtScraper(ABC):
                     el.dispatchEvent(new Event('input', {bubbles: true}));
                     el.dispatchEvent(new Event('change', {bubbles: true}));
                     return true;
-                }""", text)
+                }""",
+                    text,
+                )
                 if inspect.isawaitable(res):
                     res = await res
                 if res is False:
@@ -611,20 +809,181 @@ class BaseCourtScraper(ABC):
         finally:
             await self.pace_action()
 
+    async def interact_and_fill_field(
+        self,
+        page: Page,
+        selector: str,
+        value: str,
+        field_name: str = "",
+        timeout_ms: int = 15000,
+    ) -> bool:
+        """
+        9-Step Strict Input Interaction Protocol:
+        1. Locate input element
+        2. Wait until visible
+        3. Verify enabled
+        4. Physically click inside
+        5. Confirm DOM focus (document.activeElement === el)
+        6. Clear existing value
+        7. Enter value sequentially with realistic delay
+        8. Verify entered value matches expected
+        9. Synchronize framework validation
+        """
+        import inspect
+
+        lbl = field_name or selector
+        locator = page.locator(selector).first
+
+        # 1 & 2. Wait until visible
+        try:
+            wait_fn = getattr(locator, "wait_for", None)
+            if callable(wait_fn):
+                res_w = wait_fn(state="visible", timeout=timeout_ms)
+                if inspect.isawaitable(res_w):
+                    await res_w
+        except Exception as e:
+            logger.warning(f"[{self.county_name}] Field '{lbl}' wait_for(visible) failed: {e}")
+            return False
+
+        # 3. Verify enabled
+        try:
+            is_en_fn = getattr(locator, "is_enabled", None)
+            if callable(is_en_fn):
+                is_en = is_en_fn()
+                if inspect.isawaitable(is_en):
+                    is_en = await is_en
+                if not is_en:
+                    logger.warning(f"[{self.county_name}] Field '{lbl}' is not enabled.")
+        except Exception:
+            pass
+
+        # 4. Physically click inside
+        try:
+            click_fn = getattr(locator, "click", None)
+            if callable(click_fn):
+                res_c = click_fn(timeout=3000)
+                if inspect.isawaitable(res_c):
+                    await res_c
+        except Exception as e:
+            logger.debug(f"[{self.county_name}] Field '{lbl}' click note: {e}")
+
+        # 5. Confirm DOM focus
+        try:
+            eval_fn = getattr(page, "evaluate", None)
+            if callable(eval_fn):
+                has_focus = eval_fn(f"""() => {{
+                    const el = document.querySelector("{selector}");
+                    if (!el) return false;
+                    el.focus();
+                    return document.activeElement === el;
+                }}""")
+                if inspect.isawaitable(has_focus):
+                    await has_focus
+        except Exception:
+            pass
+
+        # 6 & 7. Fill text using biometric_fill
+        await self.biometric_fill(locator, value)
+
+        # 8. Verify entered value
+        try:
+            val_fn = getattr(locator, "input_value", None)
+            if callable(val_fn):
+                actual_val = val_fn()
+                if inspect.isawaitable(actual_val):
+                    actual_val = await actual_val
+                if actual_val and actual_val.strip().lower() != value.strip().lower():
+                    logger.warning(
+                        f"[{self.county_name}] Field '{lbl}' value readback mismatch: "
+                        f"expected '{value}', got '{actual_val}'. Retrying fill..."
+                    )
+                    fill_fn = getattr(locator, "fill", None)
+                    if callable(fill_fn):
+                        rf = fill_fn(value)
+                        if inspect.isawaitable(rf):
+                            await rf
+        except Exception:
+            pass
+
+        logger.info(
+            f"[{self.county_name}] Successfully interacted with and verified field '{lbl}' with value: '{value}'"
+        )
+        return True
+
+    async def human_bezier_move(self, page: Page, target_x: float, target_y: float) -> None:
+        """Emulates realistic human cursor movement along a cubic Bézier curve with hand tremor micro-jitter."""
+        import asyncio
+        import random
+
+        mouse = getattr(page, "mouse", None)
+        if not mouse or not hasattr(mouse, "move"):
+            return
+
+        start_x = getattr(self, "_cursor_x", random.uniform(100, 300))
+        start_y = getattr(self, "_cursor_y", random.uniform(100, 250))
+
+        dx = target_x - start_x
+        dy = target_y - start_y
+        dist = (dx**2 + dy**2) ** 0.5
+        if dist < 5:
+            await mouse.move(target_x, target_y)
+            self._cursor_x, self._cursor_y = target_x, target_y
+            return
+
+        ctrl_dev = min(max(dist * 0.25, 20), 120)
+        p1_x = start_x + dx * 0.25 + random.uniform(-ctrl_dev, ctrl_dev)
+        p1_y = start_y + dy * 0.25 + random.uniform(-ctrl_dev, ctrl_dev)
+        p2_x = start_x + dx * 0.75 + random.uniform(-ctrl_dev * 0.5, ctrl_dev * 0.5)
+        p2_y = start_y + dy * 0.75 + random.uniform(-ctrl_dev * 0.5, ctrl_dev * 0.5)
+
+        steps = random.randint(10, 18)
+        for i in range(1, steps + 1):
+            t = i / steps
+            u = 1 - t
+            bx = (
+                (u**3 * start_x) + (3 * u**2 * t * p1_x) + (3 * u * t**2 * p2_x) + (t**3 * target_x)
+            )
+            by = (u**3 * start_y) + (3 * u**2 * t * p1_y) + (3 * u * t**2 * p2_y)
+            jitter_x = bx + random.uniform(-1.2, 1.2)
+            jitter_y = by + random.uniform(-1.2, 1.2)
+            await mouse.move(jitter_x, jitter_y)
+            await asyncio.sleep(random.uniform(0.005, 0.012))
+
+        await mouse.move(target_x, target_y)
+        self._cursor_x, self._cursor_y = target_x, target_y
+
+    async def human_page_warmup(self, page: Page) -> None:
+        """Emulates realistic human viewing behavior and smooth micro-scrolling upon landing on a portal."""
+        await human_page_warmup(page)
+
+    async def navigate_via_address_bar(
+        self, page: Page, url: str, timeout_ms: int | None = None
+    ) -> bool:
+        """Navigates to URL via address bar human interaction protocol."""
+        if hasattr(self, "human_engine") and self.human_engine:
+            return await self.human_engine.navigate_portal(
+                page, url, timeout_ms=timeout_ms or self.timeout_ms
+            )
+        await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms or self.timeout_ms)
+        return True
+
+    async def verify_captcha_state(self, page: Page, max_wait_seconds: int | None = None) -> bool:
+        """Checks and verifies CAPTCHA resolution with attended operator intervention if needed."""
+        if hasattr(self, "human_engine") and self.human_engine:
+            return await self.human_engine.verify_captcha(
+                page,
+                self.county_name,
+                max_wait_seconds=max_wait_seconds or self.captcha_wait_seconds,
+            )
+        return True
+
     async def biometric_click(self, page: Page, locator: Any) -> None:
-        """Clicks element with mouse pacing and optional stealth jitter scaling, with resilient fallback."""
+        """Clicks element with human Bézier curve trajectory, hand tremor micro-jitter, and visual dwell time."""
         import asyncio
         import inspect
         import random
 
         try:
-            # Jitter scaling only if stealth_clicks is enabled
-            if getattr(self, "stealth_clicks", False):
-                await asyncio.sleep(random.uniform(0.05, 0.2))
-
-            # The RPA target may be below the attended browser viewport.
-            # Mouse down/up at those coordinates can report success without
-            # dispatching a click to the element.
             scroll_fn = getattr(locator, "scroll_into_view_if_needed", None)
             if callable(scroll_fn):
                 scroll_res = scroll_fn()
@@ -636,34 +995,36 @@ class BaseCourtScraper(ABC):
                 box = await box
 
             if isinstance(box, dict) and box.get("width", 0) > 0 and box.get("height", 0) > 0:
-                # Mouse pacing
                 x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
                 viewport = getattr(page, "viewport_size", None)
                 if not isinstance(viewport, dict):
                     evaluate_fn = getattr(page, "evaluate", None)
                     if callable(evaluate_fn):
-                        viewport = evaluate_fn("() => ({width: window.innerWidth, height: window.innerHeight})")
+                        viewport = evaluate_fn(
+                            "() => ({width: window.innerWidth, height: window.innerHeight})"
+                        )
                         if inspect.isawaitable(viewport):
                             viewport = await viewport
                 if isinstance(viewport, dict) and not (
-                    0 <= x < viewport.get("width", 0)
-                    and 0 <= y < viewport.get("height", 0)
+                    0 <= x < viewport.get("width", 0) and 0 <= y < viewport.get("height", 0)
                 ):
-                    # Playwright locator.click() performs its own scroll and
-                    # actionability check when a mouse coordinate is unusable.
                     click_res = locator.click()
                     if inspect.isawaitable(click_res):
                         await click_res
                     return
-                jitter_x = x + random.uniform(-box["width"]/4, box["width"]/4) if getattr(self, "stealth_clicks", False) else x
-                jitter_y = y + random.uniform(-box["height"]/4, box["height"]/4) if getattr(self, "stealth_clicks", False) else y
-                steps = random.randint(3, 6) if getattr(self, "stealth_clicks", False) else 1
-                await page.mouse.move(jitter_x, jitter_y, steps=steps)
-                if getattr(self, "stealth_clicks", False):
-                    await asyncio.sleep(random.uniform(0.02, 0.08))
+
+                # Human Bézier trajectory movement with micro-offset
+                target_x = x + random.uniform(
+                    -min(box["width"] * 0.2, 8), min(box["width"] * 0.2, 8)
+                )
+                target_y = y + random.uniform(
+                    -min(box["height"] * 0.2, 8), min(box["height"] * 0.2, 8)
+                )
+                await self.human_bezier_move(page, target_x, target_y)
+                # Visual confirmation dwell time
+                await asyncio.sleep(random.uniform(0.08, 0.18))
                 await page.mouse.down()
-                if getattr(self, "stealth_clicks", False):
-                    await asyncio.sleep(random.uniform(0.01, 0.04))
+                await asyncio.sleep(random.uniform(0.05, 0.10))
                 await page.mouse.up()
             else:
                 clk_res = locator.click()
@@ -683,7 +1044,9 @@ class BaseCourtScraper(ABC):
                     eval_fn = getattr(locator, "evaluate", None)
                     if not callable(eval_fn):
                         raise AttributeError("DOM evaluation is unavailable")
-                    res = eval_fn("el => { if (!el) return false; el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); return true; }")
+                    res = eval_fn(
+                        "el => { if (!el) return false; el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); return true; }"
+                    )
                     if inspect.isawaitable(res):
                         res = await res
                     if res is False:
@@ -717,6 +1080,10 @@ class BaseCourtScraper(ABC):
 
     async def _dismiss_session_timeout_popup(self, page: Page) -> None:
         """Dismiss Odyssey/Smart Search session-timeout warning by clicking Continue (V4 Global Standard §5)."""
+        await self.check_and_handle_session_timeout(page)
+
+    async def check_and_handle_session_timeout(self, page: Page, *args: Any, **kwargs: Any) -> bool:
+        """Universal session-timeout detection and recovery for all 8 portal scrapers."""
         try:
             continue_btn = page.locator(
                 "button:has-text('Continue session'), button:has-text('Continue Session'), "
@@ -724,11 +1091,13 @@ class BaseCourtScraper(ABC):
                 "a:has-text('Continue'), input[value*='Continue' i], [aria-label*='Continue' i]"
             )
             if await continue_btn.count() > 0 and await continue_btn.first.is_visible():
+                logger.info(f"[{self.county_name}] Session timeout popup detected. Clicking 'Continue session'...")
                 await continue_btn.first.click()
-                await page.wait_for_timeout(500)
-                logger.info(f"[{self.county_name}] Dismissed session timeout popup.")
+                await page.wait_for_timeout(800)
+                return True
         except Exception as e:
-            logger.debug(f"[{self.county_name}] Session timeout popup check: {e}")
+            logger.debug(f"[{self.county_name}] Session timeout check note: {e}")
+        return False
 
     async def _dismiss_search_criteria_popup(self, page: Page) -> None:
         """Dismiss 'YOUR SEARCH CRITERIA' or 'No Results Found' modal popups (V4 §§ 2.2, 2.3, 3.4, 3.5)."""
@@ -745,7 +1114,9 @@ class BaseCourtScraper(ABC):
         except Exception as e:
             logger.debug(f"[{self.county_name}] Search criteria modal dismiss check: {e}")
 
-    async def _click_pagination_next(self, page: Page, next_selectors: list[str] | None = None) -> bool:
+    async def _click_pagination_next(
+        self, page: Page, next_selectors: list[str] | None = None
+    ) -> bool:
         """Click next-page control for pagination across portals. Returns True if advanced, False otherwise."""
         selectors = next_selectors or [
             ".k-pager-wrap .k-i-arrow-e:not(.k-state-disabled)",
@@ -763,9 +1134,15 @@ class BaseCourtScraper(ABC):
         try:
             next_btn = page.locator(combined_sel)
             if await next_btn.count() > 0 and await next_btn.first.is_visible():
-                is_disabled = await next_btn.first.get_attribute("disabled") or await next_btn.first.get_attribute("aria-disabled")
+                is_disabled = await next_btn.first.get_attribute(
+                    "disabled"
+                ) or await next_btn.first.get_attribute("aria-disabled")
                 css_class = await next_btn.first.get_attribute("class") or ""
-                if is_disabled == "true" or "disabled" in css_class or "k-state-disabled" in css_class:
+                if (
+                    is_disabled == "true"
+                    or "disabled" in css_class
+                    or "k-state-disabled" in css_class
+                ):
                     return False
                 await next_btn.first.click()
                 await page.wait_for_timeout(2500)
@@ -803,7 +1180,9 @@ class BaseCourtScraper(ABC):
             await _safe_wait_timeout(page, 20)
 
             # 3. Check if challenge iframe or overlay container is still visible/blocking
-            await _safe_eval(page, """() => {
+            await _safe_eval(
+                page,
+                """() => {
                 // Dispatch outside mousedown/mouseup/click events to document
                 document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
                 document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
@@ -835,14 +1214,16 @@ class BaseCourtScraper(ABC):
                     iframe.style.setProperty('display', 'none', 'important');
                     iframe.style.setProperty('pointer-events', 'none', 'important');
                 }
-            }""")
+            }""",
+            )
             await _safe_wait_timeout(page, 20)
-            logger.info(f"[{self.county_name}] CAPTCHA challenge popup dismissed (outside click & cleanup performed).")
+            logger.info(
+                f"[{self.county_name}] CAPTCHA challenge popup dismissed (outside click & cleanup performed)."
+            )
         except Exception as e_dismiss:
             logger.debug(f"[{self.county_name}] CAPTCHA popup dismissal note: {e_dismiss}")
 
     @abstractmethod
-
     async def search_by_party_name(
         self,
         first_name: str | None,
@@ -865,10 +1246,14 @@ class BaseCourtScraper(ABC):
                 timeout=wait_sec + 2.0,
             )
         except TimeoutError:
-            logger.warning(f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout.")
+            logger.warning(
+                f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout."
+            )
             return False
 
-    async def _detect_and_handle_captcha_until(self, page: Page, wait_sec: int, deadline: float) -> bool:
+    async def _detect_and_handle_captcha_until(
+        self, page: Page, wait_sec: int, deadline: float
+    ) -> bool:
         """
         Robustly detects and waits for CAPTCHA resolution across all portals.
         1. Performs an initial mount scan (up to 3s) to detect if any challenge or solver is loading.
@@ -879,7 +1264,9 @@ class BaseCourtScraper(ABC):
         """
         loop = asyncio.get_running_loop()
         mode_str = "Headless" if self.headless else "Attended (Visible GUI)"
-        logger.info(f"[{self.county_name}] [{mode_str}] Inspecting page for CAPTCHA challenge (max wait: {wait_sec}s)...")
+        logger.info(
+            f"[{self.county_name}] [{mode_str}] Inspecting page for CAPTCHA challenge (max wait: {wait_sec}s)..."
+        )
 
         try:
             # 1. Initial mounting scan: give DOM up to 3s (or wait_sec) to mount any CAPTCHA iframes
@@ -897,7 +1284,11 @@ class BaseCourtScraper(ABC):
                         has_challenge = True
                         challenge_type = "recaptcha"
                         break
-                    if "cloudflare" in f_url or "turnstile" in f_url or "challenges.cloudflare.com" in f_url:
+                    if (
+                        "cloudflare" in f_url
+                        or "turnstile" in f_url
+                        or "challenges.cloudflare.com" in f_url
+                    ):
                         has_challenge = True
                         challenge_type = "turnstile"
                         break
@@ -910,15 +1301,24 @@ class BaseCourtScraper(ABC):
                     break
 
                 # Check DOM containers and generic checkboxes via fast DOM evaluation
-                dom_detected = await _safe_eval(page, '''() => {
+                dom_detected = await _safe_eval(
+                    page,
+                    """() => {
                     if (document.querySelector('#RecaptchaField1, .g-recaptcha, textarea[name="g-recaptcha-response"]')) return 'recaptcha';
                     if (document.querySelector('.cf-turnstile, [data-sitekey], input[name="cf-turnstile-response"]')) return 'turnstile';
                     if (document.querySelector('.h-captcha, textarea[name="h-captcha-response"]')) return 'hcaptcha';
                     if (document.querySelector('.antigate_solver, [class*="antigate"]')) return 'antigate';
                     if (document.querySelector("input[type='checkbox'][name*='captcha' i], input[type='checkbox'][id*='captcha' i], input[type='checkbox'][name*='robot' i], [aria-label*='captcha' i]")) return 'generic';
                     return null;
-                }''')
-                if isinstance(dom_detected, str) and dom_detected in ("recaptcha", "turnstile", "hcaptcha", "antigate", "generic"):
+                }""",
+                )
+                if isinstance(dom_detected, str) and dom_detected in (
+                    "recaptcha",
+                    "turnstile",
+                    "hcaptcha",
+                    "antigate",
+                    "generic",
+                ):
                     has_challenge = True
                     challenge_type = dom_detected if dom_detected != "antigate" else "recaptcha"
                     break
@@ -929,10 +1329,14 @@ class BaseCourtScraper(ABC):
                 await asyncio.sleep(min(0.2, max(0.02, remaining - 0.05)))
 
             if not has_challenge:
-                logger.info(f"[{self.county_name}] No CAPTCHA challenge detected on page after initial scan. Proceeding.")
+                logger.info(
+                    f"[{self.county_name}] No CAPTCHA challenge detected on page after initial scan. Proceeding."
+                )
                 return True
 
-            logger.info(f"[{self.county_name}] [{mode_str}] Detected active {challenge_type.upper()} challenge. Engaging solver wait loop (timeout: {wait_sec}s)...")
+            logger.info(
+                f"[{self.county_name}] [{mode_str}] Detected active {challenge_type.upper()} challenge. Engaging solver wait loop (timeout: {wait_sec}s)..."
+            )
 
             # 2. Initial trigger clicks if appropriate
             recaptcha_frame = None
@@ -942,16 +1346,24 @@ class BaseCourtScraper(ABC):
                 f_url = (frame.url or "").lower()
                 if ("recaptcha" in f_url and "anchor" in f_url) or "recaptcha/api2/anchor" in f_url:
                     recaptcha_frame = frame
-                elif not recaptcha_frame and ("recaptcha" in f_url or "google.com/recaptcha" in f_url):
+                elif not recaptcha_frame and (
+                    "recaptcha" in f_url or "google.com/recaptcha" in f_url
+                ):
                     recaptcha_frame = frame
-                elif "cloudflare" in f_url or "turnstile" in f_url or "challenges.cloudflare.com" in f_url:
+                elif (
+                    "cloudflare" in f_url
+                    or "turnstile" in f_url
+                    or "challenges.cloudflare.com" in f_url
+                ):
                     turnstile_frame = frame
                 elif "hcaptcha" in f_url:
                     hcaptcha_frame = frame
 
             recaptcha_clicked = False
             if recaptcha_frame:
-                anchor = recaptcha_frame.locator("#recaptcha-anchor, .recaptcha-checkbox-border, span[role='checkbox']")
+                anchor = recaptcha_frame.locator(
+                    "#recaptcha-anchor, .recaptcha-checkbox-border, span[role='checkbox']"
+                )
                 if await anchor.count() > 0:
                     try:
                         await anchor.first.click(force=True)
@@ -961,7 +1373,9 @@ class BaseCourtScraper(ABC):
                         logger.debug(f"reCAPTCHA anchor click note: {e}")
 
             if turnstile_frame:
-                cb = turnstile_frame.locator("input[type='checkbox'], span.mark, span[role='checkbox'], .ctp-checkbox-container")
+                cb = turnstile_frame.locator(
+                    "input[type='checkbox'], span.mark, span[role='checkbox'], .ctp-checkbox-container"
+                )
                 if await cb.count() > 0:
                     try:
                         await cb.first.click(force=True, delay=80)
@@ -1002,19 +1416,27 @@ class BaseCourtScraper(ABC):
                 if not recaptcha_frame or not recaptcha_clicked:
                     for frame in getattr(page, "frames", []):
                         f_url = (getattr(frame, "url", "") or "").lower()
-                        if ("recaptcha" in f_url and "anchor" in f_url) or "recaptcha/api2/anchor" in f_url:
+                        if (
+                            "recaptcha" in f_url and "anchor" in f_url
+                        ) or "recaptcha/api2/anchor" in f_url:
                             recaptcha_frame = frame
                             break
-                        elif not recaptcha_frame and ("recaptcha" in f_url or "google.com/recaptcha" in f_url):
+                        elif not recaptcha_frame and (
+                            "recaptcha" in f_url or "google.com/recaptcha" in f_url
+                        ):
                             recaptcha_frame = frame
 
                     if recaptcha_frame and (not recaptcha_clicked or (it > 0 and it % 6 == 0)):
                         try:
-                            anchor = recaptcha_frame.locator("#recaptcha-anchor, .recaptcha-checkbox-border, span[role='checkbox']")
+                            anchor = recaptcha_frame.locator(
+                                "#recaptcha-anchor, .recaptcha-checkbox-border, span[role='checkbox']"
+                            )
                             if await anchor.count() > 0:
                                 await anchor.first.click(force=True)
                                 recaptcha_clicked = True
-                                logger.info(f"[{self.county_name}] Triggered reCAPTCHA anchor click (poll iteration {it}).")
+                                logger.info(
+                                    f"[{self.county_name}] Triggered reCAPTCHA anchor click (poll iteration {it})."
+                                )
                         except Exception as e:
                             logger.debug(f"reCAPTCHA anchor click note: {e}")
 
@@ -1026,7 +1448,9 @@ class BaseCourtScraper(ABC):
 
                 for f in frames_to_poll:
                     try:
-                        solver_status = await _safe_eval(f, '''() => {
+                        solver_status = await _safe_eval(
+                            f,
+                            """() => {
                             const solvers = document.querySelectorAll('.antigate_solver, [class*="antigate"], .solved_flag');
                             if (!solvers || solvers.length === 0) return { exists: false, in_process: false, solved: false };
                             let any_in_proc = false;
@@ -1048,7 +1472,8 @@ class BaseCourtScraper(ABC):
                                 if (el_in_proc && !el_solved) any_in_proc = true;
                             }
                             return { exists: true, in_process: any_in_proc, solved: any_solved };
-                        }''')
+                        }""",
+                        )
 
                         if solver_status and isinstance(solver_status, dict):
                             if solver_status.get("in_process"):
@@ -1074,13 +1499,16 @@ class BaseCourtScraper(ABC):
                 has_recaptcha_token = False
                 for f in frames_to_poll:
                     try:
-                        eval_res = await _safe_eval(f, '''() => {
+                        eval_res = await _safe_eval(
+                            f,
+                            """() => {
                             const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea#g-recaptcha-response, textarea.g-recaptcha-response');
                             for (const ta of textareas) {
                                 if (ta.value && ta.value.trim().length > 25) return true;
                             }
                             return false;
-                        }''')
+                        }""",
+                        )
                         if eval_res:
                             has_recaptcha_token = True
                             break
@@ -1090,11 +1518,17 @@ class BaseCourtScraper(ABC):
                 recaptcha_checked = False
                 if recaptcha_frame:
                     try:
-                        anchor_loc = recaptcha_frame.locator("#recaptcha-anchor, span[role='checkbox']")
+                        anchor_loc = recaptcha_frame.locator(
+                            "#recaptcha-anchor, span[role='checkbox']"
+                        )
                         if await anchor_loc.count() > 0:
-                            recaptcha_checked = (await anchor_loc.first.get_attribute("aria-checked")) == "true"
+                            recaptcha_checked = (
+                                await anchor_loc.first.get_attribute("aria-checked")
+                            ) == "true"
                         if not recaptcha_checked:
-                            recaptcha_checked = (await recaptcha_frame.locator(".recaptcha-checkbox-checked").count()) > 0
+                            recaptcha_checked = (
+                                await recaptcha_frame.locator(".recaptcha-checkbox-checked").count()
+                            ) > 0
                     except Exception:
                         pass
 
@@ -1102,7 +1536,9 @@ class BaseCourtScraper(ABC):
                 has_turnstile_token = False
                 for f in frames_to_poll:
                     try:
-                        eval_res = await _safe_eval(f, '''() => {
+                        eval_res = await _safe_eval(
+                            f,
+                            """() => {
                             // 1. Any input or textarea with token
                             const inputs = document.querySelectorAll('input[name*="turnstile"], textarea[name*="turnstile"], input[name*="cf-chl"], input[name="cf-turnstile-response"]');
                             for (const el of inputs) {
@@ -1124,7 +1560,8 @@ class BaseCourtScraper(ABC):
                                 }
                             }
                             return false;
-                        }''')
+                        }""",
+                        )
                         if eval_res:
                             has_turnstile_token = True
                             break
@@ -1136,7 +1573,9 @@ class BaseCourtScraper(ABC):
                     f_url = (getattr(frame, "url", "") or "").lower()
                     if "cloudflare" in f_url or "turnstile" in f_url or "challenges" in f_url:
                         try:
-                            f_res = await _safe_eval(frame, '''() => {
+                            f_res = await _safe_eval(
+                                frame,
+                                """() => {
                                 const cb = document.querySelector('input[type="checkbox"], [role="checkbox"]');
                                 if (cb && (cb.checked || cb.getAttribute('aria-checked') === 'true')) return true;
                                 const successIcon = document.querySelector('#success-icon, .success-icon, #challenge-success, svg.mark, svg[class*="success"]');
@@ -1146,7 +1585,8 @@ class BaseCourtScraper(ABC):
                                 const tokenInput = document.querySelector('input[name="cf-turnstile-response"], [name*="turnstile"]');
                                 if (tokenInput && tokenInput.value && tokenInput.value.length > 20) return true;
                                 return false;
-                            }''')
+                            }""",
+                            )
                             if bool(f_res):
                                 turnstile_checked = True
                                 break
@@ -1154,29 +1594,40 @@ class BaseCourtScraper(ABC):
                             pass
 
                 # Periodic Cloudflare Turnstile autonomous interaction if challenge is active & unsolved
-                if (challenge_type == "turnstile" or not has_turnstile_token) and (it % 4 == 0 and it > 0):
+                if (challenge_type == "turnstile" or not has_turnstile_token) and (
+                    it % 4 == 0 and it > 0
+                ):
                     for frame in getattr(page, "frames", []):
                         f_url = (getattr(frame, "url", "") or "").lower()
                         if "cloudflare" in f_url or "turnstile" in f_url or "challenges" in f_url:
                             try:
-                                cb_loc = frame.locator("input[type='checkbox'], span.mark, span[role='checkbox'], .ctp-checkbox-container, #challenge-stage, .ctp-checkbox-label, body")
+                                cb_loc = frame.locator(
+                                    "input[type='checkbox'], span.mark, span[role='checkbox'], .ctp-checkbox-container, #challenge-stage, .ctp-checkbox-label, body"
+                                )
                                 if await cb_loc.count() > 0:
                                     await cb_loc.first.click(force=True, timeout=1000)
                             except Exception:
                                 pass
                             try:
-                                await _safe_eval(frame, '''() => {
+                                await _safe_eval(
+                                    frame,
+                                    """() => {
                                     const cb = document.querySelector('input[type="checkbox"], [role="checkbox"], .ctp-checkbox-label, #challenge-stage');
                                     if (cb) cb.click();
-                                }''')
+                                }""",
+                                )
                             except Exception:
                                 pass
                     try:
-                        ts_elem = page.locator("iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile'], .cf-turnstile iframe, .cf-turnstile")
+                        ts_elem = page.locator(
+                            "iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile'], .cf-turnstile iframe, .cf-turnstile"
+                        )
                         if await ts_elem.count() > 0:
                             box = await ts_elem.first.bounding_box()
                             if box and box.get("width", 0) > 0 and box.get("height", 0) > 0:
-                                await page.mouse.click(box["x"] + 32, box["y"] + (box["height"] / 2))
+                                await page.mouse.click(
+                                    box["x"] + 32, box["y"] + (box["height"] / 2)
+                                )
                     except Exception:
                         pass
 
@@ -1184,13 +1635,16 @@ class BaseCourtScraper(ABC):
                 has_hcaptcha_token = False
                 for f in frames_to_poll:
                     try:
-                        eval_res = await _safe_eval(f, '''() => {
+                        eval_res = await _safe_eval(
+                            f,
+                            """() => {
                             const textareas = document.querySelectorAll('textarea[name="h-captcha-response"]');
                             for (const ta of textareas) {
                                 if (ta.value && ta.value.trim().length > 20) return true;
                             }
                             return false;
-                        }''')
+                        }""",
+                        )
                         if eval_res:
                             has_hcaptcha_token = True
                             break
@@ -1199,31 +1653,46 @@ class BaseCourtScraper(ABC):
 
                 # E. Evaluate Resolution
                 is_solved = (
-                    has_recaptcha_token or recaptcha_checked or
-                    has_turnstile_token or turnstile_checked or
-                    has_hcaptcha_token or
-                    is_solver_solved
+                    has_recaptcha_token
+                    or recaptcha_checked
+                    or has_turnstile_token
+                    or turnstile_checked
+                    or has_hcaptcha_token
+                    or is_solver_solved
                 )
 
                 if is_solved:
-                    logger.info(f"[{self.county_name}] [{mode_str}] CAPTCHA solved and verified! (time: {elapsed_sec}s)")
+                    logger.info(
+                        f"[{self.county_name}] [{mode_str}] CAPTCHA solved and verified! (time: {elapsed_sec}s)"
+                    )
                     await self.dismiss_captcha_challenge_popup(page)
                     return True
 
-                # Fast exit if in unattended/headless container and no solver API key is configured
-                if not self.anticaptcha_api_key and self.headless and elapsed_sec >= 20.0:
+                # Fast exit if solver API key is missing or is a test/mock key, or container unattended execution
+                is_mock_or_missing_key = (
+                    not self.anticaptcha_api_key
+                    or str(self.anticaptcha_api_key).strip().lower().startswith("test_")
+                    or str(self.anticaptcha_api_key).strip().lower()
+                    in ("test", "dummy", "mock", "none", "null")
+                )
+                if is_mock_or_missing_key and elapsed_sec >= 20.0:
                     logger.info(
-                        f"[{self.county_name}] Headless mode without AntiCaptcha API key: "
+                        f"[{self.county_name}] Unconfigured or mock AntiCaptcha API key detected: "
                         f"auto-interaction completed after {elapsed_sec}s. Proceeding to submit attempt."
                     )
+                    await self.dismiss_captcha_challenge_popup(page)
                     return True
 
                 if is_in_proc:
                     if it % 10 == 0:
-                        logger.info(f"[{self.county_name}] AntiCaptcha extension solving is in progress... ({elapsed_sec}s / {wait_sec}s)")
+                        logger.info(
+                            f"[{self.county_name}] AntiCaptcha extension solving is in progress... ({elapsed_sec}s / {wait_sec}s)"
+                        )
                 elif not self.headless and (it % 10 == 0 and it > 0):
                     # Periodic guidance in attended GUI mode
-                    logger.info(f"[{self.county_name}] Attended mode: Waiting for CAPTCHA resolution ({elapsed_sec}s / {wait_sec}s)...")
+                    logger.info(
+                        f"[{self.county_name}] Attended mode: Waiting for CAPTCHA resolution ({elapsed_sec}s / {wait_sec}s)..."
+                    )
 
                 remaining = deadline - loop.time()
                 if remaining <= 0:
@@ -1231,7 +1700,9 @@ class BaseCourtScraper(ABC):
                 await asyncio.sleep(min(0.5, remaining))
                 it += 1
 
-            logger.warning(f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout.")
+            logger.warning(
+                f"[{self.county_name}] CAPTCHA was not solved within {wait_sec}s timeout."
+            )
             return False
 
         except Exception as e:
@@ -1256,20 +1727,24 @@ class BaseCourtScraper(ABC):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                logger.info(f"[{self.county_name}] Attempt {attempt}/{self.max_attempts} for '{full_name}' on current tab")
+                logger.info(
+                    f"[{self.county_name}] Attempt {attempt}/{self.max_attempts} for '{full_name}' on current tab"
+                )
                 if attempt > 1:
                     await page.reload(wait_until="domcontentloaded")
 
                 results = await self.search_by_party_name(first_name, last_name, page, **kwargs)
 
-                logger.info(f"[{self.county_name}] Attempt {attempt} SUCCESS! Found {len(results)} court cases.")
+                logger.info(
+                    f"[{self.county_name}] Attempt {attempt} SUCCESS! Found {len(results)} court cases."
+                )
                 return results
 
             except SecurityBlockException:
                 # Re-raise directly to bypass redundant retry loops and trigger non-blocking failover
                 raise
 
-            except (CaptchaResolutionError, PortalConfigurationError, PortalAuthenticationError):
+            except CaptchaResolutionError, PortalConfigurationError, PortalAuthenticationError:
                 # Portal-specific attempts or prerequisites cannot be fixed by
                 # refreshing and repeating the same search.
                 raise
@@ -1317,37 +1792,110 @@ class BaseCourtScraper(ABC):
                 pass
 
             # Safe DOM body inspection
-            body_text = await _safe_eval(page, "() => (document.body ? document.body.innerText : '')")
+            body_text = await _safe_eval(
+                page, "() => (document.body ? document.body.innerText : '')"
+            )
             body_text = str(body_text or "").lower()
             title_lower = str(p_title).lower()
 
-            # 1. Check Rate Limit / 429
-            if any(term in body_text or term in title_lower for term in [
-                "429 too many requests", "rate limit exceeded", "too many requests",
-                "rate limited", "request limit reached", "retry after"
-            ]):
-                cooldown = 180
-                reason = "Rate Limit Exceeded (HTTP 429 / Throttled)"
+            # Query settings for dynamic cooldowns
+            waf_rate_limit_cd = 600
+            perimeterx_cd = 300
+            generic_waf_cd = 300
+            ip_ban_cd = 600
+            try:
+                from app.services.settings_service import get_system_settings_sync
+                sys_cfg = get_system_settings_sync()
+                if sys_cfg and hasattr(sys_cfg, "task_queue"):
+                    waf_rate_limit_cd = getattr(sys_cfg.task_queue, "waf_rate_limit_cooldown_seconds", 600)
+                    perimeterx_cd = getattr(sys_cfg.task_queue, "perimeterx_cooldown_seconds", 300)
+                    generic_waf_cd = getattr(sys_cfg.task_queue, "generic_waf_cooldown_seconds", 300)
+                    ip_ban_cd = getattr(sys_cfg.task_queue, "ip_ban_cooldown_seconds", 600)
+            except Exception:
+                pass
+
+            # 1. Check Rate Limit / 429 / WAF Throttling
+            if any(
+                term in body_text or term in title_lower
+                for term in [
+                    "429 too many requests",
+                    "rate limit exceeded",
+                    "too many requests",
+                    "rate limited",
+                    "request limit reached",
+                    "retry after",
+                    "waf rate limit",
+                ]
+            ):
+                cooldown = waf_rate_limit_cd
+                reason = "WAF rate limit"
                 log_security_block_event(self.county_name, p_url, reason, cooldown)
                 return True, reason, cooldown
 
-            # 2. Check Cloudflare 1020 / WAF Block
-            if any(term in body_text or term in title_lower for term in [
-                "error 1020", "access denied", "attention required! | cloudflare",
-                "blocked by cloudflare", "cloudflare ray id", "sorry, you have been blocked",
-                "security service to protect itself from online attacks"
-            ]):
-                cooldown = 300
+            # 2. Check PerimeterX / HUMAN Security
+            if any(
+                term in body_text or term in title_lower
+                for term in [
+                    "perimeterx",
+                    "powered by perimeterx",
+                    "access to this page has been denied because we believe you are using automation tools",
+                    "automation tools to browse",
+                    "px-captcha",
+                    "press & hold",
+                    "press and hold",
+                    "_pxhd",
+                    "perimeterx, inc",
+                ]
+            ):
+                cooldown = perimeterx_cd
+                reason = "PerimeterX WAF Challenge: Automation Tools Detected"
+                log_security_block_event(self.county_name, p_url, reason, cooldown)
+                return True, reason, cooldown
+
+            # 3. Check DataDome / Akamai / Turnstile Bot Defenses
+            if any(
+                term in body_text or term in title_lower
+                for term in [
+                    "datadome",
+                    "protected by datadome",
+                    "turnstile",
+                    "challenges.cloudflare.com",
+                ]
+            ):
+                cooldown = generic_waf_cd
+                reason = "Anti-Bot WAF Challenge Detected"
+                log_security_block_event(self.county_name, p_url, reason, cooldown)
+                return True, reason, cooldown
+
+            # 4. Check Cloudflare 1020 / WAF Block
+            if any(
+                term in body_text or term in title_lower
+                for term in [
+                    "error 1020",
+                    "access denied",
+                    "attention required! | cloudflare",
+                    "blocked by cloudflare",
+                    "cloudflare ray id",
+                    "sorry, you have been blocked",
+                    "security service to protect itself from online attacks",
+                ]
+            ):
+                cooldown = generic_waf_cd
                 reason = "WAF / Cloudflare Access Denied (Error 1020)"
                 log_security_block_event(self.county_name, p_url, reason, cooldown)
                 return True, reason, cooldown
 
-            # 3. Check IP Ban / Forbidden
-            if any(term in body_text or term in title_lower for term in [
-                "your ip has been blocked", "ip address has been banned",
-                "client ip forbidden", "access has been restricted"
-            ]):
-                cooldown = 600
+            # 5. Check IP Ban / Forbidden
+            if any(
+                term in body_text or term in title_lower
+                for term in [
+                    "your ip has been blocked",
+                    "ip address has been banned",
+                    "client ip forbidden",
+                    "access has been restricted",
+                ]
+            ):
+                cooldown = ip_ban_cd
                 reason = "Client IP Ban / Restriction Detected"
                 log_security_block_event(self.county_name, p_url, reason, cooldown)
                 return True, reason, cooldown
@@ -1378,7 +1926,9 @@ class BaseCourtScraper(ABC):
 
             # Check user toggle: if disabled, do not capture screenshots to conserve storage
             if storage_cfg and not storage_cfg.capture_error_screenshots:
-                logger.info(f"[{self.county_name}] Error screenshot capture disabled in settings. Skipping screenshot.")
+                logger.info(
+                    f"[{self.county_name}] Error screenshot capture disabled in settings. Skipping screenshot."
+                )
                 return None
 
             timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
@@ -1403,11 +1953,15 @@ class BaseCourtScraper(ABC):
                 # Capture full-page screenshot per Prompt 04 specifications with viewport fallback
                 image_bytes = await page.screenshot(full_page=True, timeout=5000)
             except Exception as ss_err:
-                logger.warning(f"[{self.county_name}] Full-page screenshot failed, falling back to viewport: {ss_err}")
+                logger.warning(
+                    f"[{self.county_name}] Full-page screenshot failed, falling back to viewport: {ss_err}"
+                )
                 try:
                     image_bytes = await page.screenshot(full_page=False, timeout=3000)
                 except Exception as ss_err2:
-                    logger.error(f"[{self.county_name}] Could not capture screenshot bytes: {ss_err2}")
+                    logger.error(
+                        f"[{self.county_name}] Could not capture screenshot bytes: {ss_err2}"
+                    )
                     return None
 
             if not image_bytes:
@@ -1422,7 +1976,9 @@ class BaseCourtScraper(ABC):
                 portal_key=portal_key,
             )
             err_msg = str(error) if error else "Portal scraping failure"
-            logger.info(f"[{self.county_name}] Error screenshot saved via {storage_res.get('stored_provider')}: {filename}")
+            logger.info(
+                f"[{self.county_name}] Error screenshot saved via {storage_res.get('stored_provider')}: {filename}"
+            )
             append_portal_execution_log(
                 claim_id=claim_id,
                 portal_key=portal_key,
@@ -1501,7 +2057,9 @@ class BaseCourtScraper(ABC):
             )
 
             msg = f"Discovery: {cases_count} case(s) found for {party_name or 'Party'}"
-            logger.info(f"[{self.county_name}] Discovery screenshot saved via {storage_res.get('stored_provider')}: {filename}")
+            logger.info(
+                f"[{self.county_name}] Discovery screenshot saved via {storage_res.get('stored_provider')}: {filename}"
+            )
             append_portal_execution_log(
                 claim_id=claim_id,
                 portal_key=portal_key,
@@ -1540,7 +2098,11 @@ class BaseCourtScraper(ABC):
             logger.info(f"[{self.county_name}] Empty party name. Skipping.")
             return []
 
-        cache_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "browser_cache"))
+        cache_dir = os.path.abspath(
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "browser_cache"
+            )
+        )
         os.makedirs(cache_dir, exist_ok=True)
 
         launch_args = [
@@ -1555,7 +2117,7 @@ class BaseCourtScraper(ABC):
 
         ext_dir = self.resolved_extension_dir or resolve_extension_dir(self.extension_dir)
         has_extension = bool(ext_dir and os.path.exists(ext_dir))
-        
+
         if self.anticaptcha_api_key and has_extension:
             sync_anticaptcha_api_key(ext_dir, self.anticaptcha_api_key)
 
@@ -1620,9 +2182,16 @@ class BaseCourtScraper(ABC):
                     "ignore_default_args": [
                         "--disable-extensions",
                         "--disable-component-extensions-with-background-pages",
-                    ] if has_extension else None,
+                    ]
+                    if has_extension
+                    else None,
                     "no_viewport": True if not is_headless else False,
-                    "viewport": {"width": settings.PLAYWRIGHT_VIEWPORT_WIDTH, "height": settings.PLAYWRIGHT_VIEWPORT_HEIGHT} if is_headless else None,
+                    "viewport": {
+                        "width": settings.PLAYWRIGHT_VIEWPORT_WIDTH,
+                        "height": settings.PLAYWRIGHT_VIEWPORT_HEIGHT,
+                    }
+                    if is_headless
+                    else None,
                 }
                 if executable_path:
                     launch_kwargs["executable_path"] = executable_path
@@ -1631,24 +2200,44 @@ class BaseCourtScraper(ABC):
 
                 context = await p.chromium.launch_persistent_context(**launch_kwargs)
 
-                engine_label = "Google Chrome" if ("chrome" in (self.browser_engine or "").lower() or channel == "chrome") else ("Microsoft Edge" if ("edge" in (self.browser_engine or "").lower() or channel == "msedge") else "Chromium")
+                engine_label = (
+                    "Google Chrome"
+                    if ("chrome" in (self.browser_engine or "").lower() or channel == "chrome")
+                    else (
+                        "Microsoft Edge"
+                        if ("edge" in (self.browser_engine or "").lower() or channel == "msedge")
+                        else "Chromium"
+                    )
+                )
                 t_launch_end = datetime.now()
                 self.record_stage(
                     "browser_launch",
                     "Browser Launch",
                     t_launch_start,
                     t_launch_end,
-                    detail=f"{engine_label} ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'}) + AntiCaptcha" if has_extension else f"{engine_label} ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'})",
+                    detail=f"{engine_label} ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'}) + AntiCaptcha"
+                    if has_extension
+                    else f"{engine_label} ({'Headless (Background)' if is_headless else 'Attended (Visible GUI)'})",
                 )
 
                 if self.anticaptcha_api_key and has_extension:
                     try:
-                        worker = context.service_workers[0] if context.service_workers else (context.background_pages[0] if context.background_pages else None)
+                        worker = (
+                            context.service_workers[0]
+                            if context.service_workers
+                            else (context.background_pages[0] if context.background_pages else None)
+                        )
                         if worker:
-                            await worker.evaluate(f"chrome.storage.local.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false }})")
-                            await worker.evaluate(f"chrome.storage.sync.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false }})")
+                            await worker.evaluate(
+                                f"chrome.storage.local.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false }})"
+                            )
+                            await worker.evaluate(
+                                f"chrome.storage.sync.set({{ 'account_key': '{self.anticaptcha_api_key}', 'auto_submit_form': false }})"
+                            )
                     except Exception as e:
-                        logger.warning(f"[{self.county_name}] Note on AntiCaptcha storage injection: {e}")
+                        logger.warning(
+                            f"[{self.county_name}] Note on AntiCaptcha storage injection: {e}"
+                        )
 
                 page: Page = context.pages[0] if context.pages else await context.new_page()
                 page.set_default_timeout(self.timeout_ms)

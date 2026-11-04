@@ -1,14 +1,17 @@
 import asyncio
-import os
 import json
+import os
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.future import select
-from app.models.claim import ClaimRecord
+from sqlalchemy.orm import sessionmaker
+
 from app.core.config import settings
+from app.models.claim import ClaimRecord
+
 
 async def main():
     engine = create_async_engine(settings.DATABASE_URL)

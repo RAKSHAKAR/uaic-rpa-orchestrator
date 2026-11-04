@@ -3,7 +3,6 @@ Replaces @test.com with @test.com.
 """
 import os
 import sqlite3
-import json
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IGNORE_DIRS = {".git", ".venv", "node_modules", ".next", ".pytest_cache", ".ruff_cache", "__pycache__"}
@@ -20,7 +19,7 @@ for dirpath, dirnames, filenames in os.walk(ROOT):
         if fname.endswith((".py", ".ts", ".tsx", ".js", ".json", ".md", ".env", ".example", ".txt", ".sql", ".bat", ".ps1")):
             fpath = os.path.join(dirpath, fname)
             try:
-                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                with open(fpath, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
                 
                 # Check case insensitive @test.com
@@ -61,7 +60,7 @@ for db_rel in ["backend/orchestrator.db", "backend/orchestrator.db.bak"]:
                         cur.execute(f"UPDATE {t} SET {col} = REPLACE({col}, '@test.com', '@test.com') WHERE {col} LIKE '%@test.com%';")
                         db_updates += cnt
                         print(f"  Replaced {cnt} rows in {t}.{col}")
-                except Exception as e:
+                except Exception:
                     # Non-text or read error
                     pass
         conn.commit()

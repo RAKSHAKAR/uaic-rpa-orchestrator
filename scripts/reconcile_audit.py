@@ -4,11 +4,9 @@ Reads all ChatGPT prompt files, legacy implementation plans, gap analyses, and w
 Extracts structured topics, requirements, and cross-references them.
 """
 
+import glob
 import os
 import sys
-import glob
-import re
-import json
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -29,7 +27,7 @@ prompt_files = {
 prompt_stats = {}
 for name, p in prompt_files.items():
     if os.path.exists(p):
-        with open(p, "r", encoding="utf-8", errors="ignore") as f:
+        with open(p, encoding="utf-8", errors="ignore") as f:
             content = f.read()
             lines = content.splitlines()
             headings = [line.strip() for line in lines if line.strip().startswith("#")]
@@ -50,7 +48,7 @@ print(f"\nTotal historical implementation plans found: {len(all_plans)}")
 gap_files = sorted(glob.glob(os.path.join(REPO_ROOT, "implementation_plan", "New folder", "gap_analysis*.md")))
 print(f"Total historical gap analyses found: {len(gap_files)}")
 
-walkthrough_files = sorted(glob.glob(os.path.join(REPO_ROOT, "implementation_plan", "New folder", "walkthrough*.md")) + 
+walkthrough_files = sorted(glob.glob(os.path.join(REPO_ROOT, "implementation_plan", "New folder", "walkthrough*.md")) +
                            glob.glob(os.path.join(REPO_ROOT, "implementation_plan", "New folder", "walkthrough_*")))
 print(f"Total historical walkthroughs found: {len(walkthrough_files)}")
 
@@ -60,7 +58,7 @@ def analyze_files(file_list, category):
     for fp in file_list:
         fname = os.path.basename(fp)
         size = os.path.getsize(fp)
-        with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+        with open(fp, encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
         headers = [l.strip() for l in lines if l.strip().startswith("#")]
         results.append({

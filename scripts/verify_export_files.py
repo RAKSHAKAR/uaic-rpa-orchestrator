@@ -1,14 +1,15 @@
-import json
 import csv
-import openpyxl
+import json
 import os
+
+import openpyxl
 
 print("=== VERIFYING SAVED EXPORT FILES ===")
 
 # 1. JSON
 json_path = "scratch_test_32b240c2.json"
 try:
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
     print(f"[JSON PASS] Successfully parsed JSON. Claim Number: {data.get('claim_number')}, Keys: {list(data.keys())[:6]}")
 except Exception as e:
@@ -17,7 +18,7 @@ except Exception as e:
 # 2. CSV
 csv_path = "scratch_test_32b240c2.csv"
 try:
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.reader(f)
         rows = list(reader)
     print(f"[CSV PASS] Successfully parsed CSV. Total rows: {len(rows)}, Header: {rows[0] if rows else []}")

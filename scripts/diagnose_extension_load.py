@@ -1,12 +1,11 @@
 import asyncio
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from playwright.async_api import async_playwright
-from app.automation.browser_manager import ChromeSession, ExtensionManager, KNOWN_ANTICAPTCHA_IDS
+from app.automation.browser_manager import ChromeSession
+
 
 async def main():
     print("--- Diagnosing Extension Loading in Playwright ---")

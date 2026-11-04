@@ -85,6 +85,7 @@ async def test_time_window_resolution():
 
     # Verify TimeScopeEnum mappings
     from app.schemas.cleanup import TimeScopeEnum
+
     assert TimeScopeEnum.OLDER_THAN_30_DAYS.value == "older_than_30_days"
     assert TimeScopeEnum.OLDER_THAN_14_DAYS.value == "older_than_14_days"
     assert TimeScopeEnum.OLDER_THAN_7_DAYS.value == "older_than_7_days"
@@ -123,7 +124,7 @@ async def test_calculate_cleanup_preview_no_mutations():
             created_at=datetime.now(),
         )
         session.add(claim)
-        
+
         # Create test notification
         notif = Notification(
             id=str(uuid.uuid4()),
@@ -151,9 +152,13 @@ async def test_calculate_cleanup_preview_no_mutations():
 
     # Verify that data still exists in DB
     async with TaskAsyncSessionLocal() as session:
-        claim_check = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == test_id))).scalar_one_or_none()
+        claim_check = (
+            await session.execute(select(ClaimRecord).where(ClaimRecord.id == test_id))
+        ).scalar_one_or_none()
         assert claim_check is not None
-        notif_check = (await session.execute(select(Notification).where(Notification.id == notif.id))).scalar_one_or_none()
+        notif_check = (
+            await session.execute(select(Notification).where(Notification.id == notif.id))
+        ).scalar_one_or_none()
         assert notif_check is not None
 
         # Clean up seeded records
@@ -207,10 +212,14 @@ async def test_execute_cleanup_single_category_isolation():
 
     # Verify: notification is gone, but claim STILL exists!
     async with TaskAsyncSessionLocal() as session:
-        notif_check = (await session.execute(select(Notification).where(Notification.id == notif.id))).scalar_one_or_none()
+        notif_check = (
+            await session.execute(select(Notification).where(Notification.id == notif.id))
+        ).scalar_one_or_none()
         assert notif_check is None
 
-        claim_check = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == test_id))).scalar_one_or_none()
+        claim_check = (
+            await session.execute(select(ClaimRecord).where(ClaimRecord.id == test_id))
+        ).scalar_one_or_none()
         assert claim_check is not None
 
         # Clean up seeded claim
@@ -288,10 +297,20 @@ async def test_execute_cleanup_claim_cascades():
 
     # Verify all child records are also gone
     async with TaskAsyncSessionLocal() as session:
-        assert (await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.id == case_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(MatchPair).where(MatchPair.id == match_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(ErrorScreenshot).where(ErrorScreenshot.id == screenshot_id))).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.id == case_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(MatchPair).where(MatchPair.id == match_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(
+                select(ErrorScreenshot).where(ErrorScreenshot.id == screenshot_id)
+            )
+        ).scalar_one_or_none() is None
 
 
 @pytest.mark.asyncio
@@ -322,7 +341,9 @@ async def test_execute_cleanup_telemetry_preserves_audit_trail():
 
     # Verify: dummy audit log is deleted, but ENTERPRISE_CLEANUP audit log exists
     async with TaskAsyncSessionLocal() as session:
-        dummy_check = (await session.execute(select(AuditLog).where(AuditLog.id == dummy_audit_id))).scalar_one_or_none()
+        dummy_check = (
+            await session.execute(select(AuditLog).where(AuditLog.id == dummy_audit_id))
+        ).scalar_one_or_none()
         assert dummy_check is None
 
         cleanup_audits = (
@@ -387,7 +408,11 @@ async def test_cleanup_api_endpoints():
         # 3. Execute without confirmation fails with 400
         fail_exec = await client.post(
             "/api/v1/cleanup/execute",
-            json={"categories": ["notifications"], "time_scope": "current_month", "confirmed": False},
+            json={
+                "categories": ["notifications"],
+                "time_scope": "current_month",
+                "confirmed": False,
+            },
         )
         assert fail_exec.status_code == 400
 
@@ -536,11 +561,23 @@ async def test_execute_cleanup_cascade_notifications_and_children():
 
     # Verify zero orphans: parent claim and ALL child records must be deleted
     async with TaskAsyncSessionLocal() as session:
-        assert (await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.id == case_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(MatchPair).where(MatchPair.id == match_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(ErrorScreenshot).where(ErrorScreenshot.id == screenshot_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(Notification).where(Notification.id == notif_id))).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.id == case_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(MatchPair).where(MatchPair.id == match_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(
+                select(ErrorScreenshot).where(ErrorScreenshot.id == screenshot_id)
+            )
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(Notification).where(Notification.id == notif_id))
+        ).scalar_one_or_none() is None
 
 
 def test_time_window_current_month_dynamic():
@@ -708,9 +745,7 @@ async def test_cleanup_standalone_notifications_without_claim():
             ).scalar_one_or_none() is None
 
             assert (
-                await session.execute(
-                    select(Notification).where(Notification.id == notif_id_child)
-                )
+                await session.execute(select(Notification).where(Notification.id == notif_id_child))
             ).scalar_one_or_none() is None
 
             assert (
@@ -720,9 +755,7 @@ async def test_cleanup_standalone_notifications_without_claim():
             ).scalar_one_or_none() is None
 
             assert (
-                await session.execute(
-                    select(ClaimRecord).where(ClaimRecord.id == test_claim_id)
-                )
+                await session.execute(select(ClaimRecord).where(ClaimRecord.id == test_claim_id))
             ).scalar_one_or_none() is None
     finally:
         # Cleanup in case of assertion failure
@@ -733,5 +766,3 @@ async def test_cleanup_standalone_notifications_without_claim():
                 )
             )
             await session.commit()
-
-

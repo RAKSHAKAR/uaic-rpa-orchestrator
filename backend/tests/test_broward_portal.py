@@ -162,8 +162,10 @@ async def test_broward_step_d_data_filling_and_submit(empty_message):
 
     page.locator.side_effect = loc_side_effect
 
-    with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap, \
-         patch.object(scraper, "return_to_search_state", new_callable=AsyncMock) as mock_ret:
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock) as mock_ret,
+    ):
         mock_cap.return_value = True
         await scraper.search_by_party_name("Alice", "Smith", page, date_of_loss="01/15/2023")
 
@@ -177,8 +179,7 @@ async def test_broward_step_d_data_filling_and_submit(empty_message):
     )
     search_btn.click.assert_not_called()
     assert any(
-        "No items to display" in call.args[0]
-        for call in page.wait_for_selector.await_args_list
+        "No items to display" in call.args[0] for call in page.wait_for_selector.await_args_list
     )
     mock_ret.assert_called_once()
 
@@ -198,13 +199,17 @@ async def test_broward_step_e_and_f_captcha_retry_loop():
     page.locator.return_value = mock_input
     page.wait_for_url = AsyncMock(side_effect=TimeoutError("Timeout"))
 
-    with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap, \
-         patch.object(scraper, "return_to_search_state", new_callable=AsyncMock):
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock),
+    ):
         mock_cap.return_value = False  # Always fails
         with pytest.raises(CaptchaResolutionError):
             await scraper.search_by_party_name("John", "Doe", page)
     assert mock_cap.await_count == 3, f"Expected 3 CAPTCHA attempts, got {mock_cap.await_count}"
-    assert page.reload.await_count == 2, f"Expected 2 reloads across 3 attempts, got {page.reload.await_count}"
+    assert page.reload.await_count == 2, (
+        f"Expected 2 reloads across 3 attempts, got {page.reload.await_count}"
+    )
 
 
 @pytest.mark.asyncio
@@ -271,9 +276,11 @@ async def test_broward_exception_2_homepage_redirect_recovery():
     page = _build_mock_page()
     page.url = "https://www.browardclerk.org/"  # Redirected to homepage
 
-    with patch.object(scraper, "navigate_to_search", new_callable=AsyncMock) as mock_nav, \
-         patch.object(scraper, "select_party_name_tab", new_callable=AsyncMock) as mock_tab, \
-         patch.object(scraper, "fill_search_fields", new_callable=AsyncMock) as mock_fill:
+    with (
+        patch.object(scraper, "navigate_to_search", new_callable=AsyncMock) as mock_nav,
+        patch.object(scraper, "select_party_name_tab", new_callable=AsyncMock) as mock_tab,
+        patch.object(scraper, "fill_search_fields", new_callable=AsyncMock) as mock_fill,
+    ):
         handled = await scraper.check_and_handle_session_timeout(
             page, l_name="Williams", f_name="David", date_of_loss="06/15/2022"
         )
@@ -324,7 +331,15 @@ async def test_broward_step_j_extracts_all_columns_including_access_level():
     page.inner_text = AsyncMock(return_value="Results found")
 
     # Mock headers (7 columns)
-    mock_headers = ["Case Number", "Case Style", "Case Type", "Filing Date", "Case Status", "Access Level", "Judge"]
+    mock_headers = [
+        "Case Number",
+        "Case Style",
+        "Case Type",
+        "Filing Date",
+        "Case Status",
+        "Access Level",
+        "Judge",
+    ]
     th_loc = MagicMock()
     th_loc.count = AsyncMock(return_value=len(mock_headers))
     th_mocks = []
@@ -373,8 +388,10 @@ async def test_broward_step_j_extracts_all_columns_including_access_level():
 
     page.locator.side_effect = loc_side_effect
 
-    with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap, \
-         patch.object(scraper, "return_to_search_state", new_callable=AsyncMock):
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock),
+    ):
         mock_cap.return_value = True
         cases = await scraper.search_by_party_name("John", "Doe", page)
 
@@ -421,15 +438,17 @@ async def test_broward_sequential_unique_names_on_same_tab():
         party_name = f"{first_name} {last_name}".strip()
         processed_parties.append(party_name)
         if "Santana" in party_name:
-            return [{
-                "CaseNumber": f"CACE-24-001-{len(processed_parties)}",
-                "CaseStyle": f"{party_name} v. Progressive",
-                "CountyWebsite": "https://www.browardclerk.org/",
-                "FilingDate": "04/01/2024",
-                "CaseStatus": "OPEN",
-                "CaseType": "CIRCUIT CIVIL",
-                "AccessLevel": "Public",
-            }]
+            return [
+                {
+                    "CaseNumber": f"CACE-24-001-{len(processed_parties)}",
+                    "CaseStyle": f"{party_name} v. Progressive",
+                    "CountyWebsite": "https://www.browardclerk.org/",
+                    "FilingDate": "04/01/2024",
+                    "CaseStatus": "OPEN",
+                    "CaseType": "CIRCUIT CIVIL",
+                    "AccessLevel": "Public",
+                }
+            ]
         return []
 
     # Mock browser session runner to isolate test from host Chrome process
@@ -442,10 +461,14 @@ async def test_broward_sequential_unique_names_on_same_tab():
     mock_runner_cm.__aenter__.return_value = mock_browser_session
     mock_runner_cm.__aexit__.return_value = None
 
-    with patch("app.core.celery_app.celery_app.send_task", MagicMock()), \
-         patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner_cm), \
-         patch("app.automation.florida.broward.BrowardScraper.search_by_party_name", side_effect=mock_search_by_party_name):
-
+    with (
+        patch("app.core.celery_app.celery_app.send_task", MagicMock()),
+        patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner_cm),
+        patch(
+            "app.automation.florida.broward.BrowardScraper.search_by_party_name",
+            side_effect=mock_search_by_party_name,
+        ),
+    ):
         await _async_orchestrate_scrapers(claim_id)
 
     # Verify sequential processing: Carlos Santana, then Elena Rios (2 unique parties)
@@ -459,7 +482,11 @@ async def test_broward_sequential_unique_names_on_same_tab():
 
     # Verify results persisted in database under fl_jsonbody_broward and ScrapedCourtCase
     async with TaskAsyncSessionLocal() as session:
-        q = select(ClaimRecord).where(ClaimRecord.id == claim_id).options(selectinload(ClaimRecord.scraped_cases))
+        q = (
+            select(ClaimRecord)
+            .where(ClaimRecord.id == claim_id)
+            .options(selectinload(ClaimRecord.scraped_cases))
+        )
         res = await session.execute(q)
         claim_after = res.scalar_one()
 
@@ -467,14 +494,26 @@ async def test_broward_sequential_unique_names_on_same_tab():
         assert claim_after.fl_jsonbody_broward is not None
         assert len(claim_after.fl_jsonbody_broward) == 1
         assert claim_after.fl_jsonbody_broward[0]["CaseNumber"] == "CACE-24-001-1"
-        assert set(claim_after.fl_jsonbody_broward[0]) == {"CaseNumber", "CaseStyle", "FilingDate", "CaseStatus", "CaseType"}
+        assert set(claim_after.fl_jsonbody_broward[0]) == {
+            "CaseNumber",
+            "CaseStyle",
+            "FilingDate",
+            "CaseStatus",
+            "CaseType",
+        }
 
         assert len(claim_after.scraped_cases) == 1
         court_case: ScrapedCourtCase = claim_after.scraped_cases[0]
         assert court_case.county_name == "Broward County (FL)"
         assert court_case.case_number == "CACE-24-001-1"
         assert court_case.raw_payload is not None
-        assert set(court_case.raw_payload) == {"CaseNumber", "CaseStyle", "FilingDate", "CaseStatus", "CaseType"}
+        assert set(court_case.raw_payload) == {
+            "CaseNumber",
+            "CaseStyle",
+            "FilingDate",
+            "CaseStatus",
+            "CaseType",
+        }
 
 
 @pytest.mark.asyncio
@@ -611,7 +650,13 @@ async def test_broward_glossary_table_rows_are_strictly_excluded():
     # Row 1: Real case row (CACE-22-012345, Martinez v. State Farm)
     real_case_row = MagicMock()
     real_case_row.locator.return_value.all_inner_texts = AsyncMock(
-        return_value=["CACE-22-012345", "Martinez v. State Farm", "CIRCUIT CIVIL", "02/27/2022", "OPEN"]
+        return_value=[
+            "CACE-22-012345",
+            "Martinez v. State Farm",
+            "CIRCUIT CIVIL",
+            "02/27/2022",
+            "OPEN",
+        ]
     )
 
     rows_loc = MagicMock()
@@ -637,13 +682,408 @@ async def test_broward_glossary_table_rows_are_strictly_excluded():
 
     page.locator.side_effect = loc_side_effect
 
-    with patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap, \
-         patch.object(scraper, "return_to_search_state", new_callable=AsyncMock):
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock),
+    ):
         mock_cap.return_value = True
-        cases = await scraper.search_by_party_name("Maria", "Martinez", page, date_of_loss="2/27/2022")
+        cases = await scraper.search_by_party_name(
+            "Maria", "Martinez", page, date_of_loss="2/27/2022"
+        )
 
     # Only the real case must be extracted, glossary row must be discarded!
     assert len(cases) == 1
     assert cases[0]["CaseNumber"] == "CACE-22-012345"
     assert cases[0]["CaseStyle"] == "Martinez v. State Farm"
     assert cases[0]["CaseType"] == "CIRCUIT CIVIL"
+
+
+# ==============================================================================
+# IMP-2026-1030-001 Tests: Broward County Complete Workflow & Governance Tests
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_captcha_speculative_submit_no_captcha_present():
+    """Verify speculative submit proceeds when no active CAPTCHA challenge is detected on page."""
+    scraper = BrowardScraper()
+    page = _build_mock_page()
+    page.inner_text = AsyncMock(return_value="Results found")
+
+    mock_input = MagicMock()
+    mock_input.count = AsyncMock(return_value=1)
+    mock_input.first = mock_input
+    mock_input.fill = AsyncMock()
+
+    real_case_row = MagicMock()
+    real_case_row.locator.return_value.all_inner_texts = AsyncMock(
+        return_value=["CACE-22-012345", "Smith v. Jones", "CIVIL", "01/15/2022", "CLOSED"]
+    )
+    rows_loc = MagicMock()
+    rows_loc.count = AsyncMock(return_value=1)
+    rows_loc.nth = MagicMock(return_value=real_case_row)
+
+    def loc_side_effect(sel):
+        if "table.table tbody tr" in sel or "table tbody tr" in sel:
+            return rows_loc
+        if "next" in sel.lower():
+            return MagicMock(count=AsyncMock(return_value=0))
+        return mock_input
+
+    page.locator.side_effect = loc_side_effect
+
+    async def mock_eval(script):
+        if "PersonSearchResults" in script:
+            return True
+        return True
+
+    page.evaluate = AsyncMock(side_effect=mock_eval)
+    page.wait_for_url = AsyncMock()
+
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(
+            scraper, "has_active_captcha_challenge", new_callable=AsyncMock
+        ) as mock_active,
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock),
+    ):
+        mock_cap.return_value = False
+        mock_active.return_value = False
+
+        cases = await scraper.search_by_party_name("John", "Smith", page, date_of_loss="1/15/2022")
+
+    assert len(cases) == 1
+    assert cases[0]["CaseNumber"] == "CACE-22-012345"
+
+
+@pytest.mark.asyncio
+async def test_captcha_speculative_submit_blocked_when_captcha_present():
+    """Verify speculative submit is strictly blocked and raises CaptchaResolutionError when CAPTCHA is present."""
+    from app.automation.base import CaptchaResolutionError
+
+    scraper = BrowardScraper(anticaptcha_api_key="real_production_api_key_12345")
+    page = _build_mock_page()
+
+    mock_input = MagicMock()
+    mock_input.count = AsyncMock(return_value=1)
+    mock_input.first = mock_input
+    mock_input.fill = AsyncMock()
+    page.locator.return_value = mock_input
+
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(
+            scraper, "has_active_captcha_challenge", new_callable=AsyncMock
+        ) as mock_active,
+    ):
+        mock_cap.return_value = False
+        mock_active.return_value = True
+
+        with pytest.raises(CaptchaResolutionError) as exc_info:
+            await scraper.search_by_party_name("Jane", "Doe", page, date_of_loss="05/10/2021")
+
+        assert "CAPTCHA was not resolved after" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_captcha_wait_respects_settings():
+    """Verify effective_cap_wait uses full configured captcha_wait_seconds (no hardcoded 60s cap)."""
+    configured_timeout = 180
+    scraper = BrowardScraper(
+        captcha_wait_seconds=configured_timeout, anticaptcha_api_key="valid_real_key_abc123"
+    )
+    page = _build_mock_page()
+    page.inner_text = AsyncMock(return_value="No records found")
+
+    mock_input = MagicMock()
+    mock_input.count = AsyncMock(return_value=1)
+    mock_input.first = mock_input
+    mock_input.fill = AsyncMock()
+    page.locator.return_value = mock_input
+
+    recorded_wait_seconds = []
+
+    async def mock_detect(pg, wait_seconds=None):
+        recorded_wait_seconds.append(wait_seconds)
+        return True
+
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", side_effect=mock_detect),
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock),
+    ):
+        await scraper.search_by_party_name("Test", "User", page, date_of_loss="01/01/2020")
+
+    assert recorded_wait_seconds == [configured_timeout]
+
+
+def test_unique_names_dual_search_all_same():
+    """Verify generate_unique_names_for_claim produces 1 unique name when all parties match."""
+    from app.models.claim import ClaimRecord
+    from app.services.fuzzy_engine import generate_unique_names_for_claim
+
+    claim = ClaimRecord(
+        claim_number="CLM-TEST-001",
+        insured_first_name="John",
+        insured_last_name="Smith",
+        driver_first_name="John",
+        driver_last_name="Smith",
+        claimant_first_name="John",
+        claimant_last_name="Smith",
+    )
+    names = generate_unique_names_for_claim(claim)
+    assert len(names) == 1
+    assert names[0]["first_name"] == "John"
+    assert names[0]["last_name"] == "Smith"
+
+
+def test_unique_names_dual_search_insured_diff():
+    """Verify DualSearch generates 2 unique names when claimant is different from insured/driver."""
+    from app.models.claim import ClaimRecord
+    from app.services.fuzzy_engine import generate_unique_names_for_claim
+
+    claim = ClaimRecord(
+        claim_number="CLM-TEST-002",
+        insured_first_name="John",
+        insured_last_name="Smith",
+        driver_first_name="John",
+        driver_last_name="Smith",
+        claimant_first_name="Maria",
+        claimant_last_name="Rodriguez",
+    )
+    names = generate_unique_names_for_claim(claim)
+    assert len(names) == 2
+    full_names = [p["full_name"] for p in names]
+    assert "John Smith" in full_names
+    assert "Maria Rodriguez" in full_names
+
+
+def test_unique_names_triple_search_all_diff():
+    """Verify TripleSearch generates 3 unique names when all parties are distinct."""
+    from app.models.claim import ClaimRecord
+    from app.services.fuzzy_engine import generate_unique_names_for_claim
+
+    claim = ClaimRecord(
+        claim_number="CLM-TEST-003",
+        insured_first_name="Alice",
+        insured_last_name="Johnson",
+        claimant_first_name="Bob",
+        claimant_last_name="Miller",
+        driver_first_name="Charlie",
+        driver_last_name="Davis",
+    )
+    names = generate_unique_names_for_claim(claim)
+    assert len(names) == 3
+    full_names = [p["full_name"] for p in names]
+    assert "Alice Johnson" in full_names
+    assert "Bob Miller" in full_names
+    assert "Charlie Davis" in full_names
+
+
+def test_guidewire_payload_claim_number_prefix():
+    """Verify format_claim_number prefixes 9-digit claim numbers with '0'."""
+    from app.services.guidewire_client import format_claim_number
+
+    assert format_claim_number("123456789") == "0123456789"
+    assert format_claim_number("0123456789") == "0123456789"
+    assert format_claim_number("12345") == "12345"
+    assert format_claim_number("ABC123456") == "0ABC123456"
+
+
+@pytest.mark.asyncio
+async def test_guidewire_mock_mode_success():
+    """Verify GuidewireClient in mock mode succeeds with normalized CaseItems contract."""
+    from app.services.guidewire_client import GuidewireClient
+
+    client = GuidewireClient(mock_mode=True)
+    cases = [
+        {
+            "CaseNumber": "CACE-22-012345",
+            "CaseStyle": "Smith v. Jones",
+            "CountyWebsite": "https://www.browardclerk.org",
+            "FilingDate": "01/15/2022",
+        }
+    ]
+
+    result = await client.send_case_update(
+        claim_number="123456789",
+        exposure_number="001",
+        matched_cases=cases,
+    )
+
+    assert result["success"] is True
+    assert result["status_code"] == 200
+    payload = result["payload_sent"]
+    assert payload["ClaimNumber"] == "0123456789"
+    assert payload["ExposureNumber"] == "001"
+    assert len(payload["CaseItems"]) == 1
+    assert payload["CaseItems"][0]["CaseNumber"] == "CACE-22-012345"
+    assert payload["CaseItems"][0]["SuitFiledDate"] == "01/15/2022"
+
+
+@pytest.mark.asyncio
+async def test_fuzzy_dispatch_celery_on_partial_scrape():
+    """Verify evaluate_fuzzy_matches_task is dispatched to Celery matcher queue on partial scrape."""
+    from unittest.mock import patch
+
+    from app.core.celery_app import celery_app
+
+    with patch.object(celery_app, "send_task") as mock_send_task:
+        celery_app.send_task(
+            "app.tasks.fuzzy_tasks.evaluate_fuzzy_matches_task",
+            args=["claim-uuid-test-partial"],
+            queue="matcher",
+        )
+        mock_send_task.assert_called_once_with(
+            "app.tasks.fuzzy_tasks.evaluate_fuzzy_matches_task",
+            args=["claim-uuid-test-partial"],
+            queue="matcher",
+        )
+
+
+@pytest.mark.asyncio
+async def test_interact_and_fill_field_protocol_success():
+    """Verify 9-step interaction protocol: visible wait, enabled check, click, focus, type, and readback."""
+    scraper = BrowardScraper()
+    page = _build_mock_page()
+
+    mock_locator = MagicMock()
+    mock_locator.wait_for = AsyncMock()
+    mock_locator.is_enabled = AsyncMock(return_value=True)
+    mock_locator.click = AsyncMock()
+    mock_locator.clear = AsyncMock()
+    mock_locator.press_sequentially = AsyncMock()
+    mock_locator.input_value = AsyncMock(return_value="MARTINEZ")
+    mock_locator.first = mock_locator
+    page.locator.return_value = mock_locator
+
+    page.evaluate = AsyncMock(return_value=True)
+
+    success = await scraper.interact_and_fill_field(
+        page,
+        "input#lastName",
+        "MARTINEZ",
+        field_name="Last Name (#lastName)",
+    )
+
+    assert success is True
+    mock_locator.wait_for.assert_called_once_with(state="visible", timeout=15000)
+    mock_locator.is_enabled.assert_called_once()
+    mock_locator.click.assert_called()
+    mock_locator.input_value.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_interact_and_fill_field_value_mismatch_retry():
+    """Verify that if value readback detects a mismatch, it invokes fallback fill."""
+    scraper = BrowardScraper()
+    page = _build_mock_page()
+
+    mock_locator = MagicMock()
+    mock_locator.wait_for = AsyncMock()
+    mock_locator.is_enabled = AsyncMock(return_value=True)
+    mock_locator.click = AsyncMock()
+    mock_locator.clear = AsyncMock()
+    mock_locator.press_sequentially = AsyncMock()
+    # First return mismatch, then fallback fill
+    mock_locator.input_value = AsyncMock(return_value="CORRUPTED")
+    mock_locator.fill = AsyncMock()
+    mock_locator.first = mock_locator
+    page.locator.return_value = mock_locator
+
+    success = await scraper.interact_and_fill_field(
+        page,
+        "input#firstName",
+        "MARTIN",
+        field_name="First Name (#firstName)",
+    )
+
+    assert success is True
+    mock_locator.fill.assert_called_with("MARTIN")
+
+
+@pytest.mark.asyncio
+async def test_interact_and_fill_field_missing_element():
+    """Verify graceful return False when element wait_for raises an error."""
+    scraper = BrowardScraper()
+    page = _build_mock_page()
+
+    mock_locator = MagicMock()
+    mock_locator.wait_for = AsyncMock(side_effect=RuntimeError("Element not found"))
+    mock_locator.first = mock_locator
+    page.locator.return_value = mock_locator
+
+    success = await scraper.interact_and_fill_field(
+        page,
+        "input#nonexistent",
+        "VAL",
+        timeout_ms=1000,
+    )
+
+    assert success is False
+
+
+@pytest.mark.asyncio
+async def test_broward_fill_search_fields_all_three_inputs():
+    """Verify fill_search_fields interacts with Last Name, First Name, and Date of Loss."""
+    scraper = BrowardScraper()
+    page = _build_mock_page()
+
+    interacted_fields = []
+
+    async def mock_interact(pg, sel, val, field_name="", timeout_ms=15000):
+        interacted_fields.append((sel, val, field_name))
+        return True
+
+    with patch.object(scraper, "interact_and_fill_field", side_effect=mock_interact):
+        await scraper.fill_search_fields(page, "ORTIZ", "LUIS", date_of_loss="02/27/2022")
+
+    assert len(interacted_fields) == 3
+    assert "lastName" in interacted_fields[0][0]
+    assert interacted_fields[0][1] == "ORTIZ"
+    assert "firstName" in interacted_fields[1][0]
+    assert interacted_fields[1][1] == "LUIS"
+    assert "filingDateOnOrAfterP" in interacted_fields[2][0]
+    assert interacted_fields[2][1] == "02/27/2022"
+
+
+@pytest.mark.asyncio
+async def test_chrome_session_async_context_manager():
+    """Verify ChromeSession supports Python async context management protocol (__aenter__ / __aexit__)."""
+    from app.automation.browser_manager import ChromeSession
+
+    session = ChromeSession(browser_engine="chromium", load_extension=False)
+    with (
+        patch.object(session, "start", new_callable=AsyncMock) as mock_start,
+        patch.object(session, "close", new_callable=AsyncMock) as mock_close,
+    ):
+        async with session as s:
+            assert s is session
+            mock_start.assert_called_once()
+        mock_close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_genuine_no_results_empty_list():
+    """Verify Broward search_by_party_name returns empty list without mock fallback when portal shows no records."""
+    scraper = BrowardScraper(anticaptcha_api_key="valid_key")
+    page = _build_mock_page()
+    page.inner_text = AsyncMock(
+        return_value="Search Results: 0 records found. No matching records found."
+    )
+
+    mock_input = MagicMock()
+    mock_input.count = AsyncMock(return_value=1)
+    mock_input.first = mock_input
+    page.locator.return_value = mock_input
+
+    with (
+        patch.object(scraper, "detect_and_handle_captcha", new_callable=AsyncMock) as mock_cap,
+        patch.object(scraper, "return_to_search_state", new_callable=AsyncMock),
+    ):
+        mock_cap.return_value = True
+
+        results = await scraper.search_by_party_name(
+            "NONEXISTENT", "PERSON", page, date_of_loss="01/01/2020"
+        )
+
+    assert results == []

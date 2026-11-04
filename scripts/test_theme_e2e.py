@@ -13,11 +13,10 @@ Validates:
 """
 
 import asyncio
-import os
+import socket
 import subprocess
 import sys
 import time
-import socket
 from pathlib import Path
 
 if sys.platform == "win32":
@@ -84,7 +83,7 @@ async def run_theme_e2e_tests():
 
     print("=" * 80)
     print("GLOBAL LIGHT MODE & DARK MODE — AUTOMATED PLAYWRIGHT E2E VERIFICATION")
-    print(f"Implementation ID: IMP-2026-0905-004")
+    print("Implementation ID: IMP-2026-0905-004")
     print("=" * 80)
 
     # 1. Check if server is running, or start Next.js production server

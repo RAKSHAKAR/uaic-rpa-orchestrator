@@ -14,7 +14,7 @@ def convert_excel_date(val: Any) -> str | None:
     """Convert Excel serial date number (based on 1899-12-30 epoch) or string to MM/DD/YYYY."""
     if val is None or pd.isna(val):
         return None
-    
+
     # If already a string
     if isinstance(val, str):
         val_str = val.strip()
@@ -108,6 +108,8 @@ def resolve_county_bot_targets(policy_state: str | None, loss_state: str | None)
 
 from rapidfuzz import fuzz
 
+from app.models.claim import RecordStatusEnum
+
 TARGET_CLAIM_FIELDS = [
     {
         "key": "claim_number",
@@ -115,8 +117,17 @@ TARGET_CLAIM_FIELDS = [
         "required": True,
         "description": "Unique claim identifier (Required)",
         "aliases": [
-            "claim number", "claim_number", "claim #", "claim#", "claimno",
-            "claim_id", "claim id", "claim", "claimnum", "claim identifier", "claim_no"
+            "claim number",
+            "claim_number",
+            "claim #",
+            "claim#",
+            "claimno",
+            "claim_id",
+            "claim id",
+            "claim",
+            "claimnum",
+            "claim identifier",
+            "claim_no",
         ],
     },
     {
@@ -125,8 +136,14 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "First name of insured policyholder",
         "aliases": [
-            "insured first name", "insured_first_name", "insured first",
-            "ins first", "insured_fname", "insured firstname", "ins_first", "insured_fn"
+            "insured first name",
+            "insured_first_name",
+            "insured first",
+            "ins first",
+            "insured_fname",
+            "insured firstname",
+            "ins_first",
+            "insured_fn",
         ],
     },
     {
@@ -135,8 +152,14 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "Last name of insured policyholder",
         "aliases": [
-            "insured last name", "insured_last_name", "insured last",
-            "ins last", "insured_lname", "insured lastname", "ins_last", "insured_ln"
+            "insured last name",
+            "insured_last_name",
+            "insured last",
+            "ins last",
+            "insured_lname",
+            "insured lastname",
+            "ins_last",
+            "insured_ln",
         ],
     },
     {
@@ -145,8 +168,14 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "First name of claiming party",
         "aliases": [
-            "claimant first name", "claimant_first_name", "claimant first",
-            "clm first", "claimant_fname", "claimant firstname", "clm_first", "claimant_fn"
+            "claimant first name",
+            "claimant_first_name",
+            "claimant first",
+            "clm first",
+            "claimant_fname",
+            "claimant firstname",
+            "clm_first",
+            "claimant_fn",
         ],
     },
     {
@@ -155,8 +184,14 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "Last name of claiming party",
         "aliases": [
-            "claimant last name", "claimant_last_name", "claimant last",
-            "clm last", "claimant_lname", "claimant lastname", "clm_last", "claimant_ln"
+            "claimant last name",
+            "claimant_last_name",
+            "claimant last",
+            "clm last",
+            "claimant_lname",
+            "claimant lastname",
+            "clm_last",
+            "claimant_ln",
         ],
     },
     {
@@ -165,9 +200,15 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "First name of driver of insured vehicle",
         "aliases": [
-            "driver first name (insured vehicle)", "driver first name",
-            "driver_first_name", "driver first", "drv first", "driver_fname",
-            "driver firstname", "drv_first", "driver_fn"
+            "driver first name (insured vehicle)",
+            "driver first name",
+            "driver_first_name",
+            "driver first",
+            "drv first",
+            "driver_fname",
+            "driver firstname",
+            "drv_first",
+            "driver_fn",
         ],
     },
     {
@@ -176,9 +217,15 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "Last name of driver of insured vehicle",
         "aliases": [
-            "driver last name (insured vehicle)", "driver last name",
-            "driver_last_name", "driver last", "drv last", "driver_lname",
-            "driver lastname", "drv_last", "driver_ln"
+            "driver last name (insured vehicle)",
+            "driver last name",
+            "driver_last_name",
+            "driver last",
+            "drv last",
+            "driver_lname",
+            "driver lastname",
+            "drv_last",
+            "driver_ln",
         ],
     },
     {
@@ -187,8 +234,13 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "Date of Loss (MM/DD/YYYY or Excel serial date)",
         "aliases": [
-            "dol", "date of loss", "loss date", "date_of_loss",
-            "accident date", "accident_date", "loss_date"
+            "dol",
+            "date of loss",
+            "loss date",
+            "date_of_loss",
+            "accident date",
+            "accident_date",
+            "loss_date",
         ],
     },
     {
@@ -197,8 +249,13 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "State where policy was issued (e.g. FL, TX)",
         "aliases": [
-            "policy state", "policy_state", "pol state", "pol_state",
-            "policy st", "pol_st", "state"
+            "policy state",
+            "policy_state",
+            "pol state",
+            "pol_state",
+            "policy st",
+            "pol_st",
+            "state",
         ],
     },
     {
@@ -207,8 +264,12 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "State where incident/loss occurred",
         "aliases": [
-            "loss location state", "loss_location_state", "loss state",
-            "loss_state", "accident state", "loss st"
+            "loss location state",
+            "loss_location_state",
+            "loss state",
+            "loss_state",
+            "accident state",
+            "loss st",
         ],
     },
     {
@@ -217,8 +278,12 @@ TARGET_CLAIM_FIELDS = [
         "required": False,
         "description": "Claim coverage exposure number (defaults to '001')",
         "aliases": [
-            "exposure number", "exposure_number", "exposure #",
-            "exposure", "exposure no", "exposure_no"
+            "exposure number",
+            "exposure_number",
+            "exposure #",
+            "exposure",
+            "exposure no",
+            "exposure_no",
         ],
     },
     {
@@ -226,9 +291,7 @@ TARGET_CLAIM_FIELDS = [
         "label": "Primary Key",
         "required": False,
         "description": "External primary identifier",
-        "aliases": [
-            "primary key", "primary_key", "pk", "id", "record_id"
-        ],
+        "aliases": ["primary key", "primary_key", "pk", "id", "record_id"],
     },
 ]
 
@@ -295,19 +358,23 @@ def auto_detect_column_mapping(detected_columns: list[str]) -> list[dict[str, An
         if best_match:
             used_columns.add(best_match)
 
-        recommendations.append({
-            "target_key": target_key,
-            "target_label": target_label,
-            "source_column": best_match,
-            "confidence": best_confidence,
-            "confidence_score": best_score,
-            "required": required,
-        })
+        recommendations.append(
+            {
+                "target_key": target_key,
+                "target_label": target_label,
+                "source_column": best_match,
+                "confidence": best_confidence,
+                "confidence_score": best_score,
+                "required": required,
+            }
+        )
 
     return recommendations
 
 
-def extract_columns_and_samples(df: pd.DataFrame, max_samples: int = 3) -> tuple[list[str], dict[str, list[str]]]:
+def extract_columns_and_samples(
+    df: pd.DataFrame, max_samples: int = 3
+) -> tuple[list[str], dict[str, list[str]]]:
     """Extract stripped column names and up to max_samples non-empty string samples per column."""
     columns = [str(col).strip() for col in df.columns]
     df.columns = columns
@@ -383,7 +450,11 @@ def validate_and_normalize_claim_data(
             if not src_col or src_col not in row:
                 return None
             val = row[src_col]
-            if pd.isna(val) or val is None or str(val).strip().lower() in ["nan", "null", "none", ""]:
+            if (
+                pd.isna(val)
+                or val is None
+                or str(val).strip().lower() in ["nan", "null", "none", ""]
+            ):
                 return None
             return str(val).strip()
 
@@ -392,19 +463,23 @@ def validate_and_normalize_claim_data(
         if not claim_num:
             invalid_rows += 1
             reason = f"Missing or empty required Claim Number (Mapped column: {resolved_mapping.get('claim_number', 'Not Mapped')})"
-            issues.append({
-                "row_number": row_num,
-                "claim_number": None,
-                "issue_type": "INVALID",
-                "reason": reason,
-            })
-            failed_rows_list.append({
-                "row_number": row_num,
-                "claim_number": "-",
-                "status": "INVALID",
-                "reason": reason,
-                **raw_row_data,
-            })
+            issues.append(
+                {
+                    "row_number": row_num,
+                    "claim_number": None,
+                    "issue_type": "INVALID",
+                    "reason": reason,
+                }
+            )
+            failed_rows_list.append(
+                {
+                    "row_number": row_num,
+                    "claim_number": "-",
+                    "status": "INVALID",
+                    "reason": reason,
+                    **raw_row_data,
+                }
+            )
             continue
 
         claim_num_str = str(claim_num).strip()
@@ -424,21 +499,25 @@ def validate_and_normalize_claim_data(
                 if is_in_file_dup
                 else f"Claim number '{claim_num_str}' already exists in database"
             )
-            issues.append({
-                "row_number": row_num,
-                "claim_number": claim_num_str,
-                "issue_type": dup_type,
-                "reason": dup_reason,
-            })
-
-            if duplicate_strategy == "SKIP":
-                failed_rows_list.append({
+            issues.append(
+                {
                     "row_number": row_num,
                     "claim_number": claim_num_str,
-                    "status": "DUPLICATE_SKIPPED",
+                    "issue_type": dup_type,
                     "reason": dup_reason,
-                    **raw_row_data,
-                })
+                }
+            )
+
+            if duplicate_strategy == "SKIP":
+                failed_rows_list.append(
+                    {
+                        "row_number": row_num,
+                        "claim_number": claim_num_str,
+                        "status": "DUPLICATE_SKIPPED",
+                        "reason": dup_reason,
+                        **raw_row_data,
+                    }
+                )
                 continue
 
         # Valid row parsing
@@ -461,8 +540,13 @@ def validate_and_normalize_claim_data(
             raw_dol = row[resolved_mapping["dol"]]
         dol_str = convert_excel_date(raw_dol)
 
-        pol_state = get_val("policy_state") or "Florida"
+        pol_state = get_val("policy_state")
         loss_state = get_val("loss_location_state") or pol_state
+        is_missing_state = not pol_state or not _normalize_state_code(pol_state)
+        if not pol_state:
+            pol_state = "Florida"
+        if not loss_state:
+            loss_state = pol_state
         exposure_num = get_val("exposure_number") or "001"
         primary_key = get_val("primary_key") or claim_num_str
 
@@ -470,7 +554,12 @@ def validate_and_normalize_claim_data(
         loss_location_str = ", ".join(loss_loc_parts) or None
 
         targets = resolve_county_bot_targets(pol_state, loss_state)
-        active_bots = [k.replace("fl_", "FL: ").replace("te_", "TX: ").title() for k, v in targets.items() if v == "Yes"]
+        initial_status = RecordStatusEnum.NEEDS_REVIEW if is_missing_state else RecordStatusEnum.NEW
+        active_bots = [
+            k.replace("fl_", "FL: ").replace("te_", "TX: ").title()
+            for k, v in targets.items()
+            if v == "Yes"
+        ]
         estimated_bots += len(active_bots)
 
         p_up = (pol_state or "").upper()
@@ -510,6 +599,7 @@ def validate_and_normalize_claim_data(
             "exposure_number": exposure_num,
             "primary_key": primary_key,
             "target_bots": targets,
+            "record_status": initial_status,
             "active_bot_labels": active_bots,
         }
 
@@ -519,17 +609,19 @@ def validate_and_normalize_claim_data(
             records_to_insert.append(record_dict)
 
         if len(preview_records) < 15:
-            preview_records.append({
-                "row_number": row_num,
-                "claim_number": claim_num_str,
-                "insured_name": ins_name,
-                "claimant_name": clm_name,
-                "driver_name": drv_name,
-                "dol": dol_str,
-                "policy_state": pol_state,
-                "loss_location": loss_location_str,
-                "target_bots": active_bots,
-            })
+            preview_records.append(
+                {
+                    "row_number": row_num,
+                    "claim_number": claim_num_str,
+                    "insured_name": ins_name,
+                    "claimant_name": clm_name,
+                    "driver_name": drv_name,
+                    "dol": dol_str,
+                    "policy_state": pol_state,
+                    "loss_location": loss_location_str,
+                    "target_bots": active_bots,
+                }
+            )
 
     return {
         "total_rows": total_rows,
@@ -570,4 +662,3 @@ def parse_claim_file(
 
     # Return combined list for ingestion
     return result["records_to_insert"] + result["records_to_update"]
-

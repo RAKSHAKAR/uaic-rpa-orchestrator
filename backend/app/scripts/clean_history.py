@@ -269,6 +269,40 @@ async def run_interactive_cleanup():
         pass
 
 
+async def run_complete_purge_interactive(reset_settings: bool = False):
+    """Run an interactive confirmation for complete enterprise purge across both database engines."""
+    from app.services.cleanup_service import execute_complete_purge
+
+    print("\n" + "=" * 70)
+    print("      ENTERPRISE DATA CLEANUP — COMPLETE PURGE & FACTORY RESET")
+    print("=" * 70)
+    print("WARNING: This will permanently delete:")
+    print("  * ALL 13 database tables across SQLite (orchestrator.db) & Docker PostgreSQL (uaic_db)")
+    print("  * ALL error screenshots (backend/screenshots/ & screenshots/)")
+    print("  * ALL application and runtime logs (backend/logs/ & logs/)")
+    print("  * ALL uploaded spreadsheets and generated export files")
+    print("  * ALL Redis task queues (DB 0) and Celery result states (DB 1)")
+    print("  * ALL Celery beat schedule files and temporary browser caches")
+    print("=" * 70)
+    confirm = input("\nType 'CONFIRM' or 'Y' to proceed with complete deletion (Default: N): ").strip()
+    if confirm.upper() not in ("CONFIRM", "Y", "YES"):
+        print("\nOperation cancelled. No changes were made.")
+        return
+
+    print("\n[INFO] Executing complete enterprise purge across SQLite, PostgreSQL, files, and Redis...")
+    rep = await execute_complete_purge(reset_settings_to_default=reset_settings, operator="CONSOLE_OPERATOR")
+
+    print("\n" + "=" * 70)
+    print("                   COMPLETE ENTERPRISE PURGE SUMMARY")
+    print("=" * 70)
+    print(f"Active Session Records Deleted:      {rep.get('sqlite_records_deleted', 0):>8,d}")
+    print(f"Disk Files Deleted (Logs/Images):    {rep.get('files_deleted', 0):>8,d}")
+    print(f"Databases Purged:                    {', '.join(rep.get('databases_cleaned', []))}")
+    print(f"Redis Broker & Queues Flushed:       {'YES' if rep.get('redis_purged') else 'NO'}")
+    print("=" * 70)
+    print("[SUCCESS] Complete factory purge finished successfully. System is in a clean baseline state.\n")
+
+
 async def main():
     parser = argparse.ArgumentParser(description="UAIC Orchestrator Enterprise Data Retention & Cleanup")
     parser.add_argument("--categories", type=str, default=None, help="Comma-separated categories or 'all_operational'")
@@ -280,10 +314,35 @@ async def main():
     parser.add_argument("--after-date", type=str, default=None, help="Cutoff date after")
     parser.add_argument("--dry-run", action="store_true", help="Calculate preview without deleting")
     parser.add_argument("--confirm", action="store_true", help="Skip confirmation prompt")
+    parser.add_argument("--all", "--purge-all", action="store_true", dest="purge_all", help="Complete purge across SQLite, PostgreSQL, files, and Redis")
+    parser.add_argument("--reset-settings", action="store_true", help="Also reset automation settings to factory defaults")
+    parser.add_argument("--files-only", action="store_true", help="Purge only logs, screenshots, uploads, and caches")
 
     args = parser.parse_args()
 
-    # If any CLI flags provided, run non-interactively
+    # Fast CLI Dispatches
+    if args.purge_all:
+        from app.services.cleanup_service import execute_complete_purge
+        if not args.confirm:
+            c = input("Confirm complete purge across all databases and files? [y/N]: ").strip().lower()
+            if c not in ("y", "yes"):
+                print("Cancelled.")
+                return
+        rep = await execute_complete_purge(reset_settings_to_default=args.reset_settings, operator="CLI_PURGE_ALL")
+        print(f"[SUCCESS] Complete Purge Done: {rep}")
+        return
+
+    if args.files_only:
+        res = await execute_enterprise_cleanup(
+            categories=["app_logs", "bot_history", "scraper_logs", "temp_caches", "generated_exports", "uploads"],
+            time_scope="all_time",
+            operator="CLI_FILES_PURGE",
+            dry_run=False,
+        )
+        print(f"[SUCCESS] Deleted {res.files_deleted} disk files.")
+        return
+
+    # If scoped category flags provided, run non-interactively
     if args.categories or args.time_scope or args.dry_run:
         cats = [args.categories] if args.categories else ["all_operational"]
         scope = args.time_scope or "current_month"
@@ -318,8 +377,48 @@ async def main():
             print(f"  {k}: {v}")
         return
 
-    # Otherwise interactive
-    await run_interactive_cleanup()
+    # Top-Level Interactive Menu for Option [3]
+    while True:
+        print("\n" + "=" * 70)
+        print("          UAIC ORCHESTRATOR — ENTERPRISE CLEANUP CONSOLE")
+        print("=======================================================================")
+        print(" [1] Complete Purge & Factory Reset (Delete EVERYTHING: DBs, Files, Logs)")
+        print(" [2] Interactive Scoped Cleanup (By Category & Date Scope)")
+        print(" [3] Operational Data Wipe (Delete Claims, Cases, Matches; Keep Settings)")
+        print(" [4] Disk Logs & Media Purge Only (Delete Logs, Screenshots, Uploads)")
+        print(" [0] Cancel & Return to Setup Console")
+        print("=" * 70)
+
+        opt = input("Select a cleanup option [0-4] (Default: 2): ").strip()
+        if opt == "1":
+            await run_complete_purge_interactive(reset_settings=False)
+            break
+        elif opt in ("2", ""):
+            await run_interactive_cleanup()
+            break
+        elif opt == "3":
+            res = await execute_enterprise_cleanup(
+                categories=["claims", "court_cases", "fuzzy_matches", "guidewire_activities", "queue"],
+                time_scope="all_time",
+                operator="CONSOLE_OPERATIONAL_WIPE",
+                dry_run=False,
+            )
+            print(f"\n[SUCCESS] Operational Wipe Completed: Deleted {res.total_records_deleted} records.")
+            break
+        elif opt == "4":
+            res = await execute_enterprise_cleanup(
+                categories=["app_logs", "bot_history", "scraper_logs", "temp_caches", "generated_exports", "uploads"],
+                time_scope="all_time",
+                operator="CONSOLE_DISK_PURGE",
+                dry_run=False,
+            )
+            print(f"\n[SUCCESS] Disk Purge Completed: Deleted {res.files_deleted} files.")
+            break
+        elif opt == "0":
+            print("Cancelled.")
+            break
+        else:
+            print("Invalid selection. Please choose 0-4.")
 
 
 if __name__ == "__main__":

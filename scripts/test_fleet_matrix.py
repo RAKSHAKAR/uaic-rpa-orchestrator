@@ -8,16 +8,16 @@ Tests Concurrency 1 to 10 across:
 
 import json
 import sys
-import urllib.request
-import urllib.error
 import time
+import urllib.error
+import urllib.request
 
 BASE_URL = "http://127.0.0.1:8000/api/v1/settings/test-fleet"
 
 def test_fleet(engine: str, concurrency: int, headless: bool = True):
-    print(f"\n========================================================")
+    print("\n========================================================")
     print(f"Testing Fleet: Engine={engine.upper()} | Concurrency={concurrency} | Headless={headless}")
-    print(f"========================================================")
+    print("========================================================")
 
     payload = {
         "concurrency": concurrency,

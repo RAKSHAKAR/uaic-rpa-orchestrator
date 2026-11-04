@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright
 
+
 def main():
     with sync_playwright() as p:
         b = p.chromium.connect_over_cdp('http://localhost:9222')

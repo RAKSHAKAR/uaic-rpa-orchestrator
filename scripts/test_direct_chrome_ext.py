@@ -1,6 +1,6 @@
+import json
 import subprocess
 import time
-import json
 from pathlib import Path
 
 chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"

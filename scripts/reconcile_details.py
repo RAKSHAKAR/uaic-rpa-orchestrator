@@ -3,17 +3,17 @@ reconcile_details.py - Read every implementation plan, gap analysis, and walkthr
 and produce a detailed breakdown of what each document addressed.
 """
 
-import os
-import sys
 import glob
+import os
 import re
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def get_doc_summary(file_path):
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(file_path, encoding="utf-8", errors="ignore") as f:
         content = f.read()
     
     lines = content.splitlines()

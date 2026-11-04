@@ -1,8 +1,8 @@
 """Test direct MX SMTP transmission to damcogroup-com.mail.protection.outlook.com:25."""
 import smtplib
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import time
 
 MX_HOST = "damcogroup-com.mail.protection.outlook.com"
 PORT = 25

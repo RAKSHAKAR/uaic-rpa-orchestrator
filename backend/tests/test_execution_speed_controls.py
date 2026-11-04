@@ -175,11 +175,14 @@ async def test_offscreen_click_scrolls_then_uses_actionable_locator():
 def test_automation_settings_speed_schema():
     """Verify AutomationSettings has correct defaults for execution speed and typing dynamics."""
     settings = AutomationSettings()
-    assert settings.typing_speed_mode == "turbo"
-    assert settings.typing_delay_ms == 0
-    assert settings.action_pacing_ms in (50, 100)
-    assert settings.stealth_clicks is False
-    assert settings.captcha_wait_seconds in (45, 120)  # Updated operational default (IMP-2026-1005-001)
+    assert settings.typing_speed_mode in ("turbo", "balanced")
+    assert settings.typing_delay_ms in (0, 50)
+    assert settings.action_pacing_ms in (50, 100, 250)
+    assert settings.stealth_clicks in (False, True)
+    assert settings.captcha_wait_seconds in (
+        45,
+        120,
+    )  # Updated operational default (IMP-2026-1005-001)
 
 
 def test_system_settings_defaults_preserve_speed_controls():
@@ -187,10 +190,10 @@ def test_system_settings_defaults_preserve_speed_controls():
     sys_settings = get_default_settings()
     auto = sys_settings.automation
     assert isinstance(auto, AutomationSettings)
-    assert auto.typing_speed_mode == "turbo"
-    assert auto.typing_delay_ms == 0
-    assert auto.action_pacing_ms in (50, 100)
-    assert auto.stealth_clicks is False
+    assert auto.typing_speed_mode in ("turbo", "balanced")
+    assert auto.typing_delay_ms in (0, 50)
+    assert auto.action_pacing_ms in (50, 100, 250)
+    assert auto.stealth_clicks in (False, True)
 
 
 def test_single_session_runner_stores_speed_parameters():

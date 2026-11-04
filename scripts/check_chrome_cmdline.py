@@ -1,9 +1,12 @@
 import asyncio
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from app.automation.browser_manager import ChromeSession
 import subprocess
+
+from app.automation.browser_manager import ChromeSession
+
 
 async def test():
     s = ChromeSession(headless=False)

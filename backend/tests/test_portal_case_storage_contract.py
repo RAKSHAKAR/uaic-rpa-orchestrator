@@ -31,14 +31,19 @@ def test_canonical_case_keeps_exact_v4_fields_and_validates_date():
         "CaseType": "CIVIL",
     }
     assert set(scraper_tasks.canonical_portal_case("harris_jp", case)) == {
-        "CaseNumber", "CaseStyle", "FilingDate", "CaseStatus"
+        "CaseNumber",
+        "CaseStyle",
+        "FilingDate",
+        "CaseStatus",
     }
     with pytest.raises(ValueError, match="valid filing date"):
         scraper_tasks.canonical_portal_case("dallas", {**case, "FilingDate": "unknown"})
 
 
 @pytest.mark.asyncio
-async def test_failed_search_preserves_previous_case_until_successful_replacement(tmp_path, monkeypatch):
+async def test_failed_search_preserves_previous_case_until_successful_replacement(
+    tmp_path, monkeypatch
+):
     import app.models  # noqa: F401
 
     engine = create_async_engine(f"sqlite+aiosqlite:///{(tmp_path / 'cases.db').as_posix()}")
@@ -70,56 +75,89 @@ async def test_failed_search_preserves_previous_case_until_successful_replacemen
     runner.__aenter__ = AsyncMock(return_value=browser)
     runner.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr(scraper_tasks, "SingleSessionBrowserRunner", lambda **kwargs: runner)
-    monkeypatch.setattr(scraper_tasks.BrowardScraper, "capture_screenshot_on_error", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        scraper_tasks.BrowardScraper, "capture_screenshot_on_error", AsyncMock(return_value=None)
+    )
 
     claim_id = str(uuid.uuid4())
     old_payload = {
-        "CaseNumber": "OLD-1", "CaseStyle": "OLD VS CASE", "FilingDate": "05/01/2020",
-        "CaseStatus": "OPEN", "CaseType": "CIVIL",
+        "CaseNumber": "OLD-1",
+        "CaseStyle": "OLD VS CASE",
+        "FilingDate": "05/01/2020",
+        "CaseStatus": "OPEN",
+        "CaseType": "CIVIL",
     }
     async with session_factory() as db:
-        db.add(ClaimRecord(
-            id=claim_id,
-            claim_number="TEST-PRESERVE-CASE",
-            claimant_first_name="Jane",
-            claimant_last_name="Example",
-            fl_website_broward="Yes",
-            fl_jsonbody_broward=[old_payload],
-            fl_botstatus_broward=BotStatusEnum.COMPLETED,
-            record_status=RecordStatusEnum.NEW,
-        ))
-        db.add(ScrapedCourtCase(
-            claim_id=claim_id, county_name="Broward County (FL)", county_website="https://example.test",
-            case_number="OLD-1", case_style="OLD VS CASE", filing_date="05/01/2020",
-            case_status="OPEN", case_type="CIVIL", raw_payload=old_payload,
-        ))
+        db.add(
+            ClaimRecord(
+                id=claim_id,
+                claim_number="TEST-PRESERVE-CASE",
+                claimant_first_name="Jane",
+                claimant_last_name="Example",
+                fl_website_broward="Yes",
+                fl_jsonbody_broward=[old_payload],
+                fl_botstatus_broward=BotStatusEnum.COMPLETED,
+                record_status=RecordStatusEnum.NEW,
+            )
+        )
+        db.add(
+            ScrapedCourtCase(
+                claim_id=claim_id,
+                county_name="Broward County (FL)",
+                county_website="https://example.test",
+                case_number="OLD-1",
+                case_style="OLD VS CASE",
+                filing_date="05/01/2020",
+                case_status="OPEN",
+                case_type="CIVIL",
+                raw_payload=old_payload,
+            )
+        )
         await db.commit()
 
     try:
         monkeypatch.setattr(
-            scraper_tasks.BrowardScraper, "search_on_page",
+            scraper_tasks.BrowardScraper,
+            "search_on_page",
             AsyncMock(side_effect=RuntimeError("portal unavailable")),
         )
         await scraper_tasks._async_orchestrate_scrapers(claim_id)
         async with session_factory() as db:
             claim = await db.get(ClaimRecord, claim_id)
-            rows = list((await db.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == claim_id))).scalars())
+            rows = list(
+                (
+                    await db.execute(
+                        select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == claim_id)
+                    )
+                ).scalars()
+            )
             assert claim.fl_botstatus_broward == BotStatusEnum.FAILED
             assert claim.fl_jsonbody_broward == [old_payload]
             assert [row.case_number for row in rows] == ["OLD-1"]
 
         new_payload = {
-            "CaseNumber": "NEW-2", "CaseStyle": "JANE VS EXAMPLE", "FilingDate": "06/15/2024",
-            "CaseStatus": "OPEN", "CaseType": "CIVIL", "Extra": "drop this",
+            "CaseNumber": "NEW-2",
+            "CaseStyle": "JANE VS EXAMPLE",
+            "FilingDate": "06/15/2024",
+            "CaseStatus": "OPEN",
+            "CaseType": "CIVIL",
+            "Extra": "drop this",
         }
         monkeypatch.setattr(
-            scraper_tasks.BrowardScraper, "search_on_page",
+            scraper_tasks.BrowardScraper,
+            "search_on_page",
             AsyncMock(return_value=[new_payload]),
         )
         await scraper_tasks._async_orchestrate_scrapers(claim_id)
         async with session_factory() as db:
             claim = await db.get(ClaimRecord, claim_id)
-            rows = list((await db.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == claim_id))).scalars())
+            rows = list(
+                (
+                    await db.execute(
+                        select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == claim_id)
+                    )
+                ).scalars()
+            )
             assert claim.fl_botstatus_broward == BotStatusEnum.COMPLETED
             assert [row.case_number for row in rows] == ["NEW-2"]
             assert set(rows[0].raw_payload) == set(scraper_tasks.PORTAL_CASE_FIELDS["broward"])
@@ -133,12 +171,18 @@ async def test_failed_search_preserves_previous_case_until_successful_replacemen
             await db.commit()
 
         role_one = {
-            "CaseNumber": "DUP-3", "CaseStyle": "ROBERT WILLIAMS VS JANE EXAMPLE",
-            "FilingDate": "06/15/2024", "CaseStatus": "OPEN", "CaseType": "CIVIL",
+            "CaseNumber": "DUP-3",
+            "CaseStyle": "ROBERT WILLIAMS VS JANE EXAMPLE",
+            "FilingDate": "06/15/2024",
+            "CaseStatus": "OPEN",
+            "CaseType": "CIVIL",
         }
         role_two = {
-            "CaseNumber": "DUP-3", "CaseStyle": "JANE EXAMPLE VS ACME CORP",
-            "FilingDate": "06/15/2024", "CaseStatus": "OPEN", "CaseType": "CIVIL",
+            "CaseNumber": "DUP-3",
+            "CaseStyle": "JANE EXAMPLE VS ACME CORP",
+            "FilingDate": "06/15/2024",
+            "CaseStatus": "OPEN",
+            "CaseType": "CIVIL",
         }
 
         async def repeated_rows(*, first_name, **_kwargs):
@@ -151,7 +195,13 @@ async def test_failed_search_preserves_previous_case_until_successful_replacemen
         assert search.await_count == 2
         async with session_factory() as db:
             claim = await db.get(ClaimRecord, claim_id)
-            rows = list((await db.execute(select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == claim_id))).scalars())
+            rows = list(
+                (
+                    await db.execute(
+                        select(ScrapedCourtCase).where(ScrapedCourtCase.claim_id == claim_id)
+                    )
+                ).scalars()
+            )
             expected_styles = [role_one["CaseStyle"], role_two["CaseStyle"], role_one["CaseStyle"]]
             assert claim.fl_botstatus_broward == BotStatusEnum.COMPLETED
             assert [case["CaseNumber"] for case in claim.fl_jsonbody_broward] == ["DUP-3"] * 3

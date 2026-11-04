@@ -3,10 +3,8 @@ deep_reconciliation.py - Detailed requirement extraction and codebase inspection
 """
 
 import os
-import sys
-import glob
 import re
-import json
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -18,7 +16,7 @@ endpoints = {}
 for f in os.listdir(backend_api_dir):
     if f.endswith(".py") and not f.startswith("__"):
         fpath = os.path.join(backend_api_dir, f)
-        with open(fpath, "r", encoding="utf-8") as fp:
+        with open(fpath, encoding="utf-8") as fp:
             content = fp.read()
         routes = re.findall(r'@router\.(get|post|put|delete|patch)\(\s*["\']([^"\']+)["\']', content)
         endpoints[f] = routes
@@ -38,7 +36,7 @@ models = {}
 for f in os.listdir(models_dir):
     if f.endswith(".py") and not f.startswith("__"):
         fpath = os.path.join(models_dir, f)
-        with open(fpath, "r", encoding="utf-8") as fp:
+        with open(fpath, encoding="utf-8") as fp:
             content = fp.read()
         classes = re.findall(r'class\s+([A-Za-z0-9_]+)\(Base\):', content)
         cols = re.findall(r'([a-zA-Z0-9_]+)\s*=\s*Column\(', content)
@@ -77,7 +75,7 @@ tests_dir = os.path.join(REPO_ROOT, "backend", "tests")
 test_files = [f for f in os.listdir(tests_dir) if f.startswith("test_") and f.endswith(".py")]
 print(f"=== BACKEND TESTS ({len(test_files)} test files) ===")
 for tf in sorted(test_files):
-    with open(os.path.join(tests_dir, tf), "r", encoding="utf-8") as fp:
+    with open(os.path.join(tests_dir, tf), encoding="utf-8") as fp:
         c = fp.read()
     test_funcs = re.findall(r'def (test_[a-zA-Z0-9_]+)', c)
     print(f"  {tf}: {len(test_funcs)} tests")

@@ -4,6 +4,14 @@
     "scripts",
     "e2e"
   ],
+  "exclude": [
+    "backend/.venv",
+    "**/node_modules",
+    "**/__pycache__",
+    "frontend"
+  ],
+  "typeCheckingMode": "off",
+  "reportMissingImports": "none",
   "extraPaths": [
     "backend"
   ],

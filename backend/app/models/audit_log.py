@@ -17,18 +17,12 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, index=True
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
     # Operator / Client Identity
     user_id: Mapped[str] = mapped_column(String(100), default="operator", index=True)
-    user_email: Mapped[str] = mapped_column(
-        String(255), default="operator@test.com", index=True
-    )
+    user_email: Mapped[str] = mapped_column(String(255), default="operator@test.com", index=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
@@ -40,9 +34,7 @@ class AuditLog(Base):
         String(40), index=True
     )  # e.g. CLAIM, SETTINGS, MATCH, BATCH, QUEUE, SYSTEM
     entity_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    claim_number: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, index=True
-    )
+    claim_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
     # Context & Result
     description: Mapped[str] = mapped_column(Text)

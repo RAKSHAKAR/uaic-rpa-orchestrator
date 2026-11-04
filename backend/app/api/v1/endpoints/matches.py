@@ -128,10 +128,14 @@ async def review_match_pair(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually approve or reject a borderline fuzzy match pair."""
-    query = select(MatchPair).where(MatchPair.id == match_pair_id).options(selectinload(MatchPair.court_case))
+    query = (
+        select(MatchPair)
+        .where(MatchPair.id == match_pair_id)
+        .options(selectinload(MatchPair.court_case))
+    )
     res = await db.execute(query)
     match_pair = res.scalar_one_or_none()
-    
+
     if not match_pair:
         raise HTTPException(status_code=404, detail="Match pair not found")
 
@@ -152,11 +156,13 @@ async def review_match_pair(
             matched_payload = {
                 "CaseNumber": match_pair.court_case.case_number if match_pair.court_case else "",
                 "CaseStyle": match_pair.case_style,
-                "CountyWebsite": match_pair.court_case.county_website if match_pair.court_case else "",
+                "CountyWebsite": match_pair.court_case.county_website
+                if match_pair.court_case
+                else "",
                 "SuitFiledDate": match_pair.court_case.filing_date if match_pair.court_case else "",
             }
             claim.final_matched_json = {"CaseItems": [matched_payload]}
-            
+
             celery_app.send_task(
                 "app.tasks.fuzzy_tasks.notify_guidewire_task",
                 args=[claim.id],
@@ -190,13 +196,18 @@ async def review_match_pair(
         details={
             "decision": payload.decision.value,
             "similarity_score": match_pair.similarity_score,
-            "party_type": match_pair.party_type.value if hasattr(match_pair.party_type, "value") else str(match_pair.party_type),
+            "party_type": match_pair.party_type.value
+            if hasattr(match_pair.party_type, "value")
+            else str(match_pair.party_type),
             "review_notes": payload.review_notes,
         },
     )
 
     await db.commit()
-    return {"message": f"Match pair successfully updated to {payload.decision.value}", "id": match_pair_id}
+    return {
+        "message": f"Match pair successfully updated to {payload.decision.value}",
+        "id": match_pair_id,
+    }
 
 
 @router.get("/extract-names", response_model=ExtractNamesResponse)
@@ -244,11 +255,17 @@ async def extract_unique_party_names(
     claimant_sorted = sorted(claimant_names)
 
     if party_type == "insured":
-        return ExtractNamesResponse(insured=insured_sorted, driver=[], claimant=[], total=len(insured_sorted))
+        return ExtractNamesResponse(
+            insured=insured_sorted, driver=[], claimant=[], total=len(insured_sorted)
+        )
     if party_type == "driver":
-        return ExtractNamesResponse(insured=[], driver=driver_sorted, claimant=[], total=len(driver_sorted))
+        return ExtractNamesResponse(
+            insured=[], driver=driver_sorted, claimant=[], total=len(driver_sorted)
+        )
     if party_type == "claimant":
-        return ExtractNamesResponse(insured=[], driver=[], claimant=claimant_sorted, total=len(claimant_sorted))
+        return ExtractNamesResponse(
+            insured=[], driver=[], claimant=claimant_sorted, total=len(claimant_sorted)
+        )
 
     total = len(insured_sorted) + len(driver_sorted) + len(claimant_sorted)
     return ExtractNamesResponse(
@@ -302,7 +319,7 @@ async def legacy_fuzzy_search(
                     year = int(case.filing_date[:4]) if len(case.filing_date) >= 4 else 0
                     if year > 0 and year < payload.min_filing_year:
                         continue
-                except (ValueError, IndexError):
+                except ValueError, IndexError:
                     pass  # Include if date unparseable
 
             matches.append(
@@ -376,28 +393,34 @@ async def export_match_reviews(
     for mp in match_pairs:
         court = mp.court_case
         score_pct = round(mp.similarity_score * 100, 1) if mp.similarity_score is not None else 0.0
-        review_stat = mp.review_status.value if hasattr(mp.review_status, "value") else str(mp.review_status)
+        review_stat = (
+            mp.review_status.value if hasattr(mp.review_status, "value") else str(mp.review_status)
+        )
         party_tp = mp.party_type.value if hasattr(mp.party_type, "value") else str(mp.party_type)
 
-        export_rows.append({
-            "Match ID": mp.id,
-            "Claim Number": claims_map.get(mp.claim_id, ""),
-            "Party Type": party_tp,
-            "Party Name": mp.party_name or "",
-            "Court Case Number": court.case_number if court else "Unknown",
-            "County Name": court.county_name if court else "Unknown",
-            "Case Style": mp.case_style or (court.case_style if court else ""),
-            "Similarity Score (%)": score_pct,
-            "Filing Date": court.filing_date if court and court.filing_date else "",
-            "Case Status": court.case_status if court and court.case_status else "",
-            "Case Type": court.case_type if court and court.case_type else "",
-            "Review Status": review_stat,
-            "Reviewed By": mp.reviewed_by or "",
-            "Reviewed At": mp.reviewed_at.strftime("%Y-%m-%d %H:%M:%S") if mp.reviewed_at else "",
-            "Review Notes": mp.review_notes or "",
-            "County Website": court.county_website if court and court.county_website else "",
-            "Created At": mp.created_at.strftime("%Y-%m-%d %H:%M:%S") if mp.created_at else "",
-        })
+        export_rows.append(
+            {
+                "Match ID": mp.id,
+                "Claim Number": claims_map.get(mp.claim_id, ""),
+                "Party Type": party_tp,
+                "Party Name": mp.party_name or "",
+                "Court Case Number": court.case_number if court else "Unknown",
+                "County Name": court.county_name if court else "Unknown",
+                "Case Style": mp.case_style or (court.case_style if court else ""),
+                "Similarity Score (%)": score_pct,
+                "Filing Date": court.filing_date if court and court.filing_date else "",
+                "Case Status": court.case_status if court and court.case_status else "",
+                "Case Type": court.case_type if court and court.case_type else "",
+                "Review Status": review_stat,
+                "Reviewed By": mp.reviewed_by or "",
+                "Reviewed At": mp.reviewed_at.strftime("%Y-%m-%d %H:%M:%S")
+                if mp.reviewed_at
+                else "",
+                "Review Notes": mp.review_notes or "",
+                "County Website": court.county_website if court and court.county_website else "",
+                "Created At": mp.created_at.strftime("%Y-%m-%d %H:%M:%S") if mp.created_at else "",
+            }
+        )
 
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
@@ -405,7 +428,9 @@ async def export_match_reviews(
         return Response(
             content=json.dumps(export_rows, indent=2, default=str),
             media_type="application/json",
-            headers={"Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.json"},
+            headers={
+                "Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.json"
+            },
         )
 
     df = pd.DataFrame(export_rows)
@@ -415,7 +440,9 @@ async def export_match_reviews(
         return Response(
             content=csv_bytes,
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.csv"},
+            headers={
+                "Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.csv"
+            },
         )
     else:
         out = io.BytesIO()
@@ -430,7 +457,9 @@ async def export_match_reviews(
         return Response(
             content=out.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.xlsx"},
+            headers={
+                "Content-Disposition": f"attachment; filename=exceptions_export_{timestamp}.xlsx"
+            },
         )
 
 
@@ -455,7 +484,9 @@ async def get_match_pair_detail(
     return _build_match_pair_response(mp)
 
 
-@router.post("/fuzzymatchapi", response_model=DirectFuzzyMatchResponse, response_model_exclude_none=True)
+@router.post(
+    "/fuzzymatchapi", response_model=DirectFuzzyMatchResponse, response_model_exclude_none=True
+)
 def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResponse:
     """
     Direct legacy Power Automate Desktop fuzzy match endpoint parity (PowerAutomateSolutions/fuzzy-match-api).
@@ -473,8 +504,13 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
     if not min_date_str:
         try:
             from app.services.settings_service import get_system_settings_sync
+
             sys_settings = get_system_settings_sync()
-            min_date_str = (sys_settings.matcher.min_filing_date if sys_settings and sys_settings.matcher else None) or "2010-01-01"
+            min_date_str = (
+                sys_settings.matcher.min_filing_date
+                if sys_settings and sys_settings.matcher
+                else None
+            ) or "2010-01-01"
         except Exception:
             min_date_str = "2010-01-01"
 
@@ -495,7 +531,9 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
                 )
             )
         return DirectFuzzyMatchResponse(
-            result="Match Found" if any(m.result == "Match Found" for m in matches) else "No Match Found",
+            result="Match Found"
+            if any(m.result == "Match Found" for m in matches)
+            else "No Match Found",
             score=max((m.score for m in matches), default=0.0),
             reference_string=payload.reference_string or payload.text1,
             text1=payload.text1 or payload.reference_string,
@@ -513,17 +551,23 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
         for c in payload.cases:
             c_style = str(c.get("CaseStyle") or c.get("case_style") or c.get("text2") or "").strip()
             c_num = str(c.get("CaseNumber") or c.get("case_number") or "").strip()
-            c_date = str(c.get("SuitFiledDate") or c.get("FilingDate") or c.get("filing_date") or "").strip()
+            c_date = str(
+                c.get("SuitFiledDate") or c.get("FilingDate") or c.get("filing_date") or ""
+            ).strip()
             c_website = str(c.get("CountyWebsite") or c.get("county_website") or "").strip()
 
             date_eligible = True
             filter_reason = None
             if c_date:
-                date_eligible = is_case_eligible(c_date, case_status=None, case_type=None, min_filing_date=min_date_str)
+                date_eligible = is_case_eligible(
+                    c_date, case_status=None, case_type=None, min_filing_date=min_date_str
+                )
                 if not date_eligible:
                     filter_reason = f"Filing date '{c_date}' is prior to Minimum Case Filing Date '{min_date_str}'"
 
-            case_score = float(fuzz.partial_ratio(t1.lower(), c_style.lower())) if t1 and c_style else 0.0
+            case_score = (
+                float(fuzz.partial_ratio(t1.lower(), c_style.lower())) if t1 and c_style else 0.0
+            )
             text_matched = case_score >= threshold_scaled
 
             if not date_eligible:
@@ -585,7 +629,9 @@ def fuzzy_match_direct(payload: DirectFuzzyMatchRequest) -> DirectFuzzyMatchResp
     filing_date_val = str(payload.filing_date).strip() if has_filing_date else None
 
     if has_filing_date:
-        date_eligible = is_case_eligible(filing_date_val, case_status=None, case_type=None, min_filing_date=min_date_str)
+        date_eligible = is_case_eligible(
+            filing_date_val, case_status=None, case_type=None, min_filing_date=min_date_str
+        )
         if not date_eligible:
             guidewire_eligible = False
             result = f"Filtered Out (Filing Date < {min_date_str})"
@@ -651,7 +697,9 @@ async def generate_claim_unique_names(
         res = await db.execute(select(ClaimRecord).where(ClaimRecord.id == payload.claim_id))
         claim_record = res.scalar_one_or_none()
         if not claim_record:
-            raise HTTPException(status_code=404, detail=f"Claim record '{payload.claim_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Claim record '{payload.claim_id}' not found"
+            )
         source_data = claim_record
     else:
         ins_f = payload.insured_first_name or ""
@@ -721,5 +769,3 @@ async def get_claim_unique_names_get(
     """Convenience GET endpoint to extract unique search names for a specific claim record."""
     req = UniqueNamesRequest(claim_id=claim_id, threshold=threshold)
     return await generate_claim_unique_names(req, db=db)
-
-

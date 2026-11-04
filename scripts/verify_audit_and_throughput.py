@@ -1,7 +1,7 @@
 """Automated Playwright verification script for Audit page filters & Dashboard throughput."""
 
-import sys
 from playwright.sync_api import sync_playwright
+
 
 def main():
     with sync_playwright() as p:
@@ -26,7 +26,7 @@ def main():
             print(f"  Card {idx+1}: {first_line[:80]}")
 
         # Check total records in footer / pagination
-        body_text = page.inner_text("body")
+        page.inner_text("body")
         print("Checking for Today's Activity card...")
         
         # Click "Today's Activity" stat card

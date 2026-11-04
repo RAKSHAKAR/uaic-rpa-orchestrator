@@ -18,6 +18,7 @@ alembic>=1.13.1
 pandas>=2.2.3,<3.0.0
 openpyxl>=3.1.5,<4.0.0
 rapidfuzz>=3.6.1,<4.0.0
+pillow>=11.0.0
 
 # Web Automation & HTTP Client
 playwright>=1.48.0,<2.0.0

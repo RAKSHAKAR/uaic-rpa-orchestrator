@@ -9,7 +9,12 @@ from urllib.parse import urljoin
 
 from playwright.async_api import Page
 
-from app.automation.base import BaseCourtScraper, CaptchaResolutionError
+from app.automation.base import (
+    BaseCourtScraper,
+    CaptchaResolutionError,
+    SecurityBlockException,
+    human_page_warmup,
+)
 
 logger = logging.getLogger("uaic_orchestrator.automation.dallas")
 
@@ -139,24 +144,40 @@ class DallasScraper(BaseCourtScraper):
             kwargs["max_attempts"] = 2
         super().__init__(
             county_name="Dallas County (TX)",
-            base_url=base_url or "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29",
+            base_url=base_url
+            or "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29",
             **kwargs,
         )
+
+    def _resolve_nav_url(self) -> str:
+        nav_url = self.base_url.rstrip("/")
+        if "Dashboard/29" in nav_url:
+            return nav_url
+        if nav_url.endswith("/Home"):
+            return f"{nav_url}/Dashboard/29"
+        if "/DALLASPROD" in nav_url:
+            return f"{nav_url}/Home/Dashboard/29"
+        return f"{nav_url}/DALLASPROD/Home/Dashboard/29"
 
     async def navigate_to_search(self, page: Page) -> None:
         """Step A: Go to Dallas tab, wait for load, reload & wait again if body empty/unresponsive."""
         t_nav_start = datetime.now()
-        nav_url = self.base_url.rstrip("/")
-        if "Dashboard/29" not in nav_url:
-            nav_url = f"{nav_url}/Dashboard/29"
+        nav_url = self._resolve_nav_url()
 
         try:
             logger.info(f"[{self.county_name}] Step A: Navigating to Dallas portal: {nav_url}")
-            await page.goto(nav_url, wait_until="domcontentloaded")
+            await self.navigate_via_address_bar(page, nav_url, timeout_ms=self.timeout_ms)
             await page.wait_for_timeout(1500)
 
+            await human_page_warmup(page)
+            is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+            if is_blocked:
+                raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs)
+
             # Wait for content container or body
-            content_loc = page.locator(".k-content, #main-content, #caseCriteria_SearchCriteria, body")
+            content_loc = page.locator(
+                ".k-content, #main-content, #caseCriteria_SearchCriteria, body"
+            )
             if await _safe_count(content_loc) > 0:
                 try:
                     await content_loc.first.wait_for(state="visible", timeout=10000)
@@ -166,11 +187,15 @@ class DallasScraper(BaseCourtScraper):
             # Detect blank/empty body and reload if needed (Step a: check body length < 5)
             body_text = await _get_page_text(page)
             if not body_text or len(body_text.strip()) < 5:
-                logger.warning(f"[{self.county_name}] Blank/incomplete page body detected; reloading...")
+                logger.warning(
+                    f"[{self.county_name}] Blank/incomplete page body detected; reloading..."
+                )
                 await _safe_reload(page)
                 await page.wait_for_timeout(2000)
         except Exception as e_nav:
-            logger.warning(f"[{self.county_name}] Step A navigation encountered: {e_nav}; attempting reload...")
+            logger.warning(
+                f"[{self.county_name}] Step A navigation encountered: {e_nav}; attempting reload..."
+            )
             try:
                 await _safe_reload(page)
                 await page.wait_for_timeout(2000)
@@ -178,7 +203,9 @@ class DallasScraper(BaseCourtScraper):
                 logger.debug(f"[{self.county_name}] Reload note: {e_reload}")
 
         t_nav_end = datetime.now()
-        self.record_stage("website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=nav_url)
+        self.record_stage(
+            "website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=nav_url
+        )
 
     async def click_smart_search(self, page: Page) -> None:
         """Step B: Click 'Smart Search' (Object: a.portlet-buttons[href*='/DALLASPROD/Home/Dashboard/29'])."""
@@ -192,7 +219,9 @@ class DallasScraper(BaseCourtScraper):
                 "#SearchCriteria"
             )
             if await _safe_count(search_input) > 0 and await _safe_is_visible(search_input):
-                logger.info(f"[{self.county_name}] Step B: Smart Search input already visible; proceeding.")
+                logger.info(
+                    f"[{self.county_name}] Step B: Smart Search input already visible; proceeding."
+                )
                 return
 
             smart_search_link = page.locator(
@@ -205,8 +234,12 @@ class DallasScraper(BaseCourtScraper):
                 "button:has-text('Smart Search'), "
                 "#tcControllerLink_0"
             )
-            if await _safe_count(smart_search_link) > 0 and await _safe_is_visible(smart_search_link):
-                logger.info(f"[{self.county_name}] Step B: Clicking 'Smart Search' portlet button...")
+            if await _safe_count(smart_search_link) > 0 and await _safe_is_visible(
+                smart_search_link
+            ):
+                logger.info(
+                    f"[{self.county_name}] Step B: Clicking 'Smart Search' portlet button..."
+                )
                 await self.biometric_click(page, smart_search_link.first)
                 await page.wait_for_timeout(1000)
         except Exception as e_smart:
@@ -249,7 +282,9 @@ class DallasScraper(BaseCourtScraper):
                     "input[value*='Continue session' i]"
                 )
                 if await _safe_count(continue_btn) > 0 and await _safe_is_visible(continue_btn):
-                    logger.warning(f"[{self.county_name}] Step G / Exception 2: 'Session timeout warning' detected; clicking 'Continue session'...")
+                    logger.warning(
+                        f"[{self.county_name}] Step G / Exception 2: 'Session timeout warning' detected; clicking 'Continue session'..."
+                    )
                     await self.biometric_click(page, continue_btn.first)
                     wait_fn = getattr(page, "wait_for_timeout", None)
                     if callable(wait_fn):
@@ -261,7 +296,9 @@ class DallasScraper(BaseCourtScraper):
                     raw_url = getattr(page, "url", None)
                     curr_url = raw_url if isinstance(raw_url, str) else ""
                     if curr_url and "Dashboard/29" not in curr_url:
-                        logger.info(f"[{self.county_name}] Navigated to home page after timeout; restarting from Smart Search (Step b)...")
+                        logger.info(
+                            f"[{self.county_name}] Navigated to home page after timeout; restarting from Smart Search (Step b)..."
+                        )
                         await self.click_smart_search(page)
                         await self.verify_search_page_loaded(page)
                     return True
@@ -272,7 +309,9 @@ class DallasScraper(BaseCourtScraper):
     async def return_to_search_state(self, page: Page) -> None:
         """Section 4: Return to Dallas search between unique names (Power Automate V4 Parity)."""
         try:
-            logger.info(f"[{self.county_name}] Section 4: Returning to search state for next unique name...")
+            logger.info(
+                f"[{self.county_name}] Section 4: Returning to search state for next unique name..."
+            )
             await self.check_and_handle_session_timeout(page)
 
             # Power Automate V4 Parity (Subflow_Dallas lines 137-140):
@@ -304,9 +343,7 @@ class DallasScraper(BaseCourtScraper):
                 await self.biometric_click(page, reset_link.first)
                 await page.wait_for_timeout(1000)
             else:
-                nav_url = self.base_url.rstrip("/")
-                if "Dashboard/29" not in nav_url:
-                    nav_url = f"{nav_url}/Dashboard/29"
+                nav_url = self._resolve_nav_url()
                 goto_fn = getattr(page, "goto", None)
                 if callable(goto_fn):
                     res_g = goto_fn(nav_url, wait_until="domcontentloaded")
@@ -363,7 +400,9 @@ class DallasScraper(BaseCourtScraper):
         max_attempts_to_use = max(getattr(self, "max_attempts", 2), 1)
 
         for attempt in range(1, max_attempts_to_use + 1):
-            logger.info(f"[{self.county_name}] Attempt {attempt}/{max_attempts_to_use} for '{query}'")
+            logger.info(
+                f"[{self.county_name}] Attempt {attempt}/{max_attempts_to_use} for '{query}'"
+            )
 
             # Check session timeout
             await self.check_and_handle_session_timeout(page)
@@ -379,11 +418,13 @@ class DallasScraper(BaseCourtScraper):
                 "#SearchCriteria"
             )
             if await _safe_count(search_input) > 0:
-                try:
-                    await search_input.first.wait_for(state="visible", timeout=10000)
-                except Exception:
-                    pass
-                await self.biometric_fill(search_input.first, query)
+                await self.interact_and_fill_field(
+                    page,
+                    "input#caseCriteria_SearchCriteria, #caseCriteria_SearchCriteria, #SearchCriteria",
+                    query,
+                    field_name="Smart Search Query (#caseCriteria_SearchCriteria)",
+                    timeout_ms=self.timeout_ms,
+                )
                 logger.info(f"[{self.county_name}] Step D: Entered search query: {query}")
                 await self.pace_action(page)
 
@@ -392,13 +433,19 @@ class DallasScraper(BaseCourtScraper):
 
             # Step E & H: CAPTCHA Resolution Wait (default 120s from Settings)
             t_cap_start = datetime.now()
-            captcha_ok = await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds)
+            captcha_ok = await self.detect_and_handle_captcha(
+                page, wait_seconds=self.captcha_wait_seconds
+            )
             t_cap_end = datetime.now()
 
             if captcha_ok:
                 captcha_success = True
-                self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="SUCCESS")
-                logger.info(f"[{self.county_name}] Step E: CAPTCHA verification succeeded on attempt {attempt}.")
+                self.record_stage(
+                    "captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="SUCCESS"
+                )
+                logger.info(
+                    f"[{self.county_name}] Step E: CAPTCHA verification succeeded on attempt {attempt}."
+                )
 
                 # Step G / Step I: Immediately click 'Submit' (Object: <input name="Search" id="btnSSSubmit" class="btn btn-primary pull-right" value="Submit" type="submit">)
                 t_sub_start = datetime.now()
@@ -412,7 +459,9 @@ class DallasScraper(BaseCourtScraper):
                     "button:has-text('Submit')"
                 )
                 if await _safe_count(submit_btn) > 0:
-                    logger.info(f"[{self.county_name}] Step G: Clicking 'Submit' button (#btnSSSubmit)...")
+                    logger.info(
+                        f"[{self.county_name}] Step G: Clicking 'Submit' button (#btnSSSubmit)..."
+                    )
                     await self.biometric_click(page, submit_btn.first)
                 else:
                     raise RuntimeError(f"[{self.county_name}] V4 Submit control was not found")
@@ -424,7 +473,9 @@ class DallasScraper(BaseCourtScraper):
                         body_text = await _get_page_text(page)
                         if "no cases match your search" in body_text.lower():
                             break
-                        row_candidates = page.locator(".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr")
+                        row_candidates = page.locator(
+                            ".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr"
+                        )
                         if await _safe_count(row_candidates) > 0:
                             break
                         await page.wait_for_timeout(400)
@@ -433,10 +484,16 @@ class DallasScraper(BaseCourtScraper):
 
                 t_sub_end = datetime.now()
                 self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
+
+                is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+                if is_blocked:
+                    raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs, portal_key=self.county_name)
                 break
             else:
                 # Step F: CAPTCHA Failure & Retry Handling
-                self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="TIMEOUT")
+                self.record_stage(
+                    "captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="TIMEOUT"
+                )
                 logger.warning(
                     f"[{self.county_name}] Step F: CAPTCHA verification failed on attempt {attempt}/{max_attempts_to_use}."
                 )
@@ -450,29 +507,53 @@ class DallasScraper(BaseCourtScraper):
                     except Exception as e_rel:
                         logger.debug(f"[{self.county_name}] Retry refresh note: {e_rel}")
                 else:
-                    logger.warning(f"[{self.county_name}] Max CAPTCHA retry attempts reached without verification.")
+                    logger.warning(
+                        f"[{self.county_name}] Max CAPTCHA retry attempts reached without verification."
+                    )
 
         if not captcha_success:
-            raise CaptchaResolutionError(f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts_to_use} attempts")
+            raise CaptchaResolutionError(
+                f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts_to_use} attempts"
+            )
 
         # Step J: Check for 'No cases match your search' / no records
         t_ext_start = datetime.now()
         body_text = await _get_page_text(page)
         lower_body = body_text.lower()
-        row_candidates = page.locator(".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr")
+        row_candidates = page.locator(
+            ".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr"
+        )
         has_rows = await _safe_count(row_candidates) > 0
-        norecords_el = page.locator(".k-grid-norecords, .norecords, div:has-text('No records to display')")
-        has_norecords = (await _safe_count(norecords_el) > 0)
-        is_no_match = any(phrase in lower_body for phrase in (
-            "no cases match your search", "no cases match", "no records found",
-            "no records to display", "no results found", "no cases found",
-            "0 records found", "0 items found", "no record found"
-        )) or (has_norecords and not has_rows)
+        norecords_el = page.locator(
+            ".k-grid-norecords, .norecords, div:has-text('No records to display')"
+        )
+        has_norecords = await _safe_count(norecords_el) > 0
+        is_no_match = any(
+            phrase in lower_body
+            for phrase in (
+                "no cases match your search",
+                "no cases match",
+                "no records found",
+                "no records to display",
+                "no results found",
+                "no cases found",
+                "0 records found",
+                "0 items found",
+                "no record found",
+            )
+        ) or (has_norecords and not has_rows)
 
         if is_no_match:
             logger.info(f"[{self.county_name}] Search for '{query}': No matching cases found.")
             t_ext_end = datetime.now()
-            self.record_stage("result_retrieval", "Result Retrieval", t_ext_start, t_ext_end, cases_found=0, result_category="No Record Found")
+            self.record_stage(
+                "result_retrieval",
+                "Result Retrieval",
+                t_ext_start,
+                t_ext_end,
+                cases_found=0,
+                result_category="No Record Found",
+            )
             await self.return_to_search_state(page)
             return []
 
@@ -503,9 +584,13 @@ class DallasScraper(BaseCourtScraper):
             page_start_count = len(results)
             page_cases: list[dict[str, Any]] = []
             page_signature: list[tuple[str, ...]] = []
-            rows = page.locator(".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr")
+            rows = page.locator(
+                ".k-grid-content tbody tr, table.k-selectable tbody tr, table tbody tr"
+            )
             row_count = await _safe_count(rows)
-            logger.info(f"[{self.county_name}] Step L: Page {page_num}: Found {row_count} potential result rows")
+            logger.info(
+                f"[{self.county_name}] Step L: Page {page_num}: Found {row_count} potential result rows"
+            )
 
             for i in range(row_count):
                 row = rows.nth(i)
@@ -550,7 +635,9 @@ class DallasScraper(BaseCourtScraper):
                         value = await _safe_get_attribute(link.first, "data-url")
                         detail_url = value if isinstance(value, str) else ""
                     if not detail_url:
-                        raise RuntimeError(f"[{self.county_name}] V4 result {case_num} has no case-detail data-url")
+                        raise RuntimeError(
+                            f"[{self.county_name}] V4 result {case_num} has no case-detail data-url"
+                        )
                     case_style = await self._read_v4_case_style(page, detail_url)
                 else:
                     # Some current portal views flatten the same result fields.
@@ -562,18 +649,32 @@ class DallasScraper(BaseCourtScraper):
                     case_type = cells[4].strip() if len(cells) > 4 else ""
 
                 if case_num and case_num.upper() not in _HEADER_LABELS:
-                    page_signature.append((*cells, case_num, case_style, filing_date, case_status, case_type, detail_url))
-                    page_cases.append({
-                        "CaseNumber": case_num,
-                        "CaseStyle": case_style,
-                        "FilingDate": filing_date,
-                        "CaseStatus": case_status,
-                        "CaseType": case_type,
-                    })
+                    page_signature.append(
+                        (
+                            *cells,
+                            case_num,
+                            case_style,
+                            filing_date,
+                            case_status,
+                            case_type,
+                            detail_url,
+                        )
+                    )
+                    page_cases.append(
+                        {
+                            "CaseNumber": case_num,
+                            "CaseStyle": case_style,
+                            "FilingDate": filing_date,
+                            "CaseStatus": case_status,
+                            "CaseType": case_type,
+                        }
+                    )
 
             signature = tuple(page_signature)
             if page_num > 1 and signature in seen_page_signatures:
-                raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results (repeated page)")
+                raise RuntimeError(
+                    f"[{self.county_name}] Pagination did not advance to new case results (repeated page)"
+                )
             seen_page_signatures.add(signature)
             results.extend(page_cases)
 
@@ -590,9 +691,13 @@ class DallasScraper(BaseCourtScraper):
                     has_next_page = False
                 else:
                     if page_num > 1 and len(results) == page_start_count:
-                        raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
+                        raise RuntimeError(
+                            f"[{self.county_name}] Pagination did not advance to new case results"
+                        )
                     try:
-                        logger.info(f"[{self.county_name}] Step L: Advancing to page {page_num + 1}...")
+                        logger.info(
+                            f"[{self.county_name}] Step L: Advancing to page {page_num + 1}..."
+                        )
                         old_case = results[-1]["CaseNumber"] if results else ""
                         await self.biometric_click(page, next_btn.first)
                         try:
@@ -616,7 +721,14 @@ class DallasScraper(BaseCourtScraper):
         if not results:
             logger.info(f"[{self.county_name}] No cases extracted from result grid for '{query}'.")
             t_ext_end = datetime.now()
-            self.record_stage("result_retrieval", "Result Retrieval", t_ext_start, t_ext_end, cases_found=0, result_category="No Record Found")
+            self.record_stage(
+                "result_retrieval",
+                "Result Retrieval",
+                t_ext_start,
+                t_ext_end,
+                cases_found=0,
+                result_category="No Record Found",
+            )
             await self.return_to_search_state(page)
             return []
 
@@ -634,14 +746,27 @@ class DallasScraper(BaseCourtScraper):
         await self.return_to_search_state(page)
 
         return results
+
     async def _read_v4_case_style(self, page: Page, detail_url: str) -> str:
         """Read the case style from the detail tab used by the V4 Dallas flow."""
         detail_page = await page.context.new_page()
         try:
-            await detail_page.goto(urljoin(self.base_url, detail_url), wait_until="domcontentloaded", timeout=self.timeout_ms)
-            style = (await _safe_inner_text(detail_page.locator("#divCaseInformation_body p.text-primary, div.row div.col-md-12 p.text-primary").first)).strip()
+            await detail_page.goto(
+                urljoin(self.base_url, detail_url),
+                wait_until="domcontentloaded",
+                timeout=self.timeout_ms,
+            )
+            style = (
+                await _safe_inner_text(
+                    detail_page.locator(
+                        "#divCaseInformation_body p.text-primary, div.row div.col-md-12 p.text-primary"
+                    ).first
+                )
+            ).strip()
             if not style:
-                raise RuntimeError(f"[{self.county_name}] Case detail did not provide a case style: {detail_url}")
+                raise RuntimeError(
+                    f"[{self.county_name}] Case detail did not provide a case style: {detail_url}"
+                )
             return re.sub(r"[-\\/|]", "", style).strip()
         finally:
             await detail_page.close()

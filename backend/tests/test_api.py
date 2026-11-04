@@ -48,10 +48,13 @@ async def test_claims_stats_endpoint():
 @pytest.mark.asyncio
 async def test_queue_status_endpoint():
     from unittest.mock import patch
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("app.api.v1.endpoints.queue.celery_app.control.ping", return_value=[]), \
-             patch("redis.Redis.from_url") as mock_redis:
+        with (
+            patch("app.api.v1.endpoints.queue.celery_app.control.ping", return_value=[]),
+            patch("redis.Redis.from_url") as mock_redis,
+        ):
             mock_redis.return_value.llen.return_value = 0
             response = await client.get("/api/v1/queue/status")
             assert response.status_code == 200
@@ -155,13 +158,17 @@ async def test_browser_execution_test_endpoint(monkeypatch):
     mock_session.warning_message = None
 
     mock_session_cls = MagicMock(return_value=mock_session)
-    mock_session_cls.find_chrome_executable.return_value = "C:/Program Files/Google/Chrome/Application/chrome.exe"
+    mock_session_cls.find_chrome_executable.return_value = (
+        "C:/Program Files/Google/Chrome/Application/chrome.exe"
+    )
     monkeypatch.setattr("app.api.v1.endpoints.settings.ChromeSession", mock_session_cls)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Test Attended Mode
-        res1 = await client.post("/api/v1/settings/test-browser", json={"headless": False, "browser_engine": "chromium"})
+        res1 = await client.post(
+            "/api/v1/settings/test-browser", json={"headless": False, "browser_engine": "chromium"}
+        )
         assert res1.status_code == 200
         d1 = res1.json()
         assert d1["success"] is True
@@ -174,7 +181,9 @@ async def test_browser_execution_test_endpoint(monkeypatch):
         assert d1["page_title"] == "Example Domain"
 
         # Test Headless Mode
-        res2 = await client.post("/api/v1/settings/test-browser", json={"headless": True, "browser_engine": "msedge"})
+        res2 = await client.post(
+            "/api/v1/settings/test-browser", json={"headless": True, "browser_engine": "msedge"}
+        )
         assert res2.status_code == 200
         d2 = res2.json()
         assert d2["success"] is True
@@ -207,12 +216,16 @@ async def test_browser_test_endpoint_live_extension_verification(monkeypatch):
     mock_session.warning_message = "Google Chrome Stable on Windows ignored --load-extension."
 
     mock_session_cls = MagicMock(return_value=mock_session)
-    mock_session_cls.find_chrome_executable.return_value = "C:/Program Files/Google/Chrome/Application/chrome.exe"
+    mock_session_cls.find_chrome_executable.return_value = (
+        "C:/Program Files/Google/Chrome/Application/chrome.exe"
+    )
     monkeypatch.setattr("app.api.v1.endpoints.settings.ChromeSession", mock_session_cls)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        res = await client.post("/api/v1/settings/test-browser", json={"headless": False, "browser_engine": "chrome"})
+        res = await client.post(
+            "/api/v1/settings/test-browser", json={"headless": False, "browser_engine": "chrome"}
+        )
         assert res.status_code == 200
         data = res.json()
         assert data["success"] is True
@@ -252,4 +265,3 @@ async def test_browser_test_page_favicon_links():
         res = await client.get("/api/v1/settings/browser-test-page")
         assert res.status_code == 200
         assert '<link rel="icon" type="image/x-icon" href="/favicon.ico">' in res.text
-

@@ -1,13 +1,15 @@
 """Diagnostic script to check system settings and claim failure causes."""
 import asyncio
 import sys
+
 sys.path.insert(0, '.')
 
 async def main():
-    from app.services.settings_service import get_system_settings_async
+    from sqlalchemy import func, select
+
     from app.core.database import TaskAsyncSessionLocal
     from app.models.claim import ClaimRecord, RecordStatusEnum
-    from sqlalchemy import select, func
+    from app.services.settings_service import get_system_settings_async
 
     settings = await get_system_settings_async()
     auto_cfg = settings.automation

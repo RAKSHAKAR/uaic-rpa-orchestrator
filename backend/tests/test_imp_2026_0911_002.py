@@ -136,8 +136,13 @@ async def test_match_exceptions_export_xlsx():
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/api/v1/matches/export?format=xlsx")
         assert response.status_code == 200
-        assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in response.headers.get("content-type", "")
-        assert "attachment; filename=exceptions_export_" in response.headers.get("content-disposition", "")
+        assert (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            in response.headers.get("content-type", "")
+        )
+        assert "attachment; filename=exceptions_export_" in response.headers.get(
+            "content-disposition", ""
+        )
         assert response.content.startswith(b"PK"), "Excel output must start with ZIP magic bytes PK"
 
 

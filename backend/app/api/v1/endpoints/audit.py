@@ -143,7 +143,10 @@ async def list_audit_logs(
     start_date: str | None = Query(None, description="Start date ISO string (alias for date_from)"),
     end_date: str | None = Query(None, description="End date ISO string (alias for date_to)"),
     search: str | None = Query(None, description="Search keyword"),
-    sort_by: str = Query("timestamp", description="Column to sort by: timestamp, action, entity_type, status, user_id, claim_number"),
+    sort_by: str = Query(
+        "timestamp",
+        description="Column to sort by: timestamp, action, entity_type, status, user_id, claim_number",
+    ),
     sort_dir: str = Query("desc", description="Sort direction: asc or desc"),
     db: AsyncSession = Depends(get_db),
 ) -> AuditLogListResponse:
@@ -220,7 +223,9 @@ async def get_audit_log_stats(
     by_action = {row[0]: row[1] for row in action_rows}
 
     # Counts by entity type
-    entity_stmt = select(AuditLog.entity_type, func.count(AuditLog.id)).group_by(AuditLog.entity_type)
+    entity_stmt = select(AuditLog.entity_type, func.count(AuditLog.id)).group_by(
+        AuditLog.entity_type
+    )
     entity_rows = (await db.execute(entity_stmt)).all()
     by_entity = {row[0]: row[1] for row in entity_rows}
 
@@ -249,7 +254,9 @@ async def get_audit_log_stats(
 
 @router.get("/export")
 async def export_audit_logs(
-    format: str = Query("csv", pattern="^(csv|json|xlsx|pdf)$", description="Export format: csv, json, xlsx, or pdf"),
+    format: str = Query(
+        "csv", pattern="^(csv|json|xlsx|pdf)$", description="Export format: csv, json, xlsx, or pdf"
+    ),
     action: str | None = Query(None),
     entity_type: str | None = Query(None),
     entity_id: str | None = Query(None),
@@ -285,10 +292,7 @@ async def export_audit_logs(
     filename_ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
     if format == "json":
-        data = [
-            AuditLogResponse.model_validate(item).model_dump(mode="json")
-            for item in items
-        ]
+        data = [AuditLogResponse.model_validate(item).model_dump(mode="json") for item in items]
         content = json.dumps(data, indent=2)
         return Response(
             content=content,
@@ -300,6 +304,7 @@ async def export_audit_logs(
 
     if format == "xlsx":
         import pandas as pd
+
         rows = [
             {
                 "ID": item.id,
@@ -332,6 +337,7 @@ async def export_audit_logs(
 
     if format == "pdf":
         import asyncio
+
         try:
             pdf_bytes = await asyncio.to_thread(_render_audit_pdf_sync, items)
             return Response(
@@ -345,7 +351,7 @@ async def export_audit_logs(
         except Exception as e:
             logger.error(f"Error generating audit PDF: {e}")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=500,
                 detail=f"Failed to generate audit PDF report: {e}",
             )
 
@@ -393,9 +399,7 @@ async def export_audit_logs(
     return Response(
         content=csv_data,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="audit_logs_{filename_ts}.csv"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="audit_logs_{filename_ts}.csv"'},
     )
 
 
@@ -432,7 +436,7 @@ def _render_audit_pdf_sync(items: list) -> bytes:
 </head>
 <body>
   <h1>UAIC Claim & RPA Orchestrator — Audit Trail & Provenance Ledger</h1>
-  <div class="meta">Generated on {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')} • Total Filtered Records: {len(items)} • Compliance & Governance Standard §73</div>
+  <div class="meta">Generated on {datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")} • Total Filtered Records: {len(items)} • Compliance & Governance Standard §73</div>
   <table>
     <thead>
       <tr>

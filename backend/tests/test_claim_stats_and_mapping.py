@@ -88,7 +88,11 @@ def test_map_claim_to_response_filing_date_aliases():
         county_website="https://www.browardclerk.org",
         case_status="Open",
         case_type="Civil",
-        raw_payload={"FilingDate": "12/26/2023", "CaseStatus": "Open", "PartyNameSearched": "Jane Doe"},
+        raw_payload={
+            "FilingDate": "12/26/2023",
+            "CaseStatus": "Open",
+            "PartyNameSearched": "Jane Doe",
+        },
         created_at=datetime.now(UTC),
     )
     base_claim.scraped_cases = [case1]
@@ -119,7 +123,9 @@ def test_map_claim_to_response_filing_date_aliases():
 
     # Test alias 6: JSON body fallback when scraped_cases is empty
     base_claim.scraped_cases = []
-    base_claim.fl_jsonbody_broward = [{"CaseNumber": "2024-CA-999", "CaseStyle": "Test vs State", "FilingDate": "01/15/2024"}]
+    base_claim.fl_jsonbody_broward = [
+        {"CaseNumber": "2024-CA-999", "CaseStyle": "Test vs State", "FilingDate": "01/15/2024"}
+    ]
     mapped = _map_claim_to_response(base_claim)
     assert len(mapped.court_cases) == 1
     assert mapped.court_cases[0].case_number == "2024-CA-999"

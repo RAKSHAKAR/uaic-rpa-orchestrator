@@ -1,0 +1,11 @@
+<environmentvariabledefinition schemaname="uaic_Var_HTTP_ActivityCreation_Dev">
+  <defaultvalue>https://uaic-gwcp-prod-igoauthproxy.api.delta4-andromeda.guidewire.net/api/powerapps/caseupdate</defaultvalue>
+  <displayname default="Var_HTTP_ActivityCreation">
+    <label description="Var_HTTP_ActivityCreation" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

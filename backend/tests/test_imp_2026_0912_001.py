@@ -45,6 +45,7 @@ async def setup_database():
 
 # ── 1. Unique-Name Generation & Fuzzy Deduplication Tests ─────────────────────
 
+
 def test_generate_unique_names_all_distinct():
     """When Insured, Driver, and Claimant are all distinct, generate 3 unique names."""
     claim = ClaimRecord(
@@ -66,19 +67,21 @@ def test_generate_unique_names_all_distinct():
 
 def test_generate_unique_names_all_identical():
     """When Insured, Driver, and Claimant are the same person, collapse to 1 unique name."""
+    # NOTE: John Doe / Jane Doe are correctly filtered as placeholder names by business rules.
+    # Use a real non-placeholder name here.
     claim = ClaimRecord(
         claim_number="CLM-UNIQ-002",
-        insured_first_name="John",
-        insured_last_name="Doe",
-        driver_first_name="John",
-        driver_last_name="Doe",
-        claimant_first_name="John",
-        claimant_last_name="Doe",
+        insured_first_name="Carlos",
+        insured_last_name="Ramirez",
+        driver_first_name="Carlos",
+        driver_last_name="Ramirez",
+        claimant_first_name="Carlos",
+        claimant_last_name="Ramirez",
     )
     names = generate_unique_names_for_claim(claim)
     assert len(names) == 1
-    assert names[0]["first_name"] == "John"
-    assert names[0]["last_name"] == "Doe"
+    assert names[0]["first_name"] == "Carlos"
+    assert names[0]["last_name"] == "Ramirez"
     assert names[0]["party_type"] == "Insured"
 
 
@@ -115,11 +118,15 @@ def test_generate_unique_names_missing_parties():
 
 # ── 2. Search Count Derivation (DualSearch / TripleSearch) ───────────────────
 
+
 def test_derive_search_counts_fuzzy_all_same():
     claim = ClaimRecord(
-        insured_first_name="John", insured_last_name="Doe",
-        driver_first_name="John", driver_last_name="Doe",
-        claimant_first_name="John", claimant_last_name="Doe",
+        insured_first_name="John",
+        insured_last_name="Doe",
+        driver_first_name="John",
+        driver_last_name="Doe",
+        claimant_first_name="John",
+        claimant_last_name="Doe",
     )
     dual, triple = derive_search_counts_fuzzy(claim)
     assert dual == 1
@@ -128,9 +135,12 @@ def test_derive_search_counts_fuzzy_all_same():
 
 def test_derive_search_counts_fuzzy_insured_equals_driver():
     claim = ClaimRecord(
-        insured_first_name="John", insured_last_name="Doe",
-        driver_first_name="John", driver_last_name="Doe",
-        claimant_first_name="Mary", claimant_last_name="Smith",
+        insured_first_name="John",
+        insured_last_name="Doe",
+        driver_first_name="John",
+        driver_last_name="Doe",
+        claimant_first_name="Mary",
+        claimant_last_name="Smith",
     )
     dual, triple = derive_search_counts_fuzzy(claim)
     assert dual == 1
@@ -139,9 +149,12 @@ def test_derive_search_counts_fuzzy_insured_equals_driver():
 
 def test_derive_search_counts_fuzzy_insured_equals_claimant():
     claim = ClaimRecord(
-        insured_first_name="John", insured_last_name="Doe",
-        driver_first_name="Bob", driver_last_name="Jones",
-        claimant_first_name="John", claimant_last_name="Doe",
+        insured_first_name="John",
+        insured_last_name="Doe",
+        driver_first_name="Bob",
+        driver_last_name="Jones",
+        claimant_first_name="John",
+        claimant_last_name="Doe",
     )
     dual, triple = derive_search_counts_fuzzy(claim)
     assert dual == 2
@@ -150,9 +163,12 @@ def test_derive_search_counts_fuzzy_insured_equals_claimant():
 
 def test_derive_search_counts_fuzzy_driver_equals_claimant():
     claim = ClaimRecord(
-        insured_first_name="Alice", insured_last_name="Wonderland",
-        driver_first_name="John", driver_last_name="Doe",
-        claimant_first_name="John", claimant_last_name="Doe",
+        insured_first_name="Alice",
+        insured_last_name="Wonderland",
+        driver_first_name="John",
+        driver_last_name="Doe",
+        claimant_first_name="John",
+        claimant_last_name="Doe",
     )
     dual, triple = derive_search_counts_fuzzy(claim)
     assert dual == 2
@@ -161,9 +177,12 @@ def test_derive_search_counts_fuzzy_driver_equals_claimant():
 
 def test_derive_search_counts_fuzzy_all_different():
     claim = ClaimRecord(
-        insured_first_name="Alice", insured_last_name="Wonderland",
-        driver_first_name="Bob", driver_last_name="Marley",
-        claimant_first_name="Charlie", claimant_last_name="Chaplin",
+        insured_first_name="Alice",
+        insured_last_name="Wonderland",
+        driver_first_name="Bob",
+        driver_last_name="Marley",
+        claimant_first_name="Charlie",
+        claimant_last_name="Chaplin",
     )
     dual, triple = derive_search_counts_fuzzy(claim)
     assert dual == 2
@@ -171,6 +190,7 @@ def test_derive_search_counts_fuzzy_all_different():
 
 
 # ── 3. Portal Cooldown Service Tests ──────────────────────────────────────────
+
 
 def test_portal_cooldown_lifecycle():
     portal = "broward"
@@ -198,6 +218,7 @@ def test_portal_cooldown_lifecycle():
 
 
 # ── 4. Security Block Detection & Logging Tests ──────────────────────────────
+
 
 def test_detect_security_block_http_429():
     with pytest.raises(SecurityBlockException) as exc_info:
@@ -256,6 +277,7 @@ def test_log_security_block_event(tmp_path):
 
 # ── 5. /fuzzymatchapi & /unique-names Endpoints Tests ─────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_legacy_fuzzymatchapi_root_endpoint():
     """Verify legacy Power Automate parity endpoint at root POST /fuzzymatchapi."""
@@ -306,6 +328,7 @@ async def test_api_v1_unique_names_endpoint():
 
 # ── 6. Deprecated Fields Absence Verification ─────────────────────────────────
 
+
 def test_deprecated_fields_absent_from_target_fields():
     """Ensure the 4 deprecated fields are permanently absent from ingest mapping."""
     deprecated_fields = [
@@ -315,10 +338,13 @@ def test_deprecated_fields_absent_from_target_fields():
         "Garaging State",
     ]
     for field in deprecated_fields:
-        assert field not in TARGET_CLAIM_FIELDS, f"Deprecated field '{field}' must not be present in TARGET_CLAIM_FIELDS"
+        assert field not in TARGET_CLAIM_FIELDS, (
+            f"Deprecated field '{field}' must not be present in TARGET_CLAIM_FIELDS"
+        )
 
 
 # ── 7. BotStatusEnum & Auto-Queue Verification ────────────────────────────────
+
 
 def test_bot_status_enum_blocked():
     """Ensure BotStatusEnum has BLOCKED member."""
@@ -329,6 +355,7 @@ def test_bot_status_enum_blocked():
 def test_auto_queue_default_enabled():
     """Verify auto-queue is enabled by default when unconfigured."""
     from app.tasks.queue_runner import AUTO_MODE_KEY, get_redis_client, set_auto_queue_enabled
+
     r = get_redis_client()
     try:
         r.delete(AUTO_MODE_KEY)

@@ -229,17 +229,31 @@ async def test_search_by_party_name_full_workflow_and_strict_schema(scraper):
     mock_row1 = MagicMock()
     mock_tds1 = MagicMock()
     mock_tds1.count = AsyncMock(return_value=6)
-    mock_tds1.all_inner_texts = AsyncMock(return_value=[
-        "123456", "ACTIVE", "01/15/2023", "Court 1", "Civil", "DOE, JOHN VS ROE, JANE"
-    ])
+    mock_tds1.all_inner_texts = AsyncMock(
+        return_value=[
+            "123456",
+            "ACTIVE",
+            "01/15/2023",
+            "Court 1",
+            "Civil",
+            "DOE, JOHN VS ROE, JANE",
+        ]
+    )
     mock_row1.locator.return_value = mock_tds1
 
     mock_row2 = MagicMock()
     mock_tds2 = MagicMock()
     mock_tds2.count = AsyncMock(return_value=6)
-    mock_tds2.all_inner_texts = AsyncMock(return_value=[
-        "123456", "CLOSED", "05/20/2024", "Court 2", "Civil", "DOE, JOHN VS SMITH, BOB"
-    ])
+    mock_tds2.all_inner_texts = AsyncMock(
+        return_value=[
+            "123456",
+            "CLOSED",
+            "05/20/2024",
+            "Court 2",
+            "Civil",
+            "DOE, JOHN VS SMITH, BOB",
+        ]
+    )
     mock_row2.locator.return_value = mock_tds2
 
     mock_rows = MagicMock()
@@ -328,14 +342,18 @@ async def test_pagination_traversal(scraper):
     row_p1 = MagicMock()
     tds_p1 = MagicMock()
     tds_p1.count = AsyncMock(return_value=6)
-    tds_p1.all_inner_texts = AsyncMock(return_value=["CASE-PAGE-1", "ACTIVE", "01/01/2023", "C1", "Type", "STYLE 1"])
+    tds_p1.all_inner_texts = AsyncMock(
+        return_value=["CASE-PAGE-1", "ACTIVE", "01/01/2023", "C1", "Type", "STYLE 1"]
+    )
     row_p1.locator.return_value = tds_p1
 
     # Page 2 row
     row_p2 = MagicMock()
     tds_p2 = MagicMock()
     tds_p2.count = AsyncMock(return_value=6)
-    tds_p2.all_inner_texts = AsyncMock(return_value=["CASE-PAGE-2", "CLOSED", "02/01/2023", "C2", "Type", "STYLE 2"])
+    tds_p2.all_inner_texts = AsyncMock(
+        return_value=["CASE-PAGE-2", "CLOSED", "02/01/2023", "C2", "Type", "STYLE 2"]
+    )
     row_p2.locator.return_value = tds_p2
 
     rows_p1 = MagicMock()
@@ -410,7 +428,9 @@ async def test_repeated_result_page_fails_before_second_next_click(scraper):
     row = MagicMock()
     tds = MagicMock()
     tds.count = AsyncMock(return_value=6)
-    tds.all_inner_texts = AsyncMock(return_value=["CASE-1", "ACTIVE", "01/01/2023", "C1", "Civil", "STYLE"])
+    tds.all_inner_texts = AsyncMock(
+        return_value=["CASE-1", "ACTIVE", "01/01/2023", "C1", "Civil", "STYLE"]
+    )
     row.locator.return_value = tds
     rows = MagicMock()
     rows.count = AsyncMock(return_value=1)
@@ -593,7 +613,9 @@ async def test_step_d_exact_txtfrom2_selector_targeted(scraper):
 
     await scraper.search_by_party_name("Jane", "Doe", page, date_of_loss="01/15/2024")
 
-    assert any("txtFrom2" in s for s in captured_selectors), "Selector list should prioritize txtFrom2"
+    assert any("txtFrom2" in s for s in captured_selectors), (
+        "Selector list should prioritize txtFrom2"
+    )
     assert any("ctl00_ContentPlaceHolder1_txtFrom2" in s for s in captured_selectors)
 
 
@@ -739,5 +761,7 @@ async def test_step_b_exact_county_civil_href_targeted(scraper):
 
     await scraper._navigate_to_county_civil(page)
 
-    assert any("/Applications/WebSearch/CourtSearch.aspx?CaseType=Civil" in s for s in captured_selectors)
+    assert any(
+        "/Applications/WebSearch/CourtSearch.aspx?CaseType=Civil" in s for s in captured_selectors
+    )
     mock_civil.click.assert_awaited_once()

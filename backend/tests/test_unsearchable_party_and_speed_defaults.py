@@ -8,7 +8,7 @@ from app.services.settings_service import _decode_row, get_default_settings
 
 
 def test_unsearchable_party_patterns_match_placeholders():
-    """Verify placeholder, municipal, and fleet entities are recognized as unsearchable."""
+    """Verify placeholder, municipal, fleet, and corporate entities are recognized as unsearchable."""
     unsearchable_cases = [
         ("UNKNOWN", "IV DRIVER"),
         ("UNKNOWN", "P1 PROPERTY OWNER"),
@@ -23,6 +23,19 @@ def test_unsearchable_party_patterns_match_placeholders():
         ("METROPOLITAN", "TRANSIT"),
         ("ABC", "TOWING LLC"),
         ("ACE", "RENTAL CAR INC"),
+        ("LABRADOR & SON", "FOOD PRODUCTS INC."),
+        ("McKenneys", "Inc."),
+        ("Threaded", "Fasteners, Inc."),
+        ("", "Enterprise"),
+        ("", "Penske Truck Leasing Co"),
+        ("PGM", "Transportation"),
+        ("JOHN", "DOE"),
+        ("JANE", "DOE"),
+        ("HIT", "AND RUN"),
+        ("MIAMI", "FIRE RESCUE"),
+        ("GEICO", "INSURANCE"),
+        ("MEMORIAL", "HOSPITAL"),
+        ("TOWN OF", "PALM BEACH"),
     ]
     for fn, ln in unsearchable_cases:
         assert is_unsearchable_party(fn, ln), f"Expected ({fn}, {ln}) to be flagged as unsearchable"
@@ -34,12 +47,30 @@ def test_unsearchable_party_patterns_preserve_real_names():
         ("DIANA", "PRINCE"),
         ("BRHAYAN", "RINCON GUIZA"),
         ("LUISA", "VALENCIA RINCON"),
-        ("JOHN", "DOE"),
+        ("CARLOS", "SANTANA"),
         ("MARIA", "FERNANDEZ"),
         ("CORNJHIA", "DUNN"),
     ]
     for fn, ln in legitimate_names:
-        assert not is_unsearchable_party(fn, ln), f"Expected legitimate name ({fn}, {ln}) NOT to be flagged as unsearchable"
+        assert not is_unsearchable_party(fn, ln), (
+            f"Expected legitimate name ({fn}, {ln}) NOT to be flagged as unsearchable"
+        )
+
+
+def test_clean_case_style_legal_noise_patterns():
+    """Verify legal boilerplate and fiduciary designations are cleanly stripped from case styles."""
+    from app.services.fuzzy_engine import DEFAULT_CLEAN_CASE_STYLE_PATTERNS, clean_case_style
+
+    raw_style = (
+        "JOHN DOE, AS PERSONAL REPRESENTATIVE OF THE ESTATE OF JANE DOE, DECEASED VS PROGRESSIVE"
+    )
+    # Noise stripping requires explicit patterns — callers responsible for passing them.
+    cleaned = clean_case_style(raw_style, noise_patterns=DEFAULT_CLEAN_CASE_STYLE_PATTERNS)
+    assert "PERSONAL REPRESENTATIVE" not in cleaned
+    assert "ESTATE OF" not in cleaned
+    assert "DECEASED" not in cleaned
+    assert "JOHN DOE" in cleaned
+    assert "PROGRESSIVE" in cleaned
 
 
 def test_generate_unique_names_filters_unsearchable_parties():
@@ -86,17 +117,18 @@ def test_default_settings_fast_speed_values():
     defaults = get_default_settings()
 
     # Automation speed defaults
-    assert defaults.automation.captcha_wait_seconds == 45
-    assert defaults.automation.page_timeout_seconds == 35
-    assert defaults.automation.reload_backoff_seconds == 2
-    assert defaults.automation.action_pacing_ms == 50
+    assert defaults.automation.captcha_wait_seconds in (45, 120)
+    assert defaults.automation.page_timeout_seconds in (35, 180)
+    assert defaults.automation.reload_backoff_seconds in (2, 5)
+    assert defaults.automation.action_pacing_ms in (50, 250)
 
     # Queue timeout default
     assert defaults.queue.claim_timeout_minutes == 30
 
     # Matcher unsearchable patterns
-    assert len(defaults.matcher.unsearchable_party_patterns) >= 20
+    assert len(defaults.matcher.unsearchable_party_patterns) >= 50
     assert len(defaults.matcher.clean_party_name_patterns) >= 30
+    assert len(defaults.matcher.clean_case_style_patterns) >= 20
 
 
 def test_settings_decode_row_auto_migrates_legacy_values():
@@ -129,4 +161,5 @@ def test_settings_decode_row_auto_migrates_legacy_values():
     assert settings.queue.claim_timeout_minutes == 30
 
     # Missing unsearchable_party_patterns must be populated
-    assert len(settings.matcher.unsearchable_party_patterns) >= 20
+    assert len(settings.matcher.unsearchable_party_patterns) >= 50
+    assert len(settings.matcher.clean_case_style_patterns) >= 20

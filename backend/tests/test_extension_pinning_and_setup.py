@@ -42,7 +42,9 @@ async def test_persistent_profile_toolbar_pinning_preferences(tmp_path: Path):
     # 2. Verify modern Chromium (v115+) toolbar.pinned_actions
     pinned_actions = prefs.get("toolbar", {}).get("pinned_actions", [])
     expected_action_id = "kActionExtensionId:gcpdbjbmekkdlkpldjgffhmapgpdlcpj"
-    assert expected_action_id in pinned_actions or "gcpdbjbmekkdlkpldjgffhmapgpdlcpj" in pinned_actions
+    assert (
+        expected_action_id in pinned_actions or "gcpdbjbmekkdlkpldjgffhmapgpdlcpj" in pinned_actions
+    )
 
     # 3. Verify browser toolbar menu is enabled
     assert prefs.get("browser", {}).get("show_extensions_toolbar_menu") is True
@@ -110,7 +112,9 @@ def test_scraper_runtime_selects_persistent_profile(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_automatic_preflight_pinning_on_automation_startup(mocker, tmp_path: Path):
     """Verify SingleSessionBrowserRunner automatically invokes ChromeSession.configure_and_pin_profile on enter."""
-    mock_pin = mocker.patch("app.automation.browser_manager.ChromeSession.configure_and_pin_profile")
+    mock_pin = mocker.patch(
+        "app.automation.browser_manager.ChromeSession.configure_and_pin_profile"
+    )
     mocker.patch("app.automation.session_runner.async_playwright")
 
     custom_profile = tmp_path / "auto_profile"
@@ -131,10 +135,15 @@ async def test_automatic_preflight_pinning_on_automation_startup(mocker, tmp_pat
     mock_pw.chromium.launch_persistent_context = AsyncMock(return_value=mock_context)
 
     mock_pw_starter = AsyncMock(return_value=mock_pw)
-    mocker.patch("app.automation.session_runner.async_playwright", return_value=MagicMock(start=mock_pw_starter))
+    mocker.patch(
+        "app.automation.session_runner.async_playwright",
+        return_value=MagicMock(start=mock_pw_starter),
+    )
 
     async with runner:
         pass
 
     # Verify configure_and_pin_profile was automatically called before context launch
-    assert mock_pin.called, "ChromeSession.configure_and_pin_profile must be called automatically on startup"
+    assert mock_pin.called, (
+        "ChromeSession.configure_and_pin_profile must be called automatically on startup"
+    )

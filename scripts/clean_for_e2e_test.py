@@ -3,8 +3,8 @@ Full clean: Reset ALL claims to 'new' status via bulk-status change,
 then delete ALL claims, re-prepare for fresh test with the two Excel files.
 """
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 
 BASE = "http://localhost:8000/api/v1"
 

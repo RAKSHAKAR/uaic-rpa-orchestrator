@@ -1,7 +1,8 @@
 import os
-import sys
 import time
+
 from playwright.sync_api import sync_playwright
+
 
 def main():
     images_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "implementation_plan", "Images"))

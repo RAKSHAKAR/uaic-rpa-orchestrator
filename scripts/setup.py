@@ -11,11 +11,11 @@ Usage:
     python setup.py --test              # Run 46-test verification suite
 """
 
-import sys
-import os
 import argparse
-import subprocess
+import os
 import shutil
+import subprocess
+import sys
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BACKEND_DIR = os.path.join(ROOT_DIR, "backend")

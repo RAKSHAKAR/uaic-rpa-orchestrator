@@ -64,7 +64,7 @@ Bot_UAIC/
 │   │       ├── retry_tasks.py     # Retry failed/stuck claims
 │   │       ├── export_tasks.py    # Async streaming export
 │   │       └── notification_tasks.py # Email alert dispatch
-│   └── tests/                 # 556 tests (75 modules), 2 pre-existing skips
+│   └── tests/                 # 562 tests (76 modules), 2 pre-existing skips
 │       └── e2e/               # Mirrored to root e2e/backend/
 ├── frontend/                  # Next.js 14 App Router
 │   └── src/
@@ -87,6 +87,7 @@ Bot_UAIC/
 │   ├── frontend/              # Frontend E2E placeholder
 │   └── README.md
 ├── docs/                      # Operator manuals & reference material
+│   ├── STAGE_AND_STATUS_DEFINITIONS.md # Authoritative stage & status definitions manual
 │   ├── COURT_PORTALS_GUIDE.md
 │   ├── EMAIL_AND_NOTIFICATIONS_GUIDE.md
 │   ├── STORAGE_AND_EXPORTS_GUIDE.md
@@ -164,7 +165,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 | Method | Path | Description |
 |---|---|---|
 | GET | /api/v1/health | Basic health |
-| GET | /api/v1/health/detailed | Full system health (8 components + 8 portals) |
+| GET | /api/v1/health/detailed | Full system health (8 components + 8 portals + routing compliance summary) |
 | GET/POST | /api/v1/health/portals/{key}/ping | Portal reachability test |
 | GET | /api/v1/claims | List claims (paginated, filterable, sortable) |
 | POST | /api/v1/claims | Create claim |
@@ -177,7 +178,7 @@ te_jsonbody_cclerk, te_jsonbody_dallas, te_jsonbody_harris, te_jsonbody_hcdistri
 | POST | /api/v1/claims/{id}/run-bot/{key} | Run single portal bot |
 | GET | /api/v1/claims/{id}/export | Export single claim (xlsx/csv/json/pdf) |
 | GET | /api/v1/claims/stats | Aggregate stats |
-| GET | /api/v1/claims/export | Bulk export |
+| GET | /api/v1/claims/export | Bulk export (Excel 3-sheet, CSV summary/telemetry/cases) |
 | POST | /api/v1/claims/bulk-delete | Bulk delete |
 | POST | /api/v1/claims/bulk-start | Bulk start |
 | POST | /api/v1/claims/bulk-retry | Bulk retry |
@@ -380,3 +381,34 @@ Any AI tool working on this codebase should read this file FIRST before making c
 - `implementation_plan/README.md` — Documentation system guide (naming, IDs, lifecycle, anti-patterns)
 - Implementation ID format: `IMP-YYYY-MMDD-NNN`
 - Naming convention: `YYYY-MM-DD_uaic_<feature>_<doc-type>_v<N>.md`
+
+---
+
+## 13. Universal AI Development Workflow & Skills Framework
+
+The repository incorporates the **Universal AI Development Workflow & Skills Framework** (`IMP-2026-1031-001`), establishing **145 production-grade AI skills and workflows** covering the entire software engineering lifecycle.
+
+### Key Framework Locations
+- **Master Framework Guide**: [`AI_WORKFLOW_LIBRARY/README.md`](file:///AI_WORKFLOW_LIBRARY/README.md)
+- **Skills Catalogue (145 Skills)**: [`AI_WORKFLOW_LIBRARY/CATALOGUE.md`](file:///AI_WORKFLOW_LIBRARY/CATALOGUE.md)
+- **Compatibility Matrix**: [`AI_WORKFLOW_LIBRARY/COMPATIBILITY_MATRIX.md`](file:///AI_WORKFLOW_LIBRARY/COMPATIBILITY_MATRIX.md)
+- **Live Active Discovery Root**: [`.agents/skills/`](file:///.agents/skills/) (Google Antigravity & OpenAI Codex)
+- **Implementation Plan**: [`docs/2026-10-31_uaic_universal_ai_development_workflow_skills_framework_implementation_plan_v1.md`](file:///docs/2026-10-31_uaic_universal_ai_development_workflow_skills_framework_implementation_plan_v1.md)
+
+### Supported AI Tool Adapters
+1. **Google Antigravity**: Active native discovery via `.agents/skills/<name>/SKILL.md` (progressive disclosure).
+2. **Cursor**: Supported via `.cursorrules` and `.cursor/rules/*.mdc`.
+3. **Claude Code**: Supported via `CLAUDE.md`.
+4. **OpenAI Codex**: Supported via `AGENTS.md` and `.agents/skills/`.
+5. **Gemini CLI**: Supported via `GEMINI.md`.
+6. **GitHub Copilot**: Supported via `.github/copilot-instructions.md` and `.github/prompts/`.
+7. **Windsurf**: Supported via `.windsurfrules`.
+
+### Canonical Artifact Directory Rules (IMP-2026-1031-002)
+- Recordings: docs/recordings/ (Zero recordings directly in docs/).
+- Screenshots & Frames: docs/frames/.
+- Documentation Images: docs/images/.
+- Executable Scripts: scripts/.
+- End-to-End Tests: e2e/.
+- Documentation & Reports: docs/.
+- Protected directories: anticaptcha-plugin_v0.83/, .agents/.

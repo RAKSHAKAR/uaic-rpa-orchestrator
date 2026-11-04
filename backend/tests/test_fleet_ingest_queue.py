@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import delete, select
 
 from app.core.celery_app import celery_app
 from app.core.database import TaskAsyncSessionLocal
@@ -72,7 +72,8 @@ async def test_fleet_aware_ingest_dispatches_advance_task(tmp_path, monkeypatch)
 
     # Verify that orchestrate_court_scrapers_task was NOT directly dispatched 10 times in ingest
     scrapers_calls = [
-        call for call in mock_send.call_args_list
+        call
+        for call in mock_send.call_args_list
         if call[0] and call[0][0] == "app.tasks.scraper_tasks.orchestrate_court_scrapers_task"
     ]
     assert len(scrapers_calls) == 0, "Ingest task must NOT directly dispatch scraper tasks"
@@ -94,11 +95,7 @@ async def test_fleet_1x_runs_1_claim_leaves_9_new_in_pending_queue(monkeypatch):
 
     # Clear any active or pending claims from test DB to ensure strict isolation
     async with TaskAsyncSessionLocal() as session:
-        await session.execute(
-            update(ClaimRecord)
-            .where(ClaimRecord.record_status.in_([RecordStatusEnum.SCRAPING_IN_PROGRESS, RecordStatusEnum.NEW]))
-            .values(record_status=RecordStatusEnum.COMPLETED)
-        )
+        await session.execute(delete(ClaimRecord))
         await session.commit()
 
     # Create 10 NEW claims
@@ -124,8 +121,12 @@ async def test_fleet_1x_runs_1_claim_leaves_9_new_in_pending_queue(monkeypatch):
     mock_settings.queue.max_concurrent_claims = 1
     mock_settings.queue.auto_retry_failed_scrapes = False
 
-    with patch("app.services.settings_service.get_system_settings_async", return_value=mock_settings), \
-         patch("app.tasks.queue_runner.celery_app.send_task") as mock_send:
+    with (
+        patch(
+            "app.services.settings_service.get_system_settings_async", return_value=mock_settings
+        ),
+        patch("app.tasks.queue_runner.celery_app.send_task") as mock_send,
+    ):
         await _async_advance_auto_queue()
 
         # Exactly 1 scraper task dispatched
@@ -149,7 +150,9 @@ async def test_fleet_1x_runs_1_claim_leaves_9_new_in_pending_queue(monkeypatch):
     # Verify /api/v1/queue/live endpoint returns 9 pending items and 1 active
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("app.services.settings_service.get_system_settings_async", return_value=mock_settings):
+        with patch(
+            "app.services.settings_service.get_system_settings_async", return_value=mock_settings
+        ):
             res = await client.get("/api/v1/queue/live")
             assert res.status_code == 200
             data = res.json()
@@ -164,7 +167,9 @@ async def test_fleet_1x_runs_1_claim_leaves_9_new_in_pending_queue(monkeypatch):
     # Cleanup
     async with TaskAsyncSessionLocal() as session:
         for cid in created_claim_ids:
-            row = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == cid))).scalar_one_or_none()
+            row = (
+                await session.execute(select(ClaimRecord).where(ClaimRecord.id == cid))
+            ).scalar_one_or_none()
             if row:
                 await session.delete(row)
         await session.commit()
@@ -179,11 +184,7 @@ async def test_fleet_2x_runs_2_claims_leaves_8_new_in_pending_queue(monkeypatch)
 
     # Clear any active or pending claims from test DB to ensure strict isolation
     async with TaskAsyncSessionLocal() as session:
-        await session.execute(
-            update(ClaimRecord)
-            .where(ClaimRecord.record_status.in_([RecordStatusEnum.SCRAPING_IN_PROGRESS, RecordStatusEnum.NEW]))
-            .values(record_status=RecordStatusEnum.COMPLETED)
-        )
+        await session.execute(delete(ClaimRecord))
         await session.commit()
 
     created_claim_ids = []
@@ -207,8 +208,12 @@ async def test_fleet_2x_runs_2_claims_leaves_8_new_in_pending_queue(monkeypatch)
     mock_settings.queue.max_concurrent_claims = 2
     mock_settings.queue.auto_retry_failed_scrapes = False
 
-    with patch("app.services.settings_service.get_system_settings_async", return_value=mock_settings), \
-         patch("app.tasks.queue_runner.celery_app.send_task") as mock_send:
+    with (
+        patch(
+            "app.services.settings_service.get_system_settings_async", return_value=mock_settings
+        ),
+        patch("app.tasks.queue_runner.celery_app.send_task") as mock_send,
+    ):
         await _async_advance_auto_queue()
 
         # Exactly 2 scraper tasks dispatched
@@ -231,7 +236,9 @@ async def test_fleet_2x_runs_2_claims_leaves_8_new_in_pending_queue(monkeypatch)
     # Cleanup
     async with TaskAsyncSessionLocal() as session:
         for cid in created_claim_ids:
-            row = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == cid))).scalar_one_or_none()
+            row = (
+                await session.execute(select(ClaimRecord).where(ClaimRecord.id == cid))
+            ).scalar_one_or_none()
             if row:
                 await session.delete(row)
         await session.commit()
@@ -245,11 +252,7 @@ async def test_sequential_queue_pickup_on_claim_completion(monkeypatch):
     clear_all_active_queue_items()
 
     async with TaskAsyncSessionLocal() as session:
-        await session.execute(
-            update(ClaimRecord)
-            .where(ClaimRecord.record_status.in_([RecordStatusEnum.SCRAPING_IN_PROGRESS, RecordStatusEnum.NEW]))
-            .values(record_status=RecordStatusEnum.COMPLETED)
-        )
+        await session.execute(delete(ClaimRecord))
         await session.commit()
 
     created_claim_ids = []
@@ -274,22 +277,32 @@ async def test_sequential_queue_pickup_on_claim_completion(monkeypatch):
     mock_settings.queue.auto_retry_failed_scrapes = False
 
     # Step 1: Advance queue with Fleet = 1x -> Claim 0 should run, Claims 1 and 2 wait
-    with patch("app.services.settings_service.get_system_settings_async", return_value=mock_settings), \
-         patch("app.tasks.queue_runner.celery_app.send_task") as mock_send:
+    with (
+        patch(
+            "app.services.settings_service.get_system_settings_async", return_value=mock_settings
+        ),
+        patch("app.tasks.queue_runner.celery_app.send_task") as mock_send,
+    ):
         await _async_advance_auto_queue()
         assert mock_send.call_count == 1
         assert mock_send.call_args[1]["kwargs"]["claim_id"] == created_claim_ids[0]
 
     # Step 2: Simulate Claim 0 completion (transition to COMPLETED and remove from active set)
     async with TaskAsyncSessionLocal() as session:
-        c0 = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == created_claim_ids[0]))).scalar_one()
+        c0 = (
+            await session.execute(select(ClaimRecord).where(ClaimRecord.id == created_claim_ids[0]))
+        ).scalar_one()
         c0.record_status = RecordStatusEnum.COMPLETED
         await session.commit()
     clear_all_active_queue_items()
 
     # Step 3: Advance queue again -> Claim 1 should be picked up sequentially
-    with patch("app.services.settings_service.get_system_settings_async", return_value=mock_settings), \
-         patch("app.tasks.queue_runner.celery_app.send_task") as mock_send2:
+    with (
+        patch(
+            "app.services.settings_service.get_system_settings_async", return_value=mock_settings
+        ),
+        patch("app.tasks.queue_runner.celery_app.send_task") as mock_send2,
+    ):
         await _async_advance_auto_queue()
         assert mock_send2.call_count == 1
         assert mock_send2.call_args[1]["kwargs"]["claim_id"] == created_claim_ids[1]
@@ -298,7 +311,13 @@ async def test_sequential_queue_pickup_on_claim_completion(monkeypatch):
     async with TaskAsyncSessionLocal() as session:
         claims = {
             c.id: c.record_status
-            for c in (await session.execute(select(ClaimRecord).where(ClaimRecord.id.in_(created_claim_ids)))).scalars().all()
+            for c in (
+                await session.execute(
+                    select(ClaimRecord).where(ClaimRecord.id.in_(created_claim_ids))
+                )
+            )
+            .scalars()
+            .all()
         }
         assert claims[created_claim_ids[0]] == RecordStatusEnum.COMPLETED
         assert claims[created_claim_ids[1]] == RecordStatusEnum.SCRAPING_IN_PROGRESS
@@ -307,9 +326,10 @@ async def test_sequential_queue_pickup_on_claim_completion(monkeypatch):
     # Cleanup
     async with TaskAsyncSessionLocal() as session:
         for cid in created_claim_ids:
-            row = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == cid))).scalar_one_or_none()
+            row = (
+                await session.execute(select(ClaimRecord).where(ClaimRecord.id == cid))
+            ).scalar_one_or_none()
             if row:
                 await session.delete(row)
         await session.commit()
     clear_all_active_queue_items()
-

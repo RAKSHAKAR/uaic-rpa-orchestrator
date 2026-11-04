@@ -7,7 +7,7 @@ bak_file = src_file + ".bak"
 if not os.path.exists(bak_file):
     shutil.copyfile(src_file, bak_file)
 
-with open(bak_file, "r", encoding="utf-8") as f:
+with open(bak_file, encoding="utf-8") as f:
     content = f.read()
 
 # 1. Update tabs navigation array

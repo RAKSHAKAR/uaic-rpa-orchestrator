@@ -15,17 +15,15 @@ monitors, intercepts, and records all user interactions across all tabs:
 import asyncio
 import json
 import logging
-import os
 import re
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from playwright.async_api import async_playwright, BrowserContext, Frame, Page
+from playwright.async_api import Frame, Page, async_playwright
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("walkthrough_recorder")

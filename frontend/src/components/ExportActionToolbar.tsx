@@ -8,19 +8,22 @@ import {
   FileType,
   Layers,
   Loader2,
+  Activity,
 } from "lucide-react";
 
 export interface ExportActionToolbarProps {
   onExport?: (format: "xlsx" | "csv" | "json" | "pdf") => void | Promise<void>;
   onExportXlsx?: () => void | Promise<void>;
   onExportCsv?: () => void | Promise<void>;
+  onExportTelemetryCsv?: () => void | Promise<void>;
   onExportJson?: () => void | Promise<void>;
   onExportPdf?: () => void | Promise<void>;
   onOpenAsyncModal?: () => void;
   showPdf?: boolean;
+  showTelemetryButton?: boolean;
   showAsyncButton?: boolean;
   isExporting?: boolean;
-  activeFormat?: "xlsx" | "csv" | "json" | "pdf" | "async" | null;
+  activeFormat?: "xlsx" | "csv" | "json" | "pdf" | "async" | "telemetry" | null;
   disabled?: boolean;
   className?: string;
   compact?: boolean;
@@ -31,10 +34,12 @@ export function ExportActionToolbar({
   onExport,
   onExportXlsx,
   onExportCsv,
+  onExportTelemetryCsv,
   onExportJson,
   onExportPdf,
   onOpenAsyncModal,
   showPdf = true,
+  showTelemetryButton = true,
   showAsyncButton = true,
   isExporting = false,
   activeFormat = null,
@@ -49,6 +54,7 @@ export function ExportActionToolbar({
 
   const handleXlsx = onExportXlsx || (onExport ? () => onExport("xlsx") : undefined);
   const handleCsv = onExportCsv || (onExport ? () => onExport("csv") : undefined);
+  const handleTelemetryCsv = showTelemetryButton ? onExportTelemetryCsv : undefined;
   const handleJson = onExportJson || (onExport ? () => onExport("json") : undefined);
   const handlePdf = (showPdf && (onExportPdf || (onExport ? () => onExport("pdf") : undefined))) || undefined;
 
@@ -93,6 +99,24 @@ export function ExportActionToolbar({
             <FileText className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
           )}
           <span>CSV</span>
+        </button>
+      )}
+
+      {/* Quick Detailed Stage Telemetry CSV Export */}
+      {handleTelemetryCsv && (
+        <button
+          type="button"
+          onClick={handleTelemetryCsv}
+          disabled={disabled || isExporting}
+          title="Download Detailed Stage Execution Telemetry breakdown (.csv)"
+          className={`${btnBaseClass} bg-purple-50 text-purple-700 border border-purple-200/80 hover:bg-purple-100 hover:border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60 dark:hover:bg-purple-900/50 disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {isExporting && activeFormat === "telemetry" ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Activity className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+          )}
+          <span>Stage Telemetry</span>
         </button>
       )}
 

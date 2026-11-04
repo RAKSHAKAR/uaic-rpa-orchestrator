@@ -12,6 +12,8 @@ from playwright.async_api import Page
 from app.automation.base import (
     BaseCourtScraper,
     CaptchaResolutionError,
+    SecurityBlockException,
+    _normalize_court_date,
     _safe_eval,
     _safe_wait_timeout,
     resilient_click,
@@ -86,7 +88,9 @@ async def _safe_click(loc: Any) -> None:
     try:
         eval_fn = getattr(loc, "evaluate", None)
         if callable(eval_fn):
-            res = eval_fn("el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }")
+            res = eval_fn(
+                "el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }"
+            )
             if inspect.isawaitable(res):
                 await res
     except Exception:
@@ -110,51 +114,108 @@ class HillsboroughScraper(BaseCourtScraper):
         """Step a: Open Hillsborough tab, wait for full load, reload if unusable. Step b: Click Party or Business Name."""
         t_nav_start = datetime.now()
         base = self.base_url.rstrip("/")
-        search_target_url = f"{base}/html/case/caseSearch.html#nav-Party-tab" if "caseSearch" not in base else base
+        if "caseSearch" in base:
+            landing_url = (
+                base.split("/html/case/")[0]
+                if "/html/case/" in base
+                else base.split("/caseSearch")[0]
+            )
+            search_target_url = base
+        else:
+            landing_url = base
+            search_target_url = f"{base}/html/case/caseSearch.html#nav-Party-tab"
 
         current_url = getattr(page, "url", "") or ""
         if not current_url or current_url == "about:blank" or "hillsclerk.com" not in current_url:
             try:
-                logger.info(f"[{self.county_name}] Step a: Opening Hillsborough portal URL: {search_target_url}")
-                await page.goto(search_target_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                # 1. Establish session and cookies on base portal first
+                logger.info(
+                    f"[{self.county_name}] Step a: Opening Hillsborough portal base: {landing_url}"
+                )
+                await self.navigate_via_address_bar(page, landing_url, timeout_ms=self.timeout_ms)
                 await page.wait_for_timeout(1000)
+                await self.human_page_warmup(page)
             except Exception as e_nav:
-                logger.warning(f"[{self.county_name}] Step a: Direct load encountered: {e_nav}. Refreshing...")
+                logger.warning(
+                    f"[{self.county_name}] Step a: Base load note: {e_nav}. Attempting search target directly..."
+                )
                 try:
-                    await page.reload(wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    await page.goto(
+                        search_target_url, wait_until="domcontentloaded", timeout=self.timeout_ms
+                    )
                     await page.wait_for_timeout(1500)
                 except Exception:
-                    await page.goto(search_target_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    pass
 
         # Step a: Verify page body is loaded; if empty or incomplete, refresh
         try:
             body_txt = await page.inner_text("body")
             if not body_txt or len(body_txt.strip()) < 5:
-                logger.warning(f"[{self.county_name}] Step a: Page appeared empty. Refreshing page...")
+                logger.warning(
+                    f"[{self.county_name}] Step a: Page appeared empty. Refreshing page..."
+                )
                 await page.reload(wait_until="domcontentloaded", timeout=self.timeout_ms)
                 await page.wait_for_timeout(1000)
         except Exception:
             pass
 
-        # Step b: If on landing page (hover.hillsclerk.com/ without caseSearch.html), click "Party or Business Name"
+        # Step a.1: Check if blocked by PerimeterX / WAF on landing with resolution grace period
+        is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+        if is_blocked:
+            logger.info(
+                f"[{self.county_name}] Security challenge encountered. Waiting up to 10s for challenge resolution..."
+            )
+            for _ in range(10):
+                await page.wait_for_timeout(1000)
+                is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+                if not is_blocked:
+                    logger.info(f"[{self.county_name}] Challenge cleared successfully.")
+                    break
+            if is_blocked:
+                logger.error(f"[{self.county_name}] WAF block persisted on landing page: {reason}")
+                raise SecurityBlockException(
+                    reason, cooldown_seconds=cooldown_secs, portal_key=self.county_name
+                )
+
+        # Step a.2: Emulate natural human viewing behavior and micro-scroll
+        await self.human_page_warmup(page)
+
+        # Step b: Click "Party or Business Name" on landing page or navigate to caseSearch
         curr_url_check = getattr(page, "url", "") or ""
-        if "hillsclerk.com" in curr_url_check and "caseSearch.html" not in curr_url_check:
+        if "caseSearch.html" not in curr_url_check:
             party_landing_btn = page.locator(
                 "a[href*='/html/case/caseSearch.html#nav-Party-tab'], "
                 "a[href*='caseSearch.html#nav-Party-tab'], "
+                "a[href*='caseSearch.html'], "
                 "a[href*='nav-Party-tab'], "
-                "a:has-text('Party or Business Name')"
+                "a:has-text('Party or Business Name'), "
+                "button:has-text('Party or Business Name')"
             )
-            if await _safe_count(party_landing_btn) > 0 and await _safe_is_visible(party_landing_btn):
-                logger.info(f"[{self.county_name}] Step b: Clicking 'Party or Business Name' button on landing page...")
+            if await _safe_count(party_landing_btn) > 0 and await _safe_is_visible(
+                party_landing_btn
+            ):
+                logger.info(
+                    f"[{self.county_name}] Step b: Clicking 'Party or Business Name' button on landing page..."
+                )
                 await resilient_click(party_landing_btn.first, page=page)
-                await page.wait_for_timeout(800)
-            elif curr_url_check != "about:blank":
-                await page.goto(search_target_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
-                await page.wait_for_timeout(800)
+                await page.wait_for_timeout(1200)
+            else:
+                logger.info(
+                    f"[{self.county_name}] Navigating directly to caseSearch form: {search_target_url}"
+                )
+                await page.goto(
+                    search_target_url, wait_until="domcontentloaded", timeout=self.timeout_ms
+                )
+                await page.wait_for_timeout(1000)
 
         t_nav_end = datetime.now()
-        self.record_stage("website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=search_target_url)
+        self.record_stage(
+            "website_navigation",
+            "Website Navigation",
+            t_nav_start,
+            t_nav_end,
+            url=search_target_url,
+        )
         return search_target_url
 
     async def select_party_search_tab(self, page: Page) -> None:
@@ -163,7 +224,9 @@ class HillsboroughScraper(BaseCourtScraper):
         If it is not selected, select it (Object: <button class="... active" id="nav-Party-tab" data-bs-toggle="tab" data-bs-target="#nav-Party" ...>).
         """
         try:
-            logger.info(f"[{self.county_name}] Step c: Verifying 'Search by Party or Business Name' tab is selected...")
+            logger.info(
+                f"[{self.county_name}] Step c: Verifying 'Search by Party or Business Name' tab is selected..."
+            )
             party_tab = page.locator(
                 "button#nav-Party-tab[data-bs-target='#nav-Party'], "
                 "button#nav-Party-tab, "
@@ -180,15 +243,20 @@ class HillsboroughScraper(BaseCourtScraper):
                     is_active = True
 
             if not is_active:
-                logger.info(f"[{self.county_name}] Step c: 'Search by Party or Business Name' tab not active; selecting it...")
+                logger.info(
+                    f"[{self.county_name}] Step c: 'Search by Party or Business Name' tab not active; selecting it..."
+                )
                 if await _safe_count(party_tab) > 0 and await _safe_is_visible(party_tab):
                     await resilient_click(party_tab.first, page=page)
                     await _safe_wait_timeout(page, 800)
                 else:
-                    await _safe_eval(page, """() => {
+                    await _safe_eval(
+                        page,
+                        """() => {
                         const tab = document.querySelector('button#nav-Party-tab') || document.querySelector('#nav-Party-tab') || document.querySelector("a[href*='nav-Party']");
                         if (tab) tab.click();
-                    }""")
+                    }""",
+                    )
                     await _safe_wait_timeout(page, 800)
 
             # Confirm readiness and visibility of party inputs in #nav-Party
@@ -203,7 +271,9 @@ class HillsboroughScraper(BaseCourtScraper):
                             await res
                     except Exception:
                         pass
-            logger.info(f"[{self.county_name}] Step c: 'Search by Party or Business Name' tab verified active.")
+            logger.info(
+                f"[{self.county_name}] Step c: 'Search by Party or Business Name' tab verified active."
+            )
         except Exception as e_tab:
             logger.debug(f"[{self.county_name}] Party search tab selection note: {e_tab}")
 
@@ -218,7 +288,9 @@ class HillsboroughScraper(BaseCourtScraper):
                 "[role='dialog']:has-text('YOUR SEARCH CRITERIA')"
             )
             if await _safe_count(popup_header) > 0 and await _safe_is_visible(popup_header):
-                logger.info(f"[{self.county_name}] 'YOUR SEARCH CRITERIA' popup detected. Dismissing...")
+                logger.info(
+                    f"[{self.county_name}] 'YOUR SEARCH CRITERIA' popup detected. Dismissing..."
+                )
                 close_btn = page.locator(
                     "#messageClose, "
                     ".modal.show button.close, "
@@ -235,21 +307,28 @@ class HillsboroughScraper(BaseCourtScraper):
                 if await _safe_count(close_btn) > 0 and await _safe_is_visible(close_btn):
                     await resilient_click(close_btn.first, page=page)
                     await page.wait_for_timeout(500)
-                    logger.info(f"[{self.county_name}] Dismissed 'YOUR SEARCH CRITERIA' popup via Close/X button.")
+                    logger.info(
+                        f"[{self.county_name}] Dismissed 'YOUR SEARCH CRITERIA' popup via Close/X button."
+                    )
                     return True
 
                 # Direct DOM click fallback for Bootstrap modal #messageClose
-                dom_dismissed = await _safe_eval(page, """() => {
+                dom_dismissed = await _safe_eval(
+                    page,
+                    """() => {
                     const el = document.getElementById('messageClose') ||
                                document.querySelector('.modal.show button.close') ||
                                document.querySelector('.modal.show [data-dismiss=\"modal\"]') ||
                                document.querySelector('.modal.show button.btn-primary');
                     if (el) { el.click(); return true; }
                     return false;
-                }""")
+                }""",
+                )
                 if dom_dismissed:
                     await page.wait_for_timeout(500)
-                    logger.info(f"[{self.county_name}] Dismissed 'YOUR SEARCH CRITERIA' popup via DOM click fallback.")
+                    logger.info(
+                        f"[{self.county_name}] Dismissed 'YOUR SEARCH CRITERIA' popup via DOM click fallback."
+                    )
                     return True
 
                 # Fallback to pressing Escape
@@ -264,9 +343,14 @@ class HillsboroughScraper(BaseCourtScraper):
     async def return_to_search_state(self, page: Page) -> None:
         """Section 4: Return Hillsborough tab to clean search state for the next unique name (V4 parity)."""
         try:
-            logger.info(f"[{self.county_name}] Section 4: Returning Hillsborough tab to search state for next unique name (V4 parity)...")
+            logger.info(
+                f"[{self.county_name}] Section 4: Returning Hillsborough tab to search state for next unique name (V4 parity)..."
+            )
             # Close message/popup if open
-            await _safe_eval(page, "() => { const el = document.getElementById('messageClose'); if (el) el.click(); }")
+            await _safe_eval(
+                page,
+                "() => { const el = document.getElementById('messageClose'); if (el) el.click(); }",
+            )
             await _safe_wait_timeout(page, 300)
 
             # Click Anchor 'Case Search' if visible on page
@@ -313,16 +397,24 @@ class HillsboroughScraper(BaseCourtScraper):
         cache_bundle2 = os.path.join(os.getcwd(), "hillsborough_bundle2.js")
         if hasattr(page, "route"):
             if os.path.exists(cache_bundle1) and os.path.getsize(cache_bundle1) > 18000000:
+
                 async def serve_cached_bundle1(route):
-                    await route.fulfill(status=200, content_type="application/javascript", path=cache_bundle1)
+                    await route.fulfill(
+                        status=200, content_type="application/javascript", path=cache_bundle1
+                    )
+
                 try:
                     await page.route("**/bundle/bundle1/bundle-*.js", serve_cached_bundle1)
                 except Exception:
                     pass
 
             if os.path.exists(cache_bundle2) and os.path.getsize(cache_bundle2) > 20000000:
+
                 async def serve_cached_bundle2(route):
-                    await route.fulfill(status=200, content_type="application/javascript", path=cache_bundle2)
+                    await route.fulfill(
+                        status=200, content_type="application/javascript", path=cache_bundle2
+                    )
+
                 try:
                     await page.route("**/bundle/bundle2/bundle-*.js", serve_cached_bundle2)
                 except Exception:
@@ -357,26 +449,12 @@ class HillsboroughScraper(BaseCourtScraper):
 
             # Step d: Fill Party Search Inputs in exact order: First Name -> Last Name -> On or After
             t_fill_start = datetime.now()
-            first_input = page.locator(
-                "input#spFirstName, "
-                "#spFirstName, "
-                "input[alt*='enter first name'], "
-                "input[placeholder*='First Name'], "
-                "input[name='partyFirstName']"
-            )
             last_input = page.locator(
                 "input#spLastName, "
                 "#spLastName, "
                 "input[alt*='enter last name field'], "
                 "input[placeholder*='Last Name'], "
                 "input[name='partyLastName']"
-            )
-            dol_input = page.locator(
-                "input#spDateFiledAfter, "
-                "#spDateFiledAfter, "
-                "input.hasDatepicker[id='spDateFiledAfter'], "
-                "input[name='date'][placeholder='mm/dd/yyyy'], "
-                "input[name='spDateFiledAfter']"
             )
 
             # Confirm visibility of search inputs
@@ -391,55 +469,69 @@ class HillsboroughScraper(BaseCourtScraper):
                     pass
 
             # 1. First Name
-            if f_name and await _safe_count(first_input) > 0:
-                await self.biometric_fill(first_input.first, f_name)
+            if f_name:
+                await self.interact_and_fill_field(
+                    page,
+                    "input#spFirstName, #spFirstName, input[name='partyFirstName']",
+                    f_name,
+                    field_name="First Name (#spFirstName)",
+                    timeout_ms=self.timeout_ms,
+                )
                 await page.wait_for_timeout(100)
 
             # 2. Last Name
-            await self.biometric_fill(last_input.first, l_name)
+            if await _safe_count(last_input) == 0:
+                await self.select_party_search_tab(page)
+            await self.interact_and_fill_field(
+                page,
+                "input#spLastName, #spLastName, input[name='partyLastName']",
+                l_name,
+                field_name="Last Name (#spLastName)",
+                timeout_ms=self.timeout_ms,
+            )
             await page.wait_for_timeout(100)
 
-            # 3. On or After (spDateFiledAfter with readonly removal)
-            if date_of_loss and await _safe_count(dol_input) > 0:
-                clean_dol = date_of_loss.strip()
-                try:
-                    await page.evaluate(
-                        """(val) => {
-                            const el = document.querySelector('#spDateFiledAfter') || document.querySelector("input[name='date']") || document.querySelector("input[name='spDateFiledAfter']");
-                            if (el) {
-                                el.removeAttribute('readonly');
-                                el.value = val;
-                                el.dispatchEvent(new Event('input', { bubbles: true }));
-                                el.dispatchEvent(new Event('change', { bubbles: true }));
-                                el.dispatchEvent(new Event('blur', { bubbles: true }));
-                            }
-                            if (typeof window.$ !== 'undefined' && window.$('#spDateFiledAfter').datepicker) {
-                                try { window.$('#spDateFiledAfter').datepicker('setDate', val); } catch(e) {}
-                            }
-                        }""",
-                        clean_dol,
-                    )
-                    logger.info(f"[{self.county_name}] Step d: Filled spDateFiledAfter with DOL: {clean_dol}")
-                except Exception as e:
-                    logger.warning(f"[{self.county_name}] DOM date fill note: {e}, falling back to biometric_fill")
-                    try:
-                        await self.biometric_fill(dol_input.first, clean_dol)
-                    except Exception as ex:
-                        logger.warning(f"[{self.county_name}] Could not fill datepicker: {ex}")
+            # 3. On or After Date
+            if date_of_loss:
+                clean_dol = _normalize_court_date(date_of_loss) or date_of_loss.strip()
+                await self.interact_and_fill_field(
+                    page,
+                    "input#spDateFiledAfter, #spDateFiledAfter, input[name='spDateFiledAfter'], input[name='date']",
+                    clean_dol,
+                    field_name="On or After Date (#spDateFiledAfter)",
+                    timeout_ms=self.timeout_ms,
+                )
 
             await self.pace_action(page)
             t_fill_end = datetime.now()
-            self.record_stage("data_filling", "Data Filling", t_fill_start, t_fill_end, party=f"{f_name} {l_name}", dol=date_of_loss)
+            self.record_stage(
+                "data_filling",
+                "Data Filling",
+                t_fill_start,
+                t_fill_end,
+                party=f"{f_name} {l_name}",
+                dol=date_of_loss,
+            )
 
             # CAPTCHA verification if applicable
             t_cap_start = datetime.now()
-            captcha_ok = await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds)
+            captcha_ok = await self.detect_and_handle_captcha(
+                page, wait_seconds=self.captcha_wait_seconds
+            )
             t_cap_end = datetime.now()
-            self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="SUCCESS" if captcha_ok else "TIMEOUT")
+            self.record_stage(
+                "captcha",
+                "CAPTCHA Solving",
+                t_cap_start,
+                t_cap_end,
+                status="SUCCESS" if captcha_ok else "TIMEOUT",
+            )
 
             if captcha_ok:
                 captcha_solved = True
-                logger.info(f"[{self.county_name}] CAPTCHA solved! Immediately submitting search...")
+                logger.info(
+                    f"[{self.county_name}] CAPTCHA solved! Immediately submitting search..."
+                )
                 break
             else:
                 logger.warning(
@@ -447,8 +539,12 @@ class HillsboroughScraper(BaseCourtScraper):
                 )
 
         if not captcha_solved:
-            logger.error(f"[{self.county_name}] CAPTCHA verification failed after {max_attempts} attempts for '{f_name} {l_name}'.")
-            raise CaptchaResolutionError(f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts} attempts")
+            logger.error(
+                f"[{self.county_name}] CAPTCHA verification failed after {max_attempts} attempts for '{f_name} {l_name}'."
+            )
+            raise CaptchaResolutionError(
+                f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts} attempts"
+            )
 
         # Step e: Click Search Button (button#btnSubmitPartySearch)
         t_sub_start = datetime.now()
@@ -457,16 +553,39 @@ class HillsboroughScraper(BaseCourtScraper):
             "button#btnSubmitPartySearch, "
             "#btnSubmitPartySearch, "
             "#nav-Party #btnSubmitPartySearch, "
-            "#nav-Party button.btn-success:has-text('Search'), "
-            "#nav-Party button.btn-success"
+            "#nav-Party button.btn-success, "
+            "#nav-Party input[type='submit'][value*='Search' i]"
         )
         if await _safe_count(down_search_btn) > 0:
-            logger.info(f"[{self.county_name}] Step e: Clicking Search button (#btnSubmitPartySearch)...")
+            logger.info(
+                f"[{self.county_name}] Step e: Clicking Search button (#btnSubmitPartySearch)..."
+            )
             await self.biometric_click(page, down_search_btn.first)
         else:
-            raise RuntimeError(f"[{self.county_name}] V4 btnSubmitPartySearch control was not found")
+            # Resilient DOM click fallback
+            clicked = await page.evaluate("""() => {
+                const btn = document.getElementById('btnSubmitPartySearch') ||
+                            document.querySelector('#nav-Party button.btn-success') ||
+                            document.querySelector('#nav-Party button:not([id*=\"tab\"])') ||
+                            Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'search');
+                if (btn) {
+                    btn.click();
+                    return true;
+                }
+                return false;
+            }""")
+            if clicked:
+                logger.info(f"[{self.county_name}] Step e: Clicked Search button via DOM fallback.")
+            else:
+                raise RuntimeError(
+                    f"[{self.county_name}] V4 btnSubmitPartySearch control was not found"
+                )
         t_sub_end = datetime.now()
         self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
+
+        is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+        if is_blocked:
+            raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs, portal_key=self.county_name)
 
         # Check for and dismiss 'YOUR SEARCH CRITERIA' popup if triggered by submit
         await self.check_and_dismiss_search_criteria_popup(page)
@@ -477,15 +596,21 @@ class HillsboroughScraper(BaseCourtScraper):
         t_ext_start = datetime.now()
         try:
             curr_url = getattr(page, "url", "") or ""
-            logger.info(f"[{self.county_name}] Step f: Waiting for results page (current URL: {curr_url})...")
+            logger.info(
+                f"[{self.county_name}] Step f: Waiting for results page (current URL: {curr_url})..."
+            )
 
             # Primary: wait for URL to change within the configured navigation timeout.
             if "searchResults" not in curr_url:
                 try:
                     await page.wait_for_url("**/searchResults.html*", timeout=self.timeout_ms)
-                    logger.info(f"[{self.county_name}] Step f: URL navigated to searchResults.html.")
+                    logger.info(
+                        f"[{self.county_name}] Step f: URL navigated to searchResults.html."
+                    )
                 except Exception as url_err:
-                    logger.warning(f"[{self.county_name}] Step f: wait_for_url(searchResults) timed out ({url_err}). Proceeding with table wait.")
+                    logger.warning(
+                        f"[{self.county_name}] Step f: wait_for_url(searchResults) timed out ({url_err}). Proceeding with table wait."
+                    )
 
             # Secondary: wait for network idle so AJAX-loaded results are in DOM
             try:
@@ -497,7 +622,9 @@ class HillsboroughScraper(BaseCourtScraper):
                     pass
 
             # Tertiary: wait for results table to be visible
-            results_table = page.locator("#partyResultsTable, table.dataTable, #caseResultsTable, #partySearchResults table")
+            results_table = page.locator(
+                "#partyResultsTable, table.dataTable, #caseResultsTable, #partySearchResults table"
+            )
             first_tbl = getattr(results_table, "first", results_table)
             wait_tbl_fn = getattr(first_tbl, "wait_for", None)
             if callable(wait_tbl_fn):
@@ -505,9 +632,13 @@ class HillsboroughScraper(BaseCourtScraper):
                     res_tbl = wait_tbl_fn(state="visible", timeout=self.timeout_ms)
                     if inspect.isawaitable(res_tbl):
                         await res_tbl
-                    logger.info(f"[{self.county_name}] Step f: Results table visible — ready for extraction.")
+                    logger.info(
+                        f"[{self.county_name}] Step f: Results table visible — ready for extraction."
+                    )
                 except Exception as tbl_err:
-                    logger.warning(f"[{self.county_name}] Step f: Results table wait timed out: {tbl_err}")
+                    logger.warning(
+                        f"[{self.county_name}] Step f: Results table wait timed out: {tbl_err}"
+                    )
         except Exception as e_wait:
             logger.warning(f"[{self.county_name}] Step f: Results page wait error: {e_wait}")
 
@@ -515,10 +646,14 @@ class HillsboroughScraper(BaseCourtScraper):
 
         # Step f2: Wait for DataTables AJAX to finish by ensuring 'Loading...' / 'Processing...' disappear
         try:
-            logger.info(f"[{self.county_name}] Step f2: Waiting for loading overlay/text to disappear...")
+            logger.info(
+                f"[{self.county_name}] Step f2: Waiting for loading overlay/text to disappear..."
+            )
             # Bound AJAX readiness by the configured portal navigation timeout.
             for _ in range(max(1, (self.timeout_ms + 499) // 500)):
-                loading_locators = page.locator("td:has-text('Loading'), td:has-text('Processing'), .blockUI, .loading-spinner, #loading, img[src*='loading']")
+                loading_locators = page.locator(
+                    "td:has-text('Loading'), td:has-text('Processing'), .blockUI, .loading-spinner, #loading, img[src*='loading']"
+                )
                 count = await _safe_count(loading_locators)
                 any_visible = False
                 for i in range(count):
@@ -538,12 +673,26 @@ class HillsboroughScraper(BaseCourtScraper):
         await self.check_and_dismiss_search_criteria_popup(page)
 
         # Check for empty state (explicitly avoiding 'Processing...' or 'Loading...')
-        empty_msg = page.locator("td.dataTables_empty:has-text('No data'), td.dataTables_empty:has-text('No records'), td:has-text('No cases matched'), div:has-text('No cases matched'), :has-text('No data available in table'), :has-text('No records found'), #messageClose")
+        empty_msg = page.locator(
+            "td.dataTables_empty:has-text('No data'), td.dataTables_empty:has-text('No records'), td:has-text('No cases matched'), div:has-text('No cases matched'), :has-text('No data available in table'), :has-text('No records found'), #messageClose"
+        )
         if await _safe_count(empty_msg) > 0 and await _safe_is_visible(empty_msg):
-            logger.info(f"[{self.county_name}] Step g: Search for '{l_name}, {f_name}': No data available in table.")
-            await _safe_eval(page, "() => { const el = document.getElementById('messageClose'); if (el) el.click(); }")
+            logger.info(
+                f"[{self.county_name}] Step g: Search for '{l_name}, {f_name}': No data available in table."
+            )
+            await _safe_eval(
+                page,
+                "() => { const el = document.getElementById('messageClose'); if (el) el.click(); }",
+            )
             t_ext_end = datetime.now()
-            self.record_stage("result_retrieval", "Result Retrieval", t_ext_start, t_ext_end, cases_found=0, result_category="No Record Found")
+            self.record_stage(
+                "result_retrieval",
+                "Result Retrieval",
+                t_ext_start,
+                t_ext_end,
+                cases_found=0,
+                result_category="No Record Found",
+            )
             # Step h: Return tab to search state for next unique name
             await self.return_to_search_state(page)
             return []
@@ -551,7 +700,9 @@ class HillsboroughScraper(BaseCourtScraper):
         # Step g: Discover all table headers to map all available columns dynamically
         header_names: list[str] = []
         try:
-            th_loc = page.locator("#partyResultsTable thead th, table.dataTable thead th, table thead th")
+            th_loc = page.locator(
+                "#partyResultsTable thead th, table.dataTable thead th, table thead th"
+            )
             th_count = await _safe_count(th_loc)
             for h_i in range(th_count):
                 th_el = getattr(th_loc, "nth", lambda _: None)(h_i)
@@ -569,7 +720,9 @@ class HillsboroughScraper(BaseCourtScraper):
                     if th_text:
                         header_names.append(th_text)
             if header_names:
-                logger.info(f"[{self.county_name}] Step g: Discovered table headers: {header_names}")
+                logger.info(
+                    f"[{self.county_name}] Step g: Discovered table headers: {header_names}"
+                )
         except Exception as e_th:
             logger.debug(f"[{self.county_name}] Header discovery note: {e_th}")
 
@@ -583,7 +736,9 @@ class HillsboroughScraper(BaseCourtScraper):
             page_signature: list[tuple[str, ...]] = []
             rows = page.locator("#partyResultsTable tbody tr, table.dataTable tbody tr")
             row_count = await _safe_count(rows)
-            logger.info(f"[{self.county_name}] Step g: Page {page_num}: Found {row_count} table rows")
+            logger.info(
+                f"[{self.county_name}] Step g: Page {page_num}: Found {row_count} table rows"
+            )
 
             for i in range(row_count):
                 row = rows.nth(i)
@@ -617,7 +772,9 @@ class HillsboroughScraper(BaseCourtScraper):
 
             signature = tuple(page_signature)
             if page_num > 1 and signature in seen_page_signatures:
-                raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
+                raise RuntimeError(
+                    f"[{self.county_name}] Pagination did not advance to new case results"
+                )
             seen_page_signatures.add(signature)
 
             # Step H: Pagination traversal
@@ -627,13 +784,17 @@ class HillsboroughScraper(BaseCourtScraper):
                 ".paginate_button.next:not(.disabled)"
             )
             if await _safe_count(next_btn) > 0 and await _safe_is_visible(next_btn):
-                is_disabled = (await _safe_get_attribute(next_btn, "disabled")) or (await _safe_get_attribute(next_btn, "aria-disabled"))
+                is_disabled = (await _safe_get_attribute(next_btn, "disabled")) or (
+                    await _safe_get_attribute(next_btn, "aria-disabled")
+                )
                 cls_attr = (await _safe_get_attribute(next_btn, "class")) or ""
                 if is_disabled == "true" or "disabled" in cls_attr.lower():
                     has_next_page = False
                 else:
                     try:
-                        logger.info(f"[{self.county_name}] Step H: Advancing to page {page_num + 1}...")
+                        logger.info(
+                            f"[{self.county_name}] Step H: Advancing to page {page_num + 1}..."
+                        )
                         await self.biometric_click(page, next_btn.first)
                         await page.wait_for_timeout(2000)
                         page_num += 1
@@ -643,7 +804,9 @@ class HillsboroughScraper(BaseCourtScraper):
                 has_next_page = False
 
         if not results:
-            raise RuntimeError(f"[{self.county_name}] Search completed without results or a verified no-match message")
+            raise RuntimeError(
+                f"[{self.county_name}] Search completed without results or a verified no-match message"
+            )
 
         t_ext_end = datetime.now()
         self.record_stage(

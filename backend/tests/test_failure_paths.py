@@ -85,12 +85,14 @@ async def test_tc_fail_004_next_page_failure_preserves_page_1_results():
 
     rows_locator = MagicMock()
     rows_locator.count = AsyncMock(return_value=2)
+
     def get_fail_row(idx):
         rm = MagicMock()
         rm.locator.return_value.all_inner_texts = AsyncMock(
-            return_value=[f"CACE-23-00{idx+1}", "Smith v. Jones", "CIVIL", "01/01/2023", "OPEN"]
+            return_value=[f"CACE-23-00{idx + 1}", "Smith v. Jones", "CIVIL", "01/01/2023", "OPEN"]
         )
         return rm
+
     rows_locator.nth.side_effect = get_fail_row
 
     next_btn = MagicMock()
@@ -140,7 +142,10 @@ async def test_tc_fail_005_miami_no_credentials_proceeds_gracefully():
     def locator_for_empty_search(selector):
         if selector == "body":
             return body
-        if any(part in selector for part in ("tbody tr", ".case-card", "paginate_button.next", "thead th")):
+        if any(
+            part in selector
+            for part in ("tbody tr", ".case-card", "paginate_button.next", "thead th")
+        ):
             return empty_results
         return default_locator
 
@@ -210,7 +215,13 @@ async def test_tc_fail_010_empty_last_name_returns_empty_all_scrapers():
     page = MagicMock()
     page.goto = AsyncMock()
 
-    for scraper_cls in [BrowardScraper, MiamiDadeScraper, TravisScraper, DallasScraper, HarrisJPScraper]:
+    for scraper_cls in [
+        BrowardScraper,
+        MiamiDadeScraper,
+        TravisScraper,
+        DallasScraper,
+        HarrisJPScraper,
+    ]:
         scraper = scraper_cls()
         res = await scraper.search_by_party_name("FirstOnly", "", page)
         assert res == []

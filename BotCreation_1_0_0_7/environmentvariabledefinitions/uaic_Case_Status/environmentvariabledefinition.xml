@@ -1,0 +1,14 @@
+<environmentvariabledefinition schemaname="uaic_Case_Status">
+  <defaultvalue>ACTIVE,REOPENED ACTIVE,OPEN,REOPEN,EXTENDED,HEARING SCHEDULED,NONSUIT,OPEN / MISSING FILE DOCUMENTS,RE-OPENED,RESTORED,TRANSFERRED,READY DOCKET,ACTIVE – CIVIL,IN TRIAL,PC1: ACTIVE CASE ON DOCKET</defaultvalue>
+  <description default="CaseStatusType">
+    <label description="CaseStatusType" languagecode="1033" />
+  </description>
+  <displayname default="Case_Status">
+    <label description="Case_Status" languagecode="1033" />
+  </displayname>
+  <introducedversion>1.0.0.2</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

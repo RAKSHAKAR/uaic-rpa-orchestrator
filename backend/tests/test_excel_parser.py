@@ -12,6 +12,7 @@ from app.services.excel_parser import (
 # 1. Serial Date Parsing Tests
 # ============================================================================
 
+
 def test_convert_excel_date_serial_numbers():
     # 44197 -> 2021-01-01 -> 01/01/2021
     assert convert_excel_date(44197) == "01/01/2021"
@@ -36,6 +37,7 @@ def test_convert_excel_date_null_and_edge_cases():
 # ============================================================================
 # 2. State to County RPA Routing Tests (Power Automate Switch logic)
 # ============================================================================
+
 
 def test_resolve_county_bot_targets_florida():
     # When policy state is Florida and loss location is Florida
@@ -78,6 +80,7 @@ def test_resolve_county_bot_targets_cross_state():
 # ============================================================================
 # 3. File Parsing Tests (Existing sample files)
 # ============================================================================
+
 
 def test_parse_sample_claims_excel():
     path = r"c:\Users\priyer\.gemini\antigravity-ide\scratch\Bot_UAIC\sample_claims.xlsx"

@@ -5,15 +5,27 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 
 def get_default_chrome_binary() -> str:
     """Dynamically resolve standard Google Chrome executable path on Windows."""
     candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google" / "Chrome" / "Application" / "chrome.exe",
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Google" / "Chrome" / "Application" / "chrome.exe",
-        Path(os.environ.get("LocalAppData", "")) / "Google" / "Chrome" / "Application" / "chrome.exe",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        / "Google"
+        / "Chrome"
+        / "Application"
+        / "chrome.exe",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+        / "Google"
+        / "Chrome"
+        / "Application"
+        / "chrome.exe",
+        Path(os.environ.get("LocalAppData", ""))
+        / "Google"
+        / "Chrome"
+        / "Application"
+        / "chrome.exe",
         Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
         Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
     ]
@@ -43,20 +55,55 @@ def get_default_extension_dir() -> str:
 
 class AutomationSettings(BaseModel):
     """Browser automation and anti-captcha settings."""
-    max_captcha_attempts: int = Field(default=2, ge=1, le=20, description="Max retry attempts for CAPTCHA solving with page reload")
-    captcha_wait_seconds: int = Field(default=45, ge=5, le=300, description="Seconds to wait for CAPTCHA token resolution before timeout/reload")
-    page_timeout_seconds: int = Field(default=35, ge=5, le=180, description="Browser page navigation timeout in seconds")
-    reload_backoff_seconds: int = Field(default=2, ge=0, le=30, description="Cool-down delay in seconds before refreshing page on bot retry/throttle")
-    headless_mode: bool = Field(default=False, description="Run browser in headless background mode (False for visible Chrome)")
+
+    max_captcha_attempts: int = Field(
+        default=2,
+        ge=1,
+        le=20,
+        description="Max retry attempts for CAPTCHA solving with page reload",
+    )
+    captcha_wait_seconds: int = Field(
+        default=120,
+        ge=5,
+        le=300,
+        description="Seconds to wait for CAPTCHA token resolution before timeout/reload",
+    )
+    page_timeout_seconds: int = Field(
+        default=180, ge=5, le=300, description="Browser page navigation timeout in seconds"
+    )
+    reload_backoff_seconds: int = Field(
+        default=5,
+        ge=0,
+        le=30,
+        description="Cool-down delay in seconds before refreshing page on bot retry/throttle",
+    )
+    headless_mode: bool = Field(
+        default=True,
+        description="Run browser in headless background mode (False for visible Chrome)",
+    )
     browser_engine: str = Field(
         default="chrome",
         description="Browser engine: chrome (Google Chrome, default), chromium (Playwright bundled), or msedge (Microsoft Edge)",
     )
-    use_chrome_browser: bool = Field(default=True, description="Always launch Google Chrome browser (supports Chrome extensions like AntiCaptcha)")
-    chrome_binary_path: str | None = Field(default_factory=get_default_chrome_binary, description="Google Chrome executable path (default: Windows Program Files)")
-    chrome_extension_dir: str | None = Field(default_factory=get_default_extension_dir, description="AntiCaptcha Chrome Extension Directory Path (default: relative)")
-    anticaptcha_api_key: str | None = Field(default="", description="AntiCaptcha API Key for auto-solving")
-    chrome_user_data_dir: str | None = Field(default="", description="Path to Chrome User Data for persistent extension settings (optional, keep blank by default)")
+    use_chrome_browser: bool = Field(
+        default=True,
+        description="Always launch Google Chrome browser (supports Chrome extensions like AntiCaptcha)",
+    )
+    chrome_binary_path: str | None = Field(
+        default_factory=get_default_chrome_binary,
+        description="Google Chrome executable path (default: Windows Program Files)",
+    )
+    chrome_extension_dir: str | None = Field(
+        default_factory=get_default_extension_dir,
+        description="AntiCaptcha Chrome Extension Directory Path (default: relative)",
+    )
+    anticaptcha_api_key: str | None = Field(
+        default="", description="AntiCaptcha API Key for auto-solving"
+    )
+    chrome_user_data_dir: str | None = Field(
+        default="",
+        description="Path to Chrome User Data for persistent extension settings (optional, keep blank by default)",
+    )
     user_agent: str = Field(
         default=CHROME_USER_AGENT,
         description="Browser User-Agent header string",
@@ -76,23 +123,57 @@ class AutomationSettings(BaseModel):
         description="ISO timestamp of last extension setup verification",
     )
     typing_speed_mode: str = Field(
-        default="turbo",
+        default="balanced",
         description="Browser input entry speed mode: turbo (instant DOM fill, 0ms), fast (15ms/char), balanced (50ms/char), cautious (100ms/char)",
     )
     typing_delay_ms: int = Field(
-        default=0,
+        default=50,
         ge=0,
         le=200,
         description="Keystroke input delay in milliseconds (0 = instant .fill(), >0 = press_sequentially with delay)",
     )
     action_pacing_ms: int = Field(
-        default=50,
+        default=250,
         ge=0,
         le=1500,
         description="Pacing delay between consecutive browser actions in milliseconds (0 = no delay)",
     )
-    stealth_clicks: bool = Field(
+    human_interaction_mode: str = Field(
+        default="unattended",
+        description="Human interaction mode: attended (visible desktop, cursor indicator, manual intervention) or unattended (background session)",
+    )
+    mouse_movement_style: str = Field(
+        default="bezier_natural",
+        description="Mouse movement trajectory: bezier_natural (human Bézier curve + jitter), smooth, linear, or instant",
+    )
+    click_timeout_ms: int = Field(
+        default=10000,
+        ge=1000,
+        le=60000,
+        description="Maximum wait time for clickable element readiness in milliseconds",
+    )
+    screenshot_frequency_seconds: float = Field(
+        default=1.0,
+        ge=0.2,
+        le=10.0,
+        description="Interval between automated diagnostic screenshot captures in seconds",
+    )
+    enable_screen_recording: bool = Field(
         default=False,
+        description="Enable automated screen/video recording during browser execution",
+    )
+    human_intervention_timeout_seconds: int = Field(
+        default=180,
+        ge=15,
+        le=900,
+        description="Timeout in seconds for operator manual intervention when CAPTCHAs require human verification",
+    )
+    show_cursor_trail: bool = Field(
+        default=True,
+        description="Render visible animated cursor indicator and click ripples on attended browser screen",
+    )
+    stealth_clicks: bool = Field(
+        default=True,
         description="Enable biometric jitter mouse movements vs direct snappy clicks",
     )
 
@@ -151,6 +232,22 @@ class AutomationSettings(BaseModel):
             raise ValueError("browser_engine must be chrome, chromium, or msedge")
         return value
 
+    @field_validator("human_interaction_mode")
+    @classmethod
+    def valid_human_interaction_mode(cls, value: str) -> str:
+        if value not in {"attended", "unattended"}:
+            raise ValueError("human_interaction_mode must be attended or unattended")
+        return value
+
+    @field_validator("mouse_movement_style")
+    @classmethod
+    def valid_mouse_movement_style(cls, value: str) -> str:
+        if value not in {"bezier_natural", "smooth", "linear", "instant"}:
+            raise ValueError(
+                "mouse_movement_style must be bezier_natural, smooth, linear, or instant"
+            )
+        return value
+
     @field_validator("typing_speed_mode")
     @classmethod
     def valid_typing_speed_mode(cls, value: str) -> str:
@@ -158,63 +255,347 @@ class AutomationSettings(BaseModel):
             raise ValueError("typing_speed_mode must be turbo, fast, balanced, or cautious")
         return value
 
+    @model_validator(mode="after")
+    def sync_mode_and_visibility(self) -> "AutomationSettings":
+        """Enforce strict bidirectional synchronization between headless_mode and human_interaction_mode."""
+        if self.headless_mode:
+            self.human_interaction_mode = "unattended"
+        else:
+            self.human_interaction_mode = "attended"
+        return self
+
 
 class PortalsSettings(BaseModel):
     """Court scraper portal endpoints and activation toggles."""
+
     # Florida
-    broward_url: str = Field(default="https://www.browardclerk.org/Web2", description="Broward County Clerk Portal URL")
+    broward_url: str = Field(
+        default="https://www.browardclerk.org/Web2", description="Broward County Clerk Portal URL"
+    )
     broward_enabled: bool = Field(default=True, description="Enable Broward County Scraper")
 
-    hillsborough_url: str = Field(default="https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab", description="Hillsborough County Clerk Portal URL")
-    hillsborough_enabled: bool = Field(default=True, description="Enable Hillsborough County Scraper")
+    hillsborough_url: str = Field(
+        default="https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+        description="Hillsborough County Clerk Portal URL",
+    )
+    hillsborough_enabled: bool = Field(
+        default=True, description="Enable Hillsborough County Scraper"
+    )
 
-    miami_url: str = Field(default="https://www2.miamidadeclerk.gov/ocs", description="Miami-Dade County Clerk Portal URL")
+    miami_url: str = Field(
+        default="https://www2.miamidadeclerk.gov/ocs",
+        description="Miami-Dade County Clerk Portal URL",
+    )
     miami_enabled: bool = Field(default=True, description="Enable Miami-Dade County Scraper")
-    miami_username: str = Field(default="", description="Miami-Dade OCS Portal Login Username/Email")
+    miami_username: str = Field(
+        default="", description="Miami-Dade OCS Portal Login Username/Email"
+    )
     miami_password: str = Field(default="", description="Miami-Dade OCS Portal Login Password")
-    miami_requires_login: bool = Field(default=True, description="Requires authentication to scrape Miami-Dade OCS portal")
+    miami_requires_login: bool = Field(
+        default=True, description="Requires authentication to scrape Miami-Dade OCS portal"
+    )
 
     # Texas
-    travis_url: str = Field(default="https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29", description="Travis County Odyssey Portal URL (V4 CountyWebsite)")
+    travis_url: str = Field(
+        default="https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29",
+        description="Travis County Odyssey Portal URL (V4 CountyWebsite)",
+    )
     travis_enabled: bool = Field(default=True, description="Enable Travis County Scraper")
 
-    dallas_url: str = Field(default="https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29", description="Dallas County Courts Portal URL (V4 CountyWebsite)")
+    dallas_url: str = Field(
+        default="https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29",
+        description="Dallas County Courts Portal URL (V4 CountyWebsite)",
+    )
     dallas_enabled: bool = Field(default=True, description="Enable Dallas County Scraper")
 
-    harris_jp_url: str = Field(default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29", description="Harris County JP Courts Portal URL (V4 CountyWebsite)")
+    harris_jp_url: str = Field(
+        default="https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29",
+        description="Harris County JP Courts Portal URL (V4 CountyWebsite)",
+    )
     harris_jp_enabled: bool = Field(default=True, description="Enable Harris County JP Scraper")
 
-    harris_cclerk_url: str = Field(default="https://www.cclerk.hctx.net/Applications/WebSearch/", description="Harris County Clerk Portal URL")
-    harris_cclerk_enabled: bool = Field(default=True, description="Enable Harris County Clerk Scraper")
+    harris_cclerk_url: str = Field(
+        default="https://www.cclerk.hctx.net/Applications/WebSearch/",
+        description="Harris County Clerk Portal URL",
+    )
+    harris_cclerk_enabled: bool = Field(
+        default=True, description="Enable Harris County Clerk Scraper"
+    )
 
-    harris_district_url: str = Field(default="https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx", description="Harris County District Clerk Portal URL (V4 CountyWebsite)")
-    harris_district_enabled: bool = Field(default=True, description="Enable Harris District Clerk Scraper")
+    harris_district_url: str = Field(
+        default="https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+        description="Harris County District Clerk Portal URL (V4 CountyWebsite)",
+    )
+    harris_district_enabled: bool = Field(
+        default=True, description="Enable Harris District Clerk Scraper"
+    )
 
     @field_validator(
-        "broward_url", "hillsborough_url", "miami_url", "travis_url",
-        "dallas_url", "harris_jp_url", "harris_cclerk_url", "harris_district_url",
+        "broward_url",
+        "hillsborough_url",
+        "miami_url",
+        "travis_url",
+        "dallas_url",
+        "harris_jp_url",
+        "harris_cclerk_url",
+        "harris_district_url",
     )
     @classmethod
     def valid_portal_url(cls, value: str) -> str:
         value = value.strip()
         parsed = urlparse(value)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+        ):
             raise ValueError("portal URL must be an absolute HTTP(S) URL without credentials")
+        hostname = (parsed.hostname or "").lower()
+        if (
+            hostname == "169.254.169.254"
+            or hostname.startswith("169.254.")
+            or "metadata" in hostname
+        ):
+            raise ValueError("portal URL cannot point to link-local metadata endpoints")
         return value
+
+
+DEFAULT_UNSEARCHABLE_PARTY_PATTERNS = [
+    "^UNKNOWN\\b",
+    "\\bUNKNOWN\\b",
+    "^UNIDENTIFIED\\b",
+    "^NO\\s+DRIVER\\b",
+    "^NO\\s+NAME\\b",
+    "\\bNOT\\s+PROVIDED\\b",
+    "\\bNOT\\s+AVAILABLE\\b",
+    "^NONE\\b",
+    "^N/?A$",
+    "^NOT\\s+APPLICABLE$",
+    "^NOT\\s+SPECIFIED$",
+    "^TBD$",
+    "^PENDING$",
+    "^UNAVAILABLE$",
+    "^REFUSED$",
+    "^UNNAMED$",
+    "UNKNOWN\\s+IV\\s+DRIVER",
+    "UNKNOWN\\s+CV\\s+OWNER",
+    "UNKNOWN\\s+CV1\\s+OWNER",
+    "UNKNOWN\\s+CV\\s+OWNER\\s+\\d+",
+    "UNKNOWN\\s+P\\d+\\s+PROPERTY\\s+OWNER",
+    "UNKNOWN\\s+PROPERTY\\s+OWNER",
+    "UNKNOWN\\s+DRIVER",
+    "UNKNOWN\\s+OWNER",
+    "UNKNOWN\\s+PASSENGER",
+    "UNKNOWN\\s+PEDESTRIAN",
+    "UNKNOWN\\s+VEHICLE",
+    "UNKNOWN\\s+HIT\\b",
+    "^JOHN\\s+DOE$",
+    "^JANE\\s+DOE$",
+    "\\bJOHN\\s+DOE\\b",
+    "\\bJANE\\s+DOE\\b",
+    "\\bHIT\\s+(?:AND|&)\\s+RUN\\b",
+    "\\bPHANTOM\\s+VEHICLE\\b",
+    "\\bPEDESTRIAN\\b",
+    "\\bOCCUPANT\\b",
+    "\\bPASSENGER\\b",
+    "\\bPOLICE\\s+DEPARTMENT\\b",
+    "\\bPOLICE\\s+DEPT\\b",
+    "\\bSHERIFF(?:'S)?\\s+(?:OFFICE|DEPARTMENT)\\b",
+    "\\bHIGHWAY\\s+PATROL\\b",
+    "\\bSTATE\\s+TROOPER(?:S)?\\b",
+    "\\bFIRE\\s+DEPARTMENT\\b",
+    "\\bFIRE\\s+DEPT\\b",
+    "\\bFIRE\\s+RESCUE\\b",
+    "\\bAMBULANCE\\b",
+    "\\bPARAMEDIC(?:S)?\\b",
+    "\\bEMS\\b",
+    "\\bEMERGENCY\\s+SERVICES\\b",
+    "\\bDEPARTMENT\\s+OF\\s+TRANSPORTATION\\b",
+    "\\bDEPT\\s+OF\\s+TRANSPORTATION\\b",
+    "\\bFL\\s+DEPT\\s+OF\\s+TRANSPORTATION\\b",
+    "\\bTX\\s+DEPT\\s+OF\\s+TRANSPORTATION\\b",
+    "\\bCITY\\s+OF\\s+[A-Z\\s]+",
+    "\\bCOUNTY\\s+OF\\s+[A-Z\\s]+",
+    "\\bSTATE\\s+OF\\s+[A-Z\\s]+",
+    "\\bTOWN\\s+OF\\s+[A-Z\\s]+",
+    "\\bVILLAGE\\s+OF\\s+[A-Z\\s]+",
+    "\\bBOROUGH\\s+OF\\s+[A-Z\\s]+",
+    "\\bHOUSING\\s+AUTHORITY\\b",
+    "\\bTRANSIT\\s+AUTHORITY\\b",
+    "\\bMETROPOLITAN\\s+TRANSIT\\b",
+    "\\bSCHOOL\\s+DISTRICT\\b",
+    "\\bBOARD\\s+OF\\s+EDUCATION\\b",
+    "\\bCOUNTY\\s+COMMISSIONERS\\b",
+    "\\bPUBLIC\\s+WORKS\\b",
+    "\\bWATER\\s+AUTHORITY\\b",
+    "\\bPOSTAL\\s+SERVICE\\b",
+    "\\bUSPS\\b",
+    "\\bENTERPRISE\\b",
+    "\\bENTERPRISE\\s+RENT\\b",
+    "\\bHERTZ\\b",
+    "\\bAVIS\\b",
+    "\\bBUDGET\\s+(?:RENT|CAR|TRUCK)\\b",
+    "\\bPENSKE\\b",
+    "\\bRYDER\\b",
+    "\\bU-HAUL\\b",
+    "\\bNATIONAL\\s+CAR\\s+RENTAL\\b",
+    "\\bALAMO\\s+RENT\\b",
+    "\\bDOLLAR\\s+RENT\\b",
+    "\\bTHRIFTY\\b",
+    "\\bSIXT\\b",
+    "\\bTRUCK\\s+LEASING\\b",
+    "\\bFLEET\\s+LEASING\\b",
+    "\\bCAR\\s+RENTAL\\b",
+    "\\bAUTO\\s+RENTAL\\b",
+    "\\bTRANSPORTATION\\b",
+    "\\bLOGISTICS\\b",
+    "\\bTRUCKING\\b",
+    "\\bFREIGHT\\b",
+    "\\bEXPRESS\\s+CARRIER\\b",
+    "\\bTOWING\\b",
+    "\\bAUTO\\s+TRANSPORT\\b",
+    "\\bGEICO\\b",
+    "\\bSTATE\\s+FARM\\b",
+    "\\bALLSTATE\\b",
+    "\\bPROGRESSIVE\\b",
+    "\\bLIBERTY\\s+MUTUAL\\b",
+    "\\bTRAVELERS\\b",
+    "\\bNATIONWIDE\\b",
+    "\\bUSAA\\b",
+    "\\bFARMERS\\s+INSURANCE\\b",
+    "\\bAMERICAN\\s+FAMILY\\b",
+    "\\bUNITED\\s+AUTOMOBILE\\b",
+    "\\bUAIC\\b",
+    "\\bINSURANCE\\s+COMPANY\\b",
+    "\\bINSURANCE\\s+CO\\b",
+    "\\bINDEMNITY\\b",
+    "\\bHOSPITAL\\b",
+    "\\bMEDICAL\\s+CENTER\\b",
+    "\\bHEALTHCARE\\b",
+    "\\bCLINIC\\b",
+    "\\bCHIROPRACTIC\\b",
+    "\\bORTHOPEDIC(?:S)?\\b",
+    "\\bDIAGNOSTIC(?:S)?\\b",
+    "\\bSURGERY\\s+CENTER\\b",
+    "\\bMRI\\s+CENTER\\b",
+    "\\bPHARMACY\\b",
+    "\\bRADIOLOGY\\b",
+    "\\bURGENT\\s+CARE\\b",
+    "^[A-Z0-9\\s&,.-]+\\b(?:LLC|INC|CORP|CORPORATION|CO|COMPANY|L\\.L\\.C|LTD|LIMITED|TOWING|RENTAL|ENTERPRISE|PRODUCE|FASTENERS)[.]?[\\s,.-]*$",
+]
+
+DEFAULT_CLEAN_CASE_STYLE_PATTERNS = [
+    "AS PERSONAL REPRESENTATIVE OF",
+    "PERSONAL REPRESENTATIVE OF",
+    "AS PERSONAL REPRESENTATIVE",
+    "PERSONAL REPRESENTATIVE",
+    "AS PR OF",
+    "PR OF",
+    "AS EXECUTOR OF",
+    "AS EXECUTRIX OF",
+    "EXECUTOR OF",
+    "EXECUTRIX OF",
+    "AS ADMINISTRATOR OF",
+    "AS ADMINISTRATRIX OF",
+    "ADMINISTRATOR OF",
+    "AS TRUSTEE OF",
+    "AS TRUSTEE FOR",
+    "TRUSTEE OF",
+    "AS NEXT FRIEND OF",
+    "NEXT FRIEND OF",
+    "NEXT FRIEND",
+    "ON BEHALF OF",
+    "IN BEHALF OF",
+    "FOR THE USE AND BENEFIT OF",
+    "FOR THE BENEFIT OF",
+    "F/U/B/O",
+    "F/B/O",
+    "AS GUARDIAN OF",
+    "LEGAL GUARDIAN OF",
+    "NATURAL GUARDIAN OF",
+    "NATURAL GUARDIAN",
+    "AS SURVIVING SPOUSE OF",
+    "SURVIVING SPOUSE OF",
+    "AS SURVIVING SPOUSE",
+    "AS BENEFICIARY OF",
+    "AS PARENT OF",
+    "AS PARENT",
+    "A MINOR CHILD",
+    "A MINOR",
+    "MINORS",
+    "AN INCAPACITATED PERSON",
+    "ESTATE OF",
+    "A DECEASED PERSON",
+    "DECEASED",
+    "INDIVIDUALLY",
+    "ET AL",
+    "AS ASSIGNEE OF",
+    "A/A/O",
+    "AAO",
+    "A FLORIDA CORPORATION",
+    "A TEXAS CORPORATION",
+    "A DELAWARE LLC",
+    "A FOREIGN CORPORATION",
+    "A FOREIGN ENTITY",
+    "A DOMESTIC CORPORATION",
+    "D/B/A",
+    "DBA",
+    "F/K/A",
+    "FKA",
+    "A/K/A",
+    "AKA",
+    "N/K/A",
+    "NKA",
+    "AND ALL OTHERS SIMILARLY SITUATED",
+    "IN RE",
+    "IN THE MATTER OF",
+    "PLAINTIFF",
+    "DEFENDANT",
+    "PETITIONER",
+    "RESPONDENT",
+    "UNKNOWN TENANT",
+    "UNKNOWN SPOUSE",
+    "UNKNOWN OCCUPANT",
+    "UNKNOWN PARTIES",
+]
+
+
+def get_default_unsearchable_patterns() -> list[str]:
+    return list(DEFAULT_UNSEARCHABLE_PARTY_PATTERNS)
+
+
+def get_default_clean_case_patterns() -> list[str]:
+    return list(DEFAULT_CLEAN_CASE_STYLE_PATTERNS)
 
 
 class FuzzyMatcherSettings(BaseModel):
     """RapidFuzz deduplication and eligibility settings."""
-    auto_match_threshold: float = Field(default=0.60, ge=0.0, le=1.0, description="Similarity score threshold for automatic match approval")
-    manual_review_threshold: float = Field(default=0.40, ge=0.0, le=1.0, description="Similarity score threshold for sending to human review")
+
+    auto_match_threshold: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        description="Similarity score threshold for automatic match approval",
+    )
+    manual_review_threshold: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        description="Similarity score threshold for sending to human review",
+    )
     scorer_algorithm: str = Field(
         default="partial_ratio",
         description="Fuzzy matching algorithm (token_sort_ratio, token_set_ratio, partial_ratio, ratio)",
     )
-    min_filing_date: str = Field(default="2010-01-01", description="Minimum court case filing date (YYYY-MM-DD)")
+    min_filing_date: str = Field(
+        default="2010-01-01", description="Minimum court case filing date (YYYY-MM-DD)"
+    )
     unique_names_threshold: float = Field(
-        default=0.60, ge=0.60, le=0.60,
-        description="Power Automate V4 party deduplication threshold (fixed at 0.60)",
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        description="Power Automate V4 party deduplication threshold (default 0.60)",
     )
     clean_party_name_patterns: list[str] = Field(
         default_factory=lambda: [
@@ -259,55 +640,11 @@ class FuzzyMatcherSettings(BaseModel):
         description="Corporate noise and suffix words to strip during party name normalization",
     )
     unsearchable_party_patterns: list[str] = Field(
-        default_factory=lambda: [
-            r"^UNKNOWN\b",
-            r"\bUNKNOWN\b",
-            r"^UNIDENTIFIED\b",
-            r"^NO\s+DRIVER\b",
-            r"^NO\s+NAME\b",
-            r"\bNOT\s+PROVIDED\b",
-            r"\bNOT\s+AVAILABLE\b",
-            r"^NONE\b",
-            r"^N/?A$",
-            r"^TBD$",
-            r"^PENDING$",
-            r"UNKNOWN\s+IV\s+DRIVER",
-            r"UNKNOWN\s+CV\s+OWNER",
-            r"UNKNOWN\s+CV1\s+OWNER",
-            r"UNKNOWN\s+CV\s+OWNER\s+\d+",
-            r"UNKNOWN\s+P\d+\s+PROPERTY\s+OWNER",
-            r"UNKNOWN\s+PROPERTY\s+OWNER",
-            r"UNKNOWN\s+DRIVER",
-            r"UNKNOWN\s+OWNER",
-            r"UNKNOWN\s+PASSENGER",
-            r"UNKNOWN\s+PEDESTRIAN",
-            r"\bPOLICE\s+DEPARTMENT\b",
-            r"\bPOLICE\s+DEPT\b",
-            r"\bSHERIFF(?:'S)?\s+(?:OFFICE|DEPARTMENT)\b",
-            r"\bDEPARTMENT\s+OF\s+TRANSPORTATION\b",
-            r"\bDEPT\s+OF\s+TRANSPORTATION\b",
-            r"\bFL\s+DEPT\s+OF\s+TRANSPORTATION\b",
-            r"\bCITY\s+OF\s+[A-Z\s]+",
-            r"\bCOUNTY\s+OF\s+[A-Z\s]+",
-            r"\bSTATE\s+OF\s+[A-Z\s]+",
-            r"\bHOUSING\s+AUTHORITY\b",
-            r"\bTRANSIT\s+AUTHORITY\b",
-            r"\bMETROPOLITAN\s+TRANSIT\b",
-            r"^[A-Z0-9\s&,.-]+\b(?:LLC|INC|CORP|CORPORATION|CO\.|COMPANY|L\.L\.C\.|LTD|LIMITED|TOWING|RENTAL|ENTERPRISE)\b$",
-        ],
+        default_factory=get_default_unsearchable_patterns,
         description="Exception list patterns for unsearchable / placeholder / municipal parties to skip before portal discovery",
     )
     clean_case_style_patterns: list[str] = Field(
-        default_factory=lambda: [
-            "ET AL",
-            "INDIVIDUALLY",
-            "AS PARENT",
-            "NATURAL GUARDIAN",
-            "A MINOR",
-            "ESTATE OF",
-            "A/A/O",
-            "AS ASSIGNEE OF",
-        ],
+        default_factory=get_default_clean_case_patterns,
         description="Legal noise patterns stripped from scraped court case styles",
     )
     whitelisted_statuses: list[str] = Field(
@@ -338,7 +675,10 @@ class FuzzyMatcherSettings(BaseModel):
 
 class IntegrationSettings(BaseModel):
     """Guidewire ClaimCenter integration and downstream sync settings."""
-    guidewire_mock_mode: bool = Field(default=True, description="Simulate Guidewire response without calling external endpoint")
+
+    guidewire_mock_mode: bool = Field(
+        default=True, description="Simulate Guidewire response without calling external endpoint"
+    )
     guidewire_api_url: str = Field(
         default="https://uaic-gwcp-prod-igoauthproxy.api.delta4-andromeda.guidewire.net/api/powerapps/caseupdate",
         description="Guidewire Case Update REST API endpoint URL",
@@ -348,15 +688,26 @@ class IntegrationSettings(BaseModel):
         description="Auth method: Bearer, ApiKey, Basic, OAuth2, None",
     )
     guidewire_api_key: str = Field(default="", description="Bearer token or API Key header value")
-    guidewire_client_id: str = Field(default="uaic_service_account", description="Client ID / Username for Basic or OAuth2 auth")
-    guidewire_client_secret: str = Field(default="", description="Client Secret / Password for Basic or OAuth2 auth")
-    guidewire_timeout_seconds: int = Field(default=30, ge=5, le=120, description="Guidewire HTTP timeout in seconds")
-    auto_push_on_match: bool = Field(default=True, description="Automatically trigger Guidewire notification when match is confirmed")
+    guidewire_client_id: str = Field(
+        default="uaic_service_account", description="Client ID / Username for Basic or OAuth2 auth"
+    )
+    guidewire_client_secret: str = Field(
+        default="", description="Client Secret / Password for Basic or OAuth2 auth"
+    )
+    guidewire_timeout_seconds: int = Field(
+        default=30, ge=5, le=120, description="Guidewire HTTP timeout in seconds"
+    )
+    auto_push_on_match: bool = Field(
+        default=True,
+        description="Automatically trigger Guidewire notification when match is confirmed",
+    )
     notification_dispatch_mode: str = Field(
         default="both",
         description="Match notification dispatch strategy: 'direct_system' (send email directly from Orchestrator), 'guidewire_activity' (push to Guidewire and trigger activity notification), or 'both' (both Guidewire push and direct system email)",
     )
-    notification_email: str = Field(default="test@test.com", description="Alert email recipient for failed push notifications")
+    notification_email: str = Field(
+        default="test@test.com", description="Alert email recipient for failed push notifications"
+    )
 
     @field_validator("guidewire_auth_type")
     @classmethod
@@ -369,22 +720,82 @@ class IntegrationSettings(BaseModel):
     @classmethod
     def valid_notification_dispatch_mode(cls, value: str) -> str:
         if value not in {"direct_system", "guidewire_activity", "both"}:
-            raise ValueError("notification_dispatch_mode must be direct_system, guidewire_activity, or both")
+            raise ValueError(
+                "notification_dispatch_mode must be direct_system, guidewire_activity, or both"
+            )
         return value
+
+
+RETRY_INTERVAL_UNIT_MULTIPLIERS: dict[str, int] = {
+    "seconds": 1,
+    "minutes": 60,
+    "hours": 3600,
+    "days": 86400,
+    "weeks": 604800,
+    "months": 2592000,
+    "years": 31536000,
+}
 
 
 class TaskQueueSettings(BaseModel):
     """Celery task queue & operational retry limits."""
-    max_task_retries: int = Field(default=3, ge=0, le=10, description="Maximum Celery task retry attempts on unhandled exceptions")
-    task_retry_delay_seconds: int = Field(default=30, ge=5, le=300, description="Exponential backoff delay in seconds between task retries")
-    batch_chunk_size: int = Field(default=25, ge=5, le=100, description="Claims per ingestion database flush batch")
-    auto_retry_failed_scrapes: bool = Field(default=True, description="Automatically retrigger failed scraping tasks via Celery Beat")
+
+    max_task_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum Celery task retry attempts on unhandled exceptions",
+    )
+    task_retry_delay_seconds: int = Field(
+        default=30,
+        ge=5,
+        le=300,
+        description="Exponential backoff delay in seconds between task retries",
+    )
+    batch_chunk_size: int = Field(
+        default=25, ge=5, le=100, description="Claims per ingestion database flush batch"
+    )
+    auto_retry_failed_scrapes: bool = Field(
+        default=True, description="Automatically retrigger failed scraping tasks via Celery Beat"
+    )
     failed_claims_retry_interval_minutes: int = Field(
         default=0,
         ge=0,
-        le=1440,
         description="Interval in minutes between automatic retriggers of failed claims via Celery Beat (0 = fallback to task_retry_delay_seconds)",
     )
+    failed_claims_retry_interval_value: int | None = Field(
+        default=None,
+        description="Numerical value for automated retriggering of failed claims",
+    )
+    failed_claims_retry_interval_unit: str = Field(
+        default="minutes",
+        description="Unit for automated retriggering (seconds, minutes, hours, days, weeks, months, years)",
+    )
+    failed_claims_retry_interval_seconds: int = Field(
+        default=0,
+        description="Interval in seconds for automated retriggering of failed claims",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_retry_interval(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            val = data.get("failed_claims_retry_interval_value")
+            unit = data.get("failed_claims_retry_interval_unit", "minutes")
+            legacy_mins = data.get("failed_claims_retry_interval_minutes")
+            if val is not None and unit in RETRY_INTERVAL_UNIT_MULTIPLIERS:
+                secs = int(val) * RETRY_INTERVAL_UNIT_MULTIPLIERS[unit]
+                data["failed_claims_retry_interval_seconds"] = secs
+                data["failed_claims_retry_interval_minutes"] = max(1, secs // 60) if secs > 0 else 0
+            elif legacy_mins is not None and legacy_mins > 0 and val is None:
+                data["failed_claims_retry_interval_value"] = legacy_mins
+                data["failed_claims_retry_interval_unit"] = "minutes"
+                data["failed_claims_retry_interval_seconds"] = legacy_mins * 60
+            elif val is None and (legacy_mins is None or legacy_mins == 0):
+                if "failed_claims_retry_interval_seconds" not in data:
+                    data["failed_claims_retry_interval_seconds"] = 0
+        return data
+
     max_concurrent_claims: int = Field(
         default=10,
         ge=1,
@@ -397,10 +808,35 @@ class TaskQueueSettings(BaseModel):
         le=120,
         description="Watchdog timeout in minutes before marking a stuck/interrupted claim",
     )
+    waf_rate_limit_cooldown_seconds: int = Field(
+        default=600,
+        ge=10,
+        le=3600,
+        description="Cooldown delay in seconds for WAF rate-limiting (Travis County 600s)",
+    )
+    perimeterx_cooldown_seconds: int = Field(
+        default=300,
+        ge=10,
+        le=1800,
+        description="Cooldown delay in seconds for PerimeterX / HUMAN Security challenges (Hillsborough County 300s)",
+    )
+    ip_ban_cooldown_seconds: int = Field(
+        default=600,
+        ge=10,
+        le=7200,
+        description="Cooldown delay in seconds for IP restriction / ban blocks",
+    )
+    generic_waf_cooldown_seconds: int = Field(
+        default=300,
+        ge=10,
+        le=1800,
+        description="Default cooldown delay in seconds for generic WAF / Cloudflare challenges",
+    )
 
 
 class ThemePalette(BaseModel):
     """Semantic theme color tokens for light or dark mode."""
+
     primary: str = Field(default="#4f46e5", description="Primary brand accent color")
     secondary: str = Field(default="#0ea5e9", description="Secondary brand accent color")
     accent: str = Field(default="#6366f1", description="Accent highlight color")
@@ -466,17 +902,30 @@ def get_default_dark_palette() -> ThemePalette:
 
 class BrandingSettings(BaseModel):
     """Visual branding, identity, and application titles."""
-    app_title: str = Field(default="UAIC Orchestrator", description="Application Title displayed in header and navigation")
-    app_subtitle: str = Field(default="RPA & Match Engine", description="Application Subtitle or tagline")
-    app_logo_url: str = Field(default="/icon.png", description="Application logo / favicon icon URL")
+
+    app_title: str = Field(
+        default="UAIC Orchestrator",
+        description="Application Title displayed in header and navigation",
+    )
+    app_subtitle: str = Field(
+        default="RPA & Match Engine", description="Application Subtitle or tagline"
+    )
+    app_logo_url: str = Field(
+        default="/icon.png", description="Application logo / favicon icon URL"
+    )
     badge_letter: str = Field(default="U", description="Fallback badge letter or monogram")
     theme_accent: str = Field(default="indigo", description="Primary brand accent color tone")
-    light_palette: ThemePalette = Field(default_factory=get_default_light_palette, description="Light Mode semantic color palette")
-    dark_palette: ThemePalette = Field(default_factory=get_default_dark_palette, description="Dark Mode semantic color palette")
+    light_palette: ThemePalette = Field(
+        default_factory=get_default_light_palette, description="Light Mode semantic color palette"
+    )
+    dark_palette: ThemePalette = Field(
+        default_factory=get_default_dark_palette, description="Dark Mode semantic color palette"
+    )
 
 
 class StorageSettings(BaseModel):
     """Storage provider configuration for error screenshots and failure diagnostics."""
+
     capture_error_screenshots: bool = Field(
         default=True,
         description="Enable/disable saving screenshots when portal scraping fails (toggle OFF to conserve storage)",
@@ -501,12 +950,18 @@ class StorageSettings(BaseModel):
     s3_access_key: str = Field(default="", description="AWS Access Key ID")
     s3_secret_key: str = Field(default="", description="AWS Secret Access Key")
     # Azure Blob Storage Settings
-    azure_connection_string: str = Field(default="", description="Azure Blob Storage connection string")
-    azure_container_name: str = Field(default="screenshots", description="Azure Blob container name")
+    azure_connection_string: str = Field(
+        default="", description="Azure Blob Storage connection string"
+    )
+    azure_container_name: str = Field(
+        default="screenshots", description="Azure Blob container name"
+    )
     # Google Cloud Storage Settings
     gcs_bucket_name: str = Field(default="", description="Google Cloud Storage bucket name")
     gcs_project_id: str = Field(default="", description="GCP Project ID")
-    gcs_credentials_json: str = Field(default="", description="Google Cloud Service Account JSON credentials")
+    gcs_credentials_json: str = Field(
+        default="", description="Google Cloud Service Account JSON credentials"
+    )
 
     @field_validator("storage_provider")
     @classmethod
@@ -518,9 +973,17 @@ class StorageSettings(BaseModel):
 
 class EmailSettings(BaseModel):
     """Enterprise email notification service and provider configuration."""
-    email_notifications_enabled: bool = Field(default=True, description="Master toggle to enable/disable automated email notifications")
-    provider: str = Field(default="local_mock", description="Email provider: local_mock, maildev, direct_mx, smtp, graph, ses")
-    maildev_web_url: str = Field(default="http://localhost:1080", description="URL for local MailDev web interface")
+
+    email_notifications_enabled: bool = Field(
+        default=True, description="Master toggle to enable/disable automated email notifications"
+    )
+    provider: str = Field(
+        default="local_mock",
+        description="Email provider: local_mock, maildev, direct_mx, smtp, graph, ses",
+    )
+    maildev_web_url: str = Field(
+        default="http://localhost:1080", description="URL for local MailDev web interface"
+    )
     smtp_host: str = Field(default="localhost", description="SMTP server hostname or IP")
     smtp_port: int = Field(default=587, description="SMTP server port (e.g. 587, 465, 25, 1025)")
     smtp_username: str = Field(default="", description="SMTP username / email")
@@ -537,13 +1000,24 @@ class EmailSettings(BaseModel):
     ses_region: str = Field(default="us-east-1", description="AWS SES Region")
     ses_access_key_id: str = Field(default="", description="AWS Access Key ID")
     ses_secret_access_key: str = Field(default="", description="AWS Secret Access Key (masked)")
-    to_recipients: list[str] = Field(default_factory=lambda: ["claims-ops@test.com"], description="Default primary To recipients")
+    to_recipients: list[str] = Field(
+        default_factory=lambda: ["claims-ops@test.com"], description="Default primary To recipients"
+    )
     cc_recipients: list[str] = Field(default_factory=list, description="Default CC recipients")
     bcc_recipients: list[str] = Field(default_factory=list, description="Default BCC recipients")
-    timeout_seconds: int = Field(default=15, ge=2, le=60, description="Email provider connection timeout in seconds")
-    retry_count: int = Field(default=3, ge=0, le=5, description="Max delivery retry attempts on transient failure")
-    retry_delay_seconds: int = Field(default=30, ge=5, le=300, description="Initial retry delay in seconds")
-    digest_mode: str = Field(default="immediate", description="Notification dispatch mode: immediate, hourly_digest, daily_digest")
+    timeout_seconds: int = Field(
+        default=15, ge=2, le=60, description="Email provider connection timeout in seconds"
+    )
+    retry_count: int = Field(
+        default=3, ge=0, le=5, description="Max delivery retry attempts on transient failure"
+    )
+    retry_delay_seconds: int = Field(
+        default=30, ge=5, le=300, description="Initial retry delay in seconds"
+    )
+    digest_mode: str = Field(
+        default="immediate",
+        description="Notification dispatch mode: immediate, hourly_digest, daily_digest",
+    )
     rules: dict[str, bool] = Field(
         default_factory=lambda: {
             "court_case_matched": True,
@@ -579,9 +1053,14 @@ class EmailSettings(BaseModel):
 
 class ProxySettings(BaseModel):
     """Dedicated self-hosted proxy pool settings."""
-    enabled: bool = Field(default=False, description="Route Playwright traffic through dedicated proxy pool")
+
+    enabled: bool = Field(
+        default=False, description="Route Playwright traffic through dedicated proxy pool"
+    )
     host: str = Field(default="", description="Proxy server IP or hostname (e.g., 10.0.0.5)")
-    port: int = Field(default=3128, ge=1, le=65535, description="Proxy server port (e.g., 3128 for Squid)")
+    port: int = Field(
+        default=3128, ge=1, le=65535, description="Proxy server port (e.g., 3128 for Squid)"
+    )
     username: str = Field(default="", description="Proxy authentication username")
     password: str = Field(default="", description="Proxy authentication password")
 
@@ -589,14 +1068,19 @@ class ProxySettings(BaseModel):
     @classmethod
     def valid_proxy_host(cls, value: str, info: ValidationInfo) -> str:
         value = value.strip()
-        if info.data.get("enabled") and (not value or "://" in value or "/" in value or "@" in value):
+        if info.data.get("enabled") and (
+            not value or "://" in value or "/" in value or "@" in value
+        ):
             raise ValueError("enabled proxy requires a hostname or IP address")
         return value
 
 
 class SystemSettings(BaseModel):
     """Root configuration model containing all subsystem configurations."""
-    version: int = Field(default=0, ge=0, description="Durable settings revision for conflict detection")
+
+    version: int = Field(
+        default=0, ge=0, description="Durable settings revision for conflict detection"
+    )
     automation: AutomationSettings = Field(default_factory=AutomationSettings)
     portals: PortalsSettings = Field(default_factory=PortalsSettings)
     matcher: FuzzyMatcherSettings = Field(default_factory=FuzzyMatcherSettings)
@@ -625,24 +1109,28 @@ SECRET_PATHS = (
 
 class SettingsResponse(SystemSettings):
     """Public settings view with write-only secrets and presence metadata."""
+
     configured_secrets: dict[str, bool] = Field(default_factory=dict)
 
 
 class SettingsUpdateRequest(SystemSettings):
     """Full settings document plus explicit requests to clear secrets."""
-    clear_secrets: list[Literal[
-        "automation.anticaptcha_api_key",
-        "portals.miami_password",
-        "integration.guidewire_api_key",
-        "integration.guidewire_client_secret",
-        "email.smtp_password",
-        "email.graph_client_secret",
-        "email.ses_secret_access_key",
-        "storage.s3_secret_key",
-        "storage.azure_connection_string",
-        "storage.gcs_credentials_json",
-        "proxy.password",
-    ]] = Field(default_factory=list)
+
+    clear_secrets: list[
+        Literal[
+            "automation.anticaptcha_api_key",
+            "portals.miami_password",
+            "integration.guidewire_api_key",
+            "integration.guidewire_client_secret",
+            "email.smtp_password",
+            "email.graph_client_secret",
+            "email.ses_secret_access_key",
+            "storage.s3_secret_key",
+            "storage.azure_connection_string",
+            "storage.gcs_credentials_json",
+            "proxy.password",
+        ]
+    ] = Field(default_factory=list)
 
     @field_validator("clear_secrets")
     @classmethod
@@ -662,7 +1150,9 @@ def redact_system_settings(document: SystemSettings) -> SettingsResponse:
     return SettingsResponse.model_validate(public)
 
 
-def merge_settings_update(current: SystemSettings, payload: SettingsUpdateRequest) -> SystemSettings:
+def merge_settings_update(
+    current: SystemSettings, payload: SettingsUpdateRequest
+) -> SystemSettings:
     """A blank secret means retain; only clear_secrets can erase an existing key."""
     updated = payload.model_dump(exclude={"clear_secrets"})
     for path in SECRET_PATHS:
@@ -679,6 +1169,7 @@ def merge_settings_update(current: SystemSettings, payload: SettingsUpdateReques
 # Test Connection Request & Response DTOs
 class GuidewireTestRequest(BaseModel):
     """Payload to test Guidewire connectivity from the UI."""
+
     api_url: str | None = None
     auth_type: str | None = None
     api_key: str | None = None
@@ -691,6 +1182,7 @@ class GuidewireTestRequest(BaseModel):
 
 class GuidewireTestResponse(BaseModel):
     """Result of Guidewire test connection."""
+
     success: bool
     status_code: int
     status_text: str
@@ -706,6 +1198,7 @@ class GuidewireTestResponse(BaseModel):
 
 class PortalTestRequest(BaseModel):
     """Payload to ping a court portal from the UI."""
+
     portal_name: str
     url: str
     timeout_seconds: int | None = 10
@@ -713,6 +1206,7 @@ class PortalTestRequest(BaseModel):
 
 class PortalTestResponse(BaseModel):
     """Result of court portal reachability check."""
+
     portal_name: str
     url: str
     reachable: bool
@@ -724,6 +1218,7 @@ class PortalTestResponse(BaseModel):
 
 class BrowserTestRequest(BaseModel):
     """Payload to test browser launch in Attended or Headless mode."""
+
     headless: bool | None = None
     browser_engine: str | None = "chrome"
     test_url: str | None = "https://example.com"
@@ -736,12 +1231,15 @@ class BrowserTestRequest(BaseModel):
 
 class BrowserTestResponse(BaseModel):
     """Result of browser launch and execution test."""
+
     success: bool
     mode: str
     browser_engine: str = "chrome"
     headless: bool
     chrome_found: bool
     chrome_executable: str | None = None
+    browser_version: str | None = None
+    executable_path: str | None = None
     extension_found: bool
     extension_path: str | None = None
     extension_loaded: bool = False
@@ -756,6 +1254,7 @@ class BrowserTestResponse(BaseModel):
 
 class StorageTestRequest(BaseModel):
     """Payload to test storage provider connectivity and permissions."""
+
     storage_provider: str = "local"
     s3_bucket_name: str | None = None
     s3_region: str | None = None
@@ -770,6 +1269,7 @@ class StorageTestRequest(BaseModel):
 
 class StorageTestResponse(BaseModel):
     """Result of storage provider connectivity and permission test."""
+
     success: bool
     storage_provider: str
     message: str
@@ -780,11 +1280,13 @@ class StorageTestResponse(BaseModel):
 
 class StorageCleanupRequest(BaseModel):
     """Payload to trigger storage retention cleanup."""
+
     retention_days: int | None = None
 
 
 class StorageCleanupResponse(BaseModel):
     """Result of storage retention cleanup operation."""
+
     success: bool
     files_deleted: int = 0
     files_purged: int = 0
@@ -794,15 +1296,18 @@ class StorageCleanupResponse(BaseModel):
     message: str
 
 
-
 # Proxy Server Connectivity Test DTOs
 class ProxyTestRequest(BaseModel):
     """Request to test proxy server connectivity."""
 
     host: str = Field(description="Proxy server hostname or IP address")
     port: int = Field(default=3128, description="Proxy server port number")
-    username: str | None = Field(default=None, description="Proxy authentication username (optional)")
-    password: str | None = Field(default=None, description="Proxy authentication password (optional)")
+    username: str | None = Field(
+        default=None, description="Proxy authentication username (optional)"
+    )
+    password: str | None = Field(
+        default=None, description="Proxy authentication password (optional)"
+    )
     test_url: str = Field(
         default="https://www.browardclerk.org/",
         description="Target URL to reach through the proxy (default: Broward county court portal)",
@@ -818,7 +1323,9 @@ class ProxyTestResponse(BaseModel):
     port: int = Field(description="Proxy port that was tested")
     authenticated: bool = Field(description="True if authentication credentials were provided")
     test_url: str = Field(description="URL that was requested through the proxy")
-    http_status: int | None = Field(default=None, description="HTTP status code returned through proxy")
+    http_status: int | None = Field(
+        default=None, description="HTTP status code returned through proxy"
+    )
     duration_ms: float = Field(description="Round-trip latency in milliseconds")
     message: str = Field(description="Human-readable result summary")
     error_detail: str | None = Field(default=None, description="Error message if test failed")
@@ -827,6 +1334,7 @@ class ProxyTestResponse(BaseModel):
 # Email Notification Test DTOs
 class EmailConnectionTestRequest(BaseModel):
     """Payload to test email provider connectivity and authentication."""
+
     provider: str = "local_mock"
     smtp_host: str | None = None
     smtp_port: int | None = None
@@ -846,6 +1354,7 @@ class EmailConnectionTestRequest(BaseModel):
 
 class EmailConnectionTestResponse(BaseModel):
     """Result of email provider connection test."""
+
     success: bool
     provider: str
     message: str
@@ -855,14 +1364,18 @@ class EmailConnectionTestResponse(BaseModel):
 
 class TestEmailSendRequest(BaseModel):
     """Payload to dispatch a live test notification email."""
+
     recipient: str
     subject: str | None = "UAIC Orchestrator — Test Notification"
-    body: str | None = "This is a live test notification verifying the UAIC Email & Notification Engine."
+    body: str | None = (
+        "This is a live test notification verifying the UAIC Email & Notification Engine."
+    )
     provider: str | None = None
 
 
 class TestEmailSendResponse(BaseModel):
     """Result of live test email dispatch."""
+
     success: bool
     notification_id: str
     recipient: str
@@ -874,6 +1387,7 @@ class TestEmailSendResponse(BaseModel):
 
 class NotificationResponseSchema(BaseModel):
     """Schema for returning notification delivery records."""
+
     id: str
     event_type: str
     claim_id: str | None = None
@@ -895,6 +1409,7 @@ class NotificationResponseSchema(BaseModel):
 
 class NotificationTemplateSchema(BaseModel):
     """Schema for dynamic email notification templates."""
+
     id: str
     name: str
     event_type: str
@@ -906,6 +1421,7 @@ class NotificationTemplateSchema(BaseModel):
 
 class ExtensionSetupResponse(BaseModel):
     """Result of one-time browser extension configuration and toolbar pinning."""
+
     success: bool = True
     message: str
     extension_id: str | None = None
@@ -920,6 +1436,7 @@ class ExtensionSetupResponse(BaseModel):
 
 class FleetWorkerResult(BaseModel):
     """Result of an individual parallel browser worker in fleet test."""
+
     worker_id: int
     browser_engine: str
     mode: str
@@ -933,15 +1450,28 @@ class FleetWorkerResult(BaseModel):
 
 class FleetTestRequest(BaseModel):
     """Request payload for parallel fleet concurrency browser launch test."""
-    concurrency: int = Field(default=2, ge=1, le=10, description="Number of parallel browser instances to spawn concurrently (1-10)")
-    headless: bool | None = Field(default=None, description="Override headless mode; defaults to runtime settings if null")
-    browser_engine: str | None = Field(default="chrome", description="Browser engine override (chrome, chromium, msedge)")
+
+    concurrency: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        description="Number of parallel browser instances to spawn concurrently (1-10)",
+    )
+    headless: bool | None = Field(
+        default=None, description="Override headless mode; defaults to runtime settings if null"
+    )
+    browser_engine: str | None = Field(
+        default="chrome", description="Browser engine override (chrome, chromium, msedge)"
+    )
     test_url: str = Field(default="https://example.com", description="Lightweight test target URL")
-    timeout_seconds: int = Field(default=45, ge=5, le=300, description="Timeout in seconds per worker")
+    timeout_seconds: int = Field(
+        default=45, ge=5, le=300, description="Timeout in seconds per worker"
+    )
 
 
 class FleetTestResponse(BaseModel):
     """Aggregated response for parallel fleet concurrency browser launch test."""
+
     success: bool
     concurrency_requested: int
     concurrency_succeeded: int

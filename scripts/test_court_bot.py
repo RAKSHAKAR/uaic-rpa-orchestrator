@@ -16,7 +16,6 @@ Usage:
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 from datetime import datetime
@@ -26,6 +25,8 @@ backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bac
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+import functools
+
 from app.automation.florida import BrowardScraper, HillsboroughScraper, MiamiDadeScraper
 from app.automation.texas import (
     DallasScraper,
@@ -34,8 +35,7 @@ from app.automation.texas import (
     HarrisJPScraper,
     TravisScraper,
 )
-from app.core.config import settings
-import functools
+
 print = functools.partial(print, flush=True)
 
 # Registry of all 8 court portal bots with their metadata and canonical V4 configuration

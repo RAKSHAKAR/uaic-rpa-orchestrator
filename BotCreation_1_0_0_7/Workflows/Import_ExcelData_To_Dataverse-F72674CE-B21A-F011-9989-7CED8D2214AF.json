@@ -1,0 +1,374 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_sharepointonline_1": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "uaic_sharedsharepointonline_733d4"
+        },
+        "api": {
+          "name": "shared_sharepointonline"
+        }
+      },
+      "shared_commondataserviceforapps_1": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "uaic_sharedcommondataserviceforapps_6e43b"
+        },
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        }
+      },
+      "shared_excelonlinebusiness_1": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "uaic_sharedexcelonlinebusiness_9c5fe"
+        },
+        "api": {
+          "name": "shared_excelonlinebusiness"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "VarSharepointSiteUrl (uaic_VarSharepointSiteUrl)": {
+          "defaultValue": "https://uaignet.sharepoint.com/sites/UAICBotCreation",
+          "type": "String",
+          "metadata": {
+            "schemaName": "uaic_VarSharepointSiteUrl"
+          }
+        },
+        "VarSharePointSiteLibrary (uaic_VarSharePointSiteLibrary)": {
+          "defaultValue": "BotcreationDOCLibrary",
+          "type": "String",
+          "metadata": {
+            "schemaName": "uaic_VarSharePointSiteLibrary"
+          }
+        }
+      },
+      "triggers": {
+        "When_a_file_is_created_(properties_only)": {
+          "recurrence": {
+            "frequency": "Minute",
+            "interval": 3
+          },
+          "splitOn": "@triggerOutputs()?['body/value']",
+          "metadata": {
+            "operationMetadataId": "1aafdba6-4dbd-439a-b06f-19764520808d"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "@parameters('VarSharepointSiteUrl (uaic_VarSharepointSiteUrl)')",
+              "table": "@parameters('VarSharePointSiteLibrary (uaic_VarSharePointSiteLibrary)')"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "GetOnNewFileItems",
+              "connectionName": "shared_sharepointonline_1"
+            }
+          }
+        }
+      },
+      "actions": {
+        "Get_file_content": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "3181e88d-8765-460b-a7d5-8bc9e65feac0"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "@parameters('VarSharepointSiteUrl (uaic_VarSharepointSiteUrl)')",
+              "id": "@triggerOutputs()?['body/{Identifier}']",
+              "inferContentType": true
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "operationId": "GetFileContent",
+              "connectionName": "shared_sharepointonline_1"
+            }
+          }
+        },
+        "Apply_to_each": {
+          "foreach": "@outputs('List_rows_present_in_a_table_2')?['body/value']",
+          "actions": {
+            "Compose": {
+              "metadata": {
+                "operationMetadataId": "a752bed2-7adb-4c8e-be97-5c782a182582"
+              },
+              "type": "Compose",
+              "inputs": "InsuredLastName: @{items('Apply_to_each')?['Insured Last Name']}\nInsuredFirstName: @{items('Apply_to_each')?['Insured First Name']}\nDOL: @{\nif(\n  or(empty(items('Apply_to_each')?['DOL']), equals(items('Apply_to_each')?['DOL'], 'null')),\n  '',\n  formatDateTime(addDays('1899-12-30', int(float(items('Apply_to_each')?['DOL']))), 'MM/dd/yyyy')\n)\n}"
+            },
+            "New_Record_Added": {
+              "runAfter": {
+                "Compose": [
+                  "Succeeded"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "7e31e8a3-009b-41d4-a614-4766b0c3e6f9"
+              },
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "entityName": "uaic_uaic_bot_creation_databases",
+                  "item/uaic_claimnumber": "@items('Apply_to_each')?['Claim Number']",
+                  "item/uaic_claimantfirstname": "@items('Apply_to_each')?['Claimant First Name']",
+                  "item/uaic_claimantlastname": "@items('Apply_to_each')?['Claimant Last Name']",
+                  "item/uaic_dol": "@if(\n  or(empty(items('Apply_to_each')?['DOL']), equals(items('Apply_to_each')?['DOL'], 'null')),\n  '',\n  formatDateTime(addDays('1899-12-30', int(items('Apply_to_each')?['DOL'])), 'MM/dd/yyyy')\n)",
+                  "item/uaic_driverfirstnameinsuredvehicle": "@items('Apply_to_each')?['Driver First Name (Insured Vehicle)']",
+                  "item/uaic_driverlastnameinsuredvehicle": "@items('Apply_to_each')?['Driver Last Name (Insured Vehicle)']",
+                  "item/uaic_exposurenumber": "@items('Apply_to_each')?['Exposure Number']",
+                  "item/uaic_garagingcity": "@{items('Apply_to_each')?['Garaging City']} ",
+                  "item/uaic_garagingstate": "@items('Apply_to_each')?['Garaging State']",
+                  "item/uaic_insuredfirstname": "@items('Apply_to_each')?['Insured First Name']",
+                  "item/uaic_insuredlastname": "@items('Apply_to_each')?['Insured Last Name']",
+                  "item/uaic_logid": "@outputs('LogID')",
+                  "item/uaic_losslocationcity": "@items('Apply_to_each')?['Loss Location City']",
+                  "item/uaic_losslocationcounty": "@items('Apply_to_each')?['Loss Location County']",
+                  "item/uaic_losslocationstate": "@items('Apply_to_each')?['Loss Location State']",
+                  "item/uaic_policystate": "@items('Apply_to_each')?['Policy State']",
+                  "item/uaic_primarykey": "@items('Apply_to_each')?['Primary Key']",
+                  "item/uaic_record_status": 870300000,
+                  "item/statuscode": 1
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                  "operationId": "CreateRecord",
+                  "connectionName": "shared_commondataserviceforapps_1"
+                }
+              }
+            },
+            "Condition": {
+              "actions": {
+                "Switch": {
+                  "cases": {
+                    "Case_Florida": {
+                      "case": "Florida",
+                      "actions": {
+                        "Update_a_row": {
+                          "metadata": {
+                            "operationMetadataId": "1b09f663-550d-4306-a450-48f427e0f38c"
+                          },
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "parameters": {
+                              "entityName": "uaic_uaic_bot_creation_databases",
+                              "recordId": "@outputs('New_Record_Added')?['body/uaic_uaic_bot_creation_databaseid']",
+                              "item/uaic_fl_website_broward": "Yes",
+                              "item/uaic_fl_website_hillsborough": "Yes",
+                              "item/uaic_fl_website_miami": "Yes"
+                            },
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                              "operationId": "UpdateOnlyRecord",
+                              "connectionName": "shared_commondataserviceforapps_1"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "Case_Texas": {
+                      "case": "Texas",
+                      "actions": {
+                        "Update_a_row_3": {
+                          "metadata": {
+                            "operationMetadataId": "6c7ffd95-d0d5-4ed3-ac97-61cf2ded2e67"
+                          },
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "parameters": {
+                              "entityName": "uaic_uaic_bot_creation_databases",
+                              "recordId": "@outputs('New_Record_Added')?['body/uaic_uaic_bot_creation_databaseid']",
+                              "item/uaic_te_website_cclerk": "Yes",
+                              "item/uaic_te_website_dallas": "Yes",
+                              "item/uaic_te_website_harris": "Yes",
+                              "item/uaic_te_website_hcdistrict": "Yes",
+                              "item/uaic_te_website_travis": "Yes"
+                            },
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                              "operationId": "UpdateOnlyRecord",
+                              "connectionName": "shared_commondataserviceforapps_1"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "default": {
+                    "actions": {}
+                  },
+                  "expression": "@outputs('New_Record_Added')?['body/uaic_policystate']",
+                  "metadata": {
+                    "operationMetadataId": "91279e87-cbb3-49fa-bd1e-b0d82a695a6c"
+                  },
+                  "type": "Switch"
+                }
+              },
+              "runAfter": {
+                "New_Record_Added": [
+                  "Succeeded"
+                ]
+              },
+              "else": {
+                "actions": {
+                  "Update_a_row_2": {
+                    "metadata": {
+                      "operationMetadataId": "991e2fc5-69ff-4774-8789-b1ef09574ea4"
+                    },
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "parameters": {
+                        "entityName": "uaic_uaic_bot_creation_databases",
+                        "recordId": "@outputs('New_Record_Added')?['body/uaic_uaic_bot_creation_databaseid']",
+                        "item/uaic_fl_website_broward": "Yes",
+                        "item/uaic_fl_website_hillsborough": "Yes",
+                        "item/uaic_fl_website_miami": "Yes",
+                        "item/uaic_te_website_cclerk": "Yes",
+                        "item/uaic_te_website_dallas": "Yes",
+                        "item/uaic_te_website_harris": "Yes",
+                        "item/uaic_te_website_hcdistrict": "Yes",
+                        "item/uaic_te_website_travis": "Yes"
+                      },
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                        "operationId": "UpdateOnlyRecord",
+                        "connectionName": "shared_commondataserviceforapps_1"
+                      }
+                    }
+                  }
+                }
+              },
+              "expression": {
+                "equals": [
+                  "@outputs('New_Record_Added')?['body/uaic_policystate']",
+                  "@outputs('New_Record_Added')?['body/uaic_losslocationstate']"
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "a0f69457-7a6c-40da-bd4c-19cf36045c9b"
+              },
+              "type": "If"
+            }
+          },
+          "runAfter": {
+            "LogID": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "faef1046-9c10-4b45-bbd5-0194ff1f0c86"
+          },
+          "type": "Foreach",
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 20
+            }
+          }
+        },
+        "LogID": {
+          "runAfter": {
+            "Delay": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "2ef79d92-0bc0-465b-b4c0-dc3a5edbcc44"
+          },
+          "type": "Compose",
+          "inputs": "@guid()"
+        },
+        "Delay": {
+          "runAfter": {
+            "List_rows_present_in_a_table_2": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "996d8dd0-4b68-4935-91f4-8f09ee0a1160"
+          },
+          "type": "Wait",
+          "inputs": {
+            "interval": {
+              "count": 10,
+              "unit": "Second"
+            }
+          }
+        },
+        "Run_script_from_SharePoint_library": {
+          "runAfter": {
+            "Get_file_content": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "0167F26P464BMTGUZ4CNAZB4LIUDGJRNRI": "/CreateOrUpdateClaimTable.osts",
+            "operationMetadataId": "16e25066-99ac-4ab0-9beb-6d6856698d1b",
+            "tableId": null,
+            "0167F26P4R4BJJ64HG5NC37HDIXNMY2F4O": "/CTablefinal.osts"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "source": "groups/57d99acc-e50b-48ef-b7c9-6c9888753d4a",
+              "drive": "b!47Et57b9AkqNbXj1m_nIC_ucoo3XJLlEu_WkDshaLeLnGkzxNtdwTL-xEUveKWsG",
+              "file": "@concat('/', triggerOutputs()?['body/{FilenameWithExtension}'])",
+              "scriptSource": "groups/57d99acc-e50b-48ef-b7c9-6c9888753d4a",
+              "scriptDrive": "b!47Et57b9AkqNbXj1m_nIC_ucoo3XJLlEu_WkDshaLeLnGkzxNtdwTL-xEUveKWsG",
+              "scriptId": "0167F26P4R4BJJ64HG5NC37HDIXNMY2F4O"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_excelonlinebusiness",
+              "operationId": "RunScriptProdV2",
+              "connectionName": "shared_excelonlinebusiness_1"
+            }
+          }
+        },
+        "List_rows_present_in_a_table_2": {
+          "runAfter": {
+            "Run_script_from_SharePoint_library": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "1e6f3a7d-6ad7-4d3b-89cf-4cfc96a3bd3b",
+            "tableId": "ClaimDataTable"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "source": "groups/57d99acc-e50b-48ef-b7c9-6c9888753d4a",
+              "drive": "b!47Et57b9AkqNbXj1m_nIC_ucoo3XJLlEu_WkDshaLeLnGkzxNtdwTL-xEUveKWsG",
+              "file": "@concat('/', triggerOutputs()?['body/{FilenameWithExtension}'])",
+              "table": "ClaimDataTable"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_excelonlinebusiness",
+              "operationId": "GetItems",
+              "connectionName": "shared_excelonlinebusiness_1"
+            }
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 5000
+            }
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

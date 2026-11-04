@@ -1,5 +1,4 @@
 import os
-import re
 
 subflows_dir = 'implementation_plan/v4_subflows'
 files = [
@@ -19,7 +18,7 @@ for name, fname in files:
     path = os.path.join(subflows_dir, fname)
     if not os.path.exists(path):
         continue
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(path, encoding='utf-8', errors='ignore') as f:
         lines = f.readlines()
     
     output_lines.append("=" * 80)

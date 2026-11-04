@@ -45,7 +45,9 @@ class GuidewireClient:
         timeout: float = 30.0,
         mock_mode: bool = True,
     ):
-        self.api_url = api_url or getattr(settings, "GUIDEWIRE_API_URL", "https://api.guidewire.example.com/cc/rest/v1/caseupdate")
+        self.api_url = api_url or getattr(
+            settings, "GUIDEWIRE_API_URL", "https://api.guidewire.example.com/cc/rest/v1/caseupdate"
+        )
         self.auth_type = auth_type or "Bearer"
         self.api_key = api_key or getattr(settings, "GUIDEWIRE_API_KEY", "")
         self.client_id = client_id or ""
@@ -81,23 +83,25 @@ class GuidewireClient:
     ) -> dict[str, Any]:
         """Sends formatted match payload to Guidewire caseupdate endpoint."""
         formatted_claim_num = format_claim_number(claim_number)
-        
+
         # Build normalized CaseItems
         case_items = []
         for case in matched_cases:
-            case_items.append({
-                "CaseNumber": case.get("CaseNumber") or case.get("case_number") or "",
-                "CaseStyle": case.get("CaseStyle") or case.get("case_style") or "",
-                "CountyWebsite": case.get("CountyWebsite") or case.get("county_website") or "",
-                "SuitFiledDate": (
-                    case.get("SuitFiledDate")
-                    or case.get("FilingDate")
-                    or case.get("filing_date")
-                    or case.get("date_of_loss")
-                    or case.get("dol")
-                    or ""
-                ),
-            })
+            case_items.append(
+                {
+                    "CaseNumber": case.get("CaseNumber") or case.get("case_number") or "",
+                    "CaseStyle": case.get("CaseStyle") or case.get("case_style") or "",
+                    "CountyWebsite": case.get("CountyWebsite") or case.get("county_website") or "",
+                    "SuitFiledDate": (
+                        case.get("SuitFiledDate")
+                        or case.get("FilingDate")
+                        or case.get("filing_date")
+                        or case.get("date_of_loss")
+                        or case.get("dol")
+                        or ""
+                    ),
+                }
+            )
 
         payload = {
             "TransactionId": str(uuid.uuid4()),
@@ -123,14 +127,18 @@ class GuidewireClient:
             }
 
         headers = self._build_headers()
-        logger.info(f"Sending Guidewire case update for Claim {formatted_claim_num} ({len(case_items)} cases)")
+        logger.info(
+            f"Sending Guidewire case update for Claim {formatted_claim_num} ({len(case_items)} cases)"
+        )
 
         client = HTTPClient.get_client(timeout=self.timeout)
         try:
             response = await client.post(self.api_url, json=payload, headers=headers)
             response.raise_for_status()
             result = response.json() if response.content else {"status": "success"}
-            logger.info(f"Guidewire case update succeeded for Claim {formatted_claim_num}: {result}")
+            logger.info(
+                f"Guidewire case update succeeded for Claim {formatted_claim_num}: {result}"
+            )
             return {
                 "success": True,
                 "status_code": response.status_code,
@@ -154,14 +162,36 @@ class GuidewireClient:
                 "payload_sent": payload,
             }
 
-    async def test_connection(self, request_data: GuidewireTestRequest | None = None) -> GuidewireTestResponse:
+    async def test_connection(
+        self, request_data: GuidewireTestRequest | None = None
+    ) -> GuidewireTestResponse:
         """Interactive Swagger-style Guidewire API tester."""
-        url = (request_data.api_url if request_data and request_data.api_url else self.api_url).strip()
-        auth_type = request_data.auth_type if request_data and request_data.auth_type else self.auth_type
-        api_key = request_data.api_key if request_data and request_data.api_key is not None else self.api_key
-        client_id = request_data.client_id if request_data and request_data.client_id is not None else self.client_id
-        client_secret = request_data.client_secret if request_data and request_data.client_secret is not None else self.client_secret
-        mock_mode = request_data.mock_mode if request_data and request_data.mock_mode is not None else self.mock_mode
+        url = (
+            request_data.api_url if request_data and request_data.api_url else self.api_url
+        ).strip()
+        auth_type = (
+            request_data.auth_type if request_data and request_data.auth_type else self.auth_type
+        )
+        api_key = (
+            request_data.api_key
+            if request_data and request_data.api_key is not None
+            else self.api_key
+        )
+        client_id = (
+            request_data.client_id
+            if request_data and request_data.client_id is not None
+            else self.client_id
+        )
+        client_secret = (
+            request_data.client_secret
+            if request_data and request_data.client_secret is not None
+            else self.client_secret
+        )
+        mock_mode = (
+            request_data.mock_mode
+            if request_data and request_data.mock_mode is not None
+            else self.mock_mode
+        )
         timeout = float(request_data.timeout_seconds or self.timeout)
 
         # Preset test payload if none provided
@@ -191,10 +221,14 @@ class GuidewireClient:
 
         if auth_type == "Bearer" and api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-            masked_headers["Authorization"] = f"Bearer {api_key[:4]}***{api_key[-4:] if len(api_key) > 8 else ''}"
+            masked_headers["Authorization"] = (
+                f"Bearer {api_key[:4]}***{api_key[-4:] if len(api_key) > 8 else ''}"
+            )
         elif auth_type == "ApiKey" and api_key:
             headers["X-API-Key"] = api_key
-            masked_headers["X-API-Key"] = f"{api_key[:4]}***{api_key[-4:] if len(api_key) > 8 else ''}"
+            masked_headers["X-API-Key"] = (
+                f"{api_key[:4]}***{api_key[-4:] if len(api_key) > 8 else ''}"
+            )
         elif auth_type == "Basic" and client_id and client_secret:
             token = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
             headers["Authorization"] = f"Basic {token}"

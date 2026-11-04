@@ -1,14 +1,15 @@
 import asyncio
-import sys
 import os
-import json
+import sys
 
 sys.path.insert(0, os.path.join(os.getcwd(), 'backend'))
 
-from app.core.database import AsyncSessionLocal
-from app.models.claim import ClaimRecord
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+
+from app.core.database import AsyncSessionLocal
+from app.models.claim import ClaimRecord
+
 
 async def fix_texas():
     async with AsyncSessionLocal() as session:

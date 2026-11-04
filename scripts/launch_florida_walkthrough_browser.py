@@ -1,7 +1,6 @@
 import subprocess
-import time
 import sys
-import os
+import time
 from pathlib import Path
 
 # Add backend to path
@@ -10,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 from app.automation.browser_manager import ChromeSession, ExtensionManager
 from app.services.settings_service import get_system_settings_sync
 from playwright.sync_api import sync_playwright
+
 
 def main():
     settings = get_system_settings_sync()

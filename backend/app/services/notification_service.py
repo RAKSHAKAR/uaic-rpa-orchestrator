@@ -44,7 +44,9 @@ class NotificationService:
 
         # 1. Master Toggle Guard (User Requirement)
         if not email_settings.email_notifications_enabled and event_type != "TEST_EMAIL":
-            logger.info(f"[NotificationService] Notification engine is DISABLED globally. Skipping event: {event_type}")
+            logger.info(
+                f"[NotificationService] Notification engine is DISABLED globally. Skipping event: {event_type}"
+            )
             return None
 
         # 2. Granular Event Rule Guard
@@ -62,7 +64,9 @@ class NotificationService:
             rule_enabled = email_settings.rules.get(rule_key, True)
 
         if not rule_enabled and event_type != "TEST_EMAIL":
-            logger.info(f"[NotificationService] Rule for event '{event_type}' is DISABLED. Skipping.")
+            logger.info(
+                f"[NotificationService] Rule for event '{event_type}' is DISABLED. Skipping."
+            )
             return None
 
         # 3. Idempotency Check
@@ -73,7 +77,8 @@ class NotificationService:
             if existing:
                 logger.info(
                     "[NotificationService] Idempotency match: %s already in status '%s'. Skipping duplicate.",
-                    idempotency_key, existing.status,
+                    idempotency_key,
+                    existing.status,
                 )
                 return existing
 
@@ -83,7 +88,9 @@ class NotificationService:
             recipients = [sys_settings.integration.notification_email or "claims-ops@test.com"]
         to_str = ", ".join([r.strip() for r in recipients if r.strip()])
         cc_str = ", ".join(email_settings.cc_recipients) if email_settings.cc_recipients else None
-        bcc_str = ", ".join(email_settings.bcc_recipients) if email_settings.bcc_recipients else None
+        bcc_str = (
+            ", ".join(email_settings.bcc_recipients) if email_settings.bcc_recipients else None
+        )
 
         # 5. Render Subject & Body from Template or Default
         selected_provider = override_provider or email_settings.provider
@@ -103,17 +110,26 @@ class NotificationService:
                 body_html_template = custom_tpl.body_template_html
                 body_text_template = custom_tpl.body_template_text or ""
         except Exception as e:
-            logger.warning(f"[NotificationService] Failed checking custom template for {event_type}: {e}")
+            logger.warning(
+                f"[NotificationService] Failed checking custom template for {event_type}: {e}"
+            )
 
         if not subject_template or not body_html_template:
             tpl = TemplateRenderer.get_template(event_type)
             subject_template = subject_template or tpl["subject"]
             body_html_template = body_html_template or tpl["body_html"]
-            body_text_template = body_text_template if body_text_template is not None else tpl.get("body_text", "")
+            body_text_template = (
+                body_text_template if body_text_template is not None else tpl.get("body_text", "")
+            )
 
         # Augment context with standard dynamic variables
         context.setdefault("timestamp", utc_now().strftime("%Y-%m-%d %H:%M:%S UTC"))
-        context.setdefault("environment", "Production" if not sys_settings.integration.guidewire_mock_mode else "Development / Mock")
+        context.setdefault(
+            "environment",
+            "Production"
+            if not sys_settings.integration.guidewire_mock_mode
+            else "Development / Mock",
+        )
         context.setdefault("claim_number", claim_number or context.get("claim_number", "N/A"))
         context.setdefault("provider", selected_provider)
         context.setdefault("recipient", to_str)
@@ -131,14 +147,19 @@ class NotificationService:
         context.setdefault("suit_filed_date", "N/A")
 
         effective_claim_id = claim_id or context.get("claim_id") or context.get("claimId")
-        effective_claim_number = claim_number or context.get("claim_number") or context.get("claimNumber")
+        effective_claim_number = (
+            claim_number or context.get("claim_number") or context.get("claimNumber")
+        )
 
         rendered_subject = TemplateRenderer.render(subject_template, context)
         rendered_html = TemplateRenderer.render(body_html_template, context)
         rendered_text = TemplateRenderer.render(body_text_template, context)
 
         # 6. Create Notification Record in DB
-        is_digest = email_settings.digest_mode in ["hourly_digest", "daily_digest"] and event_type != "TEST_EMAIL"
+        is_digest = (
+            email_settings.digest_mode in ["hourly_digest", "daily_digest"]
+            and event_type != "TEST_EMAIL"
+        )
         initial_status = "PENDING_DIGEST" if is_digest else "QUEUED"
 
         notification = Notification(
@@ -164,10 +185,13 @@ class NotificationService:
         # 7. Deliver directly for TEST_EMAIL or Enqueue Async Celery Task
         if event_type == "TEST_EMAIL":
             from app.tasks.notification_tasks import _execute_notification_delivery
+
             try:
                 await _execute_notification_delivery(notification.id)
                 await db.refresh(notification)
-                logger.info(f"[NotificationService] TEST_EMAIL delivery completed directly with status: {notification.status}")
+                logger.info(
+                    f"[NotificationService] TEST_EMAIL delivery completed directly with status: {notification.status}"
+                )
             except Exception as e:
                 logger.error(f"[NotificationService] Failed direct TEST_EMAIL delivery: {e}")
                 notification.status = "FAILED"
@@ -175,7 +199,9 @@ class NotificationService:
                 notification.failed_at = utc_now()
                 await db.commit()
         elif is_digest:
-            logger.info(f"[NotificationService] Digest mode active ({email_settings.digest_mode}). Notification {notification.id} held as PENDING_DIGEST.")
+            logger.info(
+                f"[NotificationService] Digest mode active ({email_settings.digest_mode}). Notification {notification.id} held as PENDING_DIGEST."
+            )
         else:
             try:
                 celery_app.send_task(
@@ -184,9 +210,13 @@ class NotificationService:
                     queue="notifications",
                     retry=False,
                 )
-                logger.info(f"[NotificationService] Dispatched notification {notification.id} to Celery 'notifications' queue.")
+                logger.info(
+                    f"[NotificationService] Dispatched notification {notification.id} to Celery 'notifications' queue."
+                )
             except Exception as e:
-                logger.error(f"[NotificationService] Failed to enqueue Celery notification task: {e}")
+                logger.error(
+                    f"[NotificationService] Failed to enqueue Celery notification task: {e}"
+                )
                 notification.status = "FAILED"
                 notification.error_message = f"Queue error: {e}"
                 notification.failed_at = utc_now()

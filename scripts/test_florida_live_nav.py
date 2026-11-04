@@ -6,10 +6,11 @@ backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ba
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-from playwright.async_api import async_playwright
-from app.automation.florida.broward import BrowardScraper, BROWARD_PORTAL_URL
-from app.automation.florida.miami import MiamiDadeScraper, MIAMI_LOGIN_GATEWAY_URL
+from app.automation.florida.broward import BrowardScraper
 from app.automation.florida.hillsborough import HillsboroughScraper
+from app.automation.florida.miami import MiamiDadeScraper
+from playwright.async_api import async_playwright
+
 
 async def test_florida_navigation():
     print("=== Testing Florida Scraper Navigation Parity (V4 Exact) ===")
@@ -34,7 +35,7 @@ async def test_florida_navigation():
         
         # Test Broward direct Web2 navigation
         print("\nTesting Broward navigation...")
-        broward_target = await b_scraper.navigate_to_search(page)
+        await b_scraper.navigate_to_search(page)
         print(f"Broward arrived at: {page.url}")
         assert "PremiumServices" not in page.url, "Broward navigated to PremiumServices!"
         assert "Glossary" not in page.url, "Broward navigated to Glossary!"

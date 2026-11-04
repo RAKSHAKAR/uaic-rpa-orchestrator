@@ -23,7 +23,7 @@ for name, fname in subflow_files.items():
     if not os.path.exists(path):
         print(f"MISSING: {name} ({fname})")
         continue
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(path, encoding='utf-8', errors='ignore') as f:
         content = f.read()
     
     print(f"\n--- {name.upper()} ({fname}) --- ({len(content.splitlines())} lines)")

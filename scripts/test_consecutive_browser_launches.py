@@ -1,11 +1,13 @@
 import asyncio
-from httpx import AsyncClient, ASGITransport
 import sys
 from pathlib import Path
+
+from httpx import ASGITransport, AsyncClient
 
 # Add backend to path
 sys.path.insert(0, str(Path("backend").resolve()))
 from app.main import app
+
 
 async def main():
     transport = ASGITransport(app=app)

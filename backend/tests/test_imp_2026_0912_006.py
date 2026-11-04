@@ -28,6 +28,7 @@ async def init_db():
 # 1. State Routing Logic & Miami-Dade Classification
 # ============================================================================
 
+
 def test_state_routing_florida_intra_state():
     """If Policy State == Loss Location State == Florida: Route to Broward, Hillsborough, Miami."""
     targets = resolve_county_bot_targets("FL", "FL")
@@ -58,11 +59,15 @@ def test_state_routing_cross_state():
     """If Policy State != Loss Location State: Cross-state discovery routes to ALL 8 portals."""
     # FL policy, TX loss
     targets_fl_tx = resolve_county_bot_targets("FL", "TX")
-    assert all(v == "Yes" for v in targets_fl_tx.values()), "All 8 bots must be targeted for cross-state FL/TX"
+    assert all(v == "Yes" for v in targets_fl_tx.values()), (
+        "All 8 bots must be targeted for cross-state FL/TX"
+    )
 
     # TX policy, FL loss
     targets_tx_fl = resolve_county_bot_targets("TX", "FL")
-    assert all(v == "Yes" for v in targets_tx_fl.values()), "All 8 bots must be targeted for cross-state TX/FL"
+    assert all(v == "Yes" for v in targets_tx_fl.values()), (
+        "All 8 bots must be targeted for cross-state TX/FL"
+    )
 
     # Full name spellings
     targets_full = resolve_county_bot_targets("Florida", "Texas")
@@ -90,6 +95,7 @@ def test_state_normalization_helpers():
 # ============================================================================
 # 2. Guidewire Contract & Claim Number Rule
 # ============================================================================
+
 
 def test_claim_number_formatting_rule():
     """If len(claim_number) == 9: prefix with '0'. Applied to ClaimNumber in Guidewire payload."""
@@ -124,7 +130,13 @@ async def test_guidewire_contract_payload_structure():
     payload = result["payload_sent"]
 
     # Top-level keys must match V4 contract
-    assert set(payload.keys()) == {"ClaimNumber", "ExposureNumber", "CaseItems", "TransactionId", "SourceSystem"}
+    assert set(payload.keys()) == {
+        "ClaimNumber",
+        "ExposureNumber",
+        "CaseItems",
+        "TransactionId",
+        "SourceSystem",
+    }
     assert payload["ClaimNumber"] == "0987654321", "9-digit claim number must have leading zero"
     assert payload["ExposureNumber"] == "001"
     assert payload["SourceSystem"] == "UAIC_ORCHESTRATOR"
@@ -142,6 +154,7 @@ async def test_guidewire_contract_payload_structure():
 # ============================================================================
 # 3. Portal Output Schemas & Data Fidelity
 # ============================================================================
+
 
 def test_portal_output_schemas_fidelity():
     """
@@ -186,6 +199,7 @@ def test_portal_output_schemas_fidelity():
 # ============================================================================
 # 4. Single Claim Export Endpoints Parity
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_single_claim_export_formats_parity():

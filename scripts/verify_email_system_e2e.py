@@ -7,24 +7,23 @@ Verifies:
 4. Database Persistence & Receipt Retrieval.
 """
 
-import sys
 import asyncio
-from datetime import datetime, timezone
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add backend directory to sys.path
 backend_dir = Path(__file__).resolve().parent.parent / "backend"
 sys.path.insert(0, str(backend_dir))
 
+from app.core.database import AsyncSessionLocal, init_db
 from app.services.email_service import (
-    MockEmailProvider,
     DirectMxEmailProvider,
     MailDevEmailProvider,
+    MockEmailProvider,
     TemplateRenderer,
 )
-from app.core.database import AsyncSessionLocal, init_db
 from app.services.notification_service import NotificationService
-from app.services.settings_service import get_system_settings_async
 
 
 def log_step(title: str):
@@ -42,7 +41,7 @@ def log_fail(msg: str):
 
 async def run_e2e_verification():
     print("=== UAIC EMAIL & NOTIFICATION ENGINE — AUTOMATED E2E TEST ===")
-    print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
+    print(f"Timestamp: {datetime.now(UTC).isoformat()}")
 
     # Ensure all tables exist in target database
     await init_db()
@@ -95,7 +94,7 @@ async def run_e2e_verification():
         "error_message": "CAPTCHA solve retry limit exceeded",
         "http_status": "502 Bad Gateway",
         "attempt_number": "1 of 3",
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "environment": "Development / Staging",
         "recipient": "priyer@test.com",
         "provider": "direct_mx",
@@ -106,7 +105,7 @@ async def run_e2e_verification():
         tpl = TemplateRenderer.get_template(ev_key)
         rendered_subject = TemplateRenderer.render(tpl["subject"], sample_context)
         rendered_html = TemplateRenderer.render(tpl["body_html"], sample_context, escape_html=False)
-        rendered_text = TemplateRenderer.render(tpl.get("body_text", ""), sample_context)
+        TemplateRenderer.render(tpl.get("body_text", ""), sample_context)
 
         assert len(rendered_subject) > 0, f"Subject empty for {ev_key}"
         assert "<html" in rendered_html.lower() or "<div" in rendered_html.lower(), f"HTML invalid for {ev_key}"
@@ -116,7 +115,7 @@ async def run_e2e_verification():
     # STEP 3: Live Direct MX Email Send & Receipt Generation
     log_step("3. Live Direct MX Email Send & Delivery Receipt (RFC 3798 / 822)")
     target_email = "priyer@damcogroup.com"
-    subject = f"UAIC E2E Automated Verification — {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+    subject = f"UAIC E2E Automated Verification — {datetime.now(UTC).strftime('%H:%M:%S')}"
     body_html = f"""<!DOCTYPE html>
 <html>
 <body style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; background-color: #f8fafc;">
@@ -133,7 +132,7 @@ async def run_e2e_verification():
         <strong>Delivery Protocol:</strong> Direct MX via RFC-5321 STARTTLS (Port 25)<br>
         <strong>MTA Gateway:</strong> damcogroup-com.mail.protection.outlook.com<br>
         <strong>Tracking Headers:</strong> RFC 3798 & RFC 822 Delivery Receipts Active<br>
-        <strong>Timestamp:</strong> {datetime.now(timezone.utc).isoformat()}
+        <strong>Timestamp:</strong> {datetime.now(UTC).isoformat()}
       </div>
       <p style="font-size: 12px; color: #64748b;">This message was generated autonomously by the automated E2E test suite.</p>
     </div>
@@ -161,7 +160,7 @@ async def run_e2e_verification():
     # STEP 3B: Live Local MailDev Email Send & Receipt
     log_step("3B. Live Local MailDev Email Send & Delivery Receipt (Port 1025 / 1080)")
     maildev_target = "priyer@test.com"
-    maildev_subject = f"UAIC MailDev Verification — {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+    maildev_subject = f"UAIC MailDev Verification — {datetime.now(UTC).strftime('%H:%M:%S')}"
     maildev_send_res = maildev_provider.send_email(
         to_addresses=[maildev_target],
         subject=maildev_subject,

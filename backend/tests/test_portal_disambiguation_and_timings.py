@@ -1,3 +1,4 @@
+# cspell:ignore edocs
 """Automated test suite verifying:
 1. Harris portal disambiguation (Harris JP vs Harris County Clerk vs Harris District Clerk).
 2. All 8 portals enabled in default settings and Texas 5-bot routing.
@@ -55,7 +56,9 @@ def test_harris_portal_disambiguation_case_counts():
         scraped_by_county=scraped_by_county,
         search_keywords=["harris district", "hcdistrict", "edocs"],
     )
-    assert district_count == 603, f"Expected Harris District Clerk to have 603 cases, got {district_count}"
+    assert district_count == 603, (
+        f"Expected Harris District Clerk to have 603 cases, got {district_count}"
+    )
 
 
 def test_build_bot_details_for_texas_claim():
@@ -134,7 +137,10 @@ async def test_claim_870_evaluated_and_completed():
         claim = res.scalar_one_or_none()
         if claim is not None:
             assert claim.record_status in (RecordStatusEnum.COMPLETED, RecordStatusEnum.MATCH_FOUND)
-            assert claim.fuzzy_match_status in (FuzzyMatchStatusEnum.COMPLETED, FuzzyMatchStatusEnum.MATCH_FOUND)
+            assert claim.fuzzy_match_status in (
+                FuzzyMatchStatusEnum.COMPLETED,
+                FuzzyMatchStatusEnum.MATCH_FOUND,
+            )
             assert claim.activity_id is not None
 
 
@@ -143,6 +149,7 @@ def test_format_live_queue_item_utc_z_suffix():
     from datetime import datetime
 
     from app.api.v1.endpoints.queue import _format_live_queue_item
+
     claim = ClaimRecord(
         id="test-utc-claim",
         claim_number="999888777",
@@ -154,4 +161,6 @@ def test_format_live_queue_item_utc_z_suffix():
     )
     res = _format_live_queue_item(claim)
     assert res.started_at is not None
-    assert res.started_at.endswith("Z"), f"Expected started_at to end with 'Z', got: {res.started_at}"
+    assert res.started_at.endswith("Z"), (
+        f"Expected started_at to end with 'Z', got: {res.started_at}"
+    )

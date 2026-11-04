@@ -51,11 +51,15 @@ def _validate_filename(filename: str | None) -> str:
         )
     fn_lower = filename.lower()
     if not (fn_lower.endswith(".xlsx") or fn_lower.endswith(".xls") or fn_lower.endswith(".csv")):
-        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, and .csv files are supported.")
+        raise HTTPException(
+            status_code=400, detail="Only .xlsx, .xls, and .csv files are supported."
+        )
     return fn_lower
 
 
-def _parse_content_to_dataframe(content: bytes, filename: str) -> tuple[pd.DataFrame, list[str], str]:
+def _parse_content_to_dataframe(
+    content: bytes, filename: str
+) -> tuple[pd.DataFrame, list[str], str]:
     """Helper to parse uploaded raw bytes into pandas DataFrame."""
     if not content or len(content) == 0:
         raise HTTPException(status_code=400, detail="Uploaded spreadsheet is empty (0 bytes).")
@@ -71,12 +75,18 @@ def _parse_content_to_dataframe(content: bytes, filename: str) -> tuple[pd.DataF
     file_type = "CSV Document (.csv)"
     fn_lower = filename.lower()
     if fn_lower.endswith(".xlsx") or fn_lower.endswith(".xls"):
-        file_type = "Microsoft Excel (.xlsx)" if fn_lower.endswith(".xlsx") else "Microsoft Excel 97-2003 (.xls)"
+        file_type = (
+            "Microsoft Excel (.xlsx)"
+            if fn_lower.endswith(".xlsx")
+            else "Microsoft Excel 97-2003 (.xls)"
+        )
         try:
             excel_file = pd.ExcelFile(io.BytesIO(content))
             sheet_names = excel_file.sheet_names
             if not sheet_names:
-                raise HTTPException(status_code=400, detail="The Excel spreadsheet contains no visible sheets.")
+                raise HTTPException(
+                    status_code=400, detail="The Excel spreadsheet contains no visible sheets."
+                )
             df = excel_file.parse(sheet_names[0])
         except HTTPException:
             raise
@@ -95,7 +105,9 @@ def _parse_content_to_dataframe(content: bytes, filename: str) -> tuple[pd.DataF
             raise HTTPException(status_code=400, detail=f"Could not parse CSV document: {last_err}")
 
     if df.empty or len(df.columns) == 0:
-        raise HTTPException(status_code=400, detail="Spreadsheet contains no data rows or readable columns.")
+        raise HTTPException(
+            status_code=400, detail="Spreadsheet contains no data rows or readable columns."
+        )
 
     df.columns = [str(col).strip() for col in df.columns]
     return df, sheet_names, file_type
@@ -316,7 +328,9 @@ async def download_failed_rows_csv(batch_id: str, db: AsyncSession = Depends(get
         # Generate empty report with informative headers
         writer = csv.writer(output)
         writer.writerow(["row_number", "claim_number", "status", "reason"])
-        writer.writerow(["-", "-", "INFO", "No failed, invalid, or skipped duplicate rows in this batch."])
+        writer.writerow(
+            ["-", "-", "INFO", "No failed, invalid, or skipped duplicate rows in this batch."]
+        )
     else:
         # Determine all distinct fieldnames
         fieldnames = ["row_number", "claim_number", "status", "reason"]
@@ -368,4 +382,3 @@ async def download_sample_csv():
         filename="sample_claims.csv",
         media_type="text/csv",
     )
-

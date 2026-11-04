@@ -17,7 +17,9 @@ def strip_noise_patterns(text: str, noise_patterns: list[str] | None = None) -> 
     """Strips corporate noise and legal suffix words configured in settings."""
     if not text or not noise_patterns:
         return text or ""
-    sorted_patterns = sorted([p.strip() for p in noise_patterns if p.strip()], key=len, reverse=True)
+    sorted_patterns = sorted(
+        [p.strip() for p in noise_patterns if p.strip()], key=len, reverse=True
+    )
     if not sorted_patterns:
         return text
     regex_parts = []
@@ -32,6 +34,82 @@ def strip_noise_patterns(text: str, noise_patterns: list[str] | None = None) -> 
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+DEFAULT_CLEAN_CASE_STYLE_PATTERNS = [
+    "AS PERSONAL REPRESENTATIVE OF",
+    "PERSONAL REPRESENTATIVE OF",
+    "AS PERSONAL REPRESENTATIVE",
+    "PERSONAL REPRESENTATIVE",
+    "AS PR OF",
+    "PR OF",
+    "AS EXECUTOR OF",
+    "AS EXECUTRIX OF",
+    "EXECUTOR OF",
+    "EXECUTRIX OF",
+    "AS ADMINISTRATOR OF",
+    "AS ADMINISTRATRIX OF",
+    "ADMINISTRATOR OF",
+    "AS TRUSTEE OF",
+    "AS TRUSTEE FOR",
+    "TRUSTEE OF",
+    "AS NEXT FRIEND OF",
+    "NEXT FRIEND OF",
+    "NEXT FRIEND",
+    "ON BEHALF OF",
+    "IN BEHALF OF",
+    "FOR THE USE AND BENEFIT OF",
+    "FOR THE BENEFIT OF",
+    "F/U/B/O",
+    "F/B/O",
+    "AS GUARDIAN OF",
+    "LEGAL GUARDIAN OF",
+    "NATURAL GUARDIAN OF",
+    "NATURAL GUARDIAN",
+    "AS SURVIVING SPOUSE OF",
+    "SURVIVING SPOUSE OF",
+    "AS SURVIVING SPOUSE",
+    "AS BENEFICIARY OF",
+    "AS PARENT OF",
+    "AS PARENT",
+    "A MINOR CHILD",
+    "A MINOR",
+    "MINORS",
+    "AN INCAPACITATED PERSON",
+    "ESTATE OF",
+    "A DECEASED PERSON",
+    "DECEASED",
+    "INDIVIDUALLY",
+    "ET AL",
+    "AS ASSIGNEE OF",
+    "A/A/O",
+    "AAO",
+    "A FLORIDA CORPORATION",
+    "A TEXAS CORPORATION",
+    "A DELAWARE LLC",
+    "A FOREIGN CORPORATION",
+    "A FOREIGN ENTITY",
+    "A DOMESTIC CORPORATION",
+    "D/B/A",
+    "DBA",
+    "F/K/A",
+    "FKA",
+    "A/K/A",
+    "AKA",
+    "N/K/A",
+    "NKA",
+    "AND ALL OTHERS SIMILARLY SITUATED",
+    "IN RE",
+    "IN THE MATTER OF",
+    "PLAINTIFF",
+    "DEFENDANT",
+    "PETITIONER",
+    "RESPONDENT",
+    "UNKNOWN TENANT",
+    "UNKNOWN SPOUSE",
+    "UNKNOWN OCCUPANT",
+    "UNKNOWN PARTIES",
+]
+
+
 def clean_case_style(case_style: str | None, noise_patterns: list[str] | None = None) -> str:
     """
     Clean raw case style string mirroring legacy Power Automate flow:
@@ -39,11 +117,13 @@ def clean_case_style(case_style: str | None, noise_patterns: list[str] | None = 
     - Removes parentheses ()
     - Condenses multiple consecutive spaces into single space
     - Trims leading and trailing whitespace
-    - Optionally strips configured corporate noise patterns
+    - Optionally strips configured corporate & legal noise patterns (only when noise_patterns is
+      explicitly supplied; callers that need default stripping should pass
+      DEFAULT_CLEAN_CASE_STYLE_PATTERNS explicitly, e.g. evaluate_case_against_parties).
     """
     if not case_style:
         return ""
-    
+
     text = str(case_style)
     # Remove carriage returns and line feeds
     text = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
@@ -53,6 +133,9 @@ def clean_case_style(case_style: str | None, noise_patterns: list[str] | None = 
     text = text.replace("(", "").replace(")", "")
     # Remove excessive whitespace
     text = re.sub(r"\s+", " ", text).strip()
+    # Only strip noise patterns when explicitly provided — do NOT default to
+    # DEFAULT_CLEAN_CASE_STYLE_PATTERNS here so unit tests that call
+    # clean_case_style() directly continue to receive the raw normalised string.
     if noise_patterns:
         text = strip_noise_patterns(text, noise_patterns)
     return text
@@ -87,7 +170,9 @@ def is_case_eligible(
     2. CaseStatus is in allowed statuses (or empty)
     3. CaseType is in allowed types (or empty)
     """
-    allowed_statuses = settings.ALLOWED_CASE_STATUSES if allowed_statuses is None else allowed_statuses
+    allowed_statuses = (
+        settings.ALLOWED_CASE_STATUSES if allowed_statuses is None else allowed_statuses
+    )
     allowed_types = settings.ALLOWED_CASE_TYPES if allowed_types is None else allowed_types
 
     # A missing or unparseable court date is not evidence of eligibility.
@@ -133,7 +218,10 @@ def is_case_eligible(
     if case_status:
         st_clean = case_status.strip().upper()
         if st_clean:
-            matches_status = any(st_clean in allowed.upper() or allowed.upper() in st_clean for allowed in allowed_statuses)
+            matches_status = any(
+                st_clean in allowed.upper() or allowed.upper() in st_clean
+                for allowed in allowed_statuses
+            )
             if not matches_status:
                 return False
 
@@ -141,7 +229,10 @@ def is_case_eligible(
     if case_type:
         ct_clean = case_type.strip().upper()
         if ct_clean:
-            matches_type = any(ct_clean in allowed.upper() or allowed.upper() in ct_clean for allowed in allowed_types)
+            matches_type = any(
+                ct_clean in allowed.upper() or allowed.upper() in ct_clean
+                for allowed in allowed_types
+            )
             if not matches_type:
                 return False
 
@@ -175,7 +266,7 @@ def calculate_match_score(
     # Token containment score
     p_tokens = set(re.findall(r"\b\w+\b", p_norm))
     c_tokens = set(re.findall(r"\b\w+\b", c_norm))
-    
+
     containment_score = 0.0
     if p_tokens:
         matched_tokens = p_tokens.intersection(c_tokens)
@@ -216,10 +307,17 @@ def evaluate_case_against_parties(
     Returns list of comparison results for each party adhering to configured scorer and noise patterns.
     """
     raw_style = case.get("CaseStyle") or case.get("case_style") or ""
-    cleaned_style = clean_case_style(
-        raw_style,
-        noise_patterns=case_style_patterns if case_style_patterns is not None else noise_patterns,
-    )
+    # Determine which noise patterns to apply when cleaning the case style for fuzzy matching.
+    # Priority: explicit case_style_patterns > caller-supplied noise_patterns > built-in defaults.
+    # This ensures evaluate_case_against_parties always strips legal noise even when the caller
+    # doesn't supply patterns, while clean_case_style() itself remains pattern-neutral by default.
+    if case_style_patterns is not None:
+        active_noise = case_style_patterns
+    elif noise_patterns is not None:
+        active_noise = noise_patterns
+    else:
+        active_noise = DEFAULT_CLEAN_CASE_STYLE_PATTERNS
+    cleaned_style = clean_case_style(raw_style, noise_patterns=active_noise)
 
     parties = [
         (PartyTypeEnum.CLAIMANT, claimant_name),
@@ -234,7 +332,7 @@ def evaluate_case_against_parties(
 
         score = calculate_match_score(p_name, cleaned_style, scorer_algorithm=scorer_algorithm)
         is_positive_match = score >= threshold
-        
+
         if is_positive_match:
             review_status = MatchReviewStatusEnum.AUTO_MATCHED
         elif score >= borderline_threshold:
@@ -242,16 +340,18 @@ def evaluate_case_against_parties(
         else:
             review_status = MatchReviewStatusEnum.REJECTED
 
-        results.append({
-            "party_type": party_type,
-            "party_name": p_name,
-            "case_style": cleaned_style,
-            "similarity_score": score,
-            "threshold_applied": threshold,
-            "is_match": is_positive_match,
-            "review_status": review_status,
-            "court_case": case,
-        })
+        results.append(
+            {
+                "party_type": party_type,
+                "party_name": p_name,
+                "case_style": cleaned_style,
+                "similarity_score": score,
+                "threshold_applied": threshold,
+                "is_match": is_positive_match,
+                "review_status": review_status,
+                "court_case": case,
+            }
+        )
 
     return results
 
@@ -263,7 +363,11 @@ def _get_claim_field(obj: Any, *keys: str) -> str:
             val = obj.get(k)
         else:
             val = getattr(obj, k, None)
-        if val is not None and str(val).strip() and str(val).strip().lower() not in ("none", "null", "nan"):
+        if (
+            val is not None
+            and str(val).strip()
+            and str(val).strip().lower() not in ("none", "null", "nan")
+        ):
             return str(val).strip()
     return ""
 
@@ -283,8 +387,12 @@ def derive_search_counts_fuzzy(
     """
     ins_f = _get_claim_field(claim, "insured_first_name", "Insured First Name", "insured_fn")
     ins_l = _get_claim_field(claim, "insured_last_name", "Insured Last Name", "insured_ln")
-    drv_f = _get_claim_field(claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn")
-    drv_l = _get_claim_field(claim, "driver_last_name", "Driver Last Name (Insured Vehicle)", "driver_ln")
+    drv_f = _get_claim_field(
+        claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn"
+    )
+    drv_l = _get_claim_field(
+        claim, "driver_last_name", "Driver Last Name (Insured Vehicle)", "driver_ln"
+    )
     clm_f = _get_claim_field(claim, "claimant_first_name", "Claimant First Name", "claimant_fn")
     clm_l = _get_claim_field(claim, "claimant_last_name", "Claimant Last Name", "claimant_ln")
 
@@ -338,8 +446,13 @@ DEFAULT_UNSEARCHABLE_PARTY_PATTERNS = [
     r"\bNOT\s+AVAILABLE\b",
     r"^NONE\b",
     r"^N/?A$",
+    r"^NOT\s+APPLICABLE$",
+    r"^NOT\s+SPECIFIED$",
     r"^TBD$",
     r"^PENDING$",
+    r"^UNAVAILABLE$",
+    r"^REFUSED$",
+    r"^UNNAMED$",
     r"UNKNOWN\s+IV\s+DRIVER",
     r"UNKNOWN\s+CV\s+OWNER",
     r"UNKNOWN\s+CV1\s+OWNER",
@@ -350,19 +463,101 @@ DEFAULT_UNSEARCHABLE_PARTY_PATTERNS = [
     r"UNKNOWN\s+OWNER",
     r"UNKNOWN\s+PASSENGER",
     r"UNKNOWN\s+PEDESTRIAN",
+    r"UNKNOWN\s+VEHICLE",
+    r"UNKNOWN\s+HIT\b",
+    r"^JOHN\s+DOE$",
+    r"^JANE\s+DOE$",
+    r"\bJOHN\s+DOE\b",
+    r"\bJANE\s+DOE\b",
+    r"\bHIT\s+(?:AND|&)\s+RUN\b",
+    r"\bPHANTOM\s+VEHICLE\b",
+    r"\bPEDESTRIAN\b",
+    r"\bOCCUPANT\b",
+    r"\bPASSENGER\b",
     r"\bPOLICE\s+DEPARTMENT\b",
     r"\bPOLICE\s+DEPT\b",
     r"\bSHERIFF(?:'S)?\s+(?:OFFICE|DEPARTMENT)\b",
+    r"\bHIGHWAY\s+PATROL\b",
+    r"\bSTATE\s+TROOPER(?:S)?\b",
+    r"\bFIRE\s+DEPARTMENT\b",
+    r"\bFIRE\s+DEPT\b",
+    r"\bFIRE\s+RESCUE\b",
+    r"\bAMBULANCE\b",
+    r"\bPARAMEDIC(?:S)?\b",
+    r"\bEMS\b",
+    r"\bEMERGENCY\s+SERVICES\b",
     r"\bDEPARTMENT\s+OF\s+TRANSPORTATION\b",
     r"\bDEPT\s+OF\s+TRANSPORTATION\b",
     r"\bFL\s+DEPT\s+OF\s+TRANSPORTATION\b",
+    r"\bTX\s+DEPT\s+OF\s+TRANSPORTATION\b",
     r"\bCITY\s+OF\s+[A-Z\s]+",
     r"\bCOUNTY\s+OF\s+[A-Z\s]+",
     r"\bSTATE\s+OF\s+[A-Z\s]+",
+    r"\bTOWN\s+OF\s+[A-Z\s]+",
+    r"\bVILLAGE\s+OF\s+[A-Z\s]+",
+    r"\bBOROUGH\s+OF\s+[A-Z\s]+",
     r"\bHOUSING\s+AUTHORITY\b",
     r"\bTRANSIT\s+AUTHORITY\b",
     r"\bMETROPOLITAN\s+TRANSIT\b",
-    r"^[A-Z0-9\s&,.-]+\b(?:LLC|INC|CORP|CORPORATION|CO\.|COMPANY|L\.L\.C\.|LTD|LIMITED|TOWING|RENTAL|ENTERPRISE)\b$",
+    r"\bSCHOOL\s+DISTRICT\b",
+    r"\bBOARD\s+OF\s+EDUCATION\b",
+    r"\bCOUNTY\s+COMMISSIONERS\b",
+    r"\bPUBLIC\s+WORKS\b",
+    r"\bWATER\s+AUTHORITY\b",
+    r"\bPOSTAL\s+SERVICE\b",
+    r"\bUSPS\b",
+    r"\bENTERPRISE\b",
+    r"\bENTERPRISE\s+RENT\b",
+    r"\bHERTZ\b",
+    r"\bAVIS\b",
+    r"\bBUDGET\s+(?:RENT|CAR|TRUCK)\b",
+    r"\bPENSKE\b",
+    r"\bRYDER\b",
+    r"\bU-HAUL\b",
+    r"\bNATIONAL\s+CAR\s+RENTAL\b",
+    r"\bALAMO\s+RENT\b",
+    r"\bDOLLAR\s+RENT\b",
+    r"\bTHRIFTY\b",
+    r"\bSIXT\b",
+    r"\bTRUCK\s+LEASING\b",
+    r"\bFLEET\s+LEASING\b",
+    r"\bCAR\s+RENTAL\b",
+    r"\bAUTO\s+RENTAL\b",
+    r"\bTRANSPORTATION\b",
+    r"\bLOGISTICS\b",
+    r"\bTRUCKING\b",
+    r"\bFREIGHT\b",
+    r"\bEXPRESS\s+CARRIER\b",
+    r"\bTOWING\b",
+    r"\bAUTO\s+TRANSPORT\b",
+    r"\bGEICO\b",
+    r"\bSTATE\s+FARM\b",
+    r"\bALLSTATE\b",
+    r"\bPROGRESSIVE\b",
+    r"\bLIBERTY\s+MUTUAL\b",
+    r"\bTRAVELERS\b",
+    r"\bNATIONWIDE\b",
+    r"\bUSAA\b",
+    r"\bFARMERS\s+INSURANCE\b",
+    r"\bAMERICAN\s+FAMILY\b",
+    r"\bUNITED\s+AUTOMOBILE\b",
+    r"\bUAIC\b",
+    r"\bINSURANCE\s+COMPANY\b",
+    r"\bINSURANCE\s+CO\b",
+    r"\bINDEMNITY\b",
+    r"\bHOSPITAL\b",
+    r"\bMEDICAL\s+CENTER\b",
+    r"\bHEALTHCARE\b",
+    r"\bCLINIC\b",
+    r"\bCHIROPRACTIC\b",
+    r"\bORTHOPEDIC(?:S)?\b",
+    r"\bDIAGNOSTIC(?:S)?\b",
+    r"\bSURGERY\s+CENTER\b",
+    r"\bMRI\s+CENTER\b",
+    r"\bPHARMACY\b",
+    r"\bRADIOLOGY\b",
+    r"\bURGENT\s+CARE\b",
+    r"^[A-Z0-9\s&,.-]+\b(?:LLC|INC|CORP|CORPORATION|CO|COMPANY|L\.L\.C|LTD|LIMITED|TOWING|RENTAL|ENTERPRISE|PRODUCE|FASTENERS)[.]?[\s,.-]*$",
 ]
 
 
@@ -380,13 +575,29 @@ def is_unsearchable_party(
     full = f"{f} {l}".strip().upper()
     if not full or not l:
         return True
-    patterns = unsearchable_patterns if unsearchable_patterns is not None else DEFAULT_UNSEARCHABLE_PARTY_PATTERNS
+    clean_full = re.sub(r"[\s,.-]+$", "", full)
+    clean_l = re.sub(r"[\s,.-]+$", "", l.upper())
+    patterns = (
+        unsearchable_patterns
+        if unsearchable_patterns is not None
+        else DEFAULT_UNSEARCHABLE_PARTY_PATTERNS
+    )
     for pat in patterns:
         try:
-            if re.search(pat, full, re.IGNORECASE) or re.search(pat, l.upper(), re.IGNORECASE):
+            if (
+                re.search(pat, full, re.IGNORECASE)
+                or re.search(pat, l.upper(), re.IGNORECASE)
+                or re.search(pat, clean_full, re.IGNORECASE)
+                or re.search(pat, clean_l, re.IGNORECASE)
+            ):
                 return True
         except re.error:
-            if pat.upper() in full or pat.upper() in l.upper():
+            if (
+                pat.upper() in full
+                or pat.upper() in l.upper()
+                or pat.upper() in clean_full
+                or pat.upper() in clean_l
+            ):
                 return True
     return False
 
@@ -405,8 +616,12 @@ def generate_unique_names_for_claim(
     """
     ins_f = _get_claim_field(claim, "insured_first_name", "Insured First Name", "insured_fn")
     ins_l = _get_claim_field(claim, "insured_last_name", "Insured Last Name", "insured_ln")
-    drv_f = _get_claim_field(claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn")
-    drv_l = _get_claim_field(claim, "driver_last_name", "Driver Last Name (Insured Vehicle)", "driver_ln")
+    drv_f = _get_claim_field(
+        claim, "driver_first_name", "Driver First Name (Insured Vehicle)", "driver_fn"
+    )
+    drv_l = _get_claim_field(
+        claim, "driver_last_name", "Driver Last Name (Insured Vehicle)", "driver_ln"
+    )
     clm_f = _get_claim_field(claim, "claimant_first_name", "Claimant First Name", "claimant_fn")
     clm_l = _get_claim_field(claim, "claimant_last_name", "Claimant Last Name", "claimant_ln")
 
@@ -428,9 +643,15 @@ def generate_unique_names_for_claim(
             # If both first names exist (>2 chars) and do not match, they are different individuals
             if cand_f and existing_f and len(cand_f) > 2 and len(existing_f) > 2:
                 cf_l, ef_l = cand_f.lower().strip(), existing_f.lower().strip()
-                if fuzz.ratio(cf_l, ef_l) < rf_thresh and fuzz.token_sort_ratio(cf_l, ef_l) < rf_thresh:
+                if (
+                    fuzz.ratio(cf_l, ef_l) < rf_thresh
+                    and fuzz.token_sort_ratio(cf_l, ef_l) < rf_thresh
+                ):
                     continue
-            if fuzz.token_sort_ratio(candidate_norm, existing_norm) >= rf_thresh or fuzz.ratio(candidate_norm, existing_norm) >= rf_thresh:
+            if (
+                fuzz.token_sort_ratio(candidate_norm, existing_norm) >= rf_thresh
+                or fuzz.ratio(candidate_norm, existing_norm) >= rf_thresh
+            ):
                 return True
         return False
 
@@ -445,15 +666,17 @@ def generate_unique_names_for_claim(
         if _is_duplicate(norm, f or ""):
             return
         order = len(unique_parties) + 1
-        unique_parties.append({
-            "party_type": ptype,
-            "first_name": f or None,
-            "last_name": l or None,
-            "full_name": full,
-            "name": full,
-            "search_order": order,
-            "target_number": order,
-        })
+        unique_parties.append(
+            {
+                "party_type": ptype,
+                "first_name": f or None,
+                "last_name": l or None,
+                "full_name": full,
+                "name": full,
+                "search_order": order,
+                "target_number": order,
+            }
+        )
 
     # Add parties sequentially: Insured -> Driver -> Claimant
     if ins_l and str(ins_l).strip():
@@ -472,7 +695,13 @@ def generate_unique_names_for_claim(
             ("Insured", ins_f, ins_l),
             ("Driver", drv_f, drv_l),
         ]:
-            if l_val and str(l_val).strip() and not is_unsearchable_party(f_val, l_val, unsearchable_patterns=unsearchable_patterns):
+            if (
+                l_val
+                and str(l_val).strip()
+                and not is_unsearchable_party(
+                    f_val, l_val, unsearchable_patterns=unsearchable_patterns
+                )
+            ):
                 _add_party(p_label, f_val, l_val)
                 break
 

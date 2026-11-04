@@ -35,7 +35,6 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    
     # Task execution settings
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -49,7 +48,6 @@ celery_app.conf.update(
     result_backend_max_retries=0,
     result_backend_transport_options={"max_retries": 0, "retry_policy": {"max_retries": 0}},
     redis_backend_transport_options={"max_retries": 0, "retry_policy": {"max_retries": 0}},
-    
     # Define Dedicated Queues
     task_queues=(
         Queue("default", default_exchange, routing_key="default"),
@@ -61,11 +59,9 @@ celery_app.conf.update(
     task_default_queue="default",
     task_default_exchange="default",
     task_default_routing_key="default",
-    
     # Monitoring and Flower Event Support
     worker_send_task_events=True,
     task_send_sent_event=True,
-
     # Route tasks to dedicated queues
     task_routes={
         "app.tasks.ingest_tasks.*": {"queue": "ingest"},
@@ -75,7 +71,6 @@ celery_app.conf.update(
         "app.tasks.queue_runner.*": {"queue": "default"},
         "app.tasks.notification_tasks.*": {"queue": "notifications"},
     },
-    
     # Celery Beat Periodic Schedules
     beat_schedule={
         "advance-auto-queue-periodic": {
@@ -85,7 +80,7 @@ celery_app.conf.update(
         },
         "retrigger-failed-cases-periodic": {
             "task": "app.tasks.retry_tasks.retrigger_failed_cases_task",
-            "schedule": 60.0,  # Runtime settings control retry delay and limits.
+            "schedule": 10.0,  # Responsive 10s heartbeat for multi-unit retry precision (seconds to years)
             "args": (),
         },
         "dispatch-due-email-digests": {
@@ -99,10 +94,13 @@ celery_app.conf.update(
 
 @celery_app.on_after_configure.connect
 def setup_worker_startup(**kwargs):
-    """Clean stale concurrency locks when celery worker starts up."""
+    """Clean stale concurrency locks and orphan browser processes when celery worker starts up."""
     import logging
+    import subprocess
+    import sys
 
     import redis as redis_lib
+
     _log = logging.getLogger("uaic_orchestrator.celery")
     try:
         r = redis_lib.Redis.from_url(settings.CELERY_BROKER_URL or settings.REDIS_URL)
@@ -110,3 +108,45 @@ def setup_worker_startup(**kwargs):
         _log.info("[Celery] Reset uaic:browser:active_count concurrency lock on worker boot.")
     except Exception as e:
         _log.warning(f"[Celery] Could not reset browser semaphore on boot: {e}")
+
+    try:
+        if sys.platform != "win32":
+            subprocess.run(["pkill", "-9", "-f", "chrome"], capture_output=True, timeout=5)
+            subprocess.run(["pkill", "-9", "-f", "chromium"], capture_output=True, timeout=5)
+            _log.info("[Celery] Cleaned orphan browser processes on worker boot.")
+    except Exception as e_proc:
+        _log.debug(f"[Celery] Process cleanup notice on boot: {e_proc}")
+
+    try:
+        from app.tasks.queue_runner import reconcile_worker_restart_claims_sync
+
+        recovered = reconcile_worker_restart_claims_sync()
+        if recovered > 0:
+            _log.info(
+                f"[Celery] setup_worker_startup: Auto-recovered {recovered} interrupted claims."
+            )
+    except Exception as e_rec:
+        _log.warning(f"[Celery] Auto-recovery on configure notice: {e_rec}")
+
+
+try:
+    from celery.signals import worker_ready
+
+    @worker_ready.connect
+    def on_worker_ready(**kwargs):
+        """Auto-recover claims interrupted by worker reboot when worker becomes active."""
+        import logging
+
+        _log = logging.getLogger("uaic_orchestrator.celery")
+        try:
+            from app.tasks.queue_runner import reconcile_worker_restart_claims_sync
+
+            recovered = reconcile_worker_restart_claims_sync()
+            if recovered > 0:
+                _log.info(
+                    f"[Celery] on_worker_ready: Auto-recovered {recovered} interrupted claims on worker ready."
+                )
+        except Exception as e:
+            _log.warning(f"[Celery] Auto-recovery on worker_ready notice: {e}")
+except ImportError:
+    pass

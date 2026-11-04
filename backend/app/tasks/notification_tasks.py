@@ -107,9 +107,15 @@ async def _dispatch_due_digests() -> int:
                     digest.error_message = "Digest queue dispatch failed"
                     source_ids = (digest.details or {}).get("source_notification_ids", [])
                     if source_ids:
-                        sources = list((await db.execute(
-                            select(Notification).where(Notification.id.in_(source_ids))
-                        )).scalars().all())
+                        sources = list(
+                            (
+                                await db.execute(
+                                    select(Notification).where(Notification.id.in_(source_ids))
+                                )
+                            )
+                            .scalars()
+                            .all()
+                        )
                         for source in sources:
                             source.status = "PENDING_DIGEST"
                     await db.commit()
@@ -129,7 +135,9 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
         notification = res.scalar_one_or_none()
 
         if not notification:
-            logger.warning(f"[NotificationTask] Notification {notification_id} not found in database.")
+            logger.warning(
+                f"[NotificationTask] Notification {notification_id} not found in database."
+            )
             return {"success": False, "error": "Notification record not found"}
 
         sys_settings = await get_system_settings_async()
@@ -140,7 +148,9 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
             notification.status = "SKIPPED"
             notification.error_message = "Notification Engine is disabled globally."
             await db.commit()
-            logger.info(f"[NotificationTask] Notification {notification_id} marked as SKIPPED (master switch is OFF).")
+            logger.info(
+                f"[NotificationTask] Notification {notification_id} marked as SKIPPED (master switch is OFF)."
+            )
             return {"success": True, "status": "SKIPPED"}
 
         notification.status = "SENDING"
@@ -148,8 +158,14 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
 
         # Parse recipients
         to_list = [r.strip() for r in notification.recipient.split(",") if r.strip()]
-        cc_list = [c.strip() for c in notification.cc.split(",") if c.strip()] if notification.cc else []
-        bcc_list = [b.strip() for b in notification.bcc.split(",") if b.strip()] if notification.bcc else []
+        cc_list = (
+            [c.strip() for c in notification.cc.split(",") if c.strip()] if notification.cc else []
+        )
+        bcc_list = (
+            [b.strip() for b in notification.bcc.split(",") if b.strip()]
+            if notification.bcc
+            else []
+        )
 
         provider = get_email_provider(email_settings, override_provider=notification.provider)
 
@@ -176,7 +192,9 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
                     current_details["delivery_receipt"] = result.delivery_receipt
                     notification.details = current_details
                 await db.commit()
-                logger.info(f"[NotificationTask] Notification {notification_id} SENT successfully via {result.provider} in {result.duration_ms:.1f}ms.")
+                logger.info(
+                    f"[NotificationTask] Notification {notification_id} SENT successfully via {result.provider} in {result.duration_ms:.1f}ms."
+                )
                 return {"success": True, "status": "SENT"}
             else:
                 notification.status = "FAILED"
@@ -185,7 +203,9 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
                 if result.delivery_receipt:
                     notification.delivery_receipt = result.delivery_receipt
                 await db.commit()
-                logger.error(f"[NotificationTask] Notification {notification_id} FAILED: {result.error}")
+                logger.error(
+                    f"[NotificationTask] Notification {notification_id} FAILED: {result.error}"
+                )
                 return {"success": False, "status": "FAILED", "error": result.error}
 
         except Exception as e:
@@ -193,7 +213,9 @@ async def _execute_notification_delivery(notification_id: str) -> dict[str, str 
             notification.failed_at = utc_now()
             notification.error_message = str(e)
             await db.commit()
-            logger.error(f"[NotificationTask] Exception delivering notification {notification_id}: {e}")
+            logger.error(
+                f"[NotificationTask] Exception delivering notification {notification_id}: {e}"
+            )
             return {"success": False, "status": "FAILED", "error": str(e)}
 
 

@@ -1,0 +1,107 @@
+<ImportExportXml version="9.2.26084.131" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26084.131" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26084.00132">
+  <SolutionManifest>
+    <UniqueName>BotCreation</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="BotCreation" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions />
+    <Version>1.0.0.7</Version>
+    <Managed>0</Managed>
+    <Publisher>
+      <UniqueName>UAIC</UniqueName>
+      <LocalizedNames>
+        <LocalizedName description="UAICotcreation" languagecode="1033" />
+      </LocalizedNames>
+      <Descriptions />
+      <EMailAddress xsi:nil="true"></EMailAddress>
+      <SupportingWebsiteUrl xsi:nil="true"></SupportingWebsiteUrl>
+      <CustomizationPrefix>uaic</CustomizationPrefix>
+      <CustomizationOptionValuePrefix>87030</CustomizationOptionValuePrefix>
+      <Addresses>
+        <Address>
+          <AddressNumber>1</AddressNumber>
+          <AddressTypeCode>1</AddressTypeCode>
+          <City xsi:nil="true"></City>
+          <County xsi:nil="true"></County>
+          <Country xsi:nil="true"></Country>
+          <Fax xsi:nil="true"></Fax>
+          <FreightTermsCode xsi:nil="true"></FreightTermsCode>
+          <ImportSequenceNumber xsi:nil="true"></ImportSequenceNumber>
+          <Latitude xsi:nil="true"></Latitude>
+          <Line1 xsi:nil="true"></Line1>
+          <Line2 xsi:nil="true"></Line2>
+          <Line3 xsi:nil="true"></Line3>
+          <Longitude xsi:nil="true"></Longitude>
+          <Name xsi:nil="true"></Name>
+          <PostalCode xsi:nil="true"></PostalCode>
+          <PostOfficeBox xsi:nil="true"></PostOfficeBox>
+          <PrimaryContactName xsi:nil="true"></PrimaryContactName>
+          <ShippingMethodCode>1</ShippingMethodCode>
+          <StateOrProvince xsi:nil="true"></StateOrProvince>
+          <Telephone1 xsi:nil="true"></Telephone1>
+          <Telephone2 xsi:nil="true"></Telephone2>
+          <Telephone3 xsi:nil="true"></Telephone3>
+          <TimeZoneRuleVersionNumber xsi:nil="true"></TimeZoneRuleVersionNumber>
+          <UPSZone xsi:nil="true"></UPSZone>
+          <UTCOffset xsi:nil="true"></UTCOffset>
+          <UTCConversionTimeZoneCode xsi:nil="true"></UTCConversionTimeZoneCode>
+        </Address>
+        <Address>
+          <AddressNumber>2</AddressNumber>
+          <AddressTypeCode>1</AddressTypeCode>
+          <City xsi:nil="true"></City>
+          <County xsi:nil="true"></County>
+          <Country xsi:nil="true"></Country>
+          <Fax xsi:nil="true"></Fax>
+          <FreightTermsCode xsi:nil="true"></FreightTermsCode>
+          <ImportSequenceNumber xsi:nil="true"></ImportSequenceNumber>
+          <Latitude xsi:nil="true"></Latitude>
+          <Line1 xsi:nil="true"></Line1>
+          <Line2 xsi:nil="true"></Line2>
+          <Line3 xsi:nil="true"></Line3>
+          <Longitude xsi:nil="true"></Longitude>
+          <Name xsi:nil="true"></Name>
+          <PostalCode xsi:nil="true"></PostalCode>
+          <PostOfficeBox xsi:nil="true"></PostOfficeBox>
+          <PrimaryContactName xsi:nil="true"></PrimaryContactName>
+          <ShippingMethodCode>1</ShippingMethodCode>
+          <StateOrProvince xsi:nil="true"></StateOrProvince>
+          <Telephone1 xsi:nil="true"></Telephone1>
+          <Telephone2 xsi:nil="true"></Telephone2>
+          <Telephone3 xsi:nil="true"></Telephone3>
+          <TimeZoneRuleVersionNumber xsi:nil="true"></TimeZoneRuleVersionNumber>
+          <UPSZone xsi:nil="true"></UPSZone>
+          <UTCOffset xsi:nil="true"></UTCOffset>
+          <UTCConversionTimeZoneCode xsi:nil="true"></UTCConversionTimeZoneCode>
+        </Address>
+      </Addresses>
+    </Publisher>
+    <RootComponents>
+      <RootComponent type="1" schemaName="uaic_uaic_bot_creation_database" behavior="0" />
+      <RootComponent type="9" schemaName="uaic_botstatus" behavior="0" />
+      <RootComponent type="9" schemaName="uaic_fuzzymatchchoice" behavior="0" />
+      <RootComponent type="9" schemaName="uaic_recordstatus" behavior="0" />
+      <RootComponent type="9" schemaName="uaic_status" behavior="0" />
+      <RootComponent type="29" id="{0d1dfeca-b59f-f111-aaac-002248255e83}" behavior="0" />
+      <RootComponent type="29" id="{57a69f1c-e441-f011-8779-7c1e527d3e98}" behavior="0" />
+      <RootComponent type="29" id="{67dd091d-0ab9-4099-97af-47136f16ce4a}" behavior="0" />
+      <RootComponent type="29" id="{7277d684-5432-4b77-af79-d3a096c30739}" behavior="0" />
+      <RootComponent type="29" id="{deeeb2de-3374-f011-b4cb-6045bded5899}" behavior="0" />
+      <RootComponent type="29" id="{df2c6056-3640-f011-8779-000d3a11c8b1}" behavior="0" />
+      <RootComponent type="29" id="{eba1ab1c-009d-f011-bbd2-7c1e52172cf3}" behavior="0" />
+      <RootComponent type="29" id="{f72674ce-b21a-f011-9989-7ced8d2214af}" behavior="0" />
+      <RootComponent type="62" schemaName="uaic_DataAnalysis" behavior="0" />
+      <RootComponent type="62" schemaName="uaic_Recordexport" behavior="0" />
+      <RootComponent type="62" schemaName="uaic_testdatatable" behavior="0" />
+      <RootComponent type="62" schemaName="uaic_testtt" behavior="0" />
+    </RootComponents>
+    <MissingDependencies>
+      <MissingDependency>
+        <Required type="1" schemaName="workqueueitem" displayName="Work Queue Item" solution="MicrosoftFlowExtensionsCore (1.10.18.1)">
+          <package appName="MicrosoftFlowExtensionsCore" version="1.10.18.1">MicrosoftFlowExtensionsAnchor (1.10.18.1)</package>
+        </Required>
+        <Dependent type="29" displayName="Add Items to Work Queue" id="{57a69f1c-e441-f011-8779-7c1e527d3e98}" />
+      </MissingDependency>
+    </MissingDependencies>
+  </SolutionManifest>
+</ImportExportXml>

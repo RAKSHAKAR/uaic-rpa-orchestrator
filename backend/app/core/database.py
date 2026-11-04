@@ -33,12 +33,16 @@ task_engine = create_async_engine(settings.DATABASE_URL, **task_engine_kwargs)
 
 
 if settings.DATABASE_URL.startswith("sqlite"):
+
     @event.listens_for(engine.sync_engine, "connect")
     def _set_sqlite_pragma(dbapi_connection, connection_record):
         try:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
             cursor.execute("PRAGMA busy_timeout=60000;")
+            cursor.execute("PRAGMA cache_size=-64000;")
+            cursor.execute("PRAGMA mmap_size=268435456;")
             cursor.close()
         except Exception:
             pass
@@ -48,7 +52,10 @@ if settings.DATABASE_URL.startswith("sqlite"):
         try:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
             cursor.execute("PRAGMA busy_timeout=60000;")
+            cursor.execute("PRAGMA cache_size=-64000;")
+            cursor.execute("PRAGMA mmap_size=268435456;")
             cursor.close()
         except Exception:
             pass
@@ -94,7 +101,7 @@ async def init_db() -> None:
     from sqlalchemy import text
 
     import app.models  # noqa: F401
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -127,5 +134,3 @@ async def init_db() -> None:
                     await conn.execute(text(alter_stmt))
             except Exception:
                 pass
-
-

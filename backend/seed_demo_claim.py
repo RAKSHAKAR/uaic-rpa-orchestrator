@@ -32,7 +32,9 @@ async def seed():
             fuzzy_match_status=FuzzyMatchStatusEnum.COMPLETED,
             fl_website_miami="Yes",
             fl_botstatus_miami="COMPLETED",
-            fl_jsonbody_miami=[{"CaseNumber": "2026-004821-CA-01", "CaseStyle": "ELENA VARGAS VS CARLOS RODRIGUEZ"}],
+            fl_jsonbody_miami=[
+                {"CaseNumber": "2026-004821-CA-01", "CaseStyle": "ELENA VARGAS VS CARLOS RODRIGUEZ"}
+            ],
             fl_website_broward="Yes",
             fl_botstatus_broward="COMPLETED",
             fl_jsonbody_broward=[],
@@ -71,7 +73,7 @@ async def seed():
                         "duration_seconds": 2.15,
                         "cases_found": 0,
                         "status": "COMPLETED",
-                    }
+                    },
                 },
                 "stages": {
                     "browser_launch": {
@@ -138,9 +140,9 @@ async def seed():
                         "duration_seconds": 3.40,
                         "status": "SUCCESS",
                         "detail": "Activity created: GW-ACT-98234-FL",
-                    }
-                }
-            }
+                    },
+                },
+            },
         )
         session.add(claim)
 
@@ -154,12 +156,13 @@ async def seed():
             case_style="ELENA VARGAS VS CARLOS RODRIGUEZ",
             case_status="OPEN",
             filing_date="11/22/2025",
-            raw_payload={"CaseNumber": "2026-004821-CA-01"}
+            raw_payload={"CaseNumber": "2026-004821-CA-01"},
         )
         session.add(sc)
         await session.commit()
 
     print(f"SEEDED_CLAIM_ID={claim_id}")
+
 
 if __name__ == "__main__":
     asyncio.run(seed())

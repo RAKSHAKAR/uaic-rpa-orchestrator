@@ -47,7 +47,7 @@ def test_port_conflict_detection():
     try:
         probe_sock.connect(("127.0.0.1", port))
         is_open = True
-    except (TimeoutError, ConnectionRefusedError):
+    except TimeoutError, ConnectionRefusedError:
         is_open = False
     finally:
         probe_sock.close()
@@ -63,7 +63,7 @@ def test_port_conflict_detection():
     is_free = False
     try:
         probe_sock2.connect(("127.0.0.1", port))
-    except (TimeoutError, ConnectionRefusedError, OSError):
+    except TimeoutError, ConnectionRefusedError, OSError:
         is_free = True
     finally:
         probe_sock2.close()
@@ -77,13 +77,41 @@ def test_port_conflict_detection():
 def test_service_kill_process_filtering():
     """Verify that process kill filtering matches application workers and never touches unrelated system processes."""
     sample_processes = [
-        {"Name": "python.exe", "CommandLine": r"C:\Python314\python.exe -m uvicorn app.main:app --port 8000", "ShouldKill": True},
-        {"Name": "python.exe", "CommandLine": r"C:\Python314\python.exe -m celery -A app.core.celery_app worker -P solo", "ShouldKill": True},
-        {"Name": "python.exe", "CommandLine": r"C:\Python314\python.exe -m celery -A app.core.celery_app flower --port 5555", "ShouldKill": True},
-        {"Name": "node.exe", "CommandLine": r"node.exe C:\Users\user\AppData\Roaming\npm\node_modules\maildev\bin\maildev", "ShouldKill": True},
-        {"Name": "node.exe", "CommandLine": r"node.exe C:\UAIC\frontend\node_modules\.bin\next dev", "ShouldKill": True},
-        {"Name": "python.exe", "CommandLine": r"C:\OtherApp\python.exe some_unrelated_script.py", "ShouldKill": False},
-        {"Name": "svchost.exe", "CommandLine": r"C:\Windows\system32\svchost.exe -k netsvcs", "ShouldKill": False},
+        {
+            "Name": "python.exe",
+            "CommandLine": r"C:\Python314\python.exe -m uvicorn app.main:app --port 8000",
+            "ShouldKill": True,
+        },
+        {
+            "Name": "python.exe",
+            "CommandLine": r"C:\Python314\python.exe -m celery -A app.core.celery_app worker -P solo",
+            "ShouldKill": True,
+        },
+        {
+            "Name": "python.exe",
+            "CommandLine": r"C:\Python314\python.exe -m celery -A app.core.celery_app flower --port 5555",
+            "ShouldKill": True,
+        },
+        {
+            "Name": "node.exe",
+            "CommandLine": r"node.exe C:\Users\user\AppData\Roaming\npm\node_modules\maildev\bin\maildev",
+            "ShouldKill": True,
+        },
+        {
+            "Name": "node.exe",
+            "CommandLine": r"node.exe C:\UAIC\frontend\node_modules\.bin\next dev",
+            "ShouldKill": True,
+        },
+        {
+            "Name": "python.exe",
+            "CommandLine": r"C:\OtherApp\python.exe some_unrelated_script.py",
+            "ShouldKill": False,
+        },
+        {
+            "Name": "svchost.exe",
+            "CommandLine": r"C:\Windows\system32\svchost.exe -k netsvcs",
+            "ShouldKill": False,
+        },
         {"Name": "explorer.exe", "CommandLine": r"C:\Windows\explorer.exe", "ShouldKill": False},
     ]
 
@@ -92,18 +120,27 @@ def test_service_kill_process_filtering():
         name = proc["Name"]
         matches = False
         if name in ("python.exe", "node.exe"):
-            matches = any(pattern in cmd.lower() for pattern in ("uvicorn", "celery", "flower", "maildev", "next dev"))
+            matches = any(
+                pattern in cmd.lower()
+                for pattern in ("uvicorn", "celery", "flower", "maildev", "next dev")
+            )
         elif name in ("celery.exe", "uvicorn.exe", "maildev.exe"):
             matches = True
 
-        assert matches == proc["ShouldKill"], f"Process {proc} filtering mismatch (expected {proc['ShouldKill']}, got {matches})"
+        assert matches == proc["ShouldKill"], (
+            f"Process {proc} filtering mismatch (expected {proc['ShouldKill']}, got {matches})"
+        )
 
 
 def test_maildev_ports_explicit_termination_logic():
     """Verify that ports 1080 (HTTP) and 1025 (SMTP) are explicitly verified in termination logic."""
     target_ports = [3000, 8000, 5555, 6379, 5432, 1080, 1025]
-    assert 1080 in target_ports, "Port 1080 (MailDev HTTP) must be explicitly in termination target list."
-    assert 1025 in target_ports, "Port 1025 (MailDev SMTP) must be explicitly in termination target list."
+    assert 1080 in target_ports, (
+        "Port 1080 (MailDev HTTP) must be explicitly in termination target list."
+    )
+    assert 1025 in target_ports, (
+        "Port 1025 (MailDev SMTP) must be explicitly in termination target list."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -114,17 +151,23 @@ def test_browser_matrix_skips_chromium_when_chrome_detected():
     # When channel is 'chrome'
     configured_channel = "chrome"
     should_skip_chromium = configured_channel in ("chrome", "msedge")
-    assert should_skip_chromium is True, "When channel is 'chrome', Playwright Chromium download must be skipped."
+    assert should_skip_chromium is True, (
+        "When channel is 'chrome', Playwright Chromium download must be skipped."
+    )
 
     # When channel is 'msedge'
     configured_channel = "msedge"
     should_skip_chromium = configured_channel in ("chrome", "msedge")
-    assert should_skip_chromium is True, "When channel is 'msedge', Playwright Chromium download must be skipped."
+    assert should_skip_chromium is True, (
+        "When channel is 'msedge', Playwright Chromium download must be skipped."
+    )
 
     # When channel is 'chromium'
     configured_channel = "chromium"
     should_skip_chromium = configured_channel in ("chrome", "msedge")
-    assert should_skip_chromium is False, "When channel is 'chromium', Playwright Chromium download is required."
+    assert should_skip_chromium is False, (
+        "When channel is 'chromium', Playwright Chromium download is required."
+    )
 
 
 def test_find_chrome_executable_resolution():
@@ -173,8 +216,12 @@ def test_purge_folders_safety_invariants():
     ]
 
     for target in purge_targets:
-        assert target not in protected_directories, f"Purge target {target} collides with protected directories!"
-        assert target not in protected_files, f"Purge target {target} collides with protected files!"
+        assert target not in protected_directories, (
+            f"Purge target {target} collides with protected directories!"
+        )
+        assert target not in protected_files, (
+            f"Purge target {target} collides with protected files!"
+        )
 
     # Verify that required protected directories exist on disk and will never be purged.
     # NOTE (IMP-2026-1001-001): implementation_plan, PowerAutomateSolutions, and Testing files
@@ -197,10 +244,14 @@ async def test_rpa_mode_toggle_and_backend_adherence():
     await save_system_settings_async(cfg1)
 
     s1 = await get_system_settings_async()
-    assert s1.automation.headless_mode is False, "Settings must reflect headless_mode = False for Attended Mode."
+    assert s1.automation.headless_mode is False, (
+        "Settings must reflect headless_mode = False for Attended Mode."
+    )
 
     session_attended = ChromeSession(headless=s1.automation.headless_mode)
-    assert session_attended.headless is False, "ChromeSession must initialize with headless=False in Attended Mode."
+    assert session_attended.headless is False, (
+        "ChromeSession must initialize with headless=False in Attended Mode."
+    )
 
     # 2. Set to Unattended (headless_mode = True)
     cfg2 = await get_system_settings_async()
@@ -208,10 +259,14 @@ async def test_rpa_mode_toggle_and_backend_adherence():
     await save_system_settings_async(cfg2)
 
     s2 = await get_system_settings_async()
-    assert s2.automation.headless_mode is True, "Settings must reflect headless_mode = True for Unattended Mode."
+    assert s2.automation.headless_mode is True, (
+        "Settings must reflect headless_mode = True for Unattended Mode."
+    )
 
     session_unattended = ChromeSession(headless=s2.automation.headless_mode)
-    assert session_unattended.headless is True, "ChromeSession must initialize with headless=True in Unattended Mode."
+    assert session_unattended.headless is True, (
+        "ChromeSession must initialize with headless=True in Unattended Mode."
+    )
 
     # Reset back to False
     current = await get_system_settings_async()
@@ -267,6 +322,7 @@ def test_docker_compose_config_validity():
 # ---------------------------------------------------------------------------
 def test_live_monitor_health_probe_logic():
     """Verify probe status categorization for healthy, running, and stopped states."""
+
     def categorize_probe(port_open: bool, http_status: int | None = None) -> str:
         if not port_open:
             return "STOPPED"
@@ -292,13 +348,17 @@ def test_maildev_endpoint_and_smtp_verification():
 def test_setup_local_canonical_script_exists():
     """Verify that setup_local.ps1 exists in repository root as the single canonical console script."""
     script_path = ROOT_DIR / "setup_local.ps1"
-    assert script_path.exists(), "setup_local.ps1 must exist as the single canonical console script."
+    assert script_path.exists(), (
+        "setup_local.ps1 must exist as the single canonical console script."
+    )
     content = script_path.read_text(encoding="utf-8")
     assert "Enterprise Operations & Orchestration Console" in content
     assert "Show-EnterpriseMenu" in content
     # Assert neither setup.ps1 nor setup-local.ps1 exist to prevent confusion
     assert not (ROOT_DIR / "setup.ps1").exists(), "setup.ps1 must not exist to eliminate confusion."
-    assert not (ROOT_DIR / "setup-local.ps1").exists(), "setup-local.ps1 must not exist to eliminate confusion."
+    assert not (ROOT_DIR / "setup-local.ps1").exists(), (
+        "setup-local.ps1 must not exist to eliminate confusion."
+    )
 
 
 def test_redis_ping_probe_protocol_format():
@@ -321,9 +381,7 @@ def test_smtp_banner_probe_protocol_format():
 
 def test_celery_worker_process_commandline_filter():
     """Verify that process detection accurately identifies celery worker processes."""
-    valid_worker_cmd = (
-        r"C:\UAIC\backend\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app worker -E -P solo"
-    )
+    valid_worker_cmd = r"C:\UAIC\backend\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app worker -E -P solo"
     unrelated_cmd = r"C:\Windows\system32\cmd.exe /c echo hello"
 
     def is_celery_worker(cmd: str) -> bool:
@@ -335,9 +393,7 @@ def test_celery_worker_process_commandline_filter():
 
 def test_celery_beat_process_commandline_filter():
     """Verify that process detection accurately identifies celery beat scheduler processes."""
-    valid_beat_cmd = (
-        r"C:\UAIC\backend\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app beat --loglevel=info"
-    )
+    valid_beat_cmd = r"C:\UAIC\backend\.venv\Scripts\python.exe -m celery -A app.core.celery_app.celery_app beat --loglevel=info"
     unrelated_cmd = r"C:\Windows\system32\cmd.exe /c echo hello"
 
     def is_celery_beat(cmd: str) -> bool:

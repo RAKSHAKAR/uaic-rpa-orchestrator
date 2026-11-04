@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.database import TaskAsyncSessionLocal
 from app.models.guidewire import AutomationSetting, SettingsAuditLog
 from app.schemas.settings import (
+    CHROME_USER_AGENT,
     AutomationSettings,
     BrandingSettings,
     EmailSettings,
@@ -32,7 +33,6 @@ SETTINGS_REDIS_KEY = "uaic:system:settings:v4"
 SETTINGS_DB_KEY = "system_settings_v4"
 
 
-
 class SettingsUnavailableError(RuntimeError):
     """The durable settings document could not be read or written."""
 
@@ -46,44 +46,72 @@ def get_default_settings() -> SystemSettings:
     return SystemSettings(
         automation=AutomationSettings(
             max_captcha_attempts=2,
-            captcha_wait_seconds=45,
-            page_timeout_seconds=35,
-            reload_backoff_seconds=2,
-            headless_mode=getattr(settings, "PLAYWRIGHT_HEADLESS", False),
-            browser_engine="chromium",
-            use_chrome_browser=False,
+            captcha_wait_seconds=120,
+            page_timeout_seconds=180,
+            reload_backoff_seconds=5,
+            headless_mode=getattr(settings, "PLAYWRIGHT_HEADLESS", True),
+            browser_engine="chrome",
+            use_chrome_browser=True,
             chrome_binary_path=get_default_chrome_binary(),
             chrome_extension_dir=get_default_extension_dir(),
             anticaptcha_api_key=os.environ.get("ANTICAPTCHA_API_KEY", ""),
             chrome_user_data_dir="",
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            user_agent=CHROME_USER_AGENT,
             max_concurrent_claims=10,
             extension_setup_verified=False,
             extension_setup_timestamp=None,
-            typing_speed_mode="turbo",
-            typing_delay_ms=0,
-            action_pacing_ms=50,
-            stealth_clicks=False,
+            typing_speed_mode="balanced",
+            typing_delay_ms=50,
+            action_pacing_ms=250,
+            stealth_clicks=True,
+            human_interaction_mode="unattended",
+            enable_screen_recording=False,
         ),
         portals=PortalsSettings(
-            broward_url=getattr(settings, "PORTAL_BROWARD_URL", "https://www.browardclerk.org/Web2"),
+            broward_url=getattr(
+                settings, "PORTAL_BROWARD_URL", "https://www.browardclerk.org/Web2"
+            ),
             broward_enabled=True,
-            hillsborough_url=getattr(settings, "PORTAL_HILLSBOROUGH_URL", "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"),
+            hillsborough_url=getattr(
+                settings,
+                "PORTAL_HILLSBOROUGH_URL",
+                "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab",
+            ),
             hillsborough_enabled=True,
             miami_url=getattr(settings, "PORTAL_MIAMI_URL", "https://www2.miamidadeclerk.gov/ocs"),
             miami_enabled=True,
             miami_username=os.environ.get("MIAMI_USERNAME", ""),
             miami_password=os.environ.get("MIAMI_PASSWORD", ""),
             miami_requires_login=True,
-            travis_url=getattr(settings, "PORTAL_TRAVIS_URL", "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"),
+            travis_url=getattr(
+                settings,
+                "PORTAL_TRAVIS_URL",
+                "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29",
+            ),
             travis_enabled=True,
-            dallas_url=getattr(settings, "PORTAL_DALLAS_URL", "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"),
+            dallas_url=getattr(
+                settings,
+                "PORTAL_DALLAS_URL",
+                "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29",
+            ),
             dallas_enabled=True,
-            harris_jp_url=getattr(settings, "PORTAL_HARRIS_JP_URL", "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"),
+            harris_jp_url=getattr(
+                settings,
+                "PORTAL_HARRIS_JP_URL",
+                "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29",
+            ),
             harris_jp_enabled=True,
-            harris_cclerk_url=getattr(settings, "PORTAL_HARRIS_CCLERK_URL", "https://www.cclerk.hctx.net/Applications/WebSearch/"),
+            harris_cclerk_url=getattr(
+                settings,
+                "PORTAL_HARRIS_CCLERK_URL",
+                "https://www.cclerk.hctx.net/Applications/WebSearch/",
+            ),
             harris_cclerk_enabled=True,
-            harris_district_url=getattr(settings, "PORTAL_HARRIS_DISTRICT_URL", "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"),
+            harris_district_url=getattr(
+                settings,
+                "PORTAL_HARRIS_DISTRICT_URL",
+                "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
+            ),
             harris_district_enabled=True,
         ),
         matcher=FuzzyMatcherSettings(
@@ -95,7 +123,11 @@ def get_default_settings() -> SystemSettings:
         ),
         integration=IntegrationSettings(
             guidewire_mock_mode=getattr(settings, "GUIDEWIRE_MOCK_MODE", True),
-            guidewire_api_url=getattr(settings, "GUIDEWIRE_API_URL", "https://uaic-gwcp-prod-igoauthproxy.api.delta4-andromeda.guidewire.net/api/powerapps/caseupdate"),
+            guidewire_api_url=getattr(
+                settings,
+                "GUIDEWIRE_API_URL",
+                "https://uaic-gwcp-prod-igoauthproxy.api.delta4-andromeda.guidewire.net/api/powerapps/caseupdate",
+            ),
             guidewire_auth_type="Bearer",
             guidewire_api_key=settings.GUIDEWIRE_API_KEY,
             guidewire_client_id=os.environ.get("GUIDEWIRE_CLIENT_ID", ""),
@@ -120,7 +152,7 @@ def get_default_settings() -> SystemSettings:
 
 
 def _normalize_portals_data(data: dict) -> bool:
-    """Migrate legacy portal URLs to the required defaults (Requirement #33). Returns True if mutated."""
+    """Ensure missing portal URLs are populated with V4-authoritative defaults without overwriting configured URLs."""
     portals = data.setdefault("portals", {})
     # V4-authoritative CountyWebsite URL targets (from PA_FuzzyMatch_ActivityCreation_v1_Main workflow)
     V4_PORTAL_URLS: dict[str, str] = {
@@ -133,23 +165,10 @@ def _normalize_portals_data(data: dict) -> bool:
         "harris_cclerk_url": "https://www.cclerk.hctx.net/Applications/WebSearch/",
         "harris_district_url": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx",
     }
-    known_legacy: dict[str, set[str]] = {
-        "broward_url": {"https://www.browardclerk.org/", "https://www.browardclerk.org"},
-        "hillsborough_url": {"https://hover.hillsclerk.com/", "https://hover.hillsclerk.com"},
-        "miami_url": {"https://onlineservices.miami-dadeclerk.com/civil/", "https://onlineservices.miami-dadeclerk.com/civil"},
-        "travis_url": {"https://odysseyweb.traviscountytx.gov/Portal/", "https://odysseyweb.traviscountytx.gov/Portal"},
-        "dallas_url": {"https://courtsportal.dallascounty.org/DALLASPROD/Home/", "https://courtsportal.dallascounty.org/DALLASPROD/Home"},
-        "harris_jp_url": {"https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/", "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home"},
-        "harris_cclerk_url": {
-            "https://www.cclerk.hctx.net/applications/websearch/courtsearch.aspx?CaseType=Civil",
-            "https://www.cclerk.hctx.net/Applications/WebSearch/CourtSearch.aspx",
-        },
-        "harris_district_url": {"https://www.hcdistrictclerk.com/", "https://www.hcdistrictclerk.com"},
-    }
     changed = False
     for field, new_val in V4_PORTAL_URLS.items():
-        current = portals.get(field, "")
-        if not current or current in known_legacy.get(field, set()):
+        current = (portals.get(field) or "").strip()
+        if not current:
             portals[field] = new_val
             changed = True
     return changed
@@ -173,13 +192,52 @@ def _decode_row(row: AutomationSetting) -> SystemSettings:
             result.automation.reload_backoff_seconds = 2
         if result.automation.action_pacing_ms == 100:
             result.automation.action_pacing_ms = 50
-        if not getattr(result.queue, "claim_timeout_minutes", None) or result.queue.claim_timeout_minutes < 30:
+        if (
+            not getattr(result.queue, "claim_timeout_minutes", None)
+            or result.queue.claim_timeout_minutes < 30
+        ):
             result.queue.claim_timeout_minutes = 30
-        if not getattr(result.matcher, "unsearchable_party_patterns", None):
-            result.matcher.unsearchable_party_patterns = FuzzyMatcherSettings().unsearchable_party_patterns
+        if (
+            not getattr(result.queue, "failed_claims_retry_interval_seconds", None)
+            or result.queue.failed_claims_retry_interval_seconds <= 0
+        ):
+            legacy_mins = getattr(result.queue, "failed_claims_retry_interval_minutes", 60) or 60
+            result.queue.failed_claims_retry_interval_value = legacy_mins
+            result.queue.failed_claims_retry_interval_unit = "minutes"
+            result.queue.failed_claims_retry_interval_seconds = legacy_mins * 60
+            result.queue.failed_claims_retry_interval_minutes = legacy_mins
+        if (
+            not getattr(result.matcher, "unsearchable_party_patterns", None)
+            or len(result.matcher.unsearchable_party_patterns) < 50
+        ):
+            result.matcher.unsearchable_party_patterns = (
+                FuzzyMatcherSettings().unsearchable_party_patterns
+            )
+        if (
+            not getattr(result.matcher, "clean_case_style_patterns", None)
+            or len(result.matcher.clean_case_style_patterns) < 20
+        ):
+            result.matcher.clean_case_style_patterns = (
+                FuzzyMatcherSettings().clean_case_style_patterns
+            )
+        # GAP-A Guard (IMP-2026-1007-004): Permanently enforce all 5 TX portals enabled.
+        # Prevents regression from stale DB rows seeded before the G-1 fix.
+        # Dallas & Travis are required for TX same-state (5 portals) and Cross-State (8 portals).
+        if not result.portals.dallas_enabled:
+            logger.warning(
+                "[SETTINGS_NORMALIZATION] dallas_enabled was False in stored settings — "
+                "forcing True to ensure full TX portal coverage. Update Settings > Portals to persist."
+            )
+            result.portals.dallas_enabled = True
+        if not result.portals.travis_enabled:
+            logger.warning(
+                "[SETTINGS_NORMALIZATION] travis_enabled was False in stored settings — "
+                "forcing True to ensure full TX portal coverage. Update Settings > Portals to persist."
+            )
+            result.portals.travis_enabled = True
         return result
     except Exception as exc:
-        logger.error("Stored settings validation failed (%s)", type(exc).__name__)
+        logger.error("Stored settings validation failed (%s): %s", type(exc).__name__, exc)
         raise SettingsUnavailableError("Stored settings document is invalid") from None
 
 
@@ -195,7 +253,9 @@ async def _read_legacy_redis_document() -> SystemSettings:
     try:
         raw = await asyncio.wait_for(client.get(SETTINGS_REDIS_KEY), timeout=0.3)
     except Exception as exc:
-        logger.warning("Legacy settings migration read failed (%s), using defaults", type(exc).__name__)
+        logger.warning(
+            "Legacy settings migration read failed (%s), using defaults", type(exc).__name__
+        )
         return get_default_settings()
     finally:
         await client.aclose()
@@ -214,10 +274,15 @@ async def _refresh_redis_cache(document: SystemSettings) -> None:
         return
     try:
         client = aioredis.from_url(
-            settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.3, socket_timeout=0.3
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=0.3,
+            socket_timeout=0.3,
         )
         try:
-            await asyncio.wait_for(client.set(SETTINGS_REDIS_KEY, document.model_dump_json()), timeout=0.3)
+            await asyncio.wait_for(
+                client.set(SETTINGS_REDIS_KEY, document.model_dump_json()), timeout=0.3
+            )
         finally:
             await client.aclose()
     except Exception as exc:
@@ -249,12 +314,14 @@ async def get_system_settings_async() -> SystemSettings:
                 category="system",
             )
             session.add(row)
-            session.add(SettingsAuditLog(
-                key=SETTINGS_DB_KEY,
-                old_value=None,
-                new_value={"version": 1, "action": "legacy_migration"},
-                updated_by="system:migration",
-            ))
+            session.add(
+                SettingsAuditLog(
+                    key=SETTINGS_DB_KEY,
+                    old_value=None,
+                    new_value={"version": 1, "action": "legacy_migration"},
+                    updated_by="system:migration",
+                )
+            )
             await session.commit()
             return initial
     except IntegrityError:
@@ -321,31 +388,39 @@ async def save_system_settings_async(new_settings: SystemSettings) -> SystemSett
                     update(AutomationSetting)
                     .where(AutomationSetting.key == SETTINGS_DB_KEY)
                     .where(AutomationSetting.updated_at == row.updated_at)
-                    .values(value=_database_value(candidate, next_version), updated_at=datetime.now(UTC))
+                    .values(
+                        value=_database_value(candidate, next_version), updated_at=datetime.now(UTC)
+                    )
                 )
                 if result.rowcount != 1:
                     raise SettingsConflictError("Settings changed during save")
-                session.add(SettingsAuditLog(
-                    key=SETTINGS_DB_KEY,
-                    old_value={"version": current.version},
-                    new_value={"version": next_version},
-                    updated_by="settings-api",
-                ))
+                session.add(
+                    SettingsAuditLog(
+                        key=SETTINGS_DB_KEY,
+                        old_value={"version": current.version},
+                        new_value={"version": next_version},
+                        updated_by="settings-api",
+                    )
+                )
                 await session.commit()
                 break
-        except (SettingsConflictError, SettingsUnavailableError):
+        except SettingsConflictError, SettingsUnavailableError:
             raise
         except Exception as exc:
             is_locked = "locked" in str(exc).lower() or "busy" in str(exc).lower()
             if is_locked and attempt < max_retries - 1:
-                backoff = 0.2 * (2 ** attempt)
+                backoff = 0.2 * (2**attempt)
                 logger.warning(
                     "Settings save hit SQLite lock contention (attempt %d/%d), retrying in %.2fs...",
-                    attempt + 1, max_retries, backoff
+                    attempt + 1,
+                    max_retries,
+                    backoff,
                 )
                 await asyncio.sleep(backoff)
                 continue
-            logger.error("Durable settings save failed (%s): %s", type(exc).__name__, exc, exc_info=True)
+            logger.error(
+                "Durable settings save failed (%s): %s", type(exc).__name__, exc, exc_info=True
+            )
             raise SettingsUnavailableError("Settings database save failed") from None
     await _refresh_redis_cache(candidate)
     return candidate
@@ -357,5 +432,3 @@ async def reset_system_settings_async() -> SystemSettings:
     defaults = get_default_settings()
     defaults.version = current.version
     return await save_system_settings_async(defaults)
-
-

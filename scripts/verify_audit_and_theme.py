@@ -12,9 +12,10 @@ Covers:
 3. Dashboard verification parity confirmation
 """
 
-import sys
 import time
+
 from playwright.sync_api import sync_playwright
+
 
 def run():
     with sync_playwright() as p:

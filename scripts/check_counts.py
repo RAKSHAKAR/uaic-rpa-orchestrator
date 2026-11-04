@@ -5,8 +5,9 @@ import sys
 sys.path.insert(0, os.path.abspath("backend"))
 
 from app.core.database import AsyncSessionLocal
-from sqlalchemy import select, func
 from app.models.claim import ClaimRecord
+from sqlalchemy import func, select
+
 
 async def main():
     async with AsyncSessionLocal() as db:

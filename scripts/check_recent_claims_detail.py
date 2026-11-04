@@ -1,5 +1,4 @@
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -8,8 +7,9 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from app.core.database import AsyncSessionLocal
-from app.models.claim import ClaimRecord, RecordStatusEnum
-from sqlalchemy import select, desc
+from app.models.claim import ClaimRecord
+from sqlalchemy import desc, select
+
 
 async def check():
     async with AsyncSessionLocal() as session:

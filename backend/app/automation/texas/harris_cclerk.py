@@ -8,7 +8,7 @@ from typing import Any
 
 from playwright.async_api import Page
 
-from app.automation.base import BaseCourtScraper, CaptchaResolutionError
+from app.automation.base import BaseCourtScraper, CaptchaResolutionError, SecurityBlockException
 
 logger = logging.getLogger("uaic_orchestrator.automation.harris_cclerk")
 
@@ -121,7 +121,9 @@ async def _safe_click(locator: Any) -> None:
     try:
         eval_fn = getattr(locator, "evaluate", None)
         if callable(eval_fn):
-            res = eval_fn("el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }")
+            res = eval_fn(
+                "el => { if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); el.click(); } }"
+            )
             if inspect.isawaitable(res):
                 await res
     except Exception:
@@ -235,7 +237,9 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
                     "button:has-text('OK')"
                 )
                 if await _safe_count(close_btn) > 0 and await _safe_is_visible(close_btn):
-                    logger.info(f"[{self.county_name}] Step I: 'YOUR SEARCH CRITERIA' popup detected; closing...")
+                    logger.info(
+                        f"[{self.county_name}] Step I: 'YOUR SEARCH CRITERIA' popup detected; closing..."
+                    )
                     await self.biometric_click(page, close_btn.first)
                     await page.wait_for_timeout(1000)
                     return True
@@ -246,7 +250,9 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
     async def return_to_search_state(self, page: Page) -> None:
         """Section 4: Return to Harris County Clerk search state (Power Automate V4 Parity: Subflow_Cclerk line 65)."""
         try:
-            logger.info(f"[{self.county_name}] Section 4: Returning to search state for next unique name...")
+            logger.info(
+                f"[{self.county_name}] Section 4: Returning to search state for next unique name..."
+            )
             await self.check_and_handle_search_criteria_popup(page)
 
             # Power Automate V4 Parity: Click Clear button first
@@ -285,6 +291,17 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
         except Exception as e:
             logger.debug(f"[{self.county_name}] Return to search state note: {e}")
 
+    def _resolve_target_civil_url(self) -> str:
+        """Resolve target County Civil search URL cleanly from base_url."""
+        base = (self.base_url or "").rstrip("/")
+        if "courtsearch" in base.lower():
+            if "casetype=" not in base.lower():
+                return f"{base}?CaseType=Civil" if "?" not in base else f"{base}&CaseType=Civil"
+            return base
+        if "applications/websearch" in base.lower():
+            return f"{base}/CourtSearch.aspx?CaseType=Civil"
+        return f"{base}/Applications/WebSearch/CourtSearch.aspx?CaseType=Civil"
+
     async def _navigate_to_county_civil(self, page: Page) -> None:
         """
         Step A, B, C:
@@ -295,26 +312,32 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
         await page.goto(self.base_url, wait_until="domcontentloaded")
         await page.wait_for_timeout(1500)
 
+        is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+        if is_blocked:
+            raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs, portal_key=self.county_name)
+
         # Check for empty body in real browser (Step a: check body length < 5)
         try:
             body_text = await _get_page_text(page)
             if not body_text or len(body_text.strip()) < 5:
-                logger.warning(f"[{self.county_name}] Step A: Blank/incomplete body detected; reloading...")
+                logger.warning(
+                    f"[{self.county_name}] Step A: Blank/incomplete body detected; reloading..."
+                )
                 await _safe_reload(page)
                 await page.wait_for_timeout(2000)
         except Exception:
             pass
 
-        form = page.locator("input#ctl00_ContentPlaceHolder1_txtLastName[name='ctl00$ContentPlaceHolder1$txtLastName'], input#ctl00_ContentPlaceHolder1_txtLastName, input[name*='txtLastName']")
+        form = page.locator(
+            "input#ctl00_ContentPlaceHolder1_txtLastName[name='ctl00$ContentPlaceHolder1$txtLastName'], input#ctl00_ContentPlaceHolder1_txtLastName, input[name*='txtLastName']"
+        )
         form_count = await _safe_count(form)
         form_visible = await _safe_is_visible(form.first) if form_count > 0 else False
 
         if not form_count > 0 or not form_visible:
             # Step B: Hover 'COURTS' and click 'County Civil' (Object: <a href="/Applications/WebSearch/CourtSearch.aspx?CaseType=Civil">County Civil</a>)
             courts_menu = page.locator(
-                "a:has-text('COURTS'), "
-                "li.dropdown:has-text('COURTS'), "
-                "#nav a:has-text('COURTS')"
+                "a:has-text('COURTS'), li.dropdown:has-text('COURTS'), #nav a:has-text('COURTS')"
             )
             if await _safe_count(courts_menu) > 0:
                 await _safe_hover(courts_menu.first)
@@ -329,6 +352,21 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
             if await _safe_count(civil_link) > 0:
                 await self.biometric_click(page, civil_link.first)
                 await page.wait_for_timeout(1500)
+
+            target_civil_url = self._resolve_target_civil_url()
+            if isinstance(page, Page):
+                form_count_after = await _safe_count(form)
+                if not form_count_after > 0:
+                    try:
+                        logger.info(
+                            f"[{self.county_name}] Menu click did not render search form. Navigating directly to {target_civil_url}..."
+                        )
+                        await page.goto(
+                            target_civil_url, wait_until="domcontentloaded", timeout=self.timeout_ms
+                        )
+                        await page.wait_for_timeout(1000)
+                    except Exception as e_nav:
+                        logger.debug(f"[{self.county_name}] Direct civil form nav note: {e_nav}")
 
             # Step C: ASP.NET can display a blank document shell before the
             # County Civil form arrives. Wait for the V4 Last Name control.
@@ -360,7 +398,9 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
         t_nav_start = datetime.now()
         await self._navigate_to_county_civil(page)
         t_nav_end = datetime.now()
-        self.record_stage("website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=self.base_url)
+        self.record_stage(
+            "website_navigation", "Website Navigation", t_nav_start, t_nav_end, url=self.base_url
+        )
 
         # Exception 3: CAPTCHA Retry & Refresh Loop adhering to dynamically configured Max Attempts and CAPTCHA Wait
         max_attempts = max(1, getattr(self, "max_attempts", 2))
@@ -421,21 +461,40 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
             if date_of_loss and await _safe_count(dol_input) > 0:
                 clean_dol = _normalize_court_date(date_of_loss.strip()) or date_of_loss.strip()
                 await self.biometric_fill(dol_input.first, clean_dol)
-                logger.info(f"[{self.county_name}] Step D: Filled File Date from with DOL: {clean_dol}")
+                logger.info(
+                    f"[{self.county_name}] Step D: Filled File Date from with DOL: {clean_dol}"
+                )
 
             await page.wait_for_timeout(500)
             t_fill_end = datetime.now()
-            self.record_stage("data_filling", "Data Filling", t_fill_start, t_fill_end, party=f"{f_name} {l_name}", dol=date_of_loss)
+            self.record_stage(
+                "data_filling",
+                "Data Filling",
+                t_fill_start,
+                t_fill_end,
+                party=f"{f_name} {l_name}",
+                dol=date_of_loss,
+            )
 
             # CAPTCHA verification if any
             t_cap_start = datetime.now()
-            captcha_ok = await self.detect_and_handle_captcha(page, wait_seconds=self.captcha_wait_seconds)
+            captcha_ok = await self.detect_and_handle_captcha(
+                page, wait_seconds=self.captcha_wait_seconds
+            )
             t_cap_end = datetime.now()
-            self.record_stage("captcha", "CAPTCHA Solving", t_cap_start, t_cap_end, status="SUCCESS" if captcha_ok else "TIMEOUT")
+            self.record_stage(
+                "captcha",
+                "CAPTCHA Solving",
+                t_cap_start,
+                t_cap_end,
+                status="SUCCESS" if captcha_ok else "TIMEOUT",
+            )
 
             if captcha_ok:
                 captcha_solved = True
-                logger.info(f"[{self.county_name}] CAPTCHA solved! Immediately submitting search...")
+                logger.info(
+                    f"[{self.county_name}] CAPTCHA solved! Immediately submitting search..."
+                )
                 break
             else:
                 logger.warning(
@@ -443,8 +502,12 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
                 )
 
         if not captcha_solved:
-            logger.error(f"[{self.county_name}] CAPTCHA verification failed after {max_attempts} attempts for '{f_name} {l_name}'.")
-            raise CaptchaResolutionError(f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts} attempts")
+            logger.error(
+                f"[{self.county_name}] CAPTCHA verification failed after {max_attempts} attempts for '{f_name} {l_name}'."
+            )
+            raise CaptchaResolutionError(
+                f"[{self.county_name}] CAPTCHA was not resolved after {max_attempts} attempts"
+            )
 
         # Step E: Submit search via button click (Object: <input type="submit" name="ctl00$ContentPlaceHolder1$btnSearch" value="Search" id="ctl00_ContentPlaceHolder1_btnSearch" ...>)
         t_sub_start = datetime.now()
@@ -469,6 +532,10 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
         else:
             raise RuntimeError(f"[{self.county_name}] V4 btnParty search control was not found")
         t_sub_end = datetime.now()
+
+        is_blocked, reason, cooldown_secs = await self.detect_security_block(page)
+        if is_blocked:
+            raise SecurityBlockException(reason, cooldown_seconds=cooldown_secs, portal_key=self.county_name)
         self.record_stage("submit", "Search Submit", t_sub_start, t_sub_end)
 
         if isinstance(page, Page):
@@ -503,7 +570,9 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
 
             rows = page.locator("table[id*='grd'] tbody tr, table.grid tbody tr, table tbody tr")
             row_count = await _safe_count(rows)
-            logger.info(f"[{self.county_name}] Page {page_num}: Found {row_count} potential result rows")
+            logger.info(
+                f"[{self.county_name}] Page {page_num}: Found {row_count} potential result rows"
+            )
 
             for i in range(row_count):
                 row = rows.nth(i)
@@ -513,7 +582,9 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
                 # V4 extracts td[0] > a plus td[1], td[2], and td[5].
                 # The page also contains a three-cell Party/Attorney/Company
                 # radio table, which must never become a case record.
-                if td_count >= 6 and (not isinstance(page, Page) or await _safe_count(tds.nth(0).locator("a")) > 0):
+                if td_count >= 6 and (
+                    not isinstance(page, Page) or await _safe_count(tds.nth(0).locator("a")) > 0
+                ):
                     if hasattr(tds, "all_inner_texts"):
                         fn_ait = getattr(tds, "all_inner_texts")
                         if callable(fn_ait):
@@ -534,18 +605,30 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
 
                     _HEADER_LABELS = {"CASE NUMBER", "CASE NO.", "CASE NO", "CASE #", ""}
                     if case_num and case_num.upper() not in _HEADER_LABELS:
-                        page_signature.append((*[str(cell).strip() for cell in cells], case_num, case_style, filing_date, case_status))
+                        page_signature.append(
+                            (
+                                *[str(cell).strip() for cell in cells],
+                                case_num,
+                                case_style,
+                                filing_date,
+                                case_status,
+                            )
+                        )
                         # Strict schema: NO CaseType!
-                        page_cases.append({
-                            "CaseNumber": case_num,
-                            "FilingDate": filing_date,
-                            "CaseStyle": case_style,
-                            "CaseStatus": case_status,
-                        })
+                        page_cases.append(
+                            {
+                                "CaseNumber": case_num,
+                                "FilingDate": filing_date,
+                                "CaseStyle": case_style,
+                                "CaseStatus": case_status,
+                            }
+                        )
 
             signature = tuple(page_signature)
             if page_num > 1 and signature in seen_page_signatures:
-                raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results (repeated page)")
+                raise RuntimeError(
+                    f"[{self.county_name}] Pagination did not advance to new case results (repeated page)"
+                )
             seen_page_signatures.add(signature)
             results.extend(page_cases)
 
@@ -558,7 +641,9 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
             )
             if await _safe_count(next_link) > 0 and await _safe_is_visible(next_link.first):
                 if page_num > 1 and len(results) == page_start_count:
-                    raise RuntimeError(f"[{self.county_name}] Pagination did not advance to new case results")
+                    raise RuntimeError(
+                        f"[{self.county_name}] Pagination did not advance to new case results"
+                    )
                 try:
                     await self.biometric_click(page, next_link.first)
                     await page.wait_for_timeout(1500)
@@ -570,8 +655,19 @@ class HarrisCountyClerkScraper(BaseCourtScraper):
 
         if not results:
             body_text = (await _get_page_text(page)).lower()
-            if not any(message in body_text for message in ("no records found", "no cases found", "no cases matched", "no data available", "no data found")):
-                raise RuntimeError(f"[{self.county_name}] Search completed without results or a verified no-match message")
+            if not any(
+                message in body_text
+                for message in (
+                    "no records found",
+                    "no cases found",
+                    "no cases matched",
+                    "no data available",
+                    "no data found",
+                )
+            ):
+                raise RuntimeError(
+                    f"[{self.county_name}] Search completed without results or a verified no-match message"
+                )
 
         t_ext_end = datetime.now()
         self.record_stage(

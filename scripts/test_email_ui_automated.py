@@ -10,8 +10,8 @@ Zero manual interaction required.
 """
 
 import os
-import sys
 import time
+
 from playwright.sync_api import sync_playwright
 
 TOTAL_CHECKS = 0

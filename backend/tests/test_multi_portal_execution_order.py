@@ -63,10 +63,12 @@ def test_known_anticaptcha_ids_includes_workspace_unpacked():
 
 def test_unique_names_extraction_multiple_parties():
     """Verify generate_unique_names_for_claim yields distinct unique search targets in order."""
+    # NOTE: JOHN DOE / JANE DOE are correctly filtered as placeholder/unknown names by business rules.
+    # Use real non-placeholder names for this test.
     claim = MagicMock()
-    claim.insured_first_name = "JOHN"
-    claim.insured_last_name = "DOE"
-    claim.driver_first_name = "JANE"
+    claim.insured_first_name = "CARLOS"
+    claim.insured_last_name = "MENDEZ"
+    claim.driver_first_name = "DIANA"
     claim.driver_last_name = "SMITH"
     claim.claimant_first_name = "ROBERT"
     claim.claimant_last_name = "JOHNSON"
@@ -74,9 +76,9 @@ def test_unique_names_extraction_multiple_parties():
     unique = generate_unique_names_for_claim(claim, fuzzy_threshold=0.60)
     assert len(unique) == 3
     assert unique[0]["party_type"] == "Insured"
-    assert "JOHN" in unique[0]["full_name"]
+    assert "CARLOS" in unique[0]["full_name"]
     assert unique[1]["party_type"] == "Driver"
-    assert "JANE" in unique[1]["full_name"]
+    assert "DIANA" in unique[1]["full_name"]
     assert unique[2]["party_type"] == "Claimant"
     assert "ROBERT" in unique[2]["full_name"]
 
@@ -99,13 +101,15 @@ async def test_unique_name_first_execution_sequence():
 
         async def search_on_page(self, page, first_name, last_name, date_of_loss=None):
             call_sequence.append((f"{first_name} {last_name}", self.key))
-            return [{
-                "CaseNumber": f"{self.key}-001",
-                "CaseStyle": f"{last_name} vs State",
-                "FilingDate": "01/15/2025",
-                "CaseStatus": "ACTIVE",
-                "CaseType": "CIVIL",
-            }]
+            return [
+                {
+                    "CaseNumber": f"{self.key}-001",
+                    "CaseStyle": f"{last_name} vs State",
+                    "FilingDate": "01/15/2025",
+                    "CaseStatus": "ACTIVE",
+                    "CaseType": "CIVIL",
+                }
+            ]
 
     claim = ClaimRecord(
         id="claim-test-seq-1",
@@ -144,6 +148,7 @@ async def test_unique_name_first_execution_sequence():
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock()
     mock_session.commit = AsyncMock()
+    mock_session.get = AsyncMock(return_value=None)
     mock_session.add = MagicMock()
 
     mock_res = MagicMock()
@@ -163,17 +168,32 @@ async def test_unique_name_first_execution_sequence():
 
     with (
         patch("app.tasks.scraper_tasks.TaskAsyncSessionLocal", return_value=mock_session_cm),
-        patch("app.tasks.scraper_tasks.get_system_settings_async", AsyncMock(return_value=sys_settings)),
+        patch(
+            "app.tasks.scraper_tasks.get_system_settings_async",
+            AsyncMock(return_value=sys_settings),
+        ),
         patch("app.tasks.scraper_tasks._acquire_browser_slot", AsyncMock(return_value=True)),
         patch("app.tasks.scraper_tasks._release_browser_slot", AsyncMock()),
         patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner_cm),
         patch("app.tasks.scraper_tasks.is_portal_in_cooldown", return_value=(False, 0, "")),
         patch("app.tasks.scraper_tasks.celery_app.send_task"),
         patch("app.tasks.scraper_tasks.log_audit_event_async", AsyncMock()),
-        patch("app.tasks.scraper_tasks.generate_unique_names_for_claim", wraps=generate_unique_names_for_claim) as mock_unique_names,
-        patch("app.tasks.scraper_tasks.BrowardScraper", return_value=MockScraper("broward", "Broward County")),
-        patch("app.tasks.scraper_tasks.HillsboroughScraper", return_value=MockScraper("hillsborough", "Hillsborough County")),
-        patch("app.tasks.scraper_tasks.MiamiDadeScraper", return_value=MockScraper("miami", "Miami-Dade County")),
+        patch(
+            "app.tasks.scraper_tasks.generate_unique_names_for_claim",
+            wraps=generate_unique_names_for_claim,
+        ) as mock_unique_names,
+        patch(
+            "app.tasks.scraper_tasks.BrowardScraper",
+            return_value=MockScraper("broward", "Broward County"),
+        ),
+        patch(
+            "app.tasks.scraper_tasks.HillsboroughScraper",
+            return_value=MockScraper("hillsborough", "Hillsborough County"),
+        ),
+        patch(
+            "app.tasks.scraper_tasks.MiamiDadeScraper",
+            return_value=MockScraper("miami", "Miami-Dade County"),
+        ),
     ):
         await _async_orchestrate_scrapers("claim-test-seq-1")
 
@@ -191,7 +211,9 @@ async def test_unique_name_first_execution_sequence():
         ("Bob Brown", "hillsborough"),
         ("Bob Brown", "miami"),
     ]
-    assert call_sequence == expected_sequence, f"Actual sequence {call_sequence} does not match expected {expected_sequence}"
+    assert call_sequence == expected_sequence, (
+        f"Actual sequence {call_sequence} does not match expected {expected_sequence}"
+    )
 
 
 @pytest.mark.asyncio
@@ -213,13 +235,15 @@ async def test_portal_failure_isolation_preserves_unique_name_context():
             call_sequence.append((f"{first_name} {last_name}", self.key))
             if self.should_fail and first_name == "Alice":
                 raise RuntimeError(f"Simulated timeout on {self.key}")
-            return [{
-                "CaseNumber": f"{self.key}-001",
-                "CaseStyle": f"{last_name} vs State",
-                "FilingDate": "01/15/2025",
-                "CaseStatus": "ACTIVE",
-                "CaseType": "CIVIL",
-            }]
+            return [
+                {
+                    "CaseNumber": f"{self.key}-001",
+                    "CaseStyle": f"{last_name} vs State",
+                    "FilingDate": "01/15/2025",
+                    "CaseStatus": "ACTIVE",
+                    "CaseType": "CIVIL",
+                }
+            ]
 
         async def capture_screenshot_on_error(self, page, claim_id, portal_key, attempt, error):
             return {
@@ -265,6 +289,7 @@ async def test_portal_failure_isolation_preserves_unique_name_context():
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock()
     mock_session.commit = AsyncMock()
+    mock_session.get = AsyncMock(return_value=None)
     mock_session.add = MagicMock()
 
     mock_res = MagicMock()
@@ -283,16 +308,28 @@ async def test_portal_failure_isolation_preserves_unique_name_context():
     # Broward fails on Alice, but Hillsborough and Miami must still be called for Alice!
     with (
         patch("app.tasks.scraper_tasks.TaskAsyncSessionLocal", return_value=mock_session_cm),
-        patch("app.tasks.scraper_tasks.get_system_settings_async", AsyncMock(return_value=sys_settings)),
+        patch(
+            "app.tasks.scraper_tasks.get_system_settings_async",
+            AsyncMock(return_value=sys_settings),
+        ),
         patch("app.tasks.scraper_tasks._acquire_browser_slot", AsyncMock(return_value=True)),
         patch("app.tasks.scraper_tasks._release_browser_slot", AsyncMock()),
         patch("app.tasks.scraper_tasks.SingleSessionBrowserRunner", return_value=mock_runner_cm),
         patch("app.tasks.scraper_tasks.is_portal_in_cooldown", return_value=(False, 0, "")),
         patch("app.tasks.scraper_tasks.celery_app.send_task"),
         patch("app.tasks.scraper_tasks.log_audit_event_async", AsyncMock()),
-        patch("app.tasks.scraper_tasks.BrowardScraper", return_value=FailingScraper("broward", "Broward County", should_fail=True)),
-        patch("app.tasks.scraper_tasks.HillsboroughScraper", return_value=FailingScraper("hillsborough", "Hillsborough County")),
-        patch("app.tasks.scraper_tasks.MiamiDadeScraper", return_value=FailingScraper("miami", "Miami-Dade County")),
+        patch(
+            "app.tasks.scraper_tasks.BrowardScraper",
+            return_value=FailingScraper("broward", "Broward County", should_fail=True),
+        ),
+        patch(
+            "app.tasks.scraper_tasks.HillsboroughScraper",
+            return_value=FailingScraper("hillsborough", "Hillsborough County"),
+        ),
+        patch(
+            "app.tasks.scraper_tasks.MiamiDadeScraper",
+            return_value=FailingScraper("miami", "Miami-Dade County"),
+        ),
     ):
         await _async_orchestrate_scrapers("claim-test-err-1")
 

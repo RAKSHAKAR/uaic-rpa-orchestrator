@@ -1,7 +1,7 @@
 import os
 
 file_path = os.path.join("frontend", "src", "app", "settings", "page.tsx")
-with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+with open(file_path, encoding="utf-8", errors="ignore") as f:
     lines = f.readlines()
 
 def find_line(pattern):

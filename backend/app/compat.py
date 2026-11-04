@@ -11,6 +11,7 @@ if not hasattr(_dt, "UTC"):
 
 # Python 3.10 compatibility: backport enum.StrEnum
 if not hasattr(_enum, "StrEnum"):
+
     class StrEnum(str, _enum.Enum):  # noqa: UP042
         """Python 3.10 compatibility backport for StrEnum."""
 

@@ -1,14 +1,15 @@
 import asyncio
-import sys
-import os
 import json
+import os
+import sys
 
 # Setup environment
 sys.path.insert(0, os.path.join(os.getcwd(), 'backend'))
 
-from app.tasks.scraper_tasks import _async_orchestrate_scrapers
 from app.core.database import AsyncSessionLocal
 from app.models.claim import ClaimRecord
+from app.tasks.scraper_tasks import _async_orchestrate_scrapers
+
 
 async def run():
     print("Connecting to DB...")

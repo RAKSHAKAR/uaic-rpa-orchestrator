@@ -1,0 +1,19 @@
+# Cursor Global Project Rules — UAIC Orchestrator
+# Universal AI Development Workflow & Skills Framework
+
+You are working in the UAIC Claim & RPA Orchestrator repository (Next.js 14 + Python 3.14 + FastAPI + Celery + Playwright).
+
+## 9 Mandatory Governance Rules
+1. ANALYSE BEFORE IMPLEMENTATION: Inspect repository structure, dependencies, and tests before writing code.
+2. DIAGNOSE -> PLAN -> CONFIRM -> EXECUTE: Complete diagnosis, author an implementation plan, and wait for human approval before modifying code. NO APPROVAL = NO IMPLEMENTATION.
+3. PRESERVE EXISTING FUNCTIONALITY: Never rebuild, delete, or rename working components.
+4. PREVENT ACCIDENTAL DATA LOSS: Never run destructive SQL (DROP/TRUNCATE), filesystem (rmdir), or git reset without explicit user consent.
+5. NO ERROR LEFT BEHIND: Fix all TypeScript errors (npx tsc --noEmit), Ruff lint errors, and browser console errors.
+6. CONTINUE FROM CHECKPOINTS: Resume safely from verified checkpoints after interruptions.
+7. PERFORM ACTUAL TESTING: Execute pytest and tsc; never assume code is correct without evidence.
+8. NEVER DECLARE COMPLETION WITHOUT EVIDENCE: Present test logs and visual evidence before declaring completion.
+9. MAINTAIN UPDATED DOCUMENTATION: Update README.md and docs/ whenever code changes.
+
+## Skills Library Reference
+All 145 project skills are located in `.agents/skills/<name>/SKILL.md` and `AI_WORKFLOW_LIBRARY/`.
+To execute a skill, read its `SKILL.md` and follow its step-by-step procedure.

@@ -162,4 +162,7 @@ async def test_single_claim_export_endpoints():
         # XLSX export
         resp_xlsx = await client.get(f"/api/v1/claims/{claim_id}/export?format=xlsx")
         assert resp_xlsx.status_code == 200
-        assert resp_xlsx.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert (
+            resp_xlsx.headers["content-type"]
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )

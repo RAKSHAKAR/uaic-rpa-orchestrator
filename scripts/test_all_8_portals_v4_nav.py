@@ -1,14 +1,17 @@
 """Live test verifying that all 8 portal scrapers resolve and navigate to exact Power Automate V4 URLs."""
 
-import asyncio
-from app.automation.florida.broward import BrowardScraper, BROWARD_PORTAL_URL
-from app.automation.florida.hillsborough import HillsboroughScraper, HILLSBOROUGH_PORTAL_URL
-from app.automation.florida.miami import MiamiDadeScraper, MIAMI_OCS_PORTAL_URL
-from app.automation.texas.dallas import DallasScraper, DALLAS_PORTAL_URL
-from app.automation.texas.travis import TravisScraper, TRAVIS_PORTAL_URL
-from app.automation.texas.harris_jp import HarrisJPScraper, HARRIS_JP_PORTAL_URL
-from app.automation.texas.harris_cclerk import HarrisCountyClerkScraper, HARRIS_CCLERK_PORTAL_URL
-from app.automation.texas.harris_district import HarrisDistrictClerkScraper, HARRIS_DISTRICT_PORTAL_URL
+from app.automation.florida.broward import BROWARD_PORTAL_URL, BrowardScraper
+from app.automation.florida.hillsborough import HILLSBOROUGH_PORTAL_URL, HillsboroughScraper
+from app.automation.florida.miami import MIAMI_OCS_PORTAL_URL, MiamiDadeScraper
+from app.automation.texas.dallas import DALLAS_PORTAL_URL, DallasScraper
+from app.automation.texas.harris_cclerk import HARRIS_CCLERK_PORTAL_URL, HarrisCountyClerkScraper
+from app.automation.texas.harris_district import (
+    HARRIS_DISTRICT_PORTAL_URL,
+    HarrisDistrictClerkScraper,
+)
+from app.automation.texas.harris_jp import HARRIS_JP_PORTAL_URL, HarrisJPScraper
+from app.automation.texas.travis import TRAVIS_PORTAL_URL, TravisScraper
+
 
 def test_v4_portal_urls():
     portals = [

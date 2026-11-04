@@ -10,6 +10,7 @@ if backend_dir not in sys.path:
 from app.core.database import AsyncSessionLocal
 from sqlalchemy import text
 
+
 async def main():
     async with AsyncSessionLocal() as s:
         r = await s.execute(text("SELECT value FROM automation_settings WHERE key = 'system_settings_v4'"))

@@ -12,12 +12,12 @@ class MatchPairResponse(BaseModel):
     id: str
     claim_id: str
     court_case_id: str
-    
+
     # Party details
     party_type: PartyTypeEnum
     party_name: str
     case_style: str
-    
+
     # Case metadata
     county_name: str | None = None
     case_number: str | None = None
@@ -38,13 +38,13 @@ class MatchPairResponse(BaseModel):
     claimant_name: str | None = None
     driver_name: str | None = None
     claim_status: str | None = None
-    
+
     # Scores & Status
     similarity_score: float
     threshold_applied: float
     is_match: bool
     review_status: MatchReviewStatusEnum
-    
+
     reviewed_by: str | None = None
     reviewed_at: datetime | None = None
     review_notes: str | None = None
@@ -66,8 +66,10 @@ class FuzzyThresholdConfig(BaseModel):
 
 # --- Legacy Power Automate Fuzzy Match API schemas ---
 
+
 class FuzzySearchRequest(BaseModel):
     """Request body for the legacy Power Automate fuzzy match search endpoint."""
+
     search_name: str
     threshold: float = 0.60
     party_type: str | None = None  # insured | driver | claimant | None (any)
@@ -77,6 +79,7 @@ class FuzzySearchRequest(BaseModel):
 
 class FuzzyMatchItem(BaseModel):
     """A single court case result from the fuzzy match search."""
+
     court_case_id: str
     case_number: str
     case_style: str
@@ -91,6 +94,7 @@ class FuzzyMatchItem(BaseModel):
 
 class FuzzySearchResponse(BaseModel):
     """Response body for the legacy Power Automate fuzzy match search endpoint."""
+
     matches: list[FuzzyMatchItem]
     total: int
     threshold_applied: float
@@ -100,8 +104,10 @@ class FuzzySearchResponse(BaseModel):
 
 # --- Extract Unique Party Names API schema ---
 
+
 class ExtractNamesResponse(BaseModel):
     """Unique party name lists extracted from all ClaimRecord rows."""
+
     insured: list[str]
     driver: list[str]
     claimant: list[str]
@@ -109,6 +115,7 @@ class ExtractNamesResponse(BaseModel):
 
 
 # --- Direct Legacy /fuzzymatchapi Parity Schemas ---
+
 
 class DirectFuzzyMatchRequest(BaseModel):
     # Canonical PowerAutomateSolutions/fuzzy-match-api fields
@@ -160,6 +167,7 @@ class DirectFuzzyMatchResponse(BaseModel):
 
 # --- Unique Names API Schemas ---
 
+
 class UniqueNameItem(BaseModel):
     party_type: str
     first_name: str | None = None
@@ -202,4 +210,3 @@ class UniqueNamesResponse(BaseModel):
     count: int | None = None
 
     model_config = ConfigDict(extra="ignore")
-

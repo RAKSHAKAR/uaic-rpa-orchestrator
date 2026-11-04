@@ -26,5 +26,3 @@ api_router.include_router(settings.router, prefix="/settings", tags=["System Set
 api_router.include_router(audit.router, prefix="/audit-logs", tags=["Audit Logs"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(cleanup.router)
-
-

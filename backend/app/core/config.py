@@ -46,6 +46,21 @@ class Settings(BaseSettings):
     # Database (PostgreSQL default or SQLite local anchored to backend/orchestrator.db)
     DATABASE_URL: str = _DEFAULT_DB_URL
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if not v:
+            return _DEFAULT_DB_URL
+        if isinstance(v, str) and v.startswith("sqlite"):
+            raw_path = v.split(":///")[-1] if ":///" in v else v.split("://")[-1]
+            try:
+                p = Path(raw_path)
+                if not p.parent.exists():
+                    return _DEFAULT_DB_URL
+            except Exception:
+                return _DEFAULT_DB_URL
+        return v
+
     # Redis & Celery Message Broker
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
     CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
@@ -62,9 +77,9 @@ class Settings(BaseSettings):
     GUIDEWIRE_API_KEY: str = ""
 
     # Web Automation (Playwright)
-    PLAYWRIGHT_HEADLESS: bool = False
+    PLAYWRIGHT_HEADLESS: bool = True
     PLAYWRIGHT_USE_CHROME: bool = True
-    PLAYWRIGHT_TIMEOUT_MS: int = 30000
+    PLAYWRIGHT_TIMEOUT_MS: int = 180000
     PLAYWRIGHT_VIEWPORT_WIDTH: int = 1280
     PLAYWRIGHT_VIEWPORT_HEIGHT: int = 800
     SCREENSHOTS_DIR: Path = (_BACKEND_DIR / "screenshots").resolve()
@@ -72,11 +87,15 @@ class Settings(BaseSettings):
 
     # Portals
     PORTAL_BROWARD_URL: str = "https://www.browardclerk.org/Web2"
-    PORTAL_HILLSBOROUGH_URL: str = "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+    PORTAL_HILLSBOROUGH_URL: str = (
+        "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+    )
     PORTAL_MIAMI_URL: str = "https://www2.miamidadeclerk.gov/ocs"
     PORTAL_TRAVIS_URL: str = "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
     PORTAL_DALLAS_URL: str = "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
-    PORTAL_HARRIS_JP_URL: str = "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
+    PORTAL_HARRIS_JP_URL: str = (
+        "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
+    )
     PORTAL_HARRIS_CCLERK_URL: str = "https://www.cclerk.hctx.net/Applications/WebSearch/"
     PORTAL_HARRIS_DISTRICT_URL: str = "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
 

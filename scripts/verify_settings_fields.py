@@ -26,7 +26,7 @@ fields = [
     "max_concurrent_claims"
 ]
 
-with open('frontend/src/app/settings/page.tsx', 'r', encoding='utf-8') as f:
+with open('frontend/src/app/settings/page.tsx', encoding='utf-8') as f:
     page_content = f.read()
 
 print("Verifying Automation & AntiCaptcha fields in settings/page.tsx:")

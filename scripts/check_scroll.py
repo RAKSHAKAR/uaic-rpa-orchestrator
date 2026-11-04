@@ -1,5 +1,7 @@
 import asyncio
+
 from playwright.async_api import async_playwright
+
 
 async def check_scroll():
     async with async_playwright() as p:

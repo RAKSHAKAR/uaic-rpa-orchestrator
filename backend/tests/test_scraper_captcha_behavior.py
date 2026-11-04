@@ -93,6 +93,7 @@ def test_tc_cap_005_broward_redundant_still_solving_removed():
 @pytest.mark.asyncio
 async def test_tc_cap_006_base_captcha_no_challenge_returns_true():
     """TC-CAP-006: BaseCourtScraper.detect_and_handle_captcha returns True when no challenge exists."""
+
     class SimpleScraper(BaseCourtScraper):
         async def search_by_party_name(self, first_name, last_name, page, **kwargs):
             return []
@@ -113,6 +114,7 @@ async def test_tc_cap_006_base_captcha_no_challenge_returns_true():
 @pytest.mark.asyncio
 async def test_tc_cap_007_base_captcha_unsolved_timeout_returns_false():
     """TC-CAP-007: BaseCourtScraper.detect_and_handle_captcha returns False when challenge never resolves."""
+
     class SimpleScraper(BaseCourtScraper):
         async def search_by_party_name(self, first_name, last_name, page, **kwargs):
             return []
@@ -143,6 +145,7 @@ async def test_tc_cap_007_base_captcha_unsolved_timeout_returns_false():
 @pytest.mark.asyncio
 async def test_tc_cap_008_dismiss_captcha_challenge_popup():
     """TC-CAP-008: BaseCourtScraper.dismiss_captcha_challenge_popup simulates outside click and Escape."""
+
     class SimpleScraper(BaseCourtScraper):
         async def search_by_party_name(self, first_name, last_name, page, **kwargs):
             return []

@@ -1,26 +1,89 @@
 # Environments & Dependencies
 .venv/
+venv/
+env/
 node_modules/
 dist/
 build/
-__pycache__/
-*.pyc
+out/
+target/
+bin/
+obj/
+vendor/
+packages/
 
-# Local Storage, Browser Caches, and Databases
+# Bytecode & Analysis Caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+coverage/
+.coverage
+htmlcov/
+.parcel-cache/
+.turbo/
+.nuxt/
+
+# Next.js Build Output
+.next/
+*.tsbuildinfo
+
+# Local Storage, Runtime Caches, and Databases
 backend/data/
 backend/logs/
 backend/screenshots/
 backend/exports/*
 !backend/exports/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+exports/*
+!exports/.gitkeep
+uploads/*
+!uploads/.gitkeep
 logs/
 *.log
 *.tmp
-*.db
-*.sqlite
-*.sqlite3
 *.bak
 celerybeat-schedule*
+.tempmediaStorage/
+
+# SQLite & Runtime Databases (including WAL & Shared Memory)
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.db.bak
+*.sqlite
+*.sqlite3
+
+# Playwright & Browser Automation Test Outputs
+test-results/
+playwright-report/
+blob-report/
+e2e/results/
+scripts/pytest_result.txt
 scripts/pytest_runtime_tmp_*
+backend/test_*profile*/
+backend/test_chrome*/
+backend/test_dev_mode*/
+backend/test_load_unpacked*/
+backend/test_pref*/
+backend/test_two_step*/
+backend/test_clean_profile/
+hillsborough_bundle*.js
+
+# Environment Variables & Certificates
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.cert
 
 # Heavy Media, Recordings, VSIX Packages, and Archives (>100MB Limit Protection)
 *.mp4
@@ -30,15 +93,12 @@ scripts/pytest_runtime_tmp_*
 *.zip
 *.rar
 *.7z
+*.tar.gz
+*.iso
 *.VSIXPackage
 implementation_plan/Video/
 PowerAutomateSolutions/*.zip
 PowerAutomateSolutions/*.mp4
-
-# Environment Variables & OS Files
-.env
-.DS_Store
-Thumbs.db
 
 # Large Files Excluded by 100MB Guard
 Microsoft.VisualStudio.Services.VSIXPackage
@@ -47,36 +107,15 @@ implementation_plan/Video/Recording 2026-09-07 163544.mp4
 PowerAutomateSolutions/Recording 2026-09-02 172920.mp4
 PowerAutomateSolutions/Recording 2026-09-02 212024- Florida-3 records.mp4
 
-# --- Enterprise Standard Rules ---
-venv/
-env/
-vendor/
-packages/
-out/
-target/
-bin/
-obj/
-.next/
-.nuxt/
-.turbo/
-.parcel-cache/
-coverage/
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.egg-info/
-*.class
-*.swp
-.env.local
-.env.*.local
-*.pem
-*.key
-*.pfx
-*.cert
-*.tar.gz
-*.iso
+# OS & IDE Files
+.DS_Store
+Thumbs.db
 desktop.ini
+ehthumbs.db
 .idea/
 *.suo
 *.user
+*.swp
+
+# Large Files Excluded by 100MB Guard
+backend/data/browser_cache/Default/Cache/Cache_Data/data_3

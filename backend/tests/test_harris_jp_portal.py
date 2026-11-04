@@ -50,14 +50,20 @@ async def test_repeated_result_page_fails_fast(harris_jp_scraper):
     other.fill = AsyncMock()
 
     def locator_for(selector):
-        if ".k-grid-content" in selector or "table.k-selectable" in selector or "table tbody tr" in selector:
+        if (
+            ".k-grid-content" in selector
+            or "table.k-selectable" in selector
+            or "table tbody tr" in selector
+        ):
             return rows
         if "next page" in selector.lower() or "k-i-arrow-e" in selector:
             return next_btn
         return other
 
     page.locator.side_effect = locator_for
-    with patch.object(harris_jp_scraper, "detect_and_handle_captcha", new_callable=AsyncMock, return_value=True):
+    with patch.object(
+        harris_jp_scraper, "detect_and_handle_captcha", new_callable=AsyncMock, return_value=True
+    ):
         with pytest.raises(RuntimeError, match="Pagination did not advance"):
             await harris_jp_scraper.search_by_party_name("Jane", "Doe", page)
     assert next_btn.click.await_count == 1
@@ -202,7 +208,13 @@ async def test_captcha_success_and_immediate_submit(harris_jp_scraper):
     mock_body.inner_text = AsyncMock(return_value="Results found")
 
     mock_row = MagicMock()
-    cells = ["26-JP-000123", "SMITH, JANE VS DOE, JOHN", "01/15/2026", "Case Status: Open", "Public"]
+    cells = [
+        "26-JP-000123",
+        "SMITH, JANE VS DOE, JOHN",
+        "01/15/2026",
+        "Case Status: Open",
+        "Public",
+    ]
     tds = [MagicMock(inner_text=AsyncMock(return_value=c)) for c in cells]
     tds_loc = MagicMock()
     tds_loc.count = AsyncMock(return_value=len(cells))
@@ -237,11 +249,12 @@ async def test_captcha_success_and_immediate_submit(harris_jp_scraper):
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)):
-
+    with (
+        patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+    ):
         results = await harris_jp_scraper.search_by_party_name(
             first_name="JANE",
             last_name="SMITH",
@@ -284,11 +297,12 @@ async def test_captcha_failure_and_retry_loop(harris_jp_scraper):
     mock_page.locator.side_effect = locator_side_effect
 
     # Attempt 1: False, Attempt 2: False, Attempt 3: False -> returns []
-    with patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=False)):
-
+    with (
+        patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=False)),
+    ):
         with pytest.raises(CaptchaResolutionError):
             await harris_jp_scraper.search_by_party_name(
                 first_name="BOB",
@@ -320,14 +334,28 @@ async def test_extract_all_columns_strict_no_casetype(harris_jp_scraper):
     mock_body.inner_text = AsyncMock(return_value="Cases Found")
 
     # Dynamic headers that include Case Type and Precinct
-    headers = ["Case Number", "Style / Defendant", "Filing Date", "Case Status", "Case Type", "Precinct"]
+    headers = [
+        "Case Number",
+        "Style / Defendant",
+        "Filing Date",
+        "Case Status",
+        "Case Type",
+        "Precinct",
+    ]
     mock_th_elements = [MagicMock(inner_text=AsyncMock(return_value=h)) for h in headers]
     mock_th_loc = MagicMock()
     mock_th_loc.count = AsyncMock(return_value=len(headers))
     mock_th_loc.nth.side_effect = lambda idx: mock_th_elements[idx]
 
     # Row cells
-    cells = ["26-JP-9999", "WILLIAMS, BOB | DEFENDANT", "03/20/2026", "Case Status: Pending", "Small Claims", "Place 1"]
+    cells = [
+        "26-JP-9999",
+        "WILLIAMS, BOB | DEFENDANT",
+        "03/20/2026",
+        "Case Status: Pending",
+        "Small Claims",
+        "Place 1",
+    ]
     tds = [MagicMock(inner_text=AsyncMock(return_value=c)) for c in cells]
     tds_loc = MagicMock()
     tds_loc.count = AsyncMock(return_value=len(cells))
@@ -366,11 +394,12 @@ async def test_extract_all_columns_strict_no_casetype(harris_jp_scraper):
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)):
-
+    with (
+        patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+    ):
         results = await harris_jp_scraper.search_by_party_name(
             first_name="BOB",
             last_name="WILLIAMS",
@@ -475,11 +504,12 @@ async def test_pagination_traversal(harris_jp_scraper):
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)):
-
+    with (
+        patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+    ):
         results = await harris_jp_scraper.search_by_party_name(
             first_name="TEST",
             last_name="USER",
@@ -683,12 +713,13 @@ async def test_search_by_party_name_exact_query_format_and_submit_selector(harri
 
     mock_page.locator.side_effect = locator_side_effect
 
-    with patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()), \
-         patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)), \
-         patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)), \
-         patch.object(harris_jp_scraper, "return_to_search_state", AsyncMock()):
-
+    with (
+        patch.object(harris_jp_scraper, "navigate_to_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "click_smart_search", AsyncMock()),
+        patch.object(harris_jp_scraper, "verify_search_page_loaded", AsyncMock(return_value=True)),
+        patch.object(harris_jp_scraper, "detect_and_handle_captcha", AsyncMock(return_value=True)),
+        patch.object(harris_jp_scraper, "return_to_search_state", AsyncMock()),
+    ):
         results = await harris_jp_scraper.search_by_party_name(
             first_name="JOHN",
             last_name="DOE",

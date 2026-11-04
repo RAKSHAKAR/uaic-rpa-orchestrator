@@ -13,6 +13,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -32,37 +33,46 @@ if TYPE_CHECKING:
 
 class RecordStatusEnum(enum.StrEnum):
     """Corresponds to legacy Dataverse uaic_recordstatus optionset."""
-    NEW = "NEW"                                     # 870300000: New Record Added
-    SCRAPING_IN_PROGRESS = "SCRAPING_IN_PROGRESS"   # 870300001: Web Scrapping in Progress
-    SCRAPING_COMPLETED = "SCRAPING_COMPLETED"       # 870300002: Web Scrapping Completed
-    MATCH_FOUND = "MATCH_FOUND"                     # 870300003: Positive Match Found
-    NO_MATCH_FOUND = "NO_MATCH_FOUND"               # 870300004: Positive Match Not Found
-    MANUAL_REVIEW = "MANUAL_REVIEW"                 # Borderline fuzzy match requiring human review
-    FAILED = "FAILED"                               # Processing/Scraping failure
-    COMPLETED = "COMPLETED"                         # 870300005: Completed / Guidewire Updated
+
+    NEW = "NEW"  # 870300000: New Record Added
+    QUEUED = "QUEUED"  # Queued waiting for browser slot
+    SCRAPING_IN_PROGRESS = "SCRAPING_IN_PROGRESS"  # 870300001: Web Scrapping in Progress
+    SCRAPING_COMPLETED = "SCRAPING_COMPLETED"  # 870300002: Web Scrapping Completed
+    MATCH_FOUND = "MATCH_FOUND"  # 870300003: Positive Match Found
+    NO_MATCH_FOUND = "NO_MATCH_FOUND"  # 870300004: Positive Match Not Found
+    MANUAL_REVIEW = "MANUAL_REVIEW"  # Borderline fuzzy match requiring human review
+    NEEDS_REVIEW = "NEEDS_REVIEW"  # Ambiguous or missing policy state exception
+    FAILED = "FAILED"  # Processing/Scraping failure
+    COMPLETED = "COMPLETED"  # 870300005: Completed / Guidewire Updated
 
 
 class FuzzyMatchStatusEnum(enum.StrEnum):
     """Corresponds to legacy Dataverse uaic_fuzzymatchchoice optionset."""
-    NEW = "NEW"                                     # 870300000: Fuzzy Match New
-    IN_PROGRESS = "IN_PROGRESS"                     # 870300001: Fuzzy Match Inprogress
-    COMPLETED = "COMPLETED"                         # 870300002: Fuzzy Match Completed
-    NO_MATCH_FOUND = "NO_MATCH_FOUND"               # 870300003: No Positive Match Found
-    PENDING_REVIEW = "PENDING_REVIEW"               # Flagged for human review
+
+    NEW = "NEW"  # 870300000: Fuzzy Match New
+    IN_PROGRESS = "IN_PROGRESS"  # 870300001: Fuzzy Match Inprogress
+    COMPLETED = "COMPLETED"  # 870300002: Fuzzy Match Completed
+    NO_MATCH_FOUND = "NO_MATCH_FOUND"  # 870300003: No Positive Match Found
+    PENDING_REVIEW = "PENDING_REVIEW"  # Flagged for human review
 
 
 class BotStatusEnum(enum.StrEnum):
     """Corresponds to legacy Dataverse uaic_botstatus optionset."""
+
     NOT_TRIGGERED = "NOT_TRIGGERED"
-    IN_PROGRESS = "IN_PROGRESS"                     # 870300000
-    COMPLETED = "COMPLETED"                         # 870300001
-    FAILED = "FAILED"                               # 870300002
-    NO_MATCH_FOUND = "NO_MATCH_FOUND"               # 870300003
-    BLOCKED = "BLOCKED"                             # Rate limit / WAF / Security challenge block
+    DISPATCHED = "DISPATCHED"  # Dispatched with correlation ID
+    QUEUED = "QUEUED"  # Queued for browser slot
+    RUNNING = "RUNNING"  # Actively executing
+    IN_PROGRESS = "IN_PROGRESS"  # 870300000
+    COMPLETED = "COMPLETED"  # 870300001
+    FAILED = "FAILED"  # 870300002
+    NO_MATCH_FOUND = "NO_MATCH_FOUND"  # 870300003
+    BLOCKED = "BLOCKED"  # Rate limit / WAF / Security challenge block
 
 
 class IngestionBatch(Base):
     """Tracks file ingestion batches for Excel/CSV uploads."""
+
     __tablename__ = "ingestion_batches"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -74,22 +84,34 @@ class IngestionBatch(Base):
     invalid_records: Mapped[int] = mapped_column(Integer, default=0)
     mapping_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     failed_rows_data: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    status: Mapped[str] = mapped_column(String(50), default="PROCESSING")  # PROCESSING, COMPLETED, FAILED
+    status: Mapped[str] = mapped_column(
+        String(50), default="PROCESSING"
+    )  # PROCESSING, COMPLETED, FAILED
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
-    claims: Mapped[list[ClaimRecord]] = relationship("ClaimRecord", back_populates="batch", cascade="all, delete-orphan")
+    claims: Mapped[list[ClaimRecord]] = relationship(
+        "ClaimRecord", back_populates="batch", cascade="all, delete-orphan"
+    )
 
 
 class ClaimRecord(Base):
     """Main claim record model mirroring legacy uaic_uaic_bot_creation_database."""
+
     __tablename__ = "claim_records"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    batch_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("ingestion_batches.id"), nullable=True)
-    
+    __table_args__ = (
+        Index("ix_claim_records_status_created", "record_status", "created_at"),
+        Index("ix_claim_records_policy_loss_state", "policy_state", "loss_location_state"),
+    )
+
+    batch_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("ingestion_batches.id"), nullable=True
+    )
+
     # Claim and Primary Identifiers
     claim_number: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     exposure_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -121,38 +143,54 @@ class ClaimRecord(Base):
     # Florida County RPA Bot Target Flags & Status
     # -------------------------------------------------------------
     fl_website_broward: Mapped[str | None] = mapped_column(String(10), default="No")
-    fl_botstatus_broward: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    fl_botstatus_broward: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     fl_jsonbody_broward: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     fl_website_hillsborough: Mapped[str | None] = mapped_column(String(10), default="No")
-    fl_botstatus_hillsborough: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    fl_botstatus_hillsborough: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     fl_jsonbody_hillsborough: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     fl_website_miami: Mapped[str | None] = mapped_column(String(10), default="No")
-    fl_botstatus_miami: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    fl_botstatus_miami: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     fl_jsonbody_miami: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # -------------------------------------------------------------
     # Texas County RPA Bot Target Flags & Status
     # -------------------------------------------------------------
     te_website_travis: Mapped[str | None] = mapped_column(String(10), default="No")
-    te_botstatus_travis: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    te_botstatus_travis: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     te_jsonbody_travis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     te_website_dallas: Mapped[str | None] = mapped_column(String(10), default="No")
-    te_botstatus_dallas: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    te_botstatus_dallas: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     te_jsonbody_dallas: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     te_website_harris: Mapped[str | None] = mapped_column(String(10), default="No")
-    te_botstatus_harris: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    te_botstatus_harris: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     te_jsonbody_harris: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     te_website_cclerk: Mapped[str | None] = mapped_column(String(10), default="No")
-    te_botstatus_cclerk: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    te_botstatus_cclerk: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     te_jsonbody_cclerk: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     te_website_hcdistrict: Mapped[str | None] = mapped_column(String(10), default="No")
-    te_botstatus_hcdistrict: Mapped[BotStatusEnum] = mapped_column(Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED)
+    te_botstatus_hcdistrict: Mapped[BotStatusEnum] = mapped_column(
+        Enum(BotStatusEnum), default=BotStatusEnum.NOT_TRIGGERED
+    )
     te_jsonbody_hcdistrict: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Downstream Notification & Match Output
@@ -165,7 +203,7 @@ class ClaimRecord(Base):
     action_timings: Mapped[dict | None] = mapped_column(JSON, default=dict, nullable=True)
     total_duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
     created_by: Mapped[str] = mapped_column(String(100), default="system", index=True)
     modified_by: Mapped[str] = mapped_column(String(100), default="system", index=True)
@@ -179,12 +217,24 @@ class ClaimRecord(Base):
         return self.updated_at
 
     # Relationships
-    batch: Mapped[IngestionBatch | None] = relationship("IngestionBatch", back_populates="claims", lazy="selectin")
-    scraped_cases: Mapped[list["ScrapedCourtCase"]] = relationship("ScrapedCourtCase", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
-    match_pairs: Mapped[list["MatchPair"]] = relationship("MatchPair", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
-    error_screenshots: Mapped[list["ErrorScreenshot"]] = relationship("ErrorScreenshot", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
-    guidewire_activities: Mapped[list["GuidewireActivity"]] = relationship("GuidewireActivity", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
-    filtered_cases: Mapped[list["FilteredOutCase"]] = relationship("FilteredOutCase", back_populates="claim", cascade="all, delete-orphan", lazy="selectin")
+    batch: Mapped[IngestionBatch | None] = relationship(
+        "IngestionBatch", back_populates="claims", lazy="selectin"
+    )
+    scraped_cases: Mapped[list["ScrapedCourtCase"]] = relationship(
+        "ScrapedCourtCase", back_populates="claim", cascade="all, delete-orphan", lazy="selectin"
+    )
+    match_pairs: Mapped[list["MatchPair"]] = relationship(
+        "MatchPair", back_populates="claim", cascade="all, delete-orphan", lazy="selectin"
+    )
+    error_screenshots: Mapped[list["ErrorScreenshot"]] = relationship(
+        "ErrorScreenshot", back_populates="claim", cascade="all, delete-orphan", lazy="selectin"
+    )
+    guidewire_activities: Mapped[list["GuidewireActivity"]] = relationship(
+        "GuidewireActivity", back_populates="claim", cascade="all, delete-orphan", lazy="selectin"
+    )
+    filtered_cases: Mapped[list["FilteredOutCase"]] = relationship(
+        "FilteredOutCase", back_populates="claim", cascade="all, delete-orphan", lazy="selectin"
+    )
 
 
 # Alias for backward compatibility and prompt diagram conventions

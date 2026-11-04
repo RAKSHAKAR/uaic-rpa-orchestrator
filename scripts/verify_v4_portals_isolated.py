@@ -10,7 +10,7 @@ import json
 import shutil
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -115,7 +115,7 @@ async def probe_one(
             )""")
         except Exception as error:  # noqa: BLE001 - metadata must not hide the probe result
             result["metadata_error"] = f"{type(error).__name__}: {str(error)[:200]}"
-        image_time = datetime.now(timezone.utc)
+        image_time = datetime.now(UTC)
         screenshot = ROOT / "implementation_plan" / "Images" / (
             f"IMP-2026-1001-002_{name}_live_probe_{image_time:%Y%m%dT%H%M%S%fZ}.png"
         )
@@ -161,7 +161,7 @@ async def main(
         if profile.is_relative_to(data_dir) and profile.exists():
             shutil.rmtree(profile)
 
-    run_time = datetime.now(timezone.utc)
+    run_time = datetime.now(UTC)
     scope = "all8" if len(portals) == len(SCRAPERS) else "_".join(portals)
     report = ROOT / "implementation_plan" / (
         f"2026-10-01_uaic_live_portal_probe_{scope}_{run_time:%Y%m%dT%H%M%SZ}.json"

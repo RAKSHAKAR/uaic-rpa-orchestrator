@@ -157,6 +157,7 @@ async def sample_claim_with_details():
 # 1. Single-Claim Multi-Format Export Tests
 # =========================================================================
 
+
 @pytest.mark.asyncio
 async def test_single_claim_export_json(sample_claim_with_details):
     claim_id, unique_num, _ = sample_claim_with_details
@@ -226,7 +227,9 @@ async def test_single_claim_export_pdf(sample_claim_with_details):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Mock Playwright sync rendering to return realistic vector PDF bytes
         mock_pdf_bytes = b"%PDF-1.4\n1 0 obj\n<< /Title (UAIC Claim Report) >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF"
-        with patch("app.api.v1.endpoints.claims._render_claim_pdf_sync", return_value=mock_pdf_bytes):
+        with patch(
+            "app.api.v1.endpoints.claims._render_claim_pdf_sync", return_value=mock_pdf_bytes
+        ):
             res = await client.get(f"/api/v1/claims/{claim_id}/export?format=pdf")
             assert res.status_code == 200
             assert "application/pdf" in res.headers.get("content-type", "")
@@ -251,17 +254,21 @@ async def test_single_claim_export_invalid_inputs():
 # 2. Single-Bot On-Demand Execution Tests (8 Bots + 'all')
 # =========================================================================
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("bot_key,status_col", [
-    ("broward", "fl_botstatus_broward"),
-    ("hillsborough", "fl_botstatus_hillsborough"),
-    ("miami", "fl_botstatus_miami"),
-    ("travis", "te_botstatus_travis"),
-    ("dallas", "te_botstatus_dallas"),
-    ("harris_jp", "te_botstatus_harris"),
-    ("harris_cclerk", "te_botstatus_cclerk"),
-    ("harris_district", "te_botstatus_hcdistrict"),
-])
+@pytest.mark.parametrize(
+    "bot_key,status_col",
+    [
+        ("broward", "fl_botstatus_broward"),
+        ("hillsborough", "fl_botstatus_hillsborough"),
+        ("miami", "fl_botstatus_miami"),
+        ("travis", "te_botstatus_travis"),
+        ("dallas", "te_botstatus_dallas"),
+        ("harris_jp", "te_botstatus_harris"),
+        ("harris_cclerk", "te_botstatus_cclerk"),
+        ("harris_district", "te_botstatus_hcdistrict"),
+    ],
+)
 async def test_run_single_bot_dispatch(bot_key, status_col):
     """Test POST /api/v1/claims/{id}/run-bot/{bot_key} for each of the 8 county bots."""
     claim_id = str(uuid.uuid4())
@@ -357,6 +364,7 @@ async def test_run_single_bot_invalid_inputs():
 # 3. Single-Claim Automation Controls (start, stop, push-guidewire)
 # =========================================================================
 
+
 @pytest.mark.asyncio
 async def test_claim_single_start_stop_and_guidewire_push():
     claim_id = str(uuid.uuid4())
@@ -376,7 +384,10 @@ async def test_claim_single_start_stop_and_guidewire_push():
         ready_settings.automation.anticaptcha_api_key = "test-only-key"
         with (
             patch("app.core.celery_app.celery_app.send_task") as mock_send,
-            patch("app.api.v1.endpoints.claims.get_system_settings_async", AsyncMock(return_value=ready_settings)),
+            patch(
+                "app.api.v1.endpoints.claims.get_system_settings_async",
+                AsyncMock(return_value=ready_settings),
+            ),
         ):
             res_start = await client.post(f"/api/v1/claims/{claim_id}/start")
             assert res_start.status_code == 200
@@ -419,6 +430,7 @@ async def test_claim_single_start_stop_and_guidewire_push():
 # 4. Queue Management Endpoints (retrigger, start-all)
 # =========================================================================
 
+
 @pytest.mark.asyncio
 async def test_queue_retrigger_and_start_all():
     c_id1 = str(uuid.uuid4())
@@ -447,9 +459,14 @@ async def test_queue_retrigger_and_start_all():
         ready_settings.automation.anticaptcha_api_key = "test-only-key"
         with (
             patch("app.core.celery_app.celery_app.send_task") as mock_retrigger,
-            patch("app.api.v1.endpoints.queue.get_system_settings_async", AsyncMock(return_value=ready_settings)),
+            patch(
+                "app.api.v1.endpoints.queue.get_system_settings_async",
+                AsyncMock(return_value=ready_settings),
+            ),
         ):
-            res_ret = await client.post("/api/v1/queue/retrigger", json={"claim_ids": [c_id1, c_id2]})
+            res_ret = await client.post(
+                "/api/v1/queue/retrigger", json={"claim_ids": [c_id1, c_id2]}
+            )
             assert res_ret.status_code == 200
             assert res_ret.json()["count"] == 2
             assert mock_retrigger.call_count == 2
@@ -464,7 +481,10 @@ async def test_queue_retrigger_and_start_all():
         # 2. Start-All
         with (
             patch("app.core.celery_app.celery_app.send_task") as mock_start_all,
-            patch("app.api.v1.endpoints.queue.get_system_settings_async", AsyncMock(return_value=ready_settings)),
+            patch(
+                "app.api.v1.endpoints.queue.get_system_settings_async",
+                AsyncMock(return_value=ready_settings),
+            ),
         ):
             res_sa = await client.post("/api/v1/queue/start-all")
             assert res_sa.status_code == 200
@@ -484,6 +504,7 @@ async def test_queue_retrigger_and_start_all():
 # =========================================================================
 # 5. Fuzzy Match Exception Review (pending, approve, reject)
 # =========================================================================
+
 
 @pytest.mark.asyncio
 async def test_matches_review_endpoints():
@@ -555,7 +576,9 @@ async def test_matches_review_endpoints():
 
         # Verify claim status updated to MATCH_FOUND with final_matched_json populated
         async with TaskAsyncSessionLocal() as session:
-            claim_check = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))).scalar_one()
+            claim_check = (
+                await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))
+            ).scalar_one()
             assert claim_check.record_status == RecordStatusEnum.MATCH_FOUND
             assert claim_check.final_matched_json is not None
             assert claim_check.final_matched_json["CaseItems"][0]["CaseNumber"] == "CACE-24-009988"
@@ -573,7 +596,9 @@ async def test_matches_review_endpoints():
         assert "REJECTED" in res_reject.json()["message"]
 
         async with TaskAsyncSessionLocal() as session:
-            claim_check2 = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))).scalar_one()
+            claim_check2 = (
+                await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))
+            ).scalar_one()
             assert claim_check2.record_status == RecordStatusEnum.NO_MATCH_FOUND
 
             # Cleanup
@@ -586,6 +611,7 @@ async def test_matches_review_endpoints():
 # =========================================================================
 # 6. File Ingestion & 12 Input Column Preservation
 # =========================================================================
+
 
 @pytest.mark.asyncio
 async def test_template_download_endpoints():
@@ -601,24 +627,26 @@ async def test_template_download_endpoints():
 @pytest.mark.asyncio
 async def test_async_parse_and_ingest_all_12_columns(tmp_path):
     """Verify that background ingestion task parses and persists all 12 input columns."""
-    df_12_cols = pd.DataFrame([
-        {
-            "Primary Key": "PK-COL-TEST",
-            "Insured First Name": "Tricia",
-            "Insured Last Name": "McMillan",
-            "DOL": "05/20/2024",
-            "Driver First Name (Insured Vehicle)": "Zaphod",
-            "Driver Last Name (Insured Vehicle)": "Beeblebrox",
-            "Policy State": "Florida",
-            "Claim Number": f"12COL-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
-            "Loss Location State": "Florida",
-            "Loss Location City": "Miami",
-            "Loss Location County": "Miami-Dade",
-            "Exposure Number": "3",
-            "Claimant First Name": "Arthur",
-            "Claimant Last Name": "Dent",
-        }
-    ])
+    df_12_cols = pd.DataFrame(
+        [
+            {
+                "Primary Key": "PK-COL-TEST",
+                "Insured First Name": "Tricia",
+                "Insured Last Name": "McMillan",
+                "DOL": "05/20/2024",
+                "Driver First Name (Insured Vehicle)": "Zaphod",
+                "Driver Last Name (Insured Vehicle)": "Beeblebrox",
+                "Policy State": "Florida",
+                "Claim Number": f"12COL-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
+                "Loss Location State": "Florida",
+                "Loss Location City": "Miami",
+                "Loss Location County": "Miami-Dade",
+                "Exposure Number": "3",
+                "Claimant First Name": "Arthur",
+                "Claimant Last Name": "Dent",
+            }
+        ]
+    )
 
     test_file = tmp_path / "test_12_cols.xlsx"
     df_12_cols.to_excel(test_file, index=False)
@@ -667,6 +695,7 @@ async def test_async_parse_and_ingest_all_12_columns(tmp_path):
 # 7. Queue Runner & Retry Tasks Progression
 # =========================================================================
 
+
 @pytest.mark.asyncio
 @pytest.mark.requires_redis
 async def test_queue_runner_progression_and_recovery():
@@ -705,7 +734,9 @@ async def test_queue_runner_progression_and_recovery():
     set_auto_queue_enabled(False)
     set_active_queue_item_id("")
     async with TaskAsyncSessionLocal() as session:
-        claim_row = (await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))).scalar_one_or_none()
+        claim_row = (
+            await session.execute(select(ClaimRecord).where(ClaimRecord.id == claim_id))
+        ).scalar_one_or_none()
         if claim_row:
             await session.delete(claim_row)
             await session.commit()
@@ -727,7 +758,10 @@ async def test_scheduled_retrigger_failed_cases():
         await session.commit()
 
     with (
-        patch("app.tasks.retry_tasks.get_system_settings_async", AsyncMock(return_value=SystemSettings())),
+        patch(
+            "app.tasks.retry_tasks.get_system_settings_async",
+            AsyncMock(return_value=SystemSettings()),
+        ),
         patch("app.core.celery_app.celery_app.send_task") as mock_retry_task,
     ):
         await _async_retrigger_failed_cases()
@@ -751,6 +785,7 @@ async def test_scheduled_retrigger_failed_cases():
 # =========================================================================
 # 8. State Routing Complete Matrix
 # =========================================================================
+
 
 def test_state_routing_complete_matrix():
     """Verify resolution of county bot targets across all geographic routing cases."""
@@ -795,6 +830,7 @@ def test_state_routing_complete_matrix():
 # 9. Hillsborough Datepicker Readonly Fix Verification
 # =========================================================================
 
+
 def test_hillsborough_scraper_initialization_and_selectors():
     """Verify HillsboroughScraper uses correct V4 selectors and party tab config."""
     scraper = HillsboroughScraper(headless=True)
@@ -805,6 +841,7 @@ def test_hillsborough_scraper_initialization_and_selectors():
 # =========================================================================
 # 10. Guidewire 9-Digit Formatting & Payload Verification
 # =========================================================================
+
 
 def test_guidewire_claim_number_formatting():
     """Verify 9-digit ClaimNumber gets '0' prefix, while 10-digit remains unchanged."""

@@ -42,17 +42,22 @@ class MatchReviewStatusEnum(enum.StrEnum):
 
 class MatchPair(Base):
     """Audit table for party-to-case fuzzy comparison pairs with human review capability."""
+
     __tablename__ = "match_pairs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    claim_id: Mapped[str] = mapped_column(String(36), ForeignKey("claim_records.id"), nullable=False, index=True)
-    court_case_id: Mapped[str] = mapped_column(String(36), ForeignKey("scraped_court_cases.id"), nullable=False, index=True)
+    claim_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("claim_records.id"), nullable=False, index=True
+    )
+    court_case_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scraped_court_cases.id"), nullable=False, index=True
+    )
 
     # Comparison Details
     party_type: Mapped[PartyTypeEnum] = mapped_column(Enum(PartyTypeEnum), nullable=False)
     party_name: Mapped[str] = mapped_column(String(200), nullable=False)
     case_style: Mapped[str] = mapped_column(Text, nullable=False)
-    
+
     # Matching Scores & Decision
     similarity_score: Mapped[float] = mapped_column(Float, nullable=False)
     threshold_applied: Mapped[float] = mapped_column(Float, default=0.60)
@@ -69,5 +74,9 @@ class MatchPair(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     # Relationships
-    claim: Mapped["ClaimRecord"] = relationship("ClaimRecord", back_populates="match_pairs", lazy="selectin")
-    court_case: Mapped["ScrapedCourtCase"] = relationship("ScrapedCourtCase", back_populates="match_pairs", lazy="selectin")
+    claim: Mapped["ClaimRecord"] = relationship(
+        "ClaimRecord", back_populates="match_pairs", lazy="selectin"
+    )
+    court_case: Mapped["ScrapedCourtCase"] = relationship(
+        "ScrapedCourtCase", back_populates="match_pairs", lazy="selectin"
+    )

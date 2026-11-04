@@ -1,5 +1,5 @@
-import subprocess
 import json
+import subprocess
 
 ps = "Get-CimInstance Win32_Process -Filter \"name = 'chrome.exe'\" | Select-Object ProcessId, CommandLine | ConvertTo-Json"
 res = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)

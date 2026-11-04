@@ -1,9 +1,9 @@
-import subprocess
 import json
+import subprocess
 
 ps_cmd = """
-Get-CimInstance Win32_Process -Filter "ProcessId = 12096" | 
-    Select-Object CommandLine | 
+Get-CimInstance Win32_Process -Filter "ProcessId = 12096" |
+    Select-Object CommandLine |
     ConvertTo-Json
 """
 res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, text=True)

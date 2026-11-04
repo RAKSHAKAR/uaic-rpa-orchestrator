@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FileSpreadsheet,
   FileText,
@@ -12,6 +12,8 @@ import {
   X,
   Clock,
   HardDrive,
+  Activity,
+  Layers,
 } from "lucide-react";
 import { api } from "../lib/api";
 
@@ -35,6 +37,7 @@ export function AsyncExportModal({
   totalRecordsCount,
 }: AsyncExportModalProps) {
   const [format, setFormat] = useState<"xlsx" | "csv" | "json">("xlsx");
+  const [view, setView] = useState<"summary" | "telemetry" | "cases">("summary");
   const [isProcessing, setIsProcessing] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -47,6 +50,9 @@ export function AsyncExportModal({
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Guard to ensure automatic browser download fires strictly ONCE per job
+  const hasDownloadedRef = useRef(false);
+
   useEffect(() => {
     if (!isOpen) {
       setIsProcessing(false);
@@ -55,6 +61,8 @@ export function AsyncExportModal({
       setStatusMessage("");
       setCompletedResult(null);
       setErrorMessage(null);
+      setView("summary");
+      hasDownloadedRef.current = false;
     }
   }, [isOpen]);
 
@@ -67,10 +75,11 @@ export function AsyncExportModal({
         const res = await api.getAsyncExportStatus(taskId);
         if (res.status === "PROGRESS") {
           setProgressPercent(res.percent || 45);
-          setStatusMessage(res.message || "Generating export dataset...");
+          setStatusMessage(res.message || "Generating unified export dataset...");
         } else if (res.status === "SUCCESS") {
-          setProgressPercent(100);
+          clearInterval(interval);
           setIsProcessing(false);
+          setProgressPercent(100);
           const r = res.result || {};
           const fname = r.filename || `claims_export.${format}`;
           const downloadUrl = r.download_url || api.getAsyncExportDownloadUrl(fname);
@@ -81,23 +90,25 @@ export function AsyncExportModal({
             downloadUrl,
           });
 
-          // Trigger automatic browser download
-          const link = document.createElement("a");
-          link.href = downloadUrl;
-          link.setAttribute("download", fname);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          clearInterval(interval);
+          // Trigger automatic browser download EXACTLY ONCE
+          if (!hasDownloadedRef.current) {
+            hasDownloadedRef.current = true;
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.setAttribute("download", fname);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
         } else if (res.status === "FAILURE") {
+          clearInterval(interval);
           setIsProcessing(false);
           setErrorMessage(res.error || "Background export job failed.");
-          clearInterval(interval);
         }
       } catch (err: any) {
+        clearInterval(interval);
         setIsProcessing(false);
         setErrorMessage(err.message || "Failed to retrieve export task status.");
-        clearInterval(interval);
       }
     }, 1500);
 
@@ -107,14 +118,16 @@ export function AsyncExportModal({
   if (!isOpen) return null;
 
   const handleStartExport = async () => {
+    hasDownloadedRef.current = false;
     setIsProcessing(true);
     setErrorMessage(null);
     setProgressPercent(10);
-    setStatusMessage("Queueing background export task in Celery...");
+    setStatusMessage("Initializing background export job...");
 
     try {
       const res = await api.triggerAsyncExport({
         format,
+        view,
         status: statusFilter || undefined,
         state: stateFilter || undefined,
         search: searchTerm || undefined,
@@ -179,53 +192,128 @@ export function AsyncExportModal({
           </div>
 
           {!completedResult && !isProcessing && (
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Select Output Format
-              </label>
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormat("xlsx")}
-                  className={`p-3.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                    format === "xlsx"
-                      ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20"
-                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                  <span className="font-bold text-xs">Excel (.xlsx)</span>
-                  <span className="text-[10px] text-slate-400">Formatted tables</span>
-                </button>
+            <div className="space-y-4">
+              {/* Dataset View Selection */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Dataset Report View
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setView("summary")}
+                    className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      view === "summary"
+                        ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 mt-0.5 text-indigo-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Unified Master Dossier</div>
+                      <div className="text-[10px] text-slate-400">All in 1 file (Summary + Cases + Stage Telemetry)</div>
+                    </div>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFormat("csv")}
-                  className={`p-3.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                    format === "csv"
-                      ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 ring-2 ring-sky-500/20"
-                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  <FileText className="w-5 h-5 text-sky-600" />
-                  <span className="font-bold text-xs">CSV (.csv)</span>
-                  <span className="text-[10px] text-slate-400">Standard tabular</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFormat("json")}
-                  className={`p-3.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                    format === "json"
-                      ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20"
-                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  <FileCode className="w-5 h-5 text-amber-600" />
-                  <span className="font-bold text-xs">JSON (.json)</span>
-                  <span className="text-[10px] text-slate-400">Raw structures</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setView("telemetry")}
+                    className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      view === "telemetry"
+                        ? "border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <Activity className="w-4 h-4 mt-0.5 text-purple-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Stage Telemetry Only</div>
+                      <div className="text-[10px] text-slate-400">Dedicated CSV event log for latency audits</div>
+                    </div>
+                  </button>
+                </div>
               </div>
+
+              {/* Format Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Select Output Format
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    {format === "xlsx" ? "All 3 sheets combined in 1 file" : "Standard tabular CSV"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormat("xlsx")}
+                    className={`p-3.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      format === "xlsx"
+                        ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                    <span className="font-bold text-xs">Excel (.xlsx)</span>
+                    <span className="text-[10px] text-slate-400">All 3 sheets included</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormat("csv")}
+                    className={`p-3.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      format === "csv"
+                        ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 ring-2 ring-sky-500/20"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <FileText className="w-5 h-5 text-sky-600" />
+                    <span className="font-bold text-xs">CSV (.csv)</span>
+                    <span className="text-[10px] text-slate-400">Single data file</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormat("json")}
+                    className={`p-3.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      format === "json"
+                        ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <FileCode className="w-5 h-5 text-amber-600" />
+                    <span className="font-bold text-xs">JSON (.json)</span>
+                    <span className="text-[10px] text-slate-400">Raw structures</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Informative Single-File Banner */}
+              {format === "xlsx" && (
+                <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl text-xs space-y-1">
+                  <div className="font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    All Data Combined in One Single File
+                  </div>
+                  <div className="text-[11px] text-emerald-700/85 dark:text-emerald-400/85">
+                    Your downloaded spreadsheet contains all 3 sheets together in one file: <strong>Claims Summary</strong> (with stage duration columns), <strong>All Extracted Cases</strong>, and <strong>Detailed Stage Telemetry</strong>.
+                  </div>
+                </div>
+              )}
+
+              {format === "csv" && (
+                <div className="p-3 bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-800/60 rounded-xl text-xs space-y-1">
+                  <div className="font-semibold text-sky-800 dark:text-sky-300 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-sky-600" />
+                    Single CSV File
+                  </div>
+                  <div className="text-[11px] text-sky-700/85 dark:text-sky-400/85">
+                    {view === "summary"
+                      ? "Exports all claims and court case counts with all 8 stage timing breakdown columns included directly in the same CSV file."
+                      : "Exports all 10,900+ granular stage execution rows (Browser launch, navigation, CAPTCHA, search, DB save) in CSV format."}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

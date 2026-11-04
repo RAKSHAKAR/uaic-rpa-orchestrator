@@ -6,9 +6,10 @@ import uuid
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 from app.core.database import AsyncSessionLocal
-from app.models.claim import IngestionBatch, ClaimRecord
+from app.models.claim import ClaimRecord, IngestionBatch
 from app.tasks.ingest_tasks import _async_parse_and_ingest
 from sqlalchemy import select
+
 
 async def main():
     file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Testing files", "sample_claims - Florida.xlsx"))

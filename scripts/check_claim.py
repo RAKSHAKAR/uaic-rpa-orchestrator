@@ -1,6 +1,6 @@
-import urllib.request
 import json
 import sys
+import urllib.request
 
 claim_id = sys.argv[1] if len(sys.argv) > 1 else "81231115-de71-4ea4-a018-ba5b794df682"
 url = f"http://localhost:8000/api/v1/claims/{claim_id}"

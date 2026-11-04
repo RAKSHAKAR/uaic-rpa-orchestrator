@@ -5,7 +5,6 @@ import json
 import httpx
 from playwright.sync_api import sync_playwright
 
-
 API = "http://localhost:8000/api/v1/settings"
 PAGE = "http://localhost:3000/settings"
 

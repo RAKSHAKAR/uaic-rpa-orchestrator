@@ -13,15 +13,16 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, ".")
 
+from sqlalchemy import select
+
 from app.core.database import TaskAsyncSessionLocal
 from app.models.claim import ClaimRecord, RecordStatusEnum
 from app.services.excel_parser import resolve_county_bot_targets
-from sqlalchemy import select
 
 
 async def fix_stale_in_progress(session) -> int:
     """Reset stale SCRAPING_IN_PROGRESS claims (> 10 min) back to NEW."""
-    threshold = datetime.utcnow() - timedelta(minutes=10)
+    _threshold = datetime.utcnow() - timedelta(minutes=10)
     q = select(ClaimRecord).where(ClaimRecord.record_status == RecordStatusEnum.SCRAPING_IN_PROGRESS)
     res = await session.execute(q)
     claims = res.scalars().all()
@@ -115,6 +116,7 @@ def reset_redis_keys():
     """Reset Redis browser semaphore and queue active-item keys."""
     try:
         import redis
+
         from app.core.config import settings
         r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=3.0, socket_timeout=3.0)
         r.ping()  # quick check

@@ -72,18 +72,23 @@ async def _async_parse_and_ingest(
                     exposure_number=row.get("Exposure Number") or row.get("exposure_number"),
                     primary_key=row.get("Primary Key") or row.get("primary_key"),
                     dol=row.get("DOL") or row.get("dol"),
-                    insured_first_name=row.get("Insured First Name") or row.get("insured_first_name"),
+                    insured_first_name=row.get("Insured First Name")
+                    or row.get("insured_first_name"),
                     insured_last_name=row.get("Insured Last Name") or row.get("insured_last_name"),
-                    claimant_first_name=row.get("Claimant First Name") or row.get("claimant_first_name"),
-                    claimant_last_name=row.get("Claimant Last Name") or row.get("claimant_last_name"),
-                    driver_first_name=row.get("Driver First Name (Insured Vehicle)") or row.get("driver_first_name"),
-                    driver_last_name=row.get("Driver Last Name (Insured Vehicle)") or row.get("driver_last_name"),
-                    loss_location_state=row.get("Loss Location State") or row.get("loss_location_state"),
+                    claimant_first_name=row.get("Claimant First Name")
+                    or row.get("claimant_first_name"),
+                    claimant_last_name=row.get("Claimant Last Name")
+                    or row.get("claimant_last_name"),
+                    driver_first_name=row.get("Driver First Name (Insured Vehicle)")
+                    or row.get("driver_first_name"),
+                    driver_last_name=row.get("Driver Last Name (Insured Vehicle)")
+                    or row.get("driver_last_name"),
+                    loss_location_state=row.get("Loss Location State")
+                    or row.get("loss_location_state"),
                     policy_state=row.get("Policy State") or row.get("policy_state"),
                     record_status=RecordStatusEnum.NEW,
                     created_by=uploader_identity,
                     modified_by="system:ingestion",
-                    
                     # Target flags
                     fl_website_broward=targets["fl_broward"],
                     fl_website_hillsborough=targets["fl_hillsborough"],
@@ -112,13 +117,27 @@ async def _async_parse_and_ingest(
                         row.get("Loss Location State") or row.get("loss_location_state"),
                     )
                     target_claim.batch_id = batch_id
-                    target_claim.insured_first_name = row.get("Insured First Name") or row.get("insured_first_name")
-                    target_claim.insured_last_name = row.get("Insured Last Name") or row.get("insured_last_name")
-                    target_claim.claimant_first_name = row.get("Claimant First Name") or row.get("claimant_first_name")
-                    target_claim.claimant_last_name = row.get("Claimant Last Name") or row.get("claimant_last_name")
-                    target_claim.driver_first_name = row.get("Driver First Name (Insured Vehicle)") or row.get("driver_first_name")
-                    target_claim.driver_last_name = row.get("Driver Last Name (Insured Vehicle)") or row.get("driver_last_name")
-                    target_claim.loss_location_state = row.get("Loss Location State") or row.get("loss_location_state")
+                    target_claim.insured_first_name = row.get("Insured First Name") or row.get(
+                        "insured_first_name"
+                    )
+                    target_claim.insured_last_name = row.get("Insured Last Name") or row.get(
+                        "insured_last_name"
+                    )
+                    target_claim.claimant_first_name = row.get("Claimant First Name") or row.get(
+                        "claimant_first_name"
+                    )
+                    target_claim.claimant_last_name = row.get("Claimant Last Name") or row.get(
+                        "claimant_last_name"
+                    )
+                    target_claim.driver_first_name = row.get(
+                        "Driver First Name (Insured Vehicle)"
+                    ) or row.get("driver_first_name")
+                    target_claim.driver_last_name = row.get(
+                        "Driver Last Name (Insured Vehicle)"
+                    ) or row.get("driver_last_name")
+                    target_claim.loss_location_state = row.get("Loss Location State") or row.get(
+                        "loss_location_state"
+                    )
                     target_claim.policy_state = row.get("Policy State") or row.get("policy_state")
                     target_claim.record_status = RecordStatusEnum.NEW
                     target_claim.modified_by = f"system:batch_update:{uploader_identity}"
@@ -138,6 +157,7 @@ async def _async_parse_and_ingest(
 
             # Record audit log for claims ingested
             from app.services.audit_service import log_audit_event_async
+
             for claim in created_claims:
                 try:
                     await log_audit_event_async(
@@ -180,20 +200,29 @@ async def _async_parse_and_ingest(
             # Re-engages auto-queue and dispatches claims matching fleet concurrency capacity.
             # Claims exceeding current fleet capacity remain in NEW status in the Ordered Pending Queue.
             from app.tasks.queue_runner import set_auto_queue_enabled
+
             if all_active_claims:
-                set_auto_queue_enabled(True)
-                celery_app.send_task(
-                    "app.tasks.queue_runner.advance_auto_queue_task",
-                    queue="default",
-                )
-                logger.info(
-                    f"Auto-queue engaged on new upload. Ingested {len(all_active_claims)} claims as NEW status. "
-                    "Triggered advance_auto_queue_task to immediately process claims matching fleet concurrency capacity."
-                )
+                try:
+                    set_auto_queue_enabled(True)
+                    celery_app.send_task(
+                        "app.tasks.queue_runner.advance_auto_queue_task",
+                        queue="default",
+                    )
+                    logger.info(
+                        f"Auto-queue engaged on new upload. Ingested {len(all_active_claims)} claims as NEW status. "
+                        "Triggered advance_auto_queue_task to immediately process claims matching fleet concurrency capacity."
+                    )
+                except Exception as e_dispatch:
+                    logger.warning(
+                        f"Could not trigger advance_auto_queue_task via Celery broker: {e_dispatch}. "
+                        "Claims remain in NEW status in database ready for execution."
+                    )
 
             batch.status = "COMPLETED"
             batch.processed_records = len(all_active_claims)
-            batch.failed_records = norm_result["invalid_rows"] + (norm_result["duplicate_rows"] if duplicate_strategy == "SKIP" else 0)
+            batch.failed_records = norm_result["invalid_rows"] + (
+                norm_result["duplicate_rows"] if duplicate_strategy == "SKIP" else 0
+            )
             await session.commit()
             logger.info(
                 f"Batch {batch_id} ingestion completed: {len(created_claims)} created, "
@@ -218,5 +247,7 @@ def parse_and_ingest_file_task(
     duplicate_strategy: str = "SKIP",
 ):
     """Celery task entrypoint for background parsing with custom column mapping."""
-    logger.info(f"Starting parsing task for batch {batch_id} from {file_path} (Strategy: {duplicate_strategy})")
+    logger.info(
+        f"Starting parsing task for batch {batch_id} from {file_path} (Strategy: {duplicate_strategy})"
+    )
     asyncio.run(_async_parse_and_ingest(batch_id, file_path, column_mapping, duplicate_strategy))

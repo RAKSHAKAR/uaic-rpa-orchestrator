@@ -1,6 +1,7 @@
 """Utility script to clean encoding and code block artifacts in implementation_plan markdown files."""
 import pathlib
 
+
 def clean_docs():
     # 1. master-gap-analysis.md
     p1 = pathlib.Path("implementation_plan/master-gap-analysis.md")
@@ -22,7 +23,7 @@ def clean_docs():
     p3 = pathlib.Path("implementation_plan/2026-09-15_uaic_v4_parity_audit_final_record_v1.md")
     if p3.exists():
         raw = p3.read_bytes()
-        raw = raw.replace(b'\xc3\xa2\xc2\x9d\xc5\x92', '❌'.encode('utf-8'))
+        raw = raw.replace(b'\xc3\xa2\xc2\x9d\xc5\x92', '❌'.encode())
         p3.write_bytes(raw)
         print("2026-09-15_uaic_v4_parity_audit_final_record_v1.md cleaned.")
 

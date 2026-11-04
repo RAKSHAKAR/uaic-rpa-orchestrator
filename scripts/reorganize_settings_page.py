@@ -6,7 +6,7 @@ backup_path = file_path + ".bak"
 shutil.copyfile(file_path, backup_path)
 print(f"Backed up {file_path} to {backup_path}")
 
-with open(file_path, "r", encoding="utf-8") as f:
+with open(file_path, encoding="utf-8") as f:
     content = f.read()
 
 # 1. Update tabs array

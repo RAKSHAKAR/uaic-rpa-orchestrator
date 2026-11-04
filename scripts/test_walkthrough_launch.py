@@ -28,6 +28,7 @@ time.sleep(3)
 
 # Check if port 9222 is alive
 import urllib.request
+
 try:
     with urllib.request.urlopen("http://localhost:9222/json/version", timeout=3) as resp:
         print("CDP Version response:", resp.read().decode()[:150])

@@ -1,7 +1,8 @@
 import asyncio
 import os
-import sys
+
 from playwright.async_api import async_playwright
+
 
 async def verify():
     print("Starting Comprehensive Cross-Screen StatCard Filter Verification...")

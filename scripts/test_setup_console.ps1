@@ -25,7 +25,7 @@ Write-Host "====================================================================
 $testResults = @()
 
 # --- TEST 1: PowerShell AST Syntax Validation ---
-Write-Host "`n[TEST 1/5] Verifying PowerShell AST syntax for setup_local.ps1..." -ForegroundColor Yellow
+Write-Host "`n[TEST 1/6] Verifying PowerShell AST syntax for setup_local.ps1..." -ForegroundColor Yellow
 $syntaxErrors = 0
 $errs = $null
 [System.Management.Automation.Language.Parser]::ParseFile($setupLocal, [ref]$null, [ref]$errs) | Out-Null
@@ -39,14 +39,14 @@ $status1 = if ($syntaxErrors -eq 0) { "PASS" } else { "FAIL" }
 $testResults += [PSCustomObject]@{ Test = "AST Syntax"; Status = $status1 }
 
 # --- TEST 2: Port Conflict Scanner (-CheckPorts) ---
-Write-Host "`n[TEST 2/5] Testing Pre-Flight Port Conflict Detection (-CheckPorts)..." -ForegroundColor Yellow
+Write-Host "`n[TEST 2/6] Testing Pre-Flight Port Conflict Detection (-CheckPorts)..." -ForegroundColor Yellow
 $proc = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$setupLocal`"", "-CheckPorts" -NoNewWindow -Wait -PassThru
 Write-Host "  -> setup_local.ps1 -CheckPorts exited with code: $($proc.ExitCode)" -ForegroundColor Cyan
 $status2 = if ($proc.ExitCode -in @(0, 1)) { "PASS" } else { "FAIL" }
 $testResults += [PSCustomObject]@{ Test = "Port Conflict Scanner"; Status = $status2 }
 
 # --- TEST 3: Safe Process Termination & MailDev Stop (-StopAll) ---
-Write-Host "`n[TEST 3/5] Testing Safe Process Termination & MailDev Stop (-StopAll)..." -ForegroundColor Yellow
+Write-Host "`n[TEST 3/6] Testing Safe Process Termination & MailDev Stop (-StopAll)..." -ForegroundColor Yellow
 $proc = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$setupLocal`"", "-StopAll" -NoNewWindow -Wait -PassThru
 if ($proc.ExitCode -eq 0) {
     Write-Host "  -> setup_local.ps1 -StopAll exited with code: 0 (SUCCESS)" -ForegroundColor Green
@@ -67,7 +67,7 @@ if ($proc.ExitCode -eq 0) {
 }
 
 # --- TEST 4: Clean Run History (-CleanHistory) ---
-Write-Host "`n[TEST 4/5] Testing Clean Run History (-CleanHistory)..." -ForegroundColor Yellow
+Write-Host "`n[TEST 4/6] Testing Clean Run History (-CleanHistory)..." -ForegroundColor Yellow
 $proc = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$setupLocal`"", "-CleanHistory" -NoNewWindow -Wait -PassThru
 if ($proc.ExitCode -eq 0) {
     Write-Host "  -> setup_local.ps1 -CleanHistory exited with code: 0 (SUCCESS)" -ForegroundColor Green
@@ -77,8 +77,27 @@ if ($proc.ExitCode -eq 0) {
     $testResults += [PSCustomObject]@{ Test = "Clean Run History"; Status = "FAIL" }
 }
 
-# --- TEST 5: Diagnostics & Test Suite Runner (-RunTests) ---
-Write-Host "`n[TEST 5/5] Testing Diagnostics & Test Suite Runner (-RunTests)..." -ForegroundColor Yellow
+# --- TEST 5: RPA Mode Synchronization (set_rpa_mode.py) ---
+Write-Host "`n[TEST 5/6] Testing RPA Mode Synchronization (set_rpa_mode.py)..." -ForegroundColor Yellow
+$pyExe = Join-Path $root "backend\.venv\Scripts\python.exe"
+if (-not (Test-Path $pyExe)) { $pyExe = "python" }
+Push-Location (Join-Path $root "backend")
+try {
+    $outAttended = & $pyExe -m app.scripts.set_rpa_mode --mode Attended 2>&1
+    $codeAttended = $LASTEXITCODE
+    $outUnattended = & $pyExe -m app.scripts.set_rpa_mode --mode Unattended 2>&1
+    $codeUnattended = $LASTEXITCODE
+    if ($codeAttended -eq 0 -and $codeUnattended -eq 0) {
+        Write-Host "  -> set_rpa_mode.py Attended & Unattended: PASS (0 errors)" -ForegroundColor Green
+        $testResults += [PSCustomObject]@{ Test = "RPA Mode Synchronization"; Status = "PASS" }
+    } else {
+        Write-Host "  -> set_rpa_mode.py failed (Attended: $codeAttended, Unattended: $codeUnattended)" -ForegroundColor Red
+        $testResults += [PSCustomObject]@{ Test = "RPA Mode Synchronization"; Status = "FAIL" }
+    }
+} finally { Pop-Location }
+
+# --- TEST 6: Diagnostics & Test Suite Runner (-RunTests) ---
+Write-Host "`n[TEST 6/6] Testing Diagnostics & Test Suite Runner (-RunTests)..." -ForegroundColor Yellow
 $proc = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$setupLocal`"", "-RunTests" -NoNewWindow -Wait -PassThru
 if ($proc.ExitCode -eq 0) {
     Write-Host "  -> setup_local.ps1 -RunTests exited with code: 0 (SUCCESS)" -ForegroundColor Green

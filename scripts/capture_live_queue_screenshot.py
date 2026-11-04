@@ -1,5 +1,7 @@
-from playwright.sync_api import sync_playwright
 import os
+
+from playwright.sync_api import sync_playwright
+
 
 def main():
     os.makedirs("implementation_plan/Images", exist_ok=True)

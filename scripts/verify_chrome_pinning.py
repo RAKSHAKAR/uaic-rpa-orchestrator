@@ -6,7 +6,8 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent.parent / "backend"
 sys.path.insert(0, str(backend_dir))
 
-from app.automation.browser_manager import ChromeSession, ExtensionManager, run_browser_coroutine
+from app.automation.browser_manager import ChromeSession, ExtensionManager
+
 
 async def test():
     ext_path = ExtensionManager.resolve_extension_path(None)
@@ -43,7 +44,7 @@ async def test():
     pref_path = Path(session.profile_to_use) / "Default" / "Preferences"
     if pref_path.is_file():
         import json
-        with open(pref_path, "r", encoding="utf-8") as f:
+        with open(pref_path, encoding="utf-8") as f:
             data = json.load(f)
         pinned_exts = data.get("extensions", {}).get("pinned_extensions", [])
         pinned_actions = data.get("toolbar", {}).get("pinned_actions", [])

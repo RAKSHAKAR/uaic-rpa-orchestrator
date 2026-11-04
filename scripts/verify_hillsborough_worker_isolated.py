@@ -17,7 +17,7 @@ import tempfile
 import time
 import uuid
 from contextlib import nullcontext
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -172,7 +172,7 @@ async def run_probe(temp_dir: Path, portal: str) -> dict:
 
     result = {
         "implementation_id": "IMP-2026-1001-002",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "portal": portal,
         "synthetic_claim": f"John Smith, {probe['dol']}",
         "browser": "headless Chromium, isolated profile, no extension",
@@ -296,7 +296,7 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001 - report failure without case PII
             result = {
                 "implementation_id": "IMP-2026-1001-002",
-                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "timestamp_utc": datetime.now(UTC).isoformat(),
                 "portal": portal,
                 "status": "probe_exception",
                 "exception_type": type(exc).__name__,
@@ -309,7 +309,7 @@ def main() -> int:
 
     REPORTS.mkdir(parents=True, exist_ok=True)
     report = REPORTS / (
-        f"2026-10-01_uaic_{portal}_worker_e2e_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.json"
+        f"2026-10-01_uaic_{portal}_worker_e2e_{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"
     )
     report.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps({"report": str(report.relative_to(ROOT)), "result": result}, indent=2))

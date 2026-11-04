@@ -7,9 +7,10 @@
 """
 
 import asyncio
-from pathlib import Path
-from playwright.async_api import async_playwright
 import shutil
+from pathlib import Path
+
+from playwright.async_api import async_playwright
 
 output_dir = Path(__file__).resolve().parent.parent / "implementation_plan" / "Images"
 output_dir.mkdir(parents=True, exist_ok=True)

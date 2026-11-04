@@ -1,5 +1,6 @@
 """Capture screenshots of the updated Action ID & Profile Target card across viewports."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 VIEWPORTS = [

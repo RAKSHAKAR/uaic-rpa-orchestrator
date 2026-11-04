@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 from app.automation.browser_manager import ChromeSession
 
+
 async def main():
     print("Testing ChromeSession launch in Attended GUI mode...")
     session = ChromeSession(

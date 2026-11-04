@@ -62,8 +62,23 @@ import { StatCard } from "../../../components/StatCard";
 import { MultiSelectDropdown } from "../../../components/MultiSelectDropdown";
 import { ExportActionToolbar } from "../../../components/ExportActionToolbar";
 import { AsyncExportModal } from "../../../components/AsyncExportModal";
-import { api } from "../../../lib/api";
+import { api, getApiBaseUrl } from "../../../lib/api";
 import { formatDurationHms } from "../../../lib/utils";
+
+const resolveScreenshotUrl = (url?: string | null): string => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  const baseUrl = getApiBaseUrl();
+  if (url.startsWith("/api/v1")) {
+    return `${baseUrl}${url.slice(7)}`;
+  }
+  if (url.startsWith("/")) {
+    return `${baseUrl}${url}`;
+  }
+  return `${baseUrl}/${url}`;
+};
 import {
   Claim,
   ErrorScreenshot,
@@ -252,8 +267,11 @@ export default function ClaimDetailPage() {
     loss_location_state: "Florida",
   });
 
-  const fetchClaim = useCallback(async () => {
-    setIsLoading(true);
+  const fetchClaim = useCallback(async (isSilentOrEvent: boolean | any = false) => {
+    const isSilent = isSilentOrEvent === true;
+    if (!isSilent) {
+      setIsLoading(true);
+    }
     setNotFound(false);
     try {
       const data = await api.getClaimDetail(claimId);
@@ -427,7 +445,7 @@ export default function ClaimDetailPage() {
     if (!isWorking) return;
 
     const timer = setInterval(() => {
-      fetchClaim();
+      fetchClaim(true);
       fetchScreenshots();
       fetchClaimAuditLogs();
     }, 3000);
@@ -1001,7 +1019,7 @@ export default function ClaimDetailPage() {
 
   const portalKeys = Object.keys(claim?.action_timings?.portals || {});
 
-  if (isLoading) {
+  if (isLoading && !claim) {
     return (
       <div className="flex-1 flex flex-col w-full">
         <Navbar />
@@ -1575,38 +1593,50 @@ export default function ClaimDetailPage() {
             </div>
           </div>
 
-          {/* Horizontal Waterfall Latency Distribution Bar */}
-          {waterfallData.length > 0 && (
-            <div className="space-y-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-xl p-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-800 dark:text-slate-300 flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                  Stage Latency Waterfall Distribution
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                  Longest Phase:{" "}
-                  <strong className="text-amber-600 dark:text-amber-400">
-                    {waterfallData.reduce((max, cur) => (cur.duration > max.duration ? cur : max), waterfallData[0])?.name} (
-                    {waterfallData.reduce((max, cur) => (cur.duration > max.duration ? cur : max), waterfallData[0])?.duration}s)
-                  </strong>
-                </span>
-              </div>
+          {/* Horizontal Waterfall Latency Distribution Bar (Permanent Resilient Visualization) */}
+          <div className="space-y-2 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-xl p-4">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-800 dark:text-slate-300 flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                Stage Latency Waterfall Distribution
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                {waterfallData.length > 0 ? (
+                  <>
+                    Longest Phase:{" "}
+                    <strong className="text-amber-600 dark:text-amber-400">
+                      {waterfallData.reduce((max, cur) => (cur.duration > max.duration ? cur : max), waterfallData[0])?.name} (
+                      {waterfallData.reduce((max, cur) => (cur.duration > max.duration ? cur : max), waterfallData[0])?.duration}s)
+                    </strong>
+                  </>
+                ) : (
+                  <span className="text-slate-400">Standby / Awaiting stage execution</span>
+                )}
+              </span>
+            </div>
 
-              {/* Multi-segment Progress Bar */}
-              <div className="h-3 w-full bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden flex gap-0.5 p-0.5 border border-slate-300 dark:border-slate-800">
-                {waterfallData.map((item) => (
+            {/* Multi-segment Progress Bar */}
+            <div className="h-3 w-full bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden flex gap-0.5 p-0.5 border border-slate-300 dark:border-slate-800">
+              {waterfallData.length > 0 ? (
+                waterfallData.map((item) => (
                   <div
                     key={item.key}
                     style={{ width: `${Math.max(item.percentage, 2)}%` }}
                     className={`${item.color} h-full rounded-xs transition-all hover:brightness-125 cursor-pointer relative group`}
                     title={`${item.name}: ${item.duration}s (${item.percentage.toFixed(1)}%)`}
                   />
-                ))}
-              </div>
+                ))
+              ) : (
+                <div className="w-full h-full bg-slate-100 dark:bg-slate-800/60 rounded flex items-center justify-center text-[9px] font-mono text-slate-400">
+                  Standby — Telemetry stages will populate during automation run
+                </div>
+              )}
+            </div>
 
-              {/* Waterfall Legend */}
-              <div className="flex items-center gap-3 flex-wrap pt-1 text-[11px] font-mono">
-                {waterfallData.map((item) => (
+            {/* Waterfall Legend */}
+            <div className="flex items-center gap-3 flex-wrap pt-1 text-[11px] font-mono">
+              {waterfallData.length > 0 ? (
+                waterfallData.map((item) => (
                   <div
                     key={item.key}
                     onClick={() => item.stage && setInspectedStage({ key: item.key, data: item.stage })}
@@ -1617,10 +1647,14 @@ export default function ClaimDetailPage() {
                     <strong className="text-slate-900 dark:text-slate-100">{formatDurationHms(item.duration)}</strong>
                     <span className="text-slate-500">({item.percentage.toFixed(0)}%)</span>
                   </div>
-                ))}
-              </div>
+                ))
+              ) : (
+                <span className="text-slate-400 text-[10px]">
+                  9 operational stages tracked: Launch, Navigation, Data Entry, CAPTCHA, Submit, Retrieval, DB Save, RapidFuzz, Guidewire
+                </span>
+              )}
             </div>
-          )}
+          </div>
           {/* Mock/Seed Mode Notice — shown when browser automation stages are absent */}
           {(() => {
             const browserStageKeys = ["browser_launch", "website_navigation", "data_filling", "captcha", "submit", "result_retrieval", "database_save"];
@@ -2542,7 +2576,7 @@ export default function ClaimDetailPage() {
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={shot.image_url}
+                        src={resolveScreenshotUrl(shot.image_url)}
                         alt={`Error capture for ${shot.portal_name}`}
                         className="w-full h-full object-cover object-top transition-transform duration-300 group-hover/img:scale-105"
                         onError={(e) => {
@@ -3665,10 +3699,13 @@ export default function ClaimDetailPage() {
                         <div className="flex items-center gap-3">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={ex.screenshot_url}
+                            src={resolveScreenshotUrl(ex.screenshot_url)}
                             alt="Error screenshot"
                             className="w-16 h-12 object-cover rounded border border-rose-300 dark:border-rose-800 cursor-pointer hover:opacity-80"
                             onClick={() => setSelectedExceptionModal(ex)}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
                           />
                           <button
                             onClick={() => setSelectedExceptionModal(ex)}
@@ -3974,9 +4011,12 @@ export default function ClaimDetailPage() {
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={shot.image_url}
+                              src={resolveScreenshotUrl(shot.image_url)}
                               alt={`Capture for ${shot.portal_name || "Portal"}`}
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
                             />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                               <ZoomIn className="w-3 h-3 text-white" />
@@ -4002,7 +4042,7 @@ export default function ClaimDetailPage() {
                                 View Lightbox
                               </button>
                               <a
-                                href={shot.image_url}
+                                href={resolveScreenshotUrl(shot.image_url)}
                                 download
                                 target="_blank"
                                 rel="noreferrer"
@@ -4480,10 +4520,13 @@ export default function ClaimDetailPage() {
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={sc.image_url}
+                            src={resolveScreenshotUrl(sc.image_url)}
                             alt={`Capture for ${portalTitle}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             loading="lazy"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <span className="px-2.5 py-1 rounded bg-black/70 text-white text-xs font-semibold flex items-center gap-1">
@@ -4563,7 +4606,7 @@ export default function ClaimDetailPage() {
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={selectedScreenshotModal.image_url}
+                  href={resolveScreenshotUrl(selectedScreenshotModal.image_url)}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -4586,7 +4629,7 @@ export default function ClaimDetailPage() {
             <div className="flex-1 overflow-auto bg-slate-950 p-4 flex items-center justify-center min-h-[360px] max-h-[66vh]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={selectedScreenshotModal.image_url}
+                src={resolveScreenshotUrl(selectedScreenshotModal.image_url)}
                 alt={`Full viewport error capture for ${selectedScreenshotModal.portal_name}`}
                 className="max-w-full max-h-full object-contain rounded-lg border border-slate-800 shadow-xl"
               />
@@ -4734,7 +4777,7 @@ export default function ClaimDetailPage() {
                       Captured Browser Viewport at Failure
                     </label>
                     <a
-                      href={selectedExceptionModal.screenshot_url}
+                      href={resolveScreenshotUrl(selectedExceptionModal.screenshot_url)}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
@@ -4745,7 +4788,7 @@ export default function ClaimDetailPage() {
                   <div className="relative aspect-video max-h-[320px] bg-slate-950 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={selectedExceptionModal.screenshot_url}
+                      src={resolveScreenshotUrl(selectedExceptionModal.screenshot_url)}
                       alt="Captured browser state at failure"
                       className="max-h-full max-w-full object-contain"
                     />

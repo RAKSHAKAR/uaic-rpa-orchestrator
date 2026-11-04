@@ -65,7 +65,7 @@ import {
 } from "../types";
 
 
-const getApiBaseUrl = () => {
+export const getApiBaseUrl = () => {
   // Dynamic environment variables take highest priority (Vercel, Netlify, Cloud Run, custom proxy)
   const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
   if (envUrl && envUrl.trim().length > 0) {
@@ -264,9 +264,10 @@ export const api = {
     return res.data;
   },
 
-  getExportUrl: (params?: { format?: string; status?: string; state?: string; search?: string; claim_ids?: string }) => {
+  getExportUrl: (params?: { format?: string; view?: "summary" | "telemetry" | "cases" | string; status?: string; state?: string; search?: string; claim_ids?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.format) searchParams.set("format", params.format);
+    if (params?.view) searchParams.set("view", params.view);
     if (params?.status) searchParams.set("status", params.status);
     if (params?.state) searchParams.set("state", params.state);
     if (params?.search) searchParams.set("search", params.search);
@@ -277,6 +278,7 @@ export const api = {
 
   triggerAsyncExport: async (payload: {
     format: "xlsx" | "csv" | "json";
+    view?: "summary" | "telemetry" | "cases" | string;
     status?: string;
     state?: string;
     search?: string;
@@ -423,6 +425,16 @@ export const api = {
 
   pauseQueue: async (): Promise<{ status: string; message: string }> => {
     const res = await apiClient.post("/queue/pause");
+    return res.data;
+  },
+
+  evictStaleQueueClaims: async (): Promise<{ status: string; evicted_count: number }> => {
+    const res = await apiClient.post("/queue/evict-stale");
+    return res.data;
+  },
+
+  evictSingleWorkerClaim: async (claimId: string): Promise<{ status: string; claim_id: string; evicted: boolean }> => {
+    const res = await apiClient.post(`/queue/evict-worker/${claimId}`);
     return res.data;
   },
 

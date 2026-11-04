@@ -46,7 +46,9 @@ async def test_portal_diagnostic_honors_configured_proxy(monkeypatch, diagnostic
     runtime = SystemSettings(proxy=proxy)
     expected_proxy = "http://alice:p%40ss%3Aword@proxy.example:3128" if enabled else None
     captured: list[dict] = []
-    response = httpx.Response(200, request=httpx.Request("GET", "https://www.browardclerk.org/Web2"))
+    response = httpx.Response(
+        200, request=httpx.Request("GET", "https://www.browardclerk.org/Web2")
+    )
 
     def client_factory(**kwargs):
         captured.append(kwargs)
@@ -73,10 +75,14 @@ async def test_portal_diagnostic_honors_configured_proxy(monkeypatch, diagnostic
 async def test_portal_diagnostic_error_hides_proxy_password(monkeypatch, diagnostic):
     proxy = ProxySettings(enabled=True, host="proxy.example", password="top-secret")
     runtime = SystemSettings(proxy=proxy)
-    response = httpx.Response(200, request=httpx.Request("GET", "https://www.browardclerk.org/Web2"))
+    response = httpx.Response(
+        200, request=httpx.Request("GET", "https://www.browardclerk.org/Web2")
+    )
 
     def client_factory(**_kwargs):
-        return _PortalClient(response, error=httpx.ConnectError("proxy credential top-secret rejected"))
+        return _PortalClient(
+            response, error=httpx.ConnectError("proxy credential top-secret rejected")
+        )
 
     module = health if diagnostic == "health" else guidewire_client
     monkeypatch.setattr(module, "get_system_settings_async", AsyncMock(return_value=runtime))

@@ -1,6 +1,7 @@
 import json
 import urllib.request
 
+
 def main():
     try:
         req = urllib.request.urlopen("http://localhost:8000/api/v1/queue/live")

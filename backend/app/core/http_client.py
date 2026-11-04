@@ -5,6 +5,7 @@ import httpx
 
 class HTTPClient:
     """Manages a global httpx.AsyncClient instance for connection pooling."""
+
     client: httpx.AsyncClient | None = None
 
     @classmethod
@@ -13,7 +14,7 @@ class HTTPClient:
             cls.client = httpx.AsyncClient(
                 timeout=timeout,
                 limits=httpx.Limits(max_keepalive_connections=50, max_connections=100),
-                verify=False
+                verify=False,
             )
         return cls.client
 

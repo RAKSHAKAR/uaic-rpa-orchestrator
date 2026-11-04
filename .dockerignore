@@ -51,9 +51,29 @@ backend/test_chrome*
 backend/test_chrome*/**
 backend/celerybeat-schedule*
 backend/*.db
+backend/*.db-wal
+backend/*.db-shm
+backend/*.db-journal
 backend/*.db.bak
 backend/*.sqlite
 backend/*.sqlite3
+
+# Root Storage, Exports & Uploads Exclusions
+exports
+exports/**
+uploads
+uploads/**
+
+# Testing & Automation Artifacts
+test-results
+test-results/**
+playwright-report
+playwright-report/**
+blob-report
+blob-report/**
+e2e/results
+e2e/results/**
+scripts/pytest_result.txt
 
 # Node / Frontend Exclusions
 frontend/node_modules

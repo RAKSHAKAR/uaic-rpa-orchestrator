@@ -154,7 +154,6 @@ CATEGORY_DEFINITIONS: dict[str, dict[str, Any]] = {
 }
 
 
-
 def resolve_time_window(
     time_scope: str,
     n_units: int | None = None,
@@ -225,7 +224,9 @@ def resolve_time_window(
             _, pq_last_day = calendar.monthrange(pq_year, pq_end_month)
         start_dt = datetime(pq_year, pq_start_month, 1, 0, 0, 0)
         end_dt = datetime(pq_year, pq_end_month, pq_last_day, 23, 59, 59, 999999)
-        desc = f"Previous Quarter ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+        desc = (
+            f"Previous Quarter ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+        )
         return start_dt, end_dt, desc
 
     if scope == "current_year":
@@ -238,7 +239,11 @@ def resolve_time_window(
         n = n_units if n_units and n_units > 0 else 30
         start_dt = now - timedelta(days=n)
         end_dt = now
-        return start_dt, end_dt, f"Last {n} Days ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+        return (
+            start_dt,
+            end_dt,
+            f"Last {n} Days ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})",
+        )
 
     if scope in ("older_than_30_days", "older_than_30"):
         cutoff = now - timedelta(days=30)
@@ -256,13 +261,17 @@ def resolve_time_window(
         n = n_units if n_units and n_units > 0 else 4
         start_dt = now - timedelta(weeks=n)
         end_dt = now
-        return start_dt, end_dt, f"Last {n} Weeks ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+        return (
+            start_dt,
+            end_dt,
+            f"Last {n} Weeks ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})",
+        )
 
     if scope == "last_n_months":
         n = n_units if n_units and n_units > 0 else 3
         start_dt = now - timedelta(days=n * 30)
         end_dt = now
-        return start_dt, end_dt, f"Last {n} Months (~{n*30} days)"
+        return start_dt, end_dt, f"Last {n} Months (~{n * 30} days)"
 
     if scope == "last_n_years":
         n = n_units if n_units and n_units > 0 else 1
@@ -290,7 +299,11 @@ def resolve_time_window(
     # Default fallback: Current Month
     start_dt = datetime(now.year, now.month, 1, 0, 0, 0)
     end_dt = now
-    return start_dt, end_dt, f"Current Month ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})"
+    return (
+        start_dt,
+        end_dt,
+        f"Current Month ({start_dt.strftime('%m/%d/%Y')} -> {end_dt.strftime('%m/%d/%Y')})",
+    )
 
 
 ORDERED_CATEGORY_KEYS = [
@@ -382,10 +395,12 @@ async def get_all_categories_metadata() -> list[CategoryMetadata]:
                         if cat_id == "queue":
                             q = await session.execute(
                                 select(func.count(ClaimRecord.id)).where(
-                                    ClaimRecord.record_status.in_([
-                                        RecordStatusEnum.NEW,
-                                        RecordStatusEnum.SCRAPING_IN_PROGRESS,
-                                    ])
+                                    ClaimRecord.record_status.in_(
+                                        [
+                                            RecordStatusEnum.NEW,
+                                            RecordStatusEnum.SCRAPING_IN_PROGRESS,
+                                        ]
+                                    )
                                 )
                             )
                         elif cat_id == "guidewire_activities":
@@ -414,7 +429,11 @@ async def get_all_categories_metadata() -> list[CategoryMetadata]:
                             q = await session.execute(select(func.count(Notification.id)))
                         count = q.scalar_one() or 0
                     elif tbl == "audit_logs":
-                        q = await session.execute(select(func.count(AuditLog.id)).where(AuditLog.action != "ENTERPRISE_CLEANUP"))
+                        q = await session.execute(
+                            select(func.count(AuditLog.id)).where(
+                                AuditLog.action != "ENTERPRISE_CLEANUP"
+                            )
+                        )
                         count = q.scalar_one() or 0
                     elif tbl == "error_screenshots":
                         q = await session.execute(select(func.count(ErrorScreenshot.id)))
@@ -441,33 +460,57 @@ def count_files_for_category(category: str) -> int:
     count = 0
     try:
         if category == "app_logs":
-            log_dir = os.path.join(ROOT_DIR, "logs")
-            if os.path.exists(log_dir):
-                count += len([f for f in os.listdir(log_dir) if f.endswith(".log") and f != ".gitkeep"])
+            for d in [os.path.join(ROOT_DIR, "logs"), os.path.join(BACKEND_DIR, "logs")]:
+                if os.path.exists(d):
+                    count += len(
+                        [f for f in os.listdir(d) if f.endswith(".log") and f != ".gitkeep"]
+                    )
             if os.path.exists(os.path.join(ROOT_DIR, "setup.log")):
                 count += 1
+        elif category in ("bot_history", "error_screenshots"):
+            for d in [
+                os.path.join(BACKEND_DIR, "screenshots"),
+                os.path.join(ROOT_DIR, "screenshots"),
+            ]:
+                if os.path.exists(d):
+                    count += len(
+                        [
+                            f
+                            for f in os.listdir(d)
+                            if f.endswith((".png", ".jpg", ".jpeg", ".webp")) and f != ".gitkeep"
+                        ]
+                    )
         elif category == "scraper_logs":
             temp_media = os.path.join(ROOT_DIR, ".tempmediaStorage")
             if os.path.exists(temp_media):
                 count += len(os.listdir(temp_media))
         elif category == "temp_caches":
             for fname in os.listdir(ROOT_DIR):
-                if fname.startswith("scratch_test_") or fname in ("test_export.pdf", "test_export.xlsx"):
+                if fname.startswith("scratch_test_") or fname in (
+                    "test_export.pdf",
+                    "test_export.xlsx",
+                ):
                     count += 1
+            bak_db = os.path.join(BACKEND_DIR, "orchestrator.db.bak")
+            if os.path.exists(bak_db):
+                count += 1
         elif category == "generated_exports":
             for d in [os.path.join(BACKEND_DIR, "exports"), os.path.join(ROOT_DIR, "exports")]:
                 if os.path.exists(d):
-                    count += len(os.listdir(d))
+                    count += len([f for f in os.listdir(d) if f != ".gitkeep"])
         elif category == "run_history":
             for fname in os.listdir(BACKEND_DIR):
                 if fname.startswith("celerybeat-schedule"):
                     count += 1
+        elif category == "uploads":
+            for d in [os.path.join(BACKEND_DIR, "uploads"), os.path.join(ROOT_DIR, "uploads")]:
+                if os.path.exists(d):
+                    count += len([f for f in os.listdir(d) if f != ".gitkeep"])
         elif category in ("dashboard_metrics", "redis_runtime"):
             count = 1
     except Exception as e:
         logger.debug(f"File count check note for {category}: {e}")
     return count
-
 
 
 async def calculate_cleanup_preview(
@@ -505,10 +548,12 @@ async def calculate_cleanup_preview(
             claim_sel = select(ClaimRecord.id)
             if "queue" in cats and "claims" not in cats:
                 claim_sel = claim_sel.where(
-                    ClaimRecord.record_status.in_([
-                        RecordStatusEnum.NEW,
-                        RecordStatusEnum.SCRAPING_IN_PROGRESS,
-                    ])
+                    ClaimRecord.record_status.in_(
+                        [
+                            RecordStatusEnum.NEW,
+                            RecordStatusEnum.SCRAPING_IN_PROGRESS,
+                        ]
+                    )
                 )
             elif "guidewire_activities" in cats and "claims" not in cats:
                 claim_sel = claim_sel.where(ClaimRecord.activity_id.is_not(None))
@@ -601,11 +646,15 @@ async def calculate_cleanup_preview(
                     total_db += cnt_notif
 
         # 6. Guidewire Activities
-        if ("guidewire_activities" in cats and "claims" not in cats) or (target_claim_ids and "claims" not in cats):
-            cnt_ga = await count_category_or_cascade(GuidewireActivity, "guidewire_activities" in cats)
+        if ("guidewire_activities" in cats and "claims" not in cats) or (
+            target_claim_ids and "claims" not in cats
+        ):
+            cnt_ga = await count_category_or_cascade(
+                GuidewireActivity, "guidewire_activities" in cats
+            )
             if "guidewire_activities" in cats:
                 record_counts["guidewire_activities"] = len(target_claim_ids) + cnt_ga
-                total_db += (len(target_claim_ids) + cnt_ga)
+                total_db += len(target_claim_ids) + cnt_ga
 
         # 7. Telemetry & Audit Logs
         if "telemetry" in cats:
@@ -622,7 +671,14 @@ async def calculate_cleanup_preview(
             total_db += res
 
         # File-based categories
-        for fcat in ["app_logs", "scraper_logs", "temp_caches", "generated_exports", "run_history", "dashboard_metrics"]:
+        for fcat in [
+            "app_logs",
+            "scraper_logs",
+            "temp_caches",
+            "generated_exports",
+            "run_history",
+            "dashboard_metrics",
+        ]:
             if fcat in cats:
                 fc = count_files_for_category(fcat)
                 file_counts[fcat] = fc
@@ -630,7 +686,6 @@ async def calculate_cleanup_preview(
 
         if "redis_runtime" in cats:
             record_counts["redis_runtime"] = 1
-
 
     return CleanupPreviewResponse(
         time_scope=scope_desc,
@@ -646,7 +701,9 @@ async def calculate_cleanup_preview(
         total_files_to_delete=total_files,
         db_records_to_delete=total_db,
         estimated_duration_seconds=max(1, (total_db + total_files) // 100 + 1),
-        estimated_space_freed_human=f"{(total_files * 150) / 1024:.1f} MB" if total_files > 0 else "< 1 MB",
+        estimated_space_freed_human=f"{(total_files * 150) / 1024:.1f} MB"
+        if total_files > 0
+        else "< 1 MB",
         can_proceed=True,
         warnings=warnings,
     )
@@ -718,16 +775,18 @@ async def execute_enterprise_cleanup(
         try:
             # Relationship-aware execution order:
             # Match Pairs -> Court Cases -> Screenshots -> Notifications -> Claims -> Batches
-            
+
             target_claim_ids = []
             if "claims" in cats or "queue" in cats or "guidewire_activities" in cats:
                 claim_sel = select(ClaimRecord.id)
                 if "queue" in cats and "claims" not in cats:
                     claim_sel = claim_sel.where(
-                        ClaimRecord.record_status.in_([
-                            RecordStatusEnum.NEW,
-                            RecordStatusEnum.SCRAPING_IN_PROGRESS,
-                        ])
+                        ClaimRecord.record_status.in_(
+                            [
+                                RecordStatusEnum.NEW,
+                                RecordStatusEnum.SCRAPING_IN_PROGRESS,
+                            ]
+                        )
                     )
                 elif "guidewire_activities" in cats and "claims" not in cats:
                     claim_sel = claim_sel.where(ClaimRecord.activity_id.is_not(None))
@@ -805,7 +864,9 @@ async def execute_enterprise_cleanup(
 
             # E. Guidewire Activity Records
             if "guidewire_activities" in cats or target_claim_ids:
-                cnt_ga = await delete_category_or_cascade(GuidewireActivity, "guidewire_activities" in cats)
+                cnt_ga = await delete_category_or_cascade(
+                    GuidewireActivity, "guidewire_activities" in cats
+                )
                 if "guidewire_activities" in cats and "claims" not in cats:
                     records_deleted["guidewire_activities"] = cnt_ga
 
@@ -817,7 +878,11 @@ async def execute_enterprise_cleanup(
             elif target_claim_ids:
                 del_cl = delete(ClaimRecord).where(ClaimRecord.id.in_(target_claim_ids))
                 res_cl = await session.execute(del_cl)
-                cat_key = "claims" if "claims" in cats else ("queue" if "queue" in cats else "guidewire_activities")
+                cat_key = (
+                    "claims"
+                    if "claims" in cats
+                    else ("queue" if "queue" in cats else "guidewire_activities")
+                )
                 records_deleted[cat_key] = res_cl.rowcount or 0
             elif "claims" in cats:
                 records_deleted["claims"] = 0
@@ -825,7 +890,9 @@ async def execute_enterprise_cleanup(
                 # Clean orphaned IngestionBatches
                 try:
                     orphaned_batches = delete(IngestionBatch).where(
-                        ~IngestionBatch.id.in_(select(ClaimRecord.batch_id).where(ClaimRecord.batch_id.is_not(None)))
+                        ~IngestionBatch.id.in_(
+                            select(ClaimRecord.batch_id).where(ClaimRecord.batch_id.is_not(None))
+                        )
                     )
                     await session.execute(orphaned_batches)
                 except Exception:
@@ -878,25 +945,42 @@ async def execute_enterprise_cleanup(
 
     # 4. File-Based Cleanups
     try:
-        if "app_logs" in cats:
-            log_dir = os.path.join(ROOT_DIR, "logs")
-            if os.path.exists(log_dir):
-                for f in os.listdir(log_dir):
-                    if f.endswith(".log") and f != ".gitkeep":
-                        try:
-                            os.remove(os.path.join(log_dir, f))
-                            files_deleted += 1
-                        except Exception:
-                            pass
-            legacy_setup = os.path.join(ROOT_DIR, "setup.log")
-            if os.path.exists(legacy_setup):
-                try:
-                    os.remove(legacy_setup)
-                    files_deleted += 1
-                except Exception:
-                    pass
+        if "app_logs" in cats or "all_operational" in cats:
+            for log_dir in [os.path.join(ROOT_DIR, "logs"), os.path.join(BACKEND_DIR, "logs")]:
+                if os.path.exists(log_dir):
+                    for f in os.listdir(log_dir):
+                        if f.endswith(".log") and f != ".gitkeep":
+                            try:
+                                os.remove(os.path.join(log_dir, f))
+                                files_deleted += 1
+                            except Exception:
+                                pass
+            for legacy in [
+                os.path.join(ROOT_DIR, "setup.log"),
+                os.path.join(ROOT_DIR, "setup_latest.log"),
+            ]:
+                if os.path.exists(legacy):
+                    try:
+                        os.remove(legacy)
+                        files_deleted += 1
+                    except Exception:
+                        pass
 
-        if "scraper_logs" in cats:
+        if "bot_history" in cats or "error_screenshots" in cats or "all_operational" in cats:
+            for sc_dir in [
+                os.path.join(BACKEND_DIR, "screenshots"),
+                os.path.join(ROOT_DIR, "screenshots"),
+            ]:
+                if os.path.exists(sc_dir):
+                    for f in os.listdir(sc_dir):
+                        if f != ".gitkeep":
+                            try:
+                                os.remove(os.path.join(sc_dir, f))
+                                files_deleted += 1
+                            except Exception:
+                                pass
+
+        if "scraper_logs" in cats or "all_operational" in cats:
             temp_media = os.path.join(ROOT_DIR, ".tempmediaStorage")
             if os.path.exists(temp_media):
                 for f in os.listdir(temp_media):
@@ -910,29 +994,69 @@ async def execute_enterprise_cleanup(
                     except Exception:
                         pass
 
-        if "temp_caches" in cats:
+        if "temp_caches" in cats or "all_operational" in cats:
             for fname in os.listdir(ROOT_DIR):
-                if fname.startswith("scratch_test_") or fname in ("test_export.pdf", "test_export.xlsx"):
+                if fname.startswith("scratch_test_") or fname in (
+                    "test_export.pdf",
+                    "test_export.xlsx",
+                ):
                     try:
                         os.remove(os.path.join(ROOT_DIR, fname))
                         files_deleted += 1
                     except Exception:
                         pass
+            bak_db = os.path.join(BACKEND_DIR, "orchestrator.db.bak")
+            if os.path.exists(bak_db):
+                try:
+                    os.remove(bak_db)
+                    files_deleted += 1
+                except Exception:
+                    pass
 
-        if "generated_exports" in cats:
-            for exp_dir in [os.path.join(BACKEND_DIR, "exports"), os.path.join(ROOT_DIR, "exports")]:
+        if "generated_exports" in cats or "all_operational" in cats:
+            for exp_dir in [
+                os.path.join(BACKEND_DIR, "exports"),
+                os.path.join(ROOT_DIR, "exports"),
+            ]:
                 if os.path.exists(exp_dir):
                     for f in os.listdir(exp_dir):
-                        try:
-                            os.remove(os.path.join(exp_dir, f))
-                            files_deleted += 1
-                        except Exception:
-                            pass
+                        if f != ".gitkeep":
+                            try:
+                                os.remove(os.path.join(exp_dir, f))
+                                files_deleted += 1
+                            except Exception:
+                                pass
+
+        if "uploads" in cats or "all_operational" in cats:
+            for up_dir in [os.path.join(BACKEND_DIR, "uploads"), os.path.join(ROOT_DIR, "uploads")]:
+                if os.path.exists(up_dir):
+                    for f in os.listdir(up_dir):
+                        if f != ".gitkeep":
+                            try:
+                                os.remove(os.path.join(up_dir, f))
+                                files_deleted += 1
+                            except Exception:
+                                pass
+
+        if "run_history" in cats or "all_operational" in cats:
+            for fname in os.listdir(BACKEND_DIR):
+                if fname.startswith("celerybeat-schedule"):
+                    try:
+                        os.remove(os.path.join(BACKEND_DIR, fname))
+                        files_deleted += 1
+                    except Exception:
+                        pass
     except Exception as fe:
         logger.warning(f"File cleanup warning: {fe}")
 
     # 5. Redis Queue Purge & Cache Invalidation
-    if "redis_runtime" in cats or "queue" in cats or "dashboard_metrics" in cats or "claims" in cats or "all_operational" in cats:
+    if (
+        "redis_runtime" in cats
+        or "queue" in cats
+        or "dashboard_metrics" in cats
+        or "claims" in cats
+        or "all_operational" in cats
+    ):
         try:
             r = redis.Redis.from_url(
                 settings.CELERY_BROKER_URL,
@@ -943,11 +1067,13 @@ async def execute_enterprise_cleanup(
                 r.flushdb()
                 redis_purged = True
             # Invalidate any cached dashboard metrics keys
-            for key_pattern in ("cache:*", "metrics:*", "stats:*", "dashboard:*"):
+            for key_pattern in ("cache:*", "metrics:*", "stats:*", "dashboard:*", "uaic:*"):
                 for k in r.keys(key_pattern):
                     r.delete(k)
 
-            if settings.CELERY_RESULT_BACKEND and ("redis_runtime" in cats or "queue" in cats or "all_operational" in cats):
+            if settings.CELERY_RESULT_BACKEND and (
+                "redis_runtime" in cats or "queue" in cats or "all_operational" in cats
+            ):
                 r_back = redis.Redis.from_url(
                     settings.CELERY_RESULT_BACKEND,
                     socket_connect_timeout=1.0,
@@ -979,3 +1105,164 @@ async def execute_enterprise_cleanup(
         message=f"Cleanup completed successfully. {total_recs} database records and {files_deleted} files deleted.",
         details={"operator": operator, "categories": cats},
     )
+
+
+async def execute_complete_purge(
+    reset_settings_to_default: bool = False,
+    operator: str = "ENTERPRISE_CONSOLE",
+) -> dict[str, Any]:
+    """Execute complete enterprise purge across SQLite, Docker PostgreSQL, Redis, and all physical files.
+
+    Wipes all 13 tables on both database engines, deletes all screenshots, logs,
+    uploads, exports, and Redis queue data, providing a complete factory reset.
+    """
+    import sqlite3
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    report: dict[str, Any] = {
+        "sqlite_records_deleted": 0,
+        "postgres_records_deleted": 0,
+        "files_deleted": 0,
+        "redis_purged": False,
+        "databases_cleaned": [],
+    }
+
+    tables_to_wipe = [
+        "match_pairs",
+        "scraped_court_cases",
+        "filtered_out_cases",
+        "guidewire_activities",
+        "error_screenshots",
+        "notifications",
+        "claim_records",
+        "ingestion_batches",
+        "audit_logs",
+        "settings_audit_logs",
+        "notification_rules",
+        "notification_templates",
+    ]
+    if reset_settings_to_default:
+        tables_to_wipe.append("automation_settings")
+
+    # 1. Clean Active Database via SQLAlchemy
+    async with TaskAsyncSessionLocal() as session:
+        try:
+            for tbl in tables_to_wipe:
+                res = await session.execute(text(f"DELETE FROM {tbl};"))
+                report["sqlite_records_deleted"] += res.rowcount or 0
+            await session.commit()
+            report["databases_cleaned"].append("active_session")
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Active session cleanup error: {e}")
+
+    # 2. Directly Clean SQLite file if it exists
+    sqlite_file = os.path.join(BACKEND_DIR, "orchestrator.db")
+    if os.path.exists(sqlite_file):
+        try:
+            conn = sqlite3.connect(sqlite_file)
+            cur = conn.cursor()
+            for tbl in tables_to_wipe:
+                try:
+                    cur.execute(f"DELETE FROM {tbl};")
+                except Exception:
+                    pass
+            conn.commit()
+            try:
+                cur.execute("VACUUM;")
+            except Exception:
+                pass
+            conn.close()
+            report["databases_cleaned"].append("sqlite_file")
+        except Exception as sq_err:
+            logger.warning(f"Direct SQLite cleanup warning: {sq_err}")
+
+    # 3. Clean Docker PostgreSQL on localhost:5432 if accessible
+    try:
+        pg_engine = create_async_engine(
+            "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/uaic_db",
+            echo=False,
+            connect_args={"timeout": 5.0},
+        )
+        async with pg_engine.begin() as pg_conn:
+            await pg_conn.execute(text("SET statement_timeout = '10s';"))
+            await pg_conn.execute(text("SET lock_timeout = '5s';"))
+            for tbl in tables_to_wipe:
+                try:
+                    await pg_conn.execute(text(f"DELETE FROM {tbl};"))
+                except Exception:
+                    pass
+            report["databases_cleaned"].append("docker_postgres")
+        await pg_engine.dispose()
+    except Exception as pg_err:
+        logger.info(f"PostgreSQL probe/cleanup notice: {pg_err}")
+
+    # 4. Clean physical disk files
+    files_del = 0
+    dirs_to_clean = [
+        (os.path.join(BACKEND_DIR, "screenshots"), False),
+        (os.path.join(ROOT_DIR, "screenshots"), False),
+        (os.path.join(BACKEND_DIR, "logs"), True),
+        (os.path.join(ROOT_DIR, "logs"), True),
+        (os.path.join(BACKEND_DIR, "uploads"), False),
+        (os.path.join(ROOT_DIR, "uploads"), False),
+        (os.path.join(BACKEND_DIR, "exports"), False),
+        (os.path.join(ROOT_DIR, "exports"), False),
+        (os.path.join(ROOT_DIR, ".tempmediaStorage"), False),
+    ]
+
+    for dpath, is_log in dirs_to_clean:
+        if os.path.exists(dpath):
+            for fname in os.listdir(dpath):
+                if fname == ".gitkeep":
+                    continue
+                fpath = os.path.join(dpath, fname)
+                try:
+                    if os.path.isdir(fpath):
+                        shutil.rmtree(fpath, ignore_errors=True)
+                    else:
+                        os.remove(fpath)
+                    files_del += 1
+                except Exception:
+                    pass
+
+    # Celery beat files & backup files
+    for fname in os.listdir(BACKEND_DIR):
+        if fname.startswith("celerybeat-schedule") or fname.endswith(".bak"):
+            try:
+                os.remove(os.path.join(BACKEND_DIR, fname))
+                files_del += 1
+            except Exception:
+                pass
+
+    report["files_deleted"] = files_del
+
+    # 5. Flush Redis
+    try:
+        r = redis.Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=1.0)
+        r.flushdb()
+        if settings.CELERY_RESULT_BACKEND:
+            r_back = redis.Redis.from_url(
+                settings.CELERY_RESULT_BACKEND, socket_connect_timeout=1.0
+            )
+            r_back.flushdb()
+        report["redis_purged"] = True
+    except Exception:
+        pass
+
+    # 6. Ensure default system settings exist
+    try:
+        from app.services.settings_service import (
+            get_system_settings_async,
+            save_system_settings_async,
+        )
+
+        cfg = await get_system_settings_async()
+        await save_system_settings_async(cfg)
+    except Exception as set_err:
+        logger.warning(f"System settings baseline notice: {set_err}")
+
+    logger.info(f"Complete enterprise purge executed by {operator}: {report}")
+    return report

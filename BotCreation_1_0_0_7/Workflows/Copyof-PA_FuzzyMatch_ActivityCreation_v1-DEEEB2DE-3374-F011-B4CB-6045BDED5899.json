@@ -1,0 +1,873 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_commondataserviceforapps": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "Cr8ea14_shared_commondataserviceforapps_364ca01db8c844019092b4fe7d82fdc6"
+        },
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        }
+      },
+      "shared_webcontentsv2": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "uaic_sharedwebcontentsv2_8c5a5"
+        },
+        "api": {
+          "name": "shared_webcontentsv2"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "Var_HTTP_ActivityCreation (uaic_Var_HTTP_ActivityCreation_Dev)": {
+          "defaultValue": " https://uaic-gwcp-uat-igoauthproxy.api.epsilon-1-us-east-1.guidewire.net/api/powerapps/caseupdate",
+          "type": "String",
+          "metadata": {
+            "schemaName": "uaic_Var_HTTP_ActivityCreation_Dev"
+          }
+        },
+        "Var_Fuzzymatch (uaic_Var_Fuzzymatch_Dev)": {
+          "defaultValue": "https://sdph0in2pg.execute-api.us-east-1.amazonaws.com/default/myFuzzyMatchPythonAPIFunction",
+          "type": "String",
+          "metadata": {
+            "schemaName": "uaic_Var_Fuzzymatch_Dev"
+          }
+        }
+      },
+      "triggers": {
+        "When_a_row_is_added,_modified_or_deleted": {
+          "metadata": {
+            "operationMetadataId": "660cc267-8883-40af-a6ff-cd487df50f18"
+          },
+          "type": "OpenApiConnectionWebhook",
+          "inputs": {
+            "parameters": {
+              "subscriptionRequest/message": 3,
+              "subscriptionRequest/entityname": "uaic_uaic_bot_creation_database",
+              "subscriptionRequest/scope": 4,
+              "subscriptionRequest/filteringattributes": "uaic_fuzzymatchflowstatus",
+              "subscriptionRequest/filterexpression": "uaic_fuzzymatchflowstatus eq 870300000"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+              "operationId": "SubscribeWebhookTrigger",
+              "connectionName": "shared_commondataserviceforapps"
+            }
+          },
+          "conditions": []
+        }
+      },
+      "actions": {
+        "Get_a_row_by_ID": {
+          "runAfter": {
+            "IntVarMatchedCases": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "362dcd76-d12d-470f-90de-91b6c8811b01"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "entityName": "uaic_uaic_bot_creation_databases",
+              "recordId": "@triggerOutputs()?['body/uaic_uaic_bot_creation_databaseid']"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+              "operationId": "GetItem",
+              "connectionName": "shared_commondataserviceforapps"
+            }
+          }
+        },
+        "Update_a_row": {
+          "runAfter": {
+            "IntVarSiteDatalist": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "136a2f6d-1a1f-4cdc-a0dc-744dd53d6783"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "entityName": "uaic_uaic_bot_creation_databases",
+              "recordId": "@outputs('Get_a_row_by_ID')?['body/uaic_uaic_bot_creation_databaseid']",
+              "item/uaic_fuzzymatchflowstatus": 870300001
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+              "operationId": "UpdateOnlyRecord",
+              "connectionName": "shared_commondataserviceforapps"
+            }
+          }
+        },
+        "IntVarMatchedCases": {
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "452ff103-f731-4598-bee2-a840be4a0b99"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "VarFinalMatchFoundJSON",
+                "type": "array",
+                "value": []
+              }
+            ]
+          }
+        },
+        "IntVarSiteDatalist": {
+          "runAfter": {
+            "Compose_SiteDataList": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "becf46a1-1a7d-4c88-b48a-36374e3945e0"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "VarSiteDataList",
+                "type": "array",
+                "value": "@outputs('Compose_SiteDataList')"
+              }
+            ]
+          }
+        },
+        "Compose_SiteDataList": {
+          "runAfter": {
+            "Get_a_row_by_ID": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "561e583d-c9f5-4f32-8e07-fc4a1cc044f4"
+          },
+          "type": "Compose",
+          "inputs": [
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_fl_botstatus_broward']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_fl_jsonbody_broward']",
+              "CountyWebsite": "https://www.browardclerk.org/Web2"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_te_botstatus_travis']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_te_jsonbody_travis']",
+              "CountyWebsite": "https://odysseyweb.traviscountytx.gov/Portal/Home/Dashboard/29"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_te_botstatus_dallas']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_te_jsonbody_dallas']",
+              "CountyWebsite": "https://courtsportal.dallascounty.org/DALLASPROD/Home/Dashboard/29"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_te_botstatus_harris']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_te_jsonbody_harris']",
+              "CountyWebsite": "https://jpodysseyportal.harriscountytx.gov/OdysseyPortalJP/Home/Dashboard/29"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_fl_botstatus_hillsborough']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_fl_jsonbody_hillsborough']",
+              "CountyWebsite": "https://hover.hillsclerk.com/html/case/caseSearch.html#nav-Party-tab"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_te_botstatus_cclerk']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_te_jsonbody_cclerk']",
+              "CountyWebsite": "https://www.cclerk.hctx.net/Applications/WebSearch/"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_te_botstatus_hcdistrict']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_te_jsonbody_hcdistrict']",
+              "CountyWebsite": "https://www.hcdistrictclerk.com/eDocs/Public/Search.aspx"
+            },
+            {
+              "BotStatus": "@outputs('Get_a_row_by_ID')?['body/uaic_fl_botstatus_miami']",
+              "JSON": "@outputs('Get_a_row_by_ID')?['body/uaic_fl_jsonbody_miami']",
+              "CountyWebsite": "https://www2.miamidadeclerk.gov/ocs/Search.aspx"
+            }
+          ]
+        },
+        "Try": {
+          "actions": {
+            "Apply_to_each": {
+              "foreach": "@variables('VarSiteDataList')",
+              "actions": {
+                "Condition": {
+                  "actions": {
+                    "Compose_JSON_body": {
+                      "metadata": {
+                        "operationMetadataId": "a4075909-15de-4844-9775-8600769f775a"
+                      },
+                      "type": "Compose",
+                      "inputs": "@items('Apply_to_each')?['JSON']"
+                    },
+                    "Parse_JSON": {
+                      "runAfter": {
+                        "Compose_JSON_body": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "fd87c90c-c125-4813-a1c5-06441427d331"
+                      },
+                      "type": "ParseJson",
+                      "inputs": {
+                        "content": "@json(outputs('Compose_JSON_body'))",
+                        "schema": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "CaseNumber",
+                              "CaseStyle",
+                              "FilingDate"
+                            ],
+                            "properties": {
+                              "CaseNumber": {
+                                "type": "string"
+                              },
+                              "CaseStyle": {
+                                "type": "string"
+                              },
+                              "FilingDate": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "Apply_to_each_2": {
+                      "foreach": "@body('Parse_JSON')",
+                      "actions": {
+                        "HTTP": {
+                          "runAfter": {
+                            "Remove_new_lines_from_case_style": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "c657d18b-33c8-49ae-8db3-fbb665954fc9"
+                          },
+                          "type": "Http",
+                          "inputs": {
+                            "uri": "@parameters('Var_Fuzzymatch (uaic_Var_Fuzzymatch_Dev)')",
+                            "method": "POST",
+                            "headers": {
+                              "text1": "@{concat(outputs('Get_a_row_by_ID')?['body/uaic_claimantfirstname'], ' ',outputs('Get_a_row_by_ID')?['body/uaic_claimantlastname'] )}",
+                              "text2": "@{outputs('Remove_new_lines_from_case_style')}",
+                              "threshold": "0.5"
+                            },
+                            "retryPolicy": {
+                              "type": "none"
+                            }
+                          }
+                        },
+                        "Condition_2": {
+                          "actions": {
+                            "Compose": {
+                              "metadata": {
+                                "operationMetadataId": "a4075909-15de-4844-9775-8600769f775a"
+                              },
+                              "type": "Compose",
+                              "inputs": {
+                                "CaseNumber": "@{items('Apply_to_each_2')?['CaseNumber']}",
+                                "CaseStyle": "@{items('Apply_to_each_2')?['CaseStyle']}",
+                                "CountyWebsite": "@{items('Apply_to_each')?['CountyWebsite']}",
+                                "SuitFiledDate": "@{items('Apply_to_each_2')?['FilingDate']}"
+                              }
+                            },
+                            "Append_to_array_variable": {
+                              "runAfter": {
+                                "Compose": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "75ca9c00-7ff6-4fff-ba6a-26226ae2eece"
+                              },
+                              "type": "AppendToArrayVariable",
+                              "inputs": {
+                                "name": "VarFinalMatchFoundJSON",
+                                "value": "@outputs('Compose')"
+                              }
+                            }
+                          },
+                          "runAfter": {
+                            "HTTP": [
+                              "Succeeded"
+                            ]
+                          },
+                          "else": {
+                            "actions": {
+                              "HTTP_3": {
+                                "metadata": {
+                                  "operationMetadataId": "c657d18b-33c8-49ae-8db3-fbb665954fc9"
+                                },
+                                "type": "Http",
+                                "inputs": {
+                                  "uri": "@parameters('Var_Fuzzymatch (uaic_Var_Fuzzymatch_Dev)')",
+                                  "method": "POST",
+                                  "headers": {
+                                    "text1": "@{concat(outputs('Get_a_row_by_ID')?['body/uaic_insuredfirstname'], ' ',outputs('Get_a_row_by_ID')?['body/uaic_insuredlastname'] )}",
+                                    "text2": "@{outputs('Remove_new_lines_from_case_style')}",
+                                    "threshold": "0.5"
+                                  },
+                                  "retryPolicy": {
+                                    "type": "none"
+                                  }
+                                }
+                              },
+                              "Condition_6": {
+                                "actions": {
+                                  "Compose_3": {
+                                    "metadata": {
+                                      "operationMetadataId": "a4075909-15de-4844-9775-8600769f775a"
+                                    },
+                                    "type": "Compose",
+                                    "inputs": {
+                                      "CaseNumber": "@{items('Apply_to_each_2')?['CaseNumber']}",
+                                      "CaseStyle": "@{items('Apply_to_each_2')?['CaseStyle']}",
+                                      "CountyWebsite": "@{items('Apply_to_each')?['CountyWebsite']}",
+                                      "SuitFiledDate": "@{items('Apply_to_each_2')?['FilingDate']}"
+                                    }
+                                  },
+                                  "Append_to_array_variable_3": {
+                                    "runAfter": {
+                                      "Compose_3": [
+                                        "Succeeded"
+                                      ]
+                                    },
+                                    "metadata": {
+                                      "operationMetadataId": "75ca9c00-7ff6-4fff-ba6a-26226ae2eece"
+                                    },
+                                    "type": "AppendToArrayVariable",
+                                    "inputs": {
+                                      "name": "VarFinalMatchFoundJSON",
+                                      "value": "@outputs('Compose_3')"
+                                    }
+                                  }
+                                },
+                                "runAfter": {
+                                  "HTTP_3": [
+                                    "Succeeded"
+                                  ]
+                                },
+                                "else": {
+                                  "actions": {
+                                    "HTTP_4": {
+                                      "metadata": {
+                                        "operationMetadataId": "c657d18b-33c8-49ae-8db3-fbb665954fc9"
+                                      },
+                                      "type": "Http",
+                                      "inputs": {
+                                        "uri": "@parameters('Var_Fuzzymatch (uaic_Var_Fuzzymatch_Dev)')",
+                                        "method": "POST",
+                                        "headers": {
+                                          "text1": "@{concat(outputs('Get_a_row_by_ID')?['body/uaic_driverfirstnameinsuredvehicle'], ' ',outputs('Get_a_row_by_ID')?['body/uaic_driverlastnameinsuredvehicle'] )}",
+                                          "text2": "@{outputs('Remove_new_lines_from_case_style')}",
+                                          "threshold": "0.5"
+                                        },
+                                        "retryPolicy": {
+                                          "type": "none"
+                                        }
+                                      }
+                                    },
+                                    "Condition_7": {
+                                      "actions": {
+                                        "Compose_4": {
+                                          "metadata": {
+                                            "operationMetadataId": "a4075909-15de-4844-9775-8600769f775a"
+                                          },
+                                          "type": "Compose",
+                                          "inputs": {
+                                            "CaseNumber": "@{items('Apply_to_each_2')?['CaseNumber']}",
+                                            "CaseStyle": "@{items('Apply_to_each_2')?['CaseStyle']}",
+                                            "CountyWebsite": "@{items('Apply_to_each')?['CountyWebsite']}",
+                                            "SuitFiledDate": "@{items('Apply_to_each_2')?['FilingDate']}"
+                                          }
+                                        },
+                                        "Append_to_array_variable_4": {
+                                          "runAfter": {
+                                            "Compose_4": [
+                                              "Succeeded"
+                                            ]
+                                          },
+                                          "metadata": {
+                                            "operationMetadataId": "75ca9c00-7ff6-4fff-ba6a-26226ae2eece"
+                                          },
+                                          "type": "AppendToArrayVariable",
+                                          "inputs": {
+                                            "name": "VarFinalMatchFoundJSON",
+                                            "value": "@outputs('Compose_4')"
+                                          }
+                                        }
+                                      },
+                                      "runAfter": {
+                                        "HTTP_4": [
+                                          "Succeeded"
+                                        ]
+                                      },
+                                      "else": {
+                                        "actions": {}
+                                      },
+                                      "expression": {
+                                        "equals": [
+                                          "@body('HTTP_4')['body']['Result']",
+                                          "Match Found"
+                                        ]
+                                      },
+                                      "metadata": {
+                                        "operationMetadataId": "f1402832-ecfc-4b4c-9f7a-b89ea421a33c"
+                                      },
+                                      "type": "If"
+                                    }
+                                  }
+                                },
+                                "expression": {
+                                  "equals": [
+                                    "@body('HTTP_3')['body']['Result']",
+                                    "Match Found"
+                                  ]
+                                },
+                                "metadata": {
+                                  "operationMetadataId": "f1402832-ecfc-4b4c-9f7a-b89ea421a33c"
+                                },
+                                "type": "If"
+                              }
+                            }
+                          },
+                          "expression": {
+                            "equals": [
+                              "@body('HTTP')['body']['Result']",
+                              "Match Found"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "f1402832-ecfc-4b4c-9f7a-b89ea421a33c"
+                          },
+                          "type": "If"
+                        },
+                        "Remove_new_lines_from_case_style": {
+                          "metadata": {
+                            "operationMetadataId": "c73b1df3-fe95-4840-98b2-71efce9d830b"
+                          },
+                          "type": "Compose",
+                          "inputs": "@trim(replace(replace(replace(replace(replace(replace(replace(item()?['CaseStyle'], decodeUriComponent('%0D%0A'), ' '), decodeUriComponent('%0A'), ' '), ' ', ' '), '(', ''), ')', ''), '  ', ' '), '  ', ' '))"
+                        }
+                      },
+                      "runAfter": {
+                        "Parse_JSON": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "32b30344-5009-42ef-aae4-e7cf76a1123e"
+                      },
+                      "type": "Foreach",
+                      "runtimeConfiguration": {
+                        "concurrency": {
+                          "repetitions": 50
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {
+                      "Compose_1": {
+                        "metadata": {
+                          "operationMetadataId": "2f5687d9-4d3c-417c-883e-989038a895ed"
+                        },
+                        "type": "Compose",
+                        "inputs": "Flow Failed"
+                      }
+                    }
+                  },
+                  "expression": {
+                    "and": [
+                      {
+                        "equals": [
+                          "@item()?['BotStatus']",
+                          870300001
+                        ]
+                      },
+                      {
+                        "not": {
+                          "equals": [
+                            "@item()?['JSON']",
+                            "@null"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "a56798a4-463f-4480-a9dd-cb595e7d286d"
+                  },
+                  "type": "If"
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "2861b151-323c-4a2d-9dae-feeacabfe20e"
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 50
+                }
+              }
+            },
+            "Condition_5": {
+              "actions": {
+                "Set_variable": {
+                  "metadata": {
+                    "operationMetadataId": "88b9eb5e-9f81-4989-ab38-6960b91d47ec"
+                  },
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "VarFinalPayload",
+                    "value": {
+                      "ClaimNumber": "@{if(equals(length(outputs('Get_a_row_by_ID')?['body/uaic_claimnumber']), 9), concat('0', string(outputs('Get_a_row_by_ID')?['body/uaic_claimnumber'])), string(outputs('Get_a_row_by_ID')?['body/uaic_claimnumber']))}",
+                      "ExposureNumber": "@{triggerOutputs()?['body/uaic_exposurenumber']}",
+                      "CaseItems": "@variables('VarFinalMatchFoundJSON')"
+                    }
+                  }
+                },
+                "Compose_final_json": {
+                  "runAfter": {
+                    "Set_variable": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "37437e6b-e331-460f-8131-d4f810fda987"
+                  },
+                  "type": "Compose",
+                  "inputs": "@variables('VarFinalPayload')"
+                },
+                "Invoke_an_HTTP_request": {
+                  "runAfter": {
+                    "Compose_final_json": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "1a9d232e-3a05-458e-9fc4-12a249720245"
+                  },
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "parameters": {
+                      "request/method": "POST",
+                      "request/url": "@parameters('Var_HTTP_ActivityCreation (uaic_Var_HTTP_ActivityCreation_Dev)')",
+                      "request/body": "@outputs('Compose_final_json')"
+                    },
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_webcontentsv2",
+                      "operationId": "InvokeHttp",
+                      "connectionName": "shared_webcontentsv2"
+                    }
+                  }
+                },
+                "Update_a_row_2": {
+                  "runAfter": {
+                    "Invoke_an_HTTP_request": [
+                      "Succeeded"
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "4674506c-3c4f-4ade-be82-10e9e0a3791a"
+                  },
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "parameters": {
+                      "entityName": "uaic_uaic_bot_creation_databases",
+                      "recordId": "@outputs('Update_a_row')?['body/uaic_uaic_bot_creation_databaseid']",
+                      "item/uaic_activityid": "@body('Invoke_an_HTTP_request')?['ActivityID']",
+                      "item/uaic_finalmatchedjson": "@outputs('Compose_final_json')",
+                      "item/uaic_fuzzymatchflowstatus": 870300002
+                    },
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                      "operationId": "UpdateOnlyRecord",
+                      "connectionName": "shared_commondataserviceforapps"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                "Apply_to_each": [
+                  "Succeeded"
+                ]
+              },
+              "else": {
+                "actions": {
+                  "Update_a_row_3": {
+                    "metadata": {
+                      "operationMetadataId": "4674506c-3c4f-4ade-be82-10e9e0a3791a"
+                    },
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "parameters": {
+                        "entityName": "uaic_uaic_bot_creation_databases",
+                        "recordId": "@outputs('Update_a_row')?['body/uaic_uaic_bot_creation_databaseid']",
+                        "item/uaic_fuzzymatchflowstatus": 870300003
+                      },
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                        "operationId": "UpdateOnlyRecord",
+                        "connectionName": "shared_commondataserviceforapps"
+                      }
+                    }
+                  }
+                }
+              },
+              "expression": {
+                "greater": [
+                  "@length(variables('VarFinalMatchFoundJSON'))",
+                  0
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "4a1478f0-be4b-4a05-aa81-9aa718a6455f"
+              },
+              "type": "If"
+            }
+          },
+          "runAfter": {
+            "Update_a_row": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "6683169c-ec2a-48ee-8cff-18d7dc6066da"
+          },
+          "type": "Scope"
+        },
+        "Catch": {
+          "actions": {
+            "Apply_to_each_3": {
+              "foreach": "@variables('VarSiteDataList')",
+              "actions": {
+                "Condition_3": {
+                  "actions": {
+                    "Compose_JSON_body_2": {
+                      "metadata": {
+                        "operationMetadataId": "a4075909-15de-4844-9775-8600769f775a"
+                      },
+                      "type": "Compose",
+                      "inputs": "@items('Apply_to_each_3')?['JSON']"
+                    },
+                    "Parse_JSON_2": {
+                      "runAfter": {
+                        "Compose_JSON_body_2": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "fd87c90c-c125-4813-a1c5-06441427d331"
+                      },
+                      "type": "ParseJson",
+                      "inputs": {
+                        "content": "@json(outputs('Compose_JSON_body_2'))",
+                        "schema": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "CaseNumber",
+                              "CaseStyle",
+                              "FilingDate"
+                            ],
+                            "properties": {
+                              "CaseNumber": {
+                                "type": "string"
+                              },
+                              "CaseStyle": {
+                                "type": "string"
+                              },
+                              "FilingDate": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "Apply_to_each_4": {
+                      "foreach": "@body('Parse_JSON_2')",
+                      "actions": {
+                        "ComposeCaseStyle_2": {
+                          "metadata": {
+                            "operationMetadataId": "b1484e51-9f23-4c88-8f0d-dfa6b9106245"
+                          },
+                          "type": "Compose",
+                          "inputs": "@trim(replace(replace(replace(replace(replace(replace(replace(item()?['CaseStyle'], decodeUriComponent('%0D%0A'), ' '), decodeUriComponent('%0A'), ' '), ' ', ' '), '(', ''), ')', ''), '  ', ' '), '  ', ' '))"
+                        },
+                        "HTTP_2": {
+                          "runAfter": {
+                            "ComposeCaseStyle_2": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "c657d18b-33c8-49ae-8db3-fbb665954fc9"
+                          },
+                          "type": "Http",
+                          "inputs": {
+                            "uri": "@parameters('Var_Fuzzymatch (uaic_Var_Fuzzymatch_Dev)')",
+                            "method": "POST",
+                            "headers": {
+                              "text1": "@{concat(outputs('Get_a_row_by_ID')?['body/uaic_claimantfirstname'], ' ',outputs('Get_a_row_by_ID')?['body/uaic_claimantlastname'] )}",
+                              "text2": "@{outputs('ComposeCaseStyle_2')}",
+                              "threshold": "0.8"
+                            }
+                          }
+                        },
+                        "Condition_4": {
+                          "actions": {
+                            "Compose_2": {
+                              "metadata": {
+                                "operationMetadataId": "b1484e51-9f23-4c88-8f0d-dfa6b9106245"
+                              },
+                              "type": "Compose",
+                              "inputs": {
+                                "CaseNumber": "@{items('Apply_to_each_4')?['CaseNumber']}",
+                                "CaseStyle": "@{items('Apply_to_each_4')?['CaseStyle']}",
+                                "FilingDate": "@{items('Apply_to_each_4')?['FilingDate']}"
+                              }
+                            },
+                            "Append_to_array_variable_2": {
+                              "runAfter": {
+                                "Compose_2": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "e63f6804-5ad1-47a8-a08a-21527fb67c5e"
+                              },
+                              "type": "AppendToArrayVariable",
+                              "inputs": {
+                                "name": "VarFinalMatchFoundJSON",
+                                "value": "@outputs('Compose_2')"
+                              }
+                            }
+                          },
+                          "runAfter": {
+                            "HTTP_2": [
+                              "Succeeded"
+                            ]
+                          },
+                          "else": {
+                            "actions": {}
+                          },
+                          "expression": {
+                            "equals": [
+                              "@body('HTTP_2')['body']['Result']",
+                              "Match Found"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "c3fdfff5-880c-4291-aa00-0a263883bb5f"
+                          },
+                          "type": "If"
+                        }
+                      },
+                      "runAfter": {
+                        "Parse_JSON_2": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "32b30344-5009-42ef-aae4-e7cf76a1123e"
+                      },
+                      "type": "Foreach"
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "expression": {
+                    "and": [
+                      {
+                        "equals": [
+                          "@item()?['BotStatus']",
+                          870300001
+                        ]
+                      },
+                      {
+                        "not": {
+                          "equals": [
+                            "@item()?['JSON']",
+                            "@null"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "a56798a4-463f-4480-a9dd-cb595e7d286d"
+                  },
+                  "type": "If"
+                }
+              },
+              "metadata": {
+                "operationMetadataId": "2861b151-323c-4a2d-9dae-feeacabfe20e"
+              },
+              "type": "Foreach"
+            }
+          },
+          "runAfter": {
+            "Try": [
+              "Failed",
+              "Skipped",
+              "TimedOut"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "25bdf4a4-e5d4-42b7-8a22-981144bd9551"
+          },
+          "type": "Scope"
+        },
+        "Initialize_variable": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "1567bc35-433e-4ae6-b84b-aea3d49279e4"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "VarFinalPayload",
+                "type": "object"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

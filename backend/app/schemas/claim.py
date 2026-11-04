@@ -10,6 +10,7 @@ from app.models.claim import BotStatusEnum, FuzzyMatchStatusEnum, RecordStatusEn
 
 class ClaimRowSchema(BaseModel):
     """Schema for validating raw rows parsed from Excel/CSV upload."""
+
     claim_number: str = Field(..., alias="Claim Number")
     insured_first_name: str | None = Field(None, alias="Insured First Name")
     insured_last_name: str | None = Field(None, alias="Insured Last Name")
@@ -75,24 +76,24 @@ class ClaimResponse(BaseModel):
     exposure_number: str | None = None
     primary_key: str | None = None
     dol: str | None = None
-    
+
     insured_name: str
     claimant_name: str
     driver_name: str
-    
+
     insured_first_name: str | None = None
     insured_last_name: str | None = None
     claimant_first_name: str | None = None
     claimant_last_name: str | None = None
     driver_first_name: str | None = None
     driver_last_name: str | None = None
-    
+
     loss_location_state: str | None = None
     policy_state: str | None = None
-    
+
     record_status: RecordStatusEnum
     fuzzy_match_status: FuzzyMatchStatusEnum
-    
+
     bots: list[BotStatusDetail] = []
     court_cases: list[ScrapedCaseResponse] = []
     final_matched_json: dict[str, Any] | None = None
@@ -101,7 +102,7 @@ class ClaimResponse(BaseModel):
     last_error: str | None = None
     action_timings: dict[str, Any] | None = None
     total_duration_seconds: float | None = None
-    
+
     created_at: datetime
     updated_at: datetime
     created_on: datetime | None = None
@@ -233,4 +234,3 @@ class CleanDatabaseResponse(BaseModel):
     success: bool
     message: str
     cleared_counts: dict[str, int]
-

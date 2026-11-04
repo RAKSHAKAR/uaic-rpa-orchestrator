@@ -1,6 +1,5 @@
 import os
-import json
-import xml.etree.ElementTree as ET
+
 
 def audit_v4():
     base_dir = "PowerAutomateSolutions/BotCreation_1_0_0_7"
@@ -10,7 +9,7 @@ def audit_v4():
     for vf in v4_files:
         print(f"V4 Workflow File: {vf}")
         filepath = os.path.join(workflows_dir, vf)
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             print(f"Content: {f.read()[:200]}")
 
     print("\n=== AE-002: SEARCH FOR EMAIL & NOTIFICATION KEYWORDS IN ALL FILES ===")
@@ -26,13 +25,13 @@ def audit_v4():
             if ext in [".xml", ".json", ".txt"]:
                 fp = os.path.join(root, file)
                 try:
-                    with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(fp, encoding="utf-8", errors="ignore") as f:
                         text = f.read()
                         for kw in keywords:
                             count = text.lower().count(kw.lower())
                             if count > 0:
                                 results.setdefault(kw, []).append((fp, count))
-                except Exception as e:
+                except Exception:
                     pass
 
     for kw in keywords:

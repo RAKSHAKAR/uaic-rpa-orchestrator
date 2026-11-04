@@ -2,6 +2,7 @@ import asyncio
 import ctypes
 import time
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 ext_dir = str(Path('anticaptcha-plugin_v0.83').resolve())
@@ -59,6 +60,7 @@ def automate_select_folder():
     return False
 
 import threading
+
 
 async def main():
     t = threading.Thread(target=automate_select_folder, daemon=True)

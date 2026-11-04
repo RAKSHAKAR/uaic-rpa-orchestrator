@@ -39,7 +39,9 @@ async def test_ae001_to_003_power_platform_v4_legacy_parity():
     if v4_dir.exists():
         v4_files = list(v4_dir.glob("**/*"))
         assert len(v4_files) > 0, "Expected solution export files in V4 directory"
-        has_solution_xml = any("customizations.xml" in str(f) or "solution.xml" in str(f) for f in v4_files)
+        has_solution_xml = any(
+            "customizations.xml" in str(f) or "solution.xml" in str(f) for f in v4_files
+        )
         assert has_solution_xml, "V4 Solution definition XML confirmed"
     # If directory does not exist, the filesystem check is skipped (directory removed per cleanup).
 
@@ -191,7 +193,9 @@ async def test_ae012_ae013_template_studio_crud_and_aliases():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Create/Update custom template
         custom_subject = "Automated Docket Sync - Claim {{claim_number}} (County: {{county}})"
-        custom_html = "<p>Activity {{activity_id}} posted for claim {{claim_number}} in {{county_name}}.</p>"
+        custom_html = (
+            "<p>Activity {{activity_id}} posted for claim {{claim_number}} in {{county_name}}.</p>"
+        )
 
         put_resp = await client.put(
             "/api/v1/notifications/templates/COURT_CASE_MATCHED",
@@ -286,6 +290,7 @@ async def test_ae015_ae017_guidewire_event_notifications():
 async def test_ae018_transactional_safety():
     """AE-018: Mandatory Safety Rule - Email delivery failure must NOT fail claim processing."""
     from app.tasks.fuzzy_tasks import logger as fuzzy_logger
+
     assert fuzzy_logger is not None
 
     async with AsyncSessionLocal() as db:
@@ -326,7 +331,9 @@ async def test_ae021_idempotency_deduplication():
             idempotency_key=key,
         )
         assert notif2 is not None
-        assert notif1.id == notif2.id, "Duplicate notification created instead of reusing existing record"
+        assert notif1.id == notif2.id, (
+            "Duplicate notification created instead of reusing existing record"
+        )
 
 
 @pytest.mark.asyncio

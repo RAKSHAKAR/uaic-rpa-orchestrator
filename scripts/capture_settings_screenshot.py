@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
+
 from playwright.async_api import async_playwright
+
 
 async def capture():
     output_dir = Path(__file__).resolve().parent.parent / "implementation_plan" / "Images"

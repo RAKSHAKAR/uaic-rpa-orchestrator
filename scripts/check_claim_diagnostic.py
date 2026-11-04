@@ -1,6 +1,6 @@
 import asyncio
-import sys
 import os
+import sys
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 backend_dir = os.path.join(base_dir, "backend")
@@ -12,6 +12,7 @@ os.chdir(backend_dir)
 from app.core.database import AsyncSessionLocal
 from app.models.claim import ClaimRecord
 from sqlalchemy import select
+
 
 async def main():
     async with AsyncSessionLocal() as session:

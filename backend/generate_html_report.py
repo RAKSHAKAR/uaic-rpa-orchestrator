@@ -1,8 +1,8 @@
-import xml.etree.ElementTree as ET
 import os
 import sys
-import json
+import xml.etree.ElementTree as ET
 from datetime import datetime
+
 
 def generate_report(xml_path: str, html_path: str):
     if not os.path.exists(xml_path):
@@ -29,7 +29,7 @@ def generate_report(xml_path: str, html_path: str):
         total_time += float(ts.attrib.get("time", 0.0))
 
     passed_tests = total_tests - (total_failures + total_errors + total_skipped)
-    pass_rate = round((passed_tests / total_tests * 100) if total_tests > 0 else 100, 1)
+    _pass_rate = round((passed_tests / total_tests * 100) if total_tests > 0 else 100, 1)
 
     cases = []
     category_counts = {
@@ -508,7 +508,7 @@ def generate_report(xml_path: str, html_path: str):
           </tr>
 """
 
-    html_content += f"""        </tbody>
+    html_content += """        </tbody>
       </table>
     </div>
 
@@ -528,33 +528,33 @@ def generate_report(xml_path: str, html_path: str):
   <script>
     let activeCategory = 'all';
 
-    function setCategory(cat, btn) {{
+    function setCategory(cat, btn) {
       activeCategory = cat;
       document.querySelectorAll('.filter-pills .pill').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       filterTests();
-    }}
+    }
 
-    function filterTests() {{
+    function filterTests() {
       const query = document.getElementById('searchInput').value.toLowerCase().trim();
       const rows = document.querySelectorAll('#testsTableBody tr');
       let visibleCount = 0;
 
-      rows.forEach(row => {{
+      rows.forEach(row => {
         const rowCat = row.getAttribute('data-cat');
         const rowText = row.getAttribute('data-name');
 
         const matchesCat = (activeCategory === 'all' || rowCat === activeCategory);
         const matchesQuery = (!query || rowText.includes(query));
 
-        if (matchesCat && matchesQuery) {{
+        if (matchesCat && matchesQuery) {
           row.style.display = '';
           visibleCount++;
-        }} else {{
+        } else {
           row.style.display = 'none';
-        }}
-      }});
-    }}
+        }
+      });
+    }
   </script>
 </body>
 </html>

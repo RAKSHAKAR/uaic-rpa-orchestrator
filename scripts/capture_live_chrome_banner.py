@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 rpa_profile = Path("backend/data/browser_profile/chrome").resolve()
@@ -15,7 +16,7 @@ async def main():
         )
         page = await ctx.new_page()
         # Open the authentic browser test page template
-        test_page_html = Path("backend/app/api/v1/endpoints/settings.py").read_text(encoding="utf-8")
+        Path("backend/app/api/v1/endpoints/settings.py").read_text(encoding="utf-8")
         
         # Open Google and display the verified banner
         await page.goto("https://www.google.com")

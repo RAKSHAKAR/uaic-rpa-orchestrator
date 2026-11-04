@@ -1,6 +1,7 @@
 import re
 import urllib.request
 
+
 def main():
     print("Testing http://localhost:3000/settings ...")
     req = urllib.request.Request("http://localhost:3000/settings")
